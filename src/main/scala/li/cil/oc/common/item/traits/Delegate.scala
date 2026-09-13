@@ -47,6 +47,12 @@ import net.minecraft.world.level.Level
  */
 trait Delegate extends SimpleItem {
 
+  /**
+   * 分级物品的 unlocalized name：`类名 + tier`（与语言文件键一致，例如
+   * `Memory` + 0 → `item.oc.Memory0.name`）。不分级物品返回类名本身。
+   */
+  override def unlocalizedName: String = SimpleItem.tieredName(getClass, tier)
+
   /** 原 `tooltipName`：用于 `Tooltip.get(...)` 的提示名；默认取类名，`None` 表示不显示。 */
   protected def tooltipName: Option[String] = Option(getClass.getSimpleName)
 
@@ -69,8 +75,13 @@ trait Delegate extends SimpleItem {
   /** 原 `onItemUse`。 */
   def onItemUse(stack: ItemStack, context: UseOnContext): Boolean = false
 
-  /** 原 `onItemUseFirst`。 */
-  def onItemUseFirst(stack: ItemStack, context: UseOnContext): Boolean = false
+  /**
+   * 原 `onItemUseFirst`。
+   *
+   * 注意：NeoForge 的 `IItemExtension` 已有同名同参方法（返回 `InteractionResult`），
+   * 因此这里改名加 `Hook` 后缀避免冲突，由 [[useOn]] 负责分派。
+   */
+  def onItemUseFirstHook(stack: ItemStack, context: UseOnContext): Boolean = false
 
   /** 原 `getItemUseAction`。 */
   def getItemUseAction(stack: ItemStack): UseAnim = UseAnim.NONE
@@ -100,7 +111,7 @@ trait Delegate extends SimpleItem {
 
   override def useOn(context: UseOnContext): net.minecraft.world.InteractionResult = {
     val stack = context.getItemInHand
-    if (onItemUseFirst(stack, context)) net.minecraft.world.InteractionResult.SUCCESS
+    if (onItemUseFirstHook(stack, context)) net.minecraft.world.InteractionResult.SUCCESS
     else if (onItemUse(stack, context)) net.minecraft.world.InteractionResult.SUCCESS
     else net.minecraft.world.InteractionResult.PASS
   }
@@ -126,7 +137,14 @@ trait Delegate extends SimpleItem {
   // 品质 / 颜色 / 容器
   // ----------------------------------------------------------------------- //
 
-  override def getRarity(stack: ItemStack): net.minecraft.world.item.Rarity = Rarity.byTier(tierFromDriver(stack))
+  /**
+   * 原 `getRarity(stack)`。
+   *
+   * 1.21.1 的物品品质在注册时通过 `Item.Properties#rarity` 固定，`Item` 上**没有**可覆写的
+   * `getRarity`，因此这里保留为普通钩子；具体物品若要按等级显示品质，
+   * 应在注册时把 [[rarity]] 的结果传给 `Item.Properties#rarity`。
+   */
+  def rarity(stack: ItemStack): net.minecraft.world.item.Rarity = Rarity.byTier(tierFromDriver(stack))
 
   protected def tierFromDriver(stack: ItemStack): Int =
     api.Driver.driverFor(stack) match {

@@ -26,6 +26,19 @@ object RobotData {
   }
 
   def randomName: String = if (names.nonEmpty) names((math.random * names.length).toInt) else "Robot"
+
+  /**
+   * 判断驱动器是否是屏幕驱动。
+   *
+   * 原版直接与 `integration.opencomputers.DriverScreen`（单例 object）比较；
+   * 该集成包属于后续阶段，为避免编译期依赖，这里按**类名**比较，
+   * 同时兼容单例 object（`DriverScreen$`）与实例（`DriverScreen`）。
+   */
+  def isScreenDriver(driver: AnyRef): Boolean = driver != null && {
+    val name = driver.getClass.getName
+    name == "li.cil.oc.integration.opencomputers.DriverScreen" ||
+      name == "li.cil.oc.integration.opencomputers.DriverScreen$"
+  }
 }
 
 /**
@@ -103,7 +116,7 @@ class RobotData extends ItemData(Constants.BlockName.Robot) {
     // 清掉所有节点地址等信息。用于创造模式「拾取」机器人。
     val newInfo = new RobotData(stack)
     newInfo.components.foreach(cs => Option(api.Driver.driverFor(cs)) match {
-      case Some(driver) if driver == li.cil.oc.integration.opencomputers.DriverScreen =>
+      case Some(driver) if RobotData.isScreenDriver(driver) =>
         val nbt = driver.dataTag(cs)
         for (tagName <- nbt.getAllKeys.asScala.toArray) {
           nbt.remove(tagName)
