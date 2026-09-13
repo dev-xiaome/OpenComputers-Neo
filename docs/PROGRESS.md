@@ -1,5 +1,13 @@
 # 移植进度
 
+> **暂停点（快照提交 43cf8bb）**：`common/block` 与 `common/tileentity` 移植到一半，尚未完成。
+> 恢复时请先看本文件 + `git log --oneline`，然后：
+> 1. 把 `li/cil/oc/common/block/**`、`li/cil/oc/common/tileentity/**`、`li/cil/oc/common/inventory/**`
+>    补进 `gradle.properties` 的 `scala_ported_packages`；
+> 2. 跑 `.\gradlew.bat build --console=plain` 清剩余编译错误；
+> 3. 跑 `.\tools\normalize-assets.ps1` 兜底资源大小写；
+> 4. `.\gradlew.bat runClient` 验证创造模式标签页里出现 OC 物品（物品层已完成，共 118 个条目）。
+
 > 目标：OpenComputers 1.8.10（MC 1.7.10 / Forge，Scala 2.11 + Java）
 > → OpenComputers Neo（MC 1.21.1 / NeoForge 21.1.244，Scala 2.13.14 + Java 21）
 
