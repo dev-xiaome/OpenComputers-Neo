@@ -2,71 +2,80 @@ package li.cil.oc.common.block
 
 import li.cil.oc.common.GuiType
 import li.cil.oc.common.tileentity
-import li.cil.oc.integration.Mods
-import li.cil.oc.util.Tooltip
+import net.minecraft.core.BlockPos
+import net.minecraft.world.InteractionResult
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
-import net.minecraft.core.Direction
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.world.level.block.state.{BlockBehaviour, BlockState}
+import net.minecraft.world.phys.BlockHitResult
 
-class DiskDrive extends SimpleBlock with traits.GUI {
-  override protected def customTextures = Array(
-    None,
-    None,
-    Some("DiskDriveSide"),
-    Some("DiskDriveFront"),
-    Some("DiskDriveSide"),
-    Some("DiskDriveSide")
-  )
-
-  // ----------------------------------------------------------------------- //
-
-  override protected def tooltipTail(metadata: Int, stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {
-    super.tooltipTail(metadata, stack, player, tooltip, advanced)
-    if (Mods.ComputerCraft.isAvailable) {
-      tooltip.addAll(Tooltip.get(getClass.getSimpleName + ".CC"))
-    }
-  }
-
-  // ----------------------------------------------------------------------- //
+/**
+ * 软驱（原 1.7.10 `DiskDrive`）。
+ *
+ * 1.21.1 迁移要点：
+ *  - `hasComparatorInputOverride` / `getComparatorInputOverride` 钩子改写为
+ *    [[SimpleBlockHooks.providesAnalogOutput]] / [[SimpleBlockHooks.analogOutputSignal]]；
+ *    原判空 `getStackInSlot(0) != null` 改为 `!isEmpty`（移植后的 `IItemHandler` 返回
+ *    `ItemStack.EMPTY` 而不是 `null`）。
+ *  - `isItemValidForSlot` → `IItemHandler#isItemValid`。
+ *  - `player.inventory.decrStackSize(currentItem, 1)` → `player.getMainHandItem.split(1)`
+ *    （1.21.1 的 `Inventory` 不再提供按「当前选中槽」取放的方法）。
+ *  - `onBlockActivated` → [[SimpleBlockHooks.useBlock]]：潜行时插/取磁盘，否则交给 GUI trait。
+ *  - 提示尾部原本在装有 ComputerCraft 时追加 `.CC` 一行，
+ *    TODO(integration): CC 集成不再移植，相关分支删除。
+ *  - `getIcon` / `customTextures` 删除，面纹理改由模型 JSON 指定。
+ *
+ * 纹理（原 `customTextures` 面序 DOWN, UP, NORTH, SOUTH, WEST, EAST）：
+ * 下 / 上 = 未指定（沿用 `GenericTop`），北 = `DiskDriveSide`，南 = `DiskDriveFront`，
+ * 西 / 东 = `DiskDriveSide`。
+ */
+class DiskDrive(properties: BlockBehaviour.Properties = SimpleBlock.properties())
+  extends SimpleBlock(properties) with traits.GUI {
 
   override def guiType = GuiType.DiskDrive
 
-  override def hasTileEntity(metadata: Int) = true
-
-  override def createTileEntity(world: Level, metadata: Int) = new tileentity.DiskDrive()
+  override def createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity =
+    new tileentity.DiskDrive(pos, state)
 
   // ----------------------------------------------------------------------- //
+  // 比较器
+  // ----------------------------------------------------------------------- //
 
-  override def hasComparatorInputOverride = true
+  override def providesAnalogOutput = true
 
-  override def getComparatorInputOverride(world: Level, x: Int, y: Int, z: Int, side: Int) =
-    world.getTileEntity(x, y, z) match {
-      case drive: tileentity.DiskDrive if drive.getStackInSlot(0) != null => 15
+  override def analogOutputSignal(state: BlockState, level: Level, pos: BlockPos): Int =
+    level.getBlockEntity(pos) match {
+      case drive: tileentity.DiskDrive if !drive.getStackInSlot(0).isEmpty => 15
       case _ => 0
     }
 
   // ----------------------------------------------------------------------- //
+  // 交互
+  // ----------------------------------------------------------------------- //
 
-  override def onBlockActivated(world: Level, x: Int, y: Int, z: Int, player: Player,
-                                side: Direction, hitX: Float, hitY: Float, hitZ: Float) = {
-    // Behavior: sneaking -> Insert[+Eject], not sneaking -> GUI.
-    if (player.isSneaking) world.getTileEntity(x, y, z) match {
+  /**
+   * 行为：潜行 → 插入（已有磁盘时先弹出），不潜行 → 打开 GUI。
+   */
+  override def useBlock(state: BlockState, level: Level, pos: BlockPos, player: Player, hit: BlockHitResult): InteractionResult = {
+    if (player.isShiftKeyDown) level.getBlockEntity(pos) match {
       case drive: tileentity.DiskDrive =>
-        val isDiskInDrive = drive.getStackInSlot(0) != null
-        val isHoldingDisk = drive.isItemValidForSlot(0, player.getHeldItem)
+        val isDiskInDrive = !drive.getStackInSlot(0).isEmpty
+        val isHoldingDisk = drive.isItemValid(0, player.getMainHandItem)
         if (isDiskInDrive) {
-          if (!world.isRemote) {
+          if (!level.isClientSide) {
             drive.dropSlot(0, 1, Option(drive.facing))
           }
         }
         if (isHoldingDisk) {
           // Insert the disk.
-          drive.setInventorySlotContents(0, player.inventory.decrStackSize(player.inventory.currentItem, 1))
+          drive.setInventorySlotContents(0, player.getMainHandItem.split(1))
         }
-        isDiskInDrive || isHoldingDisk
-      case _ => false
+        if (isDiskInDrive || isHoldingDisk) InteractionResult.sidedSuccess(level.isClientSide)
+        else InteractionResult.PASS
+      case _ => InteractionResult.PASS
     }
-    else super.onBlockActivated(world, x, y, z, player, side, hitX, hitY, hitZ)
+    else super.useBlock(state, level, pos, player, hit)
   }
 }

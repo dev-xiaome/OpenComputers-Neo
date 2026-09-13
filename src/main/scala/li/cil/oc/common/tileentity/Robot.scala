@@ -332,7 +332,13 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
     // `common.EventHandler` 未纳入编译范围（1.21.1 的 ticker 由方块侧决定），暂不处理。
   }
 
-  override protected def initialize(): Unit = {
+  /**
+   * 机器人本体初始化。
+   *
+   * 注意：这里不能用 `protected`（trait 里是 `protected`，但外层 [[RobotProxy]] 需要调用它），
+   * 因此放宽为 `public`；原 1.7.10 是由代理的 `validate()` 调用的。
+   */
+  override def initialize(): Unit = {
     if (isServer && node != null) {
       // Ensure we have a node address, because the proxy needs this to initialize
       // its own node to the same address ours has.
@@ -573,8 +579,8 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
   }
   else Tier.None
 
-  /** 工具槽的内容（原 `items(0)`；`items` 现在是 `Option[ItemStack]` 数组，返回 `null` 时为空）。 */
-  def tools: Array[Option[ItemStack]] = Array(Option(super.getStackInSlot(0)))
+  /** 工具槽的内容（原 `items(0)`）。 */
+  def tools: Array[Option[ItemStack]] = Array(Option(getStackInSlot(0)))
 
   def isToolSlot(slot: Int) = slot == 0
 
