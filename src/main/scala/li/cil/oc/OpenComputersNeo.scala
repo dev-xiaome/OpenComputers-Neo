@@ -2,6 +2,7 @@ package li.cil.oc
 
 import li.cil.oc.api.CreativeTab
 import li.cil.oc.common.DataComponents
+import li.cil.oc.common.init.Registry
 import net.neoforged.bus.api.IEventBus
 import net.neoforged.fml.ModContainer
 import net.neoforged.fml.common.Mod
@@ -24,6 +25,11 @@ class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
 
   DataComponents.REGISTRY.register(modBus)
   CreativeTab.register(modBus)
+
+  // 注册层：方块 / 物品 / 方块实体 / 菜单的 DeferredRegister 全部在这里挂上事件总线，
+  // 同时接线创造模式标签页（BuildCreativeModeTabContentsEvent）与方块实体合法方块
+  // （BlockEntityTypeAddBlocksEvent）。必须在 mod 构造期完成。
+  Registry.init(modBus)
 
   modBus.addListener(new java.util.function.Consumer[FMLCommonSetupEvent] {
     override def accept(event: FMLCommonSetupEvent): Unit = event.enqueueWork(new Runnable {

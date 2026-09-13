@@ -45,11 +45,17 @@
 
 ## 待办（按顺序）
 
-1. `li.cil.oc.util` 全部编译通过
-2. `li.cil.oc.common`：方块 / 物品 / 注册 / 网络包（1.21.1 风格重写注册层）
-3. `li.cil.oc.server`：`fs` → `machine`（含 Lua）→ `component`
-4. `li.cil.oc.client`：方块实体渲染器、GUI、键位
-5. jarJar 打包运行时依赖（scala-library、typesafe config、luaj）
+1. `li.cil.oc.common` 阶段 2（进行中）
+   - ✅ `common/Tier.scala`、`common/GuiType.scala`、`common/Slot.scala`、`common/Sound.scala` + `common/SoundEvents.java`
+   - 🔄 注册层（`common/init/**`）+ `common/item/traits/**` + `common/item/data/**` —— 代理施工中
+   - 🔄 网络传输层（`common/PacketBuilder|PacketType|PacketHandler`，新建 `common/network/`）—— 代理施工中
+   - ⬜ `common/item/*.scala` 顶层（97 文件）：把 `Delegator` + damage 子类型改造成**每个 `Constants.ItemName.*` 一个独立 `Item`**
+   - ⬜ `common/block/**`（40 文件）：`BlockBehaviour.Properties` + `BlockState` 属性 + `VoxelShape`，`ItemBlock` → `BlockItem`
+   - ⬜ `common/tileentity/**`（62 文件）：`BlockEntity(BlockEntityType, BlockPos, BlockState)` + `EntityBlock#getTicker`
+   - ⬜ `common/template`、`common/inventory`、`common/container`、`common/recipe`、`common/event`、`common/component`
+2. `li.cil.oc.server`：`fs` → `machine`（含 Lua）→ `component`
+3. `li.cil.oc.client`：方块实体渲染器、GUI、键位
+4. jarJar 打包运行时依赖（scala-library、typesafe config、luaj）—— 已在 `build.gradle` 配好，发布前需验证产物
 
 ## 常用命令
 

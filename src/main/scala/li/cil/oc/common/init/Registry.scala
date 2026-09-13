@@ -8,16 +8,14 @@ import li.cil.oc.Settings
 import li.cil.oc.api.detail.ItemAPI
 import li.cil.oc.api.detail.ItemInfo
 import li.cil.oc.api.fs.FileSystem
-import li.cil.oc.common.Tier
-import net.minecraft.core.Registry
-import net.minecraft.core.registries.{Registries, RegistrySynchronization}
+import net.minecraft.core.registries.Registries
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.inventory.MenuType
-import net.minecraft.world.item.{BlockItem, Item, ItemStack}
+import net.minecraft.world.item.{BlockItem, CreativeModeTab, Item, ItemStack}
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
-import net.neoforged.bus.api.IEventBus
+import net.neoforged.bus.api.{EventPriority, IEventBus}
+import net.neoforged.neoforge.event.{BlockEntityTypeAddBlocksEvent, BuildCreativeModeTabContentsEvent}
 import net.neoforged.neoforge.registries.{DeferredBlock, DeferredHolder, DeferredItem, DeferredRegister}
 
 import scala.collection.mutable
@@ -25,22 +23,35 @@ import scala.collection.mutable
 /**
  * 1.21.1 风格的注册层，替代原版的 `Blocks.scala` / `Items.scala`。
  *
- * 设计要点（与 1.7.10 的差异）：
- *  - 1.7.10 用「一个物品 + damage 值」表示多个子类型（`Delegator`/`Delegate` 机制）。
- *    1.21.1 改为**每个子类型注册一个独立物品**，因此这里按名字逐个登记，
- *    `Constants.ItemName.*` / `Constants.BlockName.*` 的常量名保持不变（Lua 侧与文档依赖）。
+ * 与 1.7.10 的核心差异：
+ *  - 1.7.10 用「一个物品 + damage 值」表示多个子类型（`Delegator` / `Delegate` 机制）。
+ *    1.21.1 改为**每个子类型注册一个独立物品**，因此这里按名字逐个登记；
+ *    [[li.cil.oc.Constants.ItemName]] / [[li.cil.oc.Constants.BlockName]] 的常量名保持不变
+ *    （Lua 侧与文档依赖这些名字）。
  *  - 名称 → [[ItemInfo]] 的映射由本对象维护，等价于原 `Items.get(name)` /
- *    `api.Items.get(name)`，因此后续代码可以继续沿用这两个查询入口。
- *  - 注册（`DeferredRegister`）本身必须在 mod 构造期完成，因此
- *    [[li.cil.oc.OpenComputersNeo]] 构造时会调用 [[init]]。
+ *    `api.Items.get(name)`，后续代码可继续沿用这两个查询入口。
  *
- * 注意：本对象实现了 [[li.cil.oc.api.detail.ItemAPI]]，需要在骨架的自举阶段
- * 被赋值给 `li.cil.oc.api.API.items` 才能让 `api.Items.get(...)` 生效。
- * 具体接线由 `li.cil.oc.OpenComputers`（骨架，尚未移植）负责；
- * 在它完成之前，请直接使用 [[get]] / [[getItem]] 等方法。
+ * 使用方式：
+ * {{{
+ *   // 1) 在主类构造期（mod 构造期）调用一次：
+ *   Registry.init(modBus)
  *
- * TODO(注册·物品)：所有独立物品的注册入口 [[Items.init]] 需要等物品类移植完成后补全。
- * TODO(注册·方块)：所有方块的注册入口 [[Blocks.init]] 需要等方块类移植完成后补全。
+ *   // 2) 注册物品要等注册表事件之后才能调用 holder.value()，因此物品/方块类
+ *   //    应当只把「工厂」交给本层，由本层负责延迟求值：
+ *   Registry.registerItem(Constants.ItemName.Wrench, () => new li.cil.oc.common.item.Wrench())
+ *
+ *   // 3) 查询：
+ *   val info = Registry.get(Constants.ItemName.Wrench)     // ItemInfo
+ *   val item = Registry.getItem(Constants.ItemName.Wrench) // Item
+ *   val stack = Registry.createItemStack(Constants.ItemName.Wrench)
+ * }}}
+ *
+ * 注意：本对象实现了 [[li.cil.oc.api.detail.ItemAPI]]，需要在骨架自举阶段被赋给
+ * `li.cil.oc.api.API.items`，才能让 `li.cil.oc.api.Items.get(...)` 生效
+ * （见 [[install]]；接线由 `li.cil.oc.OpenComputers` 负责，该类尚未移植）。
+ *
+ * 待办：[[Items.init]] 需要等 `common/item` 包下的全部 scala 文件 移植完成后补全。
+ * 待办：[[Blocks.init]] 需要等 `common/block` 包下的全部 scala 文件 移植完成后补全。
  */
 object Registry extends ItemAPI {
 
@@ -58,38 +69,41 @@ object Registry extends ItemAPI {
   final val menus: DeferredRegister[MenuType[_]] =
     DeferredRegister.create(Registries.MENU, OpenComputersNeo.MODID)
 
-  /**
-   * 该方块对应的方块物品在 1.7.10 里没有（例如机器人残留、机器人代理、多方块内部方块）。
-   * 1.21.1 的方块仍然需要一个 `BlockItem` 才能被玩家放置/拾取，
-   * 只是不进入创造模式标签页；这里用该集合表示「注册方块物品但不展示」。
-   */
-  private val hiddenBlockItems = mutable.Set.empty[String]
+  // ----------------------------------------------------------------------- //
+  // 状态
+  // ----------------------------------------------------------------------- //
 
   /** 名称 → 描述符。等价于原 `Items.descriptors`。 */
   private val descriptors = mutable.Map.empty[String, ItemInfo]
 
-  /** 物品/方块实例 → 名称。等价于原 `Items.names`，用于 `get(stack)` 反查。 */
-  private val names = mutable.Map.empty[Any, String]
-
-  /** 名称 → 延迟持有对象（物品）。 */
+  /** 名称 → 物品延迟持有对象。 */
   private val itemHolders = mutable.Map.empty[String, DeferredHolder[Item, _ <: Item]]
 
-  /** 名称 → 延迟持有对象（方块）。 */
+  /** 名称 → 方块延迟持有对象。 */
   private val blockHolders = mutable.Map.empty[String, DeferredBlock[_ <: Block]]
 
-  /** 名称 → 延迟持有对象（方块物品）。 */
+  /** 名称 → 方块物品延迟持有对象。 */
   private val blockItemHolders = mutable.Map.empty[String, DeferredItem[_ <: Item]]
 
-  /** 名称 → 延迟持有对象（方块实体类型）。 */
-  private val blockEntityHolders = mutable.Map.empty[String, DeferredHolder[BlockEntityType[_], _ <: BlockEntityType[_]]]
+  /** 名称 → 方块实体类型延迟持有对象。 */
+  private val blockEntityHolders = mutable.Map.empty[String, DeferredHolder[BlockEntityType[_], BlockEntityType[_]]]
 
-  /** 创造模式标签页的展示顺序，按注册顺序保持稳定。 */
+  /** 方块实体名 → 需要绑定的方块名集合（用于 [[BlockEntityTypeAddBlocksEvent]]）。 */
+  private val blockEntityBlocks = mutable.Map.empty[String, mutable.Set[String]]
+
+  /** 创造模式标签页展示顺序（按注册顺序保持稳定）。 */
   private val creativeOrder = mutable.ArrayBuffer.empty[String]
 
+  /** 方块物品不进入创造模式标签页的方块名集合。 */
+  private val hiddenInCreativeTab = mutable.Set.empty[String]
+
+  /** 名称别名，等价于原 `Items.aliases`。 */
   private val aliases = Map(
     "dataCard" -> li.cil.oc.Constants.ItemName.DataCardTier1,
-    "wlanCard" -> li.cil.oc.Constants.ItemName.WirelessNetworkCardTier2
-  )
+    "wlanCard" -> li.cil.oc.Constants.ItemName.WirelessNetworkCardTier2)
+
+  /** 注册过的战利品软盘 / EEPROM 堆叠，供创造模式标签页追加。 */
+  private val registeredItems = mutable.ArrayBuffer.empty[ItemStack]
 
   private var initialized = false
 
@@ -97,7 +111,7 @@ object Registry extends ItemAPI {
   // 初始化
   // ----------------------------------------------------------------------- //
 
-  /** 在 mod 构造期调用；把四个 `DeferredRegister` 挂到 mod 事件总线上。 */
+  /** 在 mod 构造期调用：把各 `DeferredRegister` 挂到 mod 事件总线，并接线创造模式标签页。 */
   def init(modBus: IEventBus): Unit = {
     if (initialized) return
     initialized = true
@@ -107,27 +121,24 @@ object Registry extends ItemAPI {
     blockEntities.register(modBus)
     menus.register(modBus)
 
-    // 延迟到通用初始化阶段再补全方块实体的合法方块集合（见 patchBlockEntities）。
-    modBus.addListener(new java.util.function.Consumer[net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent] {
-      override def accept(event: net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent): Unit =
-        event.enqueueWork(new Runnable {
-          override def run(): Unit = patchBlockEntities()
-        })
-    })
+    modBus.addListener(EventPriority.NORMAL, false, classOf[BuildCreativeModeTabContentsEvent],
+      new java.util.function.Consumer[BuildCreativeModeTabContentsEvent] {
+        override def accept(event: BuildCreativeModeTabContentsEvent): Unit = addCreativeTabEntries(event)
+      })
+
+    modBus.addListener(EventPriority.NORMAL, false, classOf[BlockEntityTypeAddBlocksEvent],
+      new java.util.function.Consumer[BlockEntityTypeAddBlocksEvent] {
+        override def accept(event: BlockEntityTypeAddBlocksEvent): Unit = addBlockEntityBlocks(event)
+      })
   }
 
-  /**
-   * 1.21.1 起 `BlockEntityType` 的「合法方块集合」不再能通过 `Builder` 一次写死
-   * （`Builder.of` 仍接受可变参数，但方块类型注册时其方块往往还没注册完成），
-   * 这里统一在 `FMLCommonSetupEvent` 里把每个类型对应的方块补进注册表。
-   */
-  private def patchBlockEntities(): Unit = {
-    for ((name, holder) <- blockEntityHolders) {
-      blockHolders.get(name) match {
-        case Some(block) =>
-          val valid = Registry.get(block).asInstanceOf[mutable.Set[Block]]
-          valid += block.value()
-        case _ =>
+  /** 在 [[BlockEntityTypeAddBlocksEvent]] 中把方块补进对应的方块实体类型。 */
+  private def addBlockEntityBlocks(event: BlockEntityTypeAddBlocksEvent): Unit = {
+    for ((beName, blockNames) <- blockEntityBlocks) {
+      val beType = getBlockEntityType(beName)
+      if (beType != null) {
+        val valid = blockNames.toSeq.map(getBlock).filter(_ != null)
+        if (valid.nonEmpty) event.modify(beType, valid.toSeq: _*)
       }
     }
   }
@@ -139,31 +150,28 @@ object Registry extends ItemAPI {
   /**
    * 注册一个独立物品。
    *
-   * `name` 必须取 [[li.cil.oc.Constants.ItemName]] 中的常量（不改名），
-   * 它同时用作注册名与 [[ItemInfo.name]]。
+   * @param name     必须取 [[li.cil.oc.Constants.ItemName]] 中的常量（不改名），
+   *                 同时用作注册名与 [[ItemInfo#name]]。
+   * @param supplier 物品工厂，**注册表事件之后**才会被调用，因此可以在里面 new 物品。
    */
   def registerItem[T <: Item](name: String, supplier: Supplier[T]): DeferredItem[T] = {
     val holder = items.register(name, supplier)
-    registerItemInfo(name, holder)
-    holder
-  }
-
-  /** 注册一个物品并把既有实例登记进名称表（等价于原 `Items.registerItem(instance, id)`）。 */
-  def registerItem[T <: Item](name: String, instance: T): DeferredItem[T] =
-    registerItem(name, new Supplier[T] {
-      override def get(): T = instance
-    })
-
-  private def registerItemInfo[T <: Item](name: String, holder: DeferredHolder[Item, T]): Unit = {
     val info = new BaseItemInfo(name) {
-      override def item: Item = holder.value()
+      override def item(): Item = holder.value()
 
       override def createItemStack(size: Int): ItemStack = new ItemStack(holder.value(), size)
     }
     descriptors += name -> info
     itemHolders += name -> holder
     creativeOrder += name
+    holder
   }
+
+  /** 注册一个已有实例的物品（延迟到注册表事件后再返回该实例）。 */
+  def registerItem[T <: Item](name: String, instance: T): DeferredItem[T] =
+    registerItem(name, new Supplier[T] {
+      override def get(): T = instance
+    })
 
   // ----------------------------------------------------------------------- //
   // 注册：方块（含方块物品）
@@ -176,22 +184,19 @@ object Registry extends ItemAPI {
   /**
    * 注册方块。
    *
-   * @param withBlockItem 是否注册同名 `BlockItem`（多方块内部方块可为 `false`）。
+   * @param withBlockItem 是否注册同名 `BlockItem`（多方块内部方块可传 `false`）。
    */
   def registerBlock[T <: Block](name: String, supplier: Supplier[T], withBlockItem: Boolean): DeferredBlock[T] = {
     val holder = blocks.register(name, supplier)
     blockHolders += name -> holder
     descriptors += name -> new BaseItemInfo(name) {
-      override def block: Block = holder.value()
+      override def block(): Block = holder.value()
 
-      override def item: Item = blockItemHolders.get(name).map(_.value()).orNull
+      override def item(): Item = blockItemHolders.get(name).map(_.value()).orNull
 
       override def createItemStack(size: Int): ItemStack = new ItemStack(holder.value(), size)
     }
-    names += holder.value() -> name
-    if (withBlockItem) {
-      registerBlockItem(name, holder.value(), hidden = false)
-    }
+    if (withBlockItem) registerBlockItem(name, holder, hidden = false)
     holder
   }
 
@@ -200,31 +205,46 @@ object Registry extends ItemAPI {
    *
    * @param hidden 是否从创造模式标签页隐藏（例如机器人残留方块）。
    */
-  def registerBlockItem(name: String, block: Block, hidden: Boolean): DeferredItem[BlockItem] = {
+  def registerBlockItem[T <: Block](name: String, block: DeferredBlock[T], hidden: Boolean): DeferredItem[BlockItem] = {
     val holder = items.register(name, new Supplier[BlockItem] {
-      override def get(): BlockItem = new BlockItem(block, new Item.Properties())
+      override def get(): BlockItem = new BlockItem(block.value(), new Item.Properties())
     })
     blockItemHolders += name -> holder
-    names += holder.value() -> name
-    if (hidden) hiddenBlockItems += name else creativeOrder += name
-    val info = descriptors(name)
-    info match {
-      case base: BaseItemInfo => base.attachBlockItem(holder)
+    if (hidden) hiddenInCreativeTab += name else creativeOrder += name
+    descriptors.get(name) match {
+      case Some(base: BaseItemInfo) => base.attachBlockItem(holder)
       case _ =>
     }
     holder
   }
 
+  /** 直接给一个已实例化的方块补注册 `BlockItem`。 */
+  def registerBlockItem[T <: Block](name: String, block: T, hidden: Boolean): DeferredItem[BlockItem] =
+    registerBlockItem(name, blocks.register(name + "BlockRef", new Supplier[T] {
+      override def get(): T = block
+    }), hidden)
+
   /** 把某个方块标记为「方块物品不进入创造模式标签页」。 */
-  def hideBlockItemInCreativeTab(name: String): Unit = hiddenBlockItems += name
+  def hideBlockItemInCreativeTab(name: String): Unit = hiddenInCreativeTab += name
 
   // ----------------------------------------------------------------------- //
   // 注册：方块实体 / 菜单
   // ----------------------------------------------------------------------- //
 
-  /** 注册方块实体类型。`name` 一般沿用 `Constants.BlockName.*`。 */
+  /**
+   * 注册方块实体类型。
+   *
+   * 1.21.1 的 `BlockEntityType.Builder.of` 需要方块参数，而方块与方块实体往往互相引用，
+   * 因此这里推荐「先注册类型（不传方块），再用 [[bindBlockEntityBlock]] 绑定方块」，
+   * 绑定的方块会在 [[BlockEntityTypeAddBlocksEvent]] 里补进类型。
+   *
+   * 注意：`DeferredHolder` 的第二个类型参数是不变的，因此返回值统一用
+   * `BlockEntityType[_]`，不要试图还原具体类型。
+   *
+   * @param name 一般沿用 [[li.cil.oc.Constants.BlockName]] 中的常量名。
+   */
   def registerBlockEntity[T <: BlockEntity](name: String, supplier: Supplier[BlockEntityType[T]])
-    : DeferredHolder[BlockEntityType[_], BlockEntityType[T]] = {
+    : DeferredHolder[BlockEntityType[_], BlockEntityType[_]] = {
     val holder = blockEntities.register(name, new Supplier[BlockEntityType[_]] {
       override def get(): BlockEntityType[_] = supplier.get()
     })
@@ -232,24 +252,26 @@ object Registry extends ItemAPI {
     holder
   }
 
-  /** 注册方块实体类型的便捷写法（方块稍后通过 [[bindBlockEntityBlock]] 绑定）。 */
-  def registerBlockEntity[T <: BlockEntity](name: String,
-                                            factory: BlockEntityType.BlockEntitySupplier[T]): DeferredHolder[BlockEntityType[_], BlockEntityType[T]] =
+  /** 用 `BlockEntityType.Builder` + 方块实体构造器注册（方块集合随后用 [[bindBlockEntityBlock]] 补）。 */
+  def registerBlockEntity[T <: BlockEntity](name: String, factory: BlockEntityType.BlockEntitySupplier[T])
+    : DeferredHolder[BlockEntityType[_], BlockEntityType[_]] =
     registerBlockEntity(name, new Supplier[BlockEntityType[T]] {
-      override def get(): BlockEntityType[T] = BlockEntityType.Builder.of(factory).build(null)
+      override def get(): BlockEntityType[T] =
+        BlockEntityType.Builder.of(factory, Array.empty[Block]: _*).build(null)
     })
 
-  /** 把方块与方块实体类型关联起来（用于补 `BlockEntityType` 的合法方块集合）。 */
+  /** 把方块与方块实体类型关联起来（对应原 `GameRegistry.registerTileEntity`）。 */
   def bindBlockEntityBlock(blockName: String, blockEntityName: String): Unit =
-    blockEntitiesByBlock += blockEntityName -> blockName
-
-  private val blockEntitiesByBlock = mutable.Map.empty[String, String]
+    blockEntityBlocks.getOrElseUpdate(blockEntityName, mutable.Set.empty[String]) += blockName
 
   /** 注册菜单类型。 */
-  def registerMenu[T <: MenuType[_]](name: String, supplier: Supplier[T]): DeferredHolder[MenuType[_], T] =
-    menus.register(name, new Supplier[MenuType[_]] {
-      override def get(): T = supplier.get()
+  def registerMenu[T <: MenuType[_]](name: String, supplier: Supplier[T])
+    : DeferredHolder[MenuType[_], MenuType[_]] = {
+    val holder = menus.register(name, new Supplier[MenuType[_]] {
+      override def get(): MenuType[_] = supplier.get()
     })
+    holder
+  }
 
   // ----------------------------------------------------------------------- //
   // 查询
@@ -260,27 +282,29 @@ object Registry extends ItemAPI {
 
   override def get(stack: ItemStack): ItemInfo = {
     if (stack == null || stack.isEmpty) return null
-    val key = stack.getItem
-    // 方块物品优先按方块反查，保证 `block()` 与 `item()` 都有值。
-    blockItemKey(stack) match {
-      case Some(name) => get(name)
-      case _ => names.get(key) match {
+    stack.getItem match {
+      case blockItem: BlockItem =>
+        // 方块物品优先按方块反查，保证 `block()` 与 `item()` 都有值。
+        findBlockName(blockItem.getBlock) match {
+          case Some(name) => get(name)
+          case _ => findItemName(stack.getItem) match {
+            case Some(name) => get(name)
+            case _ => null
+          }
+        }
+      case item => findItemName(item) match {
         case Some(name) => get(name)
         case _ => null
       }
     }
   }
 
-  /** 方块物品 → 方块名称。 */
-  private def blockItemKey(stack: ItemStack): Option[String] = {
-    stack.getItem match {
-      case blockItem: BlockItem =>
-        names.get(blockItem.getBlock).orElse(blockItemHolders.collectFirst {
-          case (name, holder) if holder.isBound && (holder.value() eq blockItem) => name
-        })
-      case _ => None
-    }
-  }
+  private def findItemName(item: Item): Option[String] =
+    itemHolders.collectFirst { case (name, holder) if holder.isBound && (holder.value() eq item) => name }
+      .orElse(blockItemHolders.collectFirst { case (name, holder) if holder.isBound && (holder.value() eq item) => name })
+
+  private def findBlockName(block: Block): Option[String] =
+    blockHolders.collectFirst { case (name, holder) if holder.isBound && (holder.value() eq block) => name }
 
   /** 名称 → 物品实例；不是物品时返回 `null`。 */
   def getItem(name: String): Item =
@@ -293,31 +317,31 @@ object Registry extends ItemAPI {
   def getBlockEntityType(name: String): BlockEntityType[_] =
     blockEntityHolders.get(name).map(_.value()).orNull
 
-  /** 名称 → 延迟持有对象（物品）。 */
+  /** 名称 → 物品延迟持有对象；不是物品时返回 `null`。 */
   def getItemHolder(name: String): DeferredHolder[Item, _ <: Item] =
     itemHolders.get(name).orElse(blockItemHolders.get(name)).orNull
 
-  /** 名称 → 延迟持有对象（方块）。 */
+  /** 名称 → 方块延迟持有对象；不是方块时返回 `null`。 */
   def getBlockHolder(name: String): DeferredBlock[_ <: Block] = blockHolders.getOrElse(name, null)
 
-  /** 名称 → 延迟持有对象（方块物品）。 */
+  /** 名称 → 方块物品延迟持有对象；没有时返回 `null`。 */
   def getBlockItemHolder(name: String): DeferredItem[_ <: Item] = blockItemHolders.getOrElse(name, null)
 
   def isRegistered(name: String): Boolean = descriptors.contains(name) || aliases.contains(name)
 
-  /** 所有已注册的描述符（含别名）。 */
+  /** 全部已注册描述符（按名称排序，含别名）。 */
   def all: Seq[ItemInfo] = descriptors.keys.toSeq.sorted.map(descriptors)
 
-  /** 创造模式标签页的展示顺序。 */
+  /** 创造模式标签页展示顺序。 */
   def creativeTabEntries: Seq[String] = creativeOrder.toSeq
 
   /** 创建 1 个该名称物品的堆叠；未注册时返回 `null`。 */
   def createItemStack(name: String): ItemStack = createItemStack(name, 1)
 
-  /** 创建 `size` 个该名称物品的堆叠；未注册时返回 `null`。 */
-  def createItemStack(name: String, size: Int): ItemStack = {
+  /** 创建 `amount` 个该名称物品的堆叠；未注册时返回 `null`。 */
+  def createItemStack(name: String, amount: Int): ItemStack = {
     val info = get(name)
-    if (info == null) null else info.createItemStack(size)
+    if (info == null) null else info.createItemStack(amount)
   }
 
   /** 注册名字别名（等价于原 `Items.aliases`）。 */
@@ -332,10 +356,10 @@ object Registry extends ItemAPI {
   // ----------------------------------------------------------------------- //
 
   /** 读取自定义 NBT；没有时返回 `null`。 */
-  def getOrCreateTag(stack: ItemStack): CompoundTag = li.cil.oc.util.ItemNBT.getOrCreate(stack)
-
-  /** 读取自定义 NBT；没有时返回 `null`。 */
   def getTag(stack: ItemStack): CompoundTag = li.cil.oc.util.ItemNBT.get(stack)
+
+  /** 读取自定义 NBT，没有时创建空 tag 并写入。 */
+  def getOrCreateTag(stack: ItemStack): CompoundTag = li.cil.oc.util.ItemNBT.getOrCreate(stack)
 
   /** 判断是否有自定义 NBT。 */
   def hasTag(stack: ItemStack): Boolean = li.cil.oc.util.ItemNBT.has(stack)
@@ -347,65 +371,40 @@ object Registry extends ItemAPI {
   // 创造模式标签页
   // ----------------------------------------------------------------------- //
 
-  /** 在 `BuildCreativeModeTabContentsEvent` 中把已注册物品填入 OC 标签页。 */
-  def addCreativeTabEntries(event: net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent): Unit = {
+  /**
+   * 在 [[BuildCreativeModeTabContentsEvent]] 中把已注册物品填入 OC 标签页。
+   * 空标签页会被游戏隐藏，因此这一步是标签页可见的关键。
+   */
+  def addCreativeTabEntries(event: BuildCreativeModeTabContentsEvent): Unit = {
     if (event.getTab ne li.cil.oc.api.CreativeTab.instance()) return
     import net.minecraft.world.item.CreativeModeTab.TabVisibility
-    for (name <- creativeOrder if !hiddenBlockItems.contains(name)) {
+    for (name <- creativeOrder if !hiddenInCreativeTab.contains(name)) {
       val stack = createItemStack(name, 1)
       if (stack != null && !stack.isEmpty) event.accept(stack, TabVisibility.PARENT_AND_SEARCH_TABS)
+    }
+    // 战利品软盘 / EEPROM 之类的额外堆叠（原 `Items.init` 里的 `additionalItems`）。
+    for (stack <- registeredItems if stack != null && !stack.isEmpty) {
+      event.accept(stack, TabVisibility.PARENT_AND_SEARCH_TABS)
     }
   }
 
   // ----------------------------------------------------------------------- //
-  // 描述符实现
-  // ----------------------------------------------------------------------- //
-
-  /**
-   * `ItemInfo` 的通用实现。
-   *
-   * `name` 走**构造参数**而非抽象成员：Scala 的抽象 `def` 会在子类构造器
-   * 中后于父类构造器初始化，匿名子类里读它可能拿到 `null`。
-   */
-  private abstract class BaseItemInfo(val itemName: String) extends ItemInfo {
-    private var blockItemRef: DeferredHolder[Item, _ <: Item] = null
-
-    private[init] def attachBlockItem(holder: DeferredHolder[Item, _ <: Item]): Unit = blockItemRef = holder
-
-    override def name(): String = itemName
-
-    override def block(): Block = null
-
-    override def item(): Item =
-      if (blockItemRef != null) blockItemRef.value() else null
-
-    override def createItemStack(size: Int): ItemStack = null
-
-    override def toString: String = s"ItemInfo($itemName)"
-  }
-
-  // ----------------------------------------------------------------------- //
-  // api.Items 接线辅助
+  // api.Items 接线
   // ----------------------------------------------------------------------- //
 
   /** 把本对象注册成 API 的物品查询入口（等价于原 `API.items = Items`）。 */
   def install(): Unit = li.cil.oc.api.API.items = this
 
   // ----------------------------------------------------------------------- //
-  // 兼容原 Items.scala 的其余 API 表面
+  // 原 `Items.scala` 的其余 API 表面
   // ----------------------------------------------------------------------- //
-
-  private val registeredItems = mutable.ArrayBuffer.empty[ItemStack]
-
-  /** 注册过的战利品软盘 / EEPROM 堆叠，供创造模式标签页追加。 */
-  def extraCreativeTabItems: Seq[ItemStack] = registeredItems.toSeq
 
   @Deprecated
   override def registerFloppy(name: String, color: Int, factory: Callable[FileSystem]): ItemStack =
     registerFloppy(name, color, factory, doRecipeCycling = false)
 
   override def registerFloppy(name: String, color: Int, factory: Callable[FileSystem], doRecipeCycling: Boolean): ItemStack = {
-    // TODO(战利品磁盘): 依赖 li.cil.oc.common.Loot（尚未移植）与开放计算机文件系统（阶段 5）。
+    // TODO(战利品磁盘): 依赖 li.cil.oc.common.Loot（尚未移植）与文件系统实现（阶段 5）。
     val stack = createItemStack(li.cil.oc.Constants.ItemName.LootDisk, 1)
     if (stack != null) registeredItems += stack
     stack
@@ -435,17 +434,66 @@ object Registry extends ItemAPI {
     stack
   }
 
-  /** 与原 `Items.safeGetStack` 等价。 */
+  /** 等价于原 `Items.safeGetStack`。 */
   def safeGetStack(name: String): ItemStack = {
     val info = get(name)
     if (info == null) null else info.createItemStack(1)
   }
 
   // ----------------------------------------------------------------------- //
-  // 内部小工具
+  // 描述符实现
   // ----------------------------------------------------------------------- //
+  /**
+   * [[ItemInfo]] 的通用实现。
+   *
+   * `name` 走**构造参数**而非抽象成员：Scala 的匿名子类会先跑父类构造器，
+   * 若把 `name` 写成抽象 `def` 再在匿名类里赋值，父类侧可能读到 `null`。
+   */
+  private abstract class BaseItemInfo(name: String) extends ItemInfo {
+    private var blockItemRef: DeferredHolder[Item, _ <: Item] = null
 
-  private def rl(path: String): ResourceLocation = new ResourceLocation(OpenComputersNeo.MODID, path)
+    private[init] def attachBlockItem(holder: DeferredHolder[Item, _ <: Item]): Unit = blockItemRef = holder
 
-  private def tiers = Tier
+    override def name(): String = name
+
+    override def block(): Block = null
+
+    override def item(): Item = if (blockItemRef == null) null else blockItemRef.value()
+
+    override def createItemStack(size: Int): ItemStack = null
+
+    override def toString: String = s"ItemInfo($name)"
+  }
+
+  /** 注册入口：物品部分（待 `common/item` 移植完成后补全）。 */
+  object Items {
+    /** 由 [[li.cil.oc.OpenComputers]] 在初始化阶段调用，注册全部独立物品。 */
+    def init(): Unit = initItems()
+
+    /** 注册全部独立物品。TODO: 等 `li.cil.oc.common.item.*` 移植完成后逐个补上。 */
+    def initItems(): Unit = {
+      // 每个 Constants.ItemName.* 对应一个独立物品，注册形态示例：
+      //
+      //   registerItem(Constants.ItemName.Wrench, () => new li.cil.oc.common.item.Wrench())
+      //   registerItem(Constants.ItemName.RAMTier1, () => new li.cil.oc.common.item.Memory(Constants.ItemName.RAMTier1, Tier.One))
+      //
+      // 注册完成后调用 `Registry.registerBuiltinAliases()`。
+      registerBuiltinAliases()
+    }
+  }
+
+  /** 注册入口：方块部分（待 `common/block` 移植完成后补全）。 */
+  object Blocks {
+    /** 由 [[li.cil.oc.OpenComputers]] 在初始化阶段调用，注册全部方块与方块实体类型。 */
+    def init(): Unit = initBlocks()
+
+    /** 注册全部方块与方块实体类型。TODO: 等 `li.cil.oc.common.block.*` 移植完成后补上。 */
+    def initBlocks(): Unit = {
+      // 注册形态示例：
+      //
+      //   registerBlock(Constants.BlockName.ScreenTier1, () => new li.cil.oc.common.block.Screen(Tier.One))
+      //   registerBlockEntity(Constants.BlockName.ScreenTier1, () => BlockEntityType.Builder
+      //     .of((pos, state) => new li.cil.oc.common.tileentity.Screen(pos, state), Array.empty[Block]: _*).build(null))
+    }
+  }
 }

@@ -2,10 +2,15 @@ package li.cil.oc.common.item.data
 
 import li.cil.oc.Settings
 import li.cil.oc.api.network.Visibility
-import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.item.ItemStack
 
-// Generic one for items that are used as components; gets the items node info.
+/**
+ * 组件物品的节点数据（原 1.7.10 的 `NodeData`）。
+ *
+ * 1.21.1 迁移要点：`getInteger` → `getInt`，`putInt` 与 `Visibility.ordinal` 语义不变。
+ * 读取时用 [[Visibility#values]] 的边界做保护，避免旧存档里的越界序号直接抛异常。
+ */
 class NodeData extends ItemData(null) {
   def this(stack: ItemStack) = {
     this()
@@ -25,7 +30,9 @@ class NodeData extends ItemData(null) {
       buffer = Option(nodeNbt.getDouble("buffer"))
     }
     if (nodeNbt.contains("visibility")) {
-      visibility = Option(Visibility.values()(nodeNbt.getInteger("visibility")))
+      val index = nodeNbt.getInt("visibility")
+      val values = Visibility.values()
+      visibility = if (index >= 0 && index < values.length) Option(values(index)) else None
     }
   }
 
@@ -40,6 +47,6 @@ class NodeData extends ItemData(null) {
     val nodeNbt = dataNbt.getCompound("node")
     address.foreach(nodeNbt.putString("address", _))
     buffer.foreach(nodeNbt.putDouble("buffer", _))
-    visibility.map(_.ordinal()).foreach(nodeNbt.putInt("visibility", _))
+    visibility.foreach(value => nodeNbt.putInt("visibility", value.ordinal()))
   }
 }
