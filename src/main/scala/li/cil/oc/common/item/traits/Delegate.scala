@@ -89,18 +89,21 @@ trait Delegate extends SimpleItem {
       context.getClickedFace.ordinal, context.getClickLocation.x.toFloat, context.getClickLocation.y.toFloat,
       context.getClickLocation.z.toFloat)
 
-  /** 原 `onItemUseFirst` 的等价签名（`player.isShiftKeyDown` 即旧版的 sneak 语义）。 */
-  def onItemUseFirst(stack: ItemStack, player: Player, position: BlockPosition,
-                     side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean = false
+  /**
+   * 原 `onItemUseFirst` 的等价签名（`player.isShiftKeyDown` 即旧版的 sneak 语义）。
+   *
+   * 注意：NeoForge 的 `IItemExtension` 已有同名方法 `onItemUseFirst(ItemStack, UseOnContext)`
+   * （返回 `InteractionResult`），因此这里改名加 `Action` 后缀避免冲突，
+   * 由 [[onItemUseFirstHook]] 负责拆包分派。
+   */
+  def onItemUseFirstAction(stack: ItemStack, player: Player, position: BlockPosition,
+                           side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean = false
 
   /**
-   * 原 `onItemUseFirst` 的 `UseOnContext` 形式。
-   *
-   * 注意：NeoForge 的 `IItemExtension` 已有同名同参方法（返回 `InteractionResult`），
-   * 因此这里改名加 `Hook` 后缀避免与接口方法冲突，由 [[useOn]] 负责分派。
+   * 原 `onItemUseFirst` 的 `UseOnContext` 形式，由 [[useOn]] 负责分派。
    */
   def onItemUseFirstHook(stack: ItemStack, context: UseOnContext): Boolean =
-    onItemUseFirst(stack, context.getPlayer,
+    onItemUseFirstAction(stack, context.getPlayer,
       BlockPosition(context.getClickedPos.getX, context.getClickedPos.getY, context.getClickedPos.getZ, context.getLevel),
       context.getClickedFace.ordinal, context.getClickLocation.x.toFloat, context.getClickLocation.y.toFloat,
       context.getClickLocation.z.toFloat)
@@ -253,14 +256,30 @@ trait Delegate extends SimpleItem {
   }
 
   // ----------------------------------------------------------------------- //
-  // 其它
+  // 耐久（原 `Delegator` 的转发）
+  //
+  // 1.21.1 里这些名字来自 NeoForge 的 `IItemExtension`（`getDamage` / `getMaxDamage` /
+  // `isDamaged` / `setDamage` / `isDamageable(ItemStack)`），因此这里必须带 `override`。
+  // 注意与 1.7.10 的差异：`isDamageable` 现在带 `ItemStack` 参数。
   // ----------------------------------------------------------------------- //
 
-  def isDamageable: Boolean = false
+  /** 原 `isDamageable`。 */
+  override def isDamageable(stack: ItemStack): Boolean = false
 
-  def damage(stack: ItemStack): Int = 0
+  /** 当前「已损耗」值（OC 语义，非原版耐久）。 */
+  override def getDamage(stack: ItemStack): Int = 0
 
-  def maxDamage(stack: ItemStack): Int = 0
+  /** 最大「损耗」值（OC 语义）。 */
+  override def getMaxDamage(stack: ItemStack): Int = 0
+
+  /** 原 `isDamaged(stack)`。 */
+  override def isDamaged(stack: ItemStack): Boolean = isDamageable(stack) && getDamage(stack) > 0
+
+  /** 原 `getMaxDamage(stack)` 的 OC 侧别名（供 `ItemCosts` 等复用）。 */
+  def maxDamage(stack: ItemStack): Int = getMaxDamage(stack)
+
+  /** 原 `damage(stack)` 的 OC 侧别名。 */
+  def damage(stack: ItemStack): Int = getDamage(stack)
 
   /** 原 `Delegate.equals(stack)`：1.21.1 下退化为「物品类型相同」。 */
   def equals(stack: ItemStack): Boolean = stack != null && !stack.isEmpty && (stack.getItem eq this)

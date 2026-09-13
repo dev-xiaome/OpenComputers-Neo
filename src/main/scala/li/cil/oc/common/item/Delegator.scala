@@ -1,276 +1,46 @@
 package li.cil.oc.common.item
 
-import java.util
-import java.util.Random
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import li.cil.oc.CreativeTab
-import li.cil.oc.OpenComputers
-import li.cil.oc.Settings
-import li.cil.oc.api.driver
-import li.cil.oc.api.driver.item.Chargeable
-import li.cil.oc.api.event.RobotRenderEvent.MountPoint
-import li.cil.oc.api.internal.Robot
-import li.cil.oc.client.renderer.item.UpgradeRenderer
-import li.cil.oc.integration.opencomputers.{Item => OpenComputersItem}
-import li.cil.oc.util.BlockPosition
-import net.minecraft.client.renderer.texture.IIconRegister
-import net.minecraft.world.item.CreativeModeTab
-import net.minecraft.world.entity.Entity
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.item.UseAnim
-import net.minecraft.world.item.Rarity
-import net.minecraft.world.item.Item
+import li.cil.oc.common.init.Registry
 import net.minecraft.world.item.ItemStack
-import net.minecraft.util.IIcon
-import net.minecraft.util.WeightedRandomChestContent
-import net.minecraft.world.level.Level
-import net.minecraftforge.common.ChestGenHooks
 
-import scala.collection.mutable
-
+/**
+ * 1.7.10 `Delegator` 的**兼容残余**（不再是 `Item`）。
+ *
+ * 1.7.10 里 `Delegator` 是「一个物品 + damage 子类型」的派发容器，`Delegator.subItem(stack)`
+ * 返回该堆叠对应的子类型 [[li.cil.oc.common.item.traits.Delegate]]。
+ *
+ * 1.21.1 改为**每个 `Constants.ItemName.*` 一个独立 `Item`**，因此：
+ *  - 这里不再有 `class Delegator extends Item`，也没有 `subItems` 数组与 damage 派发；
+ *  - 保留的 `object Delegator` 只是给既有调用点（未移植的 `tileentity` / `integration` /
+ *    `server` 等包里的 `Delegator.subItem(stack)`）提供等价的**名称 → 行为对象**查询：
+ *    物品本身若是 [[li.cil.oc.common.item.traits.Delegate]]（所有 OC 物品都是），
+ *    直接返回它自己。
+ *
+ * 因此 `Delegator.subItem(stack)` 的语义等价于旧版：拿到「该堆叠的行为实现」。
+ * 等所有调用点都改成直接用 `Registry.get(stack)` 后，本文件即可删除。
+ *
+ * @note 依赖 `damage` 值的旧签名（`subItem(damage: Int)`）在 1.21.1 没有对应物，
+ *       恒返回 `None`。
+ */
 object Delegator {
-  def subItem(stack: ItemStack) =
-    if (stack != null) stack.getItem match {
-      case delegator: Delegator => delegator.subItem(stack.getItemDamage)
-      case _ => None
-    }
-    else None
-}
 
-class Delegator extends Item with driver.item.UpgradeRenderer with Chargeable {
-  setHasSubtypes(true)
-  setCreativeTab(CreativeTab)
-  setUnlocalizedName("oc.multi")
-  iconString = Settings.resourceDomain + ":Microchip0"
-
-  // ----------------------------------------------------------------------- //
-  // SubItem
-  // ----------------------------------------------------------------------- //
-
-  override def getItemStackLimit(stack: ItemStack): Int =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => OpenComputersItem.address(stack) match {
-        case Some(address) => 1
-        case _ => subItem.maxStackSize
+  /** 该堆叠对应的行为对象；不是 OC 物品时返回 `None`。 */
+  def subItem(stack: ItemStack): Option[traits.Delegate] = {
+    if (stack == null || stack.isEmpty) return None
+    Registry.get(stack) match {
+      case null => None
+      case _ => stack.getItem match {
+        case delegate: traits.Delegate => Some(delegate)
+        case _ => None
       }
-      case _ => maxStackSize
-    }
-
-  val subItems = mutable.ArrayBuffer.empty[traits.Delegate]
-
-  def add(subItem: traits.Delegate) = {
-    val itemId = subItems.length
-    subItems += subItem
-    itemId
-  }
-
-  def subItem(stack: ItemStack): Option[traits.Delegate] =
-    if (stack != null) subItem(stack.getItemDamage) match {
-      case Some(subItem) if stack.getItem == this => Some(subItem)
-      case _ => None
-    }
-    else None
-
-  def subItem(damage: Int) =
-    damage match {
-      case itemId if itemId >= 0 && itemId < subItems.length => Some(subItems(itemId))
-      case _ => None
-    }
-
-  override def getSubItems(item: Item, tab: CreativeTabs, list: util.List[_]): Unit = {
-    // Workaround for MC's untyped lists...
-    def add[T](list: util.List[T], value: Any) = list.add(value.asInstanceOf[T])
-    subItems.indices.filter(subItems(_).showInItemList).
-      map(subItems(_).createItemStack()).
-      sortBy(_.getUnlocalizedName).
-      foreach(add(list, _))
-  }
-
-  // ----------------------------------------------------------------------- //
-  // Item
-  // ----------------------------------------------------------------------- //
-
-  override def getUnlocalizedName(stack: ItemStack): String =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => "item.oc." + subItem.unlocalizedName
-      case _ => getUnlocalizedName
-    }
-
-  override def isBookEnchantable(itemA: ItemStack, itemB: ItemStack): Boolean = false
-
-  override def getRarity(stack: ItemStack) =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.rarity(stack)
-      case _ => EnumRarity.common
-    }
-
-  override def getColorFromItemStack(stack: ItemStack, pass: Int) =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.color(stack, pass)
-      case _ => super.getColorFromItemStack(stack, pass)
-    }
-
-  override def getContainerItem(stack: ItemStack): ItemStack =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.getContainerItem(stack)
-      case _ => super.getContainerItem(stack)
-    }
-
-  override def hasContainerItem(stack: ItemStack): Boolean =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.hasContainerItem(stack)
-      case _ => super.hasContainerItem(stack)
-    }
-
-  override def getChestGenBase(chest: ChestGenHooks, rnd: Random, original: WeightedRandomChestContent) = original
-
-  // ----------------------------------------------------------------------- //
-
-  override def doesSneakBypassUse(world: Level, x: Int, y: Int, z: Int, player: Player) =
-    Delegator.subItem(player.getHeldItem) match {
-      case Some(subItem) => subItem.doesSneakBypassUse(BlockPosition(x, y, z, world), player)
-      case _ => super.doesSneakBypassUse(world, x, y, z, player)
-    }
-
-  override def onItemUseFirst(stack: ItemStack, player: Player, world: Level, x: Int, y: Int, z: Int, side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.onItemUseFirst(stack, player, BlockPosition(x, y, z, world), side, hitX, hitY, hitZ)
-      case _ => super.onItemUseFirst(stack, player, world, x, y, z, side, hitX, hitY, hitZ)
-    }
-
-  override def onItemUse(stack: ItemStack, player: Player, world: Level, x: Int, y: Int, z: Int, side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.onItemUse(stack, player, BlockPosition(x, y, z, world), side, hitX, hitY, hitZ)
-      case _ => super.onItemUse(stack, player, world, x, y, z, side, hitX, hitY, hitZ)
-    }
-
-  override def onItemRightClick(stack: ItemStack, world: Level, player: Player): ItemStack =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.onItemRightClick(stack, world, player)
-      case _ => super.onItemRightClick(stack, world, player)
-    }
-
-  // ----------------------------------------------------------------------- //
-
-  override def onEaten(stack: ItemStack, world: Level, player: Player): ItemStack =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.onEaten(stack, world, player)
-      case _ => super.onEaten(stack, world, player)
-    }
-
-  override def getItemUseAction(stack: ItemStack): EnumAction =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.getItemUseAction(stack)
-      case _ => super.getItemUseAction(stack)
-    }
-
-  override def getMaxItemUseDuration(stack: ItemStack): Int =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.getMaxItemUseDuration(stack)
-      case _ => super.getMaxItemUseDuration(stack)
-    }
-
-  override def onPlayerStoppedUsing(stack: ItemStack, world: Level, player: Player, duration: Int): Unit =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.onPlayerStoppedUsing(stack, player, duration)
-      case _ => super.onPlayerStoppedUsing(stack, world, player, duration)
-    }
-
-  def internalGetItemStackDisplayName(stack: ItemStack) = super.getItemStackDisplayName(stack)
-
-  override def getItemStackDisplayName(stack: ItemStack) =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.displayName(stack) match {
-        case Some(name) => name
-        case _ => super.getItemStackDisplayName(stack)
-      }
-      case _ => super.getItemStackDisplayName(stack)
-    }
-
-  @SideOnly(Dist.CLIENT)
-  override def addInformation(stack: ItemStack, player: Player, tooltip: util.List[_], advanced: Boolean): Unit = {
-    super.addInformation(stack, player, tooltip, advanced)
-    Delegator.subItem(stack) match {
-      case Some(subItem) => try subItem.tooltipLines(stack, player, tooltip.asInstanceOf[util.List[String]], advanced) catch {
-        case t: Throwable => OpenComputers.log.warn("Error in item tooltip.", t)
-      }
-      case _ => // Nothing to add.
     }
   }
 
-  override def getDisplayDamage(stack: ItemStack) =
-    Delegator.subItem(stack) match {
-      case Some(subItem) if subItem.isDamageable => subItem.damage(stack)
-      case _ => super.getDisplayDamage(stack)
-    }
+  /** 1.7.10 旧签名的占位实现：1.21.1 不再用 damage 值区分子类型。 */
+  @deprecated("1.21.1 不再使用 damage 值区分子类型，请改用 Registry.get(stack)", "1.0.0")
+  def subItem(damage: Int): Option[traits.Delegate] = None
 
-  override def getMaxDamage(stack: ItemStack) =
-    Delegator.subItem(stack) match {
-      case Some(subItem) if subItem.isDamageable => subItem.maxDamage(stack)
-      case _ => super.getMaxDamage(stack)
-    }
-
-  override def isDamaged(stack: ItemStack) =
-    Delegator.subItem(stack) match {
-      case Some(subItem) if subItem.isDamageable => subItem.damage(stack) > 0
-      case _ => false
-    }
-
-  override def onUpdate(stack: ItemStack, world: Level, player: Entity, slot: Int, selected: Boolean) =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.update(stack, world, player, slot, selected)
-      case _ => super.onUpdate(stack, world, player, slot, selected)
-    }
-
-  @SideOnly(Dist.CLIENT)
-  override def getIcon(stack: ItemStack, pass: Int) =
-    Delegator.subItem(stack) match {
-      case Some(subItem) => subItem.icon(stack, pass) match {
-        case Some(icon) => icon
-        case _ => super.getIcon(stack, pass)
-      }
-      case _ => super.getIcon(stack, pass)
-    }
-
-  @SideOnly(Dist.CLIENT)
-  override def getIconIndex(stack: ItemStack) = getIcon(stack, 0)
-
-  @SideOnly(Dist.CLIENT)
-  override def getIconFromDamage(damage: Int): IIcon =
-    subItem(damage) match {
-      case Some(subItem) => subItem.icon match {
-        case Some(icon) => icon
-        case _ => super.getIconFromDamage(damage)
-      }
-      case _ => super.getIconFromDamage(damage)
-    }
-
-  @SideOnly(Dist.CLIENT)
-  override def registerIcons(iconRegister: IIconRegister): Unit = {
-    super.registerIcons(iconRegister)
-    subItems.foreach(_.registerIcons(iconRegister))
-  }
-
-  override def toString = getUnlocalizedName
-
-  // ----------------------------------------------------------------------- //
-
-  def canCharge(stack: ItemStack): Boolean =
-    Delegator.subItem(stack) match {
-      case Some(subItem: Chargeable) => true
-      case _ => false
-    }
-
-  def charge(stack: ItemStack, amount: Double, simulate: Boolean): Double =
-    Delegator.subItem(stack) match {
-      case Some(subItem: Chargeable) => subItem.charge(stack, amount, simulate)
-      case _ => 0.0
-    }
-
-  // ----------------------------------------------------------------------- //
-
-  override def computePreferredMountPoint(stack: ItemStack, robot: Robot, availableMountPoints: util.Set[String]): String = UpgradeRenderer.preferredMountPoint(stack, availableMountPoints)
-
-  override def render(stack: ItemStack, mountPoint: MountPoint, robot: Robot, pt: Float): Unit = UpgradeRenderer.render(stack, mountPoint)
+  /** 原 `Delegator#internalGetItemStackDisplayName` 的等价物。 */
+  def internalGetItemStackDisplayName(stack: ItemStack): String =
+    if (stack == null || stack.isEmpty) "" else stack.getHoverName.getString
 }

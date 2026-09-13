@@ -1,269 +1,435 @@
 package li.cil.oc.common.block
 
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import li.cil.oc.CreativeTab
-import li.cil.oc.Settings
-import li.cil.oc.common.tileentity
-import li.cil.oc.common.tileentity.traits.Colored
-import li.cil.oc.common.tileentity.traits.Inventory
-import li.cil.oc.common.tileentity.traits.Rotatable
+import li.cil.oc.common.tileentity.traits
 import li.cil.oc.util.Color
 import li.cil.oc.util.Tooltip
-import net.minecraft.world.level.block.Block
-import net.minecraft.world.level.material.Material
-import net.minecraft.client.renderer.texture.IIconRegister
+import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.world.entity.Entity
-import net.minecraft.entity.EnumCreatureType
 import net.minecraft.world.entity.player.Player
-import net.minecraft.world.item.Rarity
 import net.minecraft.world.item.ItemStack
-import net.minecraft.world.phys.AABB
-import net.minecraft.util.IIcon
-import net.minecraft.world.phys.Vec3
-import net.minecraft.world.level.BlockGetter
-import net.minecraft.world.level.Level
-import net.minecraft.core.Direction
+import net.minecraft.world.item.context.BlockPlaceContext
+import net.minecraft.world.{InteractionHand, InteractionResult, ItemInteractionResult}
+import net.minecraft.world.level.{BlockGetter, Level, LevelReader}
+import net.minecraft.world.level.block.{Block, EntityBlock, RenderShape, SoundType}
+import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityTicker, BlockEntityType}
+import net.minecraft.world.level.block.state.{BlockBehaviour, BlockState}
+import net.minecraft.world.phys.{AABB, BlockHitResult}
+import net.minecraft.world.phys.shapes.{CollisionContext, Shapes, VoxelShape}
 
-class SimpleBlock(material: Material = Material.iron) extends Block(material) {
-  setHardness(2f)
-  setResistance(5)
-  setCreativeTab(CreativeTab)
+/**
+ * ==方块移植说明（1.7.10 → 1.21.1）==
+ *
+ * 1.7.10 的 `SimpleBlock` 是一个类，其它方块 trait 通过 `extends SimpleBlock` 混入；
+ * 1.21.1 的 `BlockBehaviour.Properties` 是构造参数，Scala trait 无法把参数传给父类，
+ * 因此这里同样拆成两层（与 [[li.cil.oc.common.tileentity.traits.TileEntity]] 一致）：
+ *
+ *  - [[SimpleBlockHooks]]：原 `SimpleBlock` 的 API 表面，全部是**可覆写钩子**
+ *    （子 trait 用 `extends SimpleBlockHooks`，方块实现用 `extends SimpleBlock(props) with ...`）；
+ *  - [[SimpleBlock]]：真正的 `Block` 子类，把 1.21.1 的回调转发到钩子。
+ *
+ * ==整套图标系统已删除==
+ * `IIcon` / `registerBlockIcons` / `getIcon(side, metadata)` / `customTextures` /
+ * `setBlockBoundsForItemRender` 在 1.21.1 不再存在：面纹理改由**烘焙模型**指定
+ * （`assets/opencomputers_neo/blockstates/<name>.json` +
+ * `models/block/<name>.json` + `models/item/<name>.json`）。
+ * 原 `customTextures` 里「某几个面用哪张贴图」的语义现在写在模型 JSON 的 `textures` 段。
+ *
+ * ==其它映射==
+ * {{{
+ *  1.7.10                                     1.21.1
+ *  setHardness/setResistance                  Properties#strength(hardness, resistance)
+ *  getRenderType                              getRenderShape（默认 MODEL）
+ *  setBlockBoundsBasedOnState                 getShape / getCollisionShape（VoxelShape）
+ *  getCollisionBoundingBoxFromPool            getCollisionShape
+ *  getSelectedBoundingBoxFromPool             getShape（原版自动用于选中框）
+ *  collisionRayTrace                          不再需要（原版基于 getShape 自动处理）
+ *  onBlockActivated                           useWithoutItem / useItemOn
+ *  canConnectRedstone / isProvidingWeakPower  canConnectRedstoneTo / getSignal / getDirectSignal
+ *  onBlockPreDestroy                          onRemove（方块被替换/破坏时）
+ *  createTileEntity / hasTileEntity           EntityBlock#newBlockEntity
+ *  colorMultiplier / getRenderColor           BlockColor（客户端注册，见 tintColor 的 TODO）
+ * }}}
+ *
+ * 注意：与 NeoForge 回调同名的钩子都带了后缀（`canConnectRedstoneTo`、`useBlock`、
+ * `blockShape` 等），避免 `SimpleBlock` 里的转发方法自我递归。
+ */
+trait SimpleBlockHooks { self: Block =>
 
+  /** 是否在物品列表中展示；1.21.1 里由创造模式标签页决定，保留字段兼容原代码。 */
   var showInItemList = true
 
-  protected val validRotations_ = Array(Direction.UP, Direction.DOWN)
+  /** 原 `createItemStack`。 */
+  def createItemStack(amount: Int = 1): ItemStack = new ItemStack(this, amount)
 
-  def createItemStack(amount: Int = 1) = new ItemStack(this, amount)
+  /** 原 `Block#getValidRotations`：允许扳手旋转到的朝向集合。 */
+  protected def validRotations_ : Array[Direction] = Array(Direction.UP, Direction.DOWN)
 
-  // ----------------------------------------------------------------------- //
-  // Rendering
-  // ----------------------------------------------------------------------- //
-
-  val icons = new Array[IIcon](6)
-
-  protected def customTextures = Array.fill[Option[String]](6)(None)
-
-  override def getRenderType = Settings.blockRenderId
-
-  @SideOnly(Dist.CLIENT)
-  override def colorMultiplier(world: IBlockAccess, x: Int, y: Int, z: Int) =
-    world.getTileEntity(x, y, z) match {
-      case colored: Colored => colored.color
-      case _ => getRenderColor(world.getBlockMetadata(x, y, z))
-    }
-
-  @SideOnly(Dist.CLIENT)
-  final override def getIcon(side: Int, metadata: Int) = getIcon(Direction.getOrientation(side), metadata)
-
-  @SideOnly(Dist.CLIENT)
-  def getIcon(side: Direction, metadata: Int) = icons(side.ordinal())
-
-  @SideOnly(Dist.CLIENT)
-  final override def getIcon(world: IBlockAccess, x: Int, y: Int, z: Int, side: Int) = getIcon(world, x, y, z, Direction.getOrientation(side), toLocal(world, x, y, z, Direction.getOrientation(side)))
-
-  @SideOnly(Dist.CLIENT)
-  def getIcon(world: IBlockAccess, x: Int, y: Int, z: Int, globalSide: Direction, localSide: Direction) = icons(localSide.ordinal())
-
-  @SideOnly(Dist.CLIENT)
-  override def registerBlockIcons(iconRegister: IIconRegister): Unit = {
-    icons(Direction.DOWN.ordinal) = iconRegister.registerIcon(Settings.resourceDomain + ":GenericTop")
-    icons(Direction.UP.ordinal) = icons(Direction.DOWN.ordinal)
-    icons(Direction.NORTH.ordinal) = iconRegister.registerIcon(Settings.resourceDomain + ":GenericSide")
-    icons(Direction.SOUTH.ordinal) = icons(Direction.NORTH.ordinal)
-    icons(Direction.WEST.ordinal) = icons(Direction.NORTH.ordinal)
-    icons(Direction.EAST.ordinal) = icons(Direction.NORTH.ordinal)
-
-    val custom = customTextures
-    for (side <- Direction.VALID_DIRECTIONS) {
-      custom(side.ordinal) match {
-        case Some(name) =>
-          if (name.contains(":")) icons(side.ordinal) = iconRegister.registerIcon(name)
-          else icons(side.ordinal) = iconRegister.registerIcon(Settings.resourceDomain + ":" + name)
-        case _ =>
-      }
-    }
-  }
-
-  @SideOnly(Dist.CLIENT)
-  def preItemRender(metadata: Int) {}
-
-  final override def setBlockBoundsForItemRender() = setBlockBoundsForItemRender(0)
-
-  def setBlockBoundsForItemRender(metadata: Int) = super.setBlockBoundsForItemRender()
-
-  final override def shouldSideBeRendered(world: IBlockAccess, x: Int, y: Int, z: Int, side: Int) = shouldSideBeRendered(world, x, y, z, Direction.getOrientation(side))
-
-  def shouldSideBeRendered(world: IBlockAccess, x: Int, y: Int, z: Int, side: Direction) = super.shouldSideBeRendered(world, x, y, z, side.ordinal())
+  def validRotations: Array[Direction] = validRotations_
 
   // ----------------------------------------------------------------------- //
-  // ItemBlock
+  // 渲染
   // ----------------------------------------------------------------------- //
 
-  def rarity(stack: ItemStack) = EnumRarity.common
+  /**
+   * TODO(客户端): 原 `getRenderType` 由 OC 自己的渲染类型编号控制（`Settings.blockRenderId`）。
+   * 1.21.1 改用 `RenderShape`；需要 TESR 的方块（屏幕、机器人、全息投影等）在客户端
+   * 注册 `BlockEntityRenderer` 后，可覆写为 `RenderShape.ENTITYBLOCK_ANIMATED`。
+   */
+  def renderShape: RenderShape = RenderShape.MODEL
 
-  @SideOnly(Dist.CLIENT)
-  def addInformation(metadata: Int, stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {
-    tooltipHead(metadata, stack, player, tooltip, advanced)
-    tooltipBody(metadata, stack, player, tooltip, advanced)
-    tooltipTail(metadata, stack, player, tooltip, advanced)
-  }
+  /**
+   * 原 `colorMultiplier` / `getRenderColor`。
+   *
+   * TODO(客户端): 1.21.1 的染色要在客户端通过 `RegisterColorHandlersEvent.Block` 注册
+   * `BlockColor`（`BlockColor#getColor(state, level, pos, tintIndex)`），而 `li.cil.oc.client`
+   * 尚未移植，模型也还没有 `tintindex`，因此这里只保留钩子。
+   */
+  def tintColor(state: BlockState, level: BlockGetter, pos: BlockPos, tintIndex: Int): Int = 0xFFFFFF
 
-  protected def tooltipHead(metadata: Int, stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {
-  }
+  /** 原 `shouldSideBeRendered`：相邻面的剔除（线缆等非完整方块用）。 */
+  def shouldSideBeRendered(state: BlockState, adjacentState: BlockState, side: Direction): Boolean = true
 
-  protected def tooltipBody(metadata: Int, stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {
-    tooltip.addAll(Tooltip.get(getClass.getSimpleName))
-  }
-
-  protected def tooltipTail(metadata: Int, stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {
-  }
+  /** 物品形态的预渲染（原 `preItemRender`）；1.21.1 由模型 JSON 处理，保留空钩子。 */
+  def preItemRender(): Unit = {}
 
   // ----------------------------------------------------------------------- //
-  // Rotation
+  // 形状
   // ----------------------------------------------------------------------- //
 
-  def getFacing(world: IBlockAccess, x: Int, y: Int, z: Int) =
-    world.getTileEntity(x, y, z) match {
-      case tileEntity: Rotatable => tileEntity.facing
-      case _ => Direction.UNKNOWN
-    }
+  /** 原 `doSetBlockBoundsBasedOnState`：返回选中/可视化形状。 */
+  def blockShape(state: BlockState, level: BlockGetter, pos: BlockPos, context: CollisionContext): VoxelShape =
+    Shapes.block()
 
-  def setFacing(world: Level, x: Int, y: Int, z: Int, value: Direction) =
-    world.getTileEntity(x, y, z) match {
-      case rotatable: Rotatable => rotatable.setFromFacing(value); true
+  /** 原 `getCollisionBoundingBoxFromPool`：返回碰撞形状，默认与 [[blockShape]] 相同。 */
+  def blockCollisionShape(state: BlockState, level: BlockGetter, pos: BlockPos, context: CollisionContext): VoxelShape =
+    blockShape(state, level, pos, context)
+
+  /** 把 1.7.10 的 `setBlockBounds(AABB)` 语义（0..1 的相对包围盒）转成 `VoxelShape`。 */
+  protected def shape(bounds: AABB): VoxelShape = Shapes.create(bounds)
+
+  // ----------------------------------------------------------------------- //
+  // 交互
+  // ----------------------------------------------------------------------- //
+
+  /**
+   * 原 `onBlockActivated(world, x, y, z, player, side, hitX, hitY, hitZ)` 中「空手/非物品交互」的部分。
+   *
+   * 1.21.1 拆成两个回调：`useWithoutItem`（返回 [[InteractionResult]]）与
+   * `useItemOn`（返回 [[ItemInteractionResult]]）。命中位置信息在 [[BlockHitResult]] 里。
+   */
+  def useBlock(state: BlockState, level: Level, pos: BlockPos, player: Player, hit: BlockHitResult): InteractionResult =
+    InteractionResult.PASS
+
+  /** 手持物品右键；默认放行给原版默认逻辑（放置方块等）。 */
+  def useItemOnBlock(stack: ItemStack, state: BlockState, level: Level, pos: BlockPos, player: Player,
+                     hand: InteractionHand, hit: BlockHitResult): ItemInteractionResult =
+    ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION
+
+  /** 原 `canPlaceBlockOnSide`：从指定面放置是否合法（自定义朝向的方块用）。 */
+  def canPlaceBlockOnSide(state: BlockState, level: Level, pos: BlockPos, side: Direction): Boolean = true
+
+  // ----------------------------------------------------------------------- //
+  // 破坏 / 放置 / 掉落
+  // ----------------------------------------------------------------------- //
+
+  /**
+   * 原 `onBlockPreDestroy`：方块被替换/破坏前的回调（OC 用它把内部物品栏掉出来）。
+   *
+   * 1.21.1 里由 `onRemove` 转发；只有当新状态不再是同一个方块时才会调用。
+   */
+  def onBlockPreDestroy(state: BlockState, level: Level, pos: BlockPos): Unit = {}
+
+  /** 原 `onBlockPlacedBy`：由实体放置时设置朝向等。 */
+  def onBlockPlacedBy(state: BlockState, level: Level, pos: BlockPos,
+                      placer: net.minecraft.world.entity.LivingEntity, stack: ItemStack): Unit = {}
+
+  /**
+   * 原 `removedByPlayer` / `Block#getDrops` 的替代：玩家挖掉方块时的回调。
+   *
+   * 1.21.1 的掉落走战利品表，OC 需要把方块实体里的物品取出来（[[CustomDrops]]），
+   * 因此这里转发 `playerDestroy`。
+   */
+  def playerDestroyBlock(state: BlockState, level: Level, pos: BlockPos, player: Player,
+                         blockEntity: BlockEntity, tool: ItemStack): Unit = {}
+
+  // ----------------------------------------------------------------------- //
+  // 比较器
+  // ----------------------------------------------------------------------- //
+
+  /** 原 `hasComparatorInputOverride`。 */
+  def providesAnalogOutput: Boolean = false
+
+  /** 原 `getComparatorInputOverride`。 */
+  def analogOutputSignal(state: BlockState, level: Level, pos: BlockPos): Int = 0
+
+  // ----------------------------------------------------------------------- //
+  // 红石
+  // ----------------------------------------------------------------------- //
+
+  /** 本方块是否输出红石信号（原 `canProvidePower`）。 */
+  def providesRedstoneSignal: Boolean = false
+
+  /** 原 `canConnectRedstone`；`side` 可能为 `null`。 */
+  def canConnectRedstoneTo(state: BlockState, level: BlockGetter, pos: BlockPos, side: Direction): Boolean = false
+
+  /** 原 `isProvidingWeakPower`。 */
+  def isProvidingWeakPower(state: BlockState, level: BlockGetter, pos: BlockPos, side: Direction): Int = 0
+
+  /** 原 `isProvidingStrongPower`，默认与弱信号一致。 */
+  def isProvidingStrongPower(state: BlockState, level: BlockGetter, pos: BlockPos, side: Direction): Int =
+    isProvidingWeakPower(state, level, pos, side)
+
+  // ----------------------------------------------------------------------- //
+  // 邻居变化 / 旋转 / 染色
+  // ----------------------------------------------------------------------- //
+
+  /** 原 `onNeighborBlockChange`。 */
+  def onNeighborBlockChange(state: BlockState, level: Level, pos: BlockPos, neighborBlock: Block): Unit = {}
+
+  /** 原 `onNeighborChange`（间接邻居变化，能拿到邻居坐标）。 */
+  def onNeighborChanged(state: BlockState, level: LevelReader, pos: BlockPos, neighborPos: BlockPos): Unit = {}
+
+  /**
+   * 原 `rotateBlock`（扳手旋转）。
+   *
+   * TODO(integration): 1.7.10 通过 Forge 的 `IForgeBlock#rotateBlock` 暴露给扳手，
+   * 1.21.1 的工具交互改为 `getToolModifiedState`。这里保留普通方法，等 `integration` 移植后接入。
+   */
+  def rotateBlock(level: Level, pos: BlockPos, side: Direction): Boolean =
+    level.getBlockEntity(pos) match {
+      case rotatable: traits.Rotatable if rotatable.rotate(side) =>
+        level.sendBlockUpdated(pos, level.getBlockState(pos), level.getBlockState(pos), Block.UPDATE_CLIENTS)
+        true
       case _ => false
     }
 
-  def setRotationFromEntityPitchAndYaw(world: Level, x: Int, y: Int, z: Int, value: Entity) =
-    world.getTileEntity(x, y, z) match {
-      case rotatable: Rotatable => rotatable.setFromEntityPitchAndYaw(value); true
+  /**
+   * 用染料给方块上色（原 `SimpleBlock.onBlockActivated` 里处理染料的逻辑）。
+   *
+   * TODO(integration): NeoForge 1.21.1 已移除 `recolourBlock`，染色改由物品交互实现；
+   * 等扳手/染料集成移植后再从 `useItemOnBlock` 里调用本方法。
+   */
+  def tryApplyDye(state: BlockState, level: Level, pos: BlockPos, player: Player): Boolean =
+    level.getBlockEntity(pos) match {
+      case colored: traits.Colored if player != null && Color.isDye(player.getMainHandItem) =>
+        colored.color = Color.dyeColor(player.getMainHandItem)
+        level.sendBlockUpdated(pos, state, state, Block.UPDATE_CLIENTS)
+        if (colored.consumesDye && !level.isClientSide) {
+          player.getMainHandItem.shrink(1)
+        }
+        true
       case _ => false
     }
 
-  def toLocal(world: IBlockAccess, x: Int, y: Int, z: Int, value: Direction) =
-    world.getTileEntity(x, y, z) match {
-      case rotatable: Rotatable => rotatable.toLocal(value)
+  // ----------------------------------------------------------------------- //
+  // 朝向查询（原 SimpleBlock 里基于 Rotatable 方块实体的帮助方法）
+  // ----------------------------------------------------------------------- //
+
+  def getFacing(level: BlockGetter, pos: BlockPos): Direction =
+    level.getBlockEntity(pos) match {
+      case rotatable: traits.Rotatable => rotatable.facing
+      case _ => Direction.NORTH
+    }
+
+  def setFacing(level: Level, pos: BlockPos, value: Direction): Boolean =
+    level.getBlockEntity(pos) match {
+      case rotatable: traits.Rotatable => rotatable.setFromFacing(value); true
+      case _ => false
+    }
+
+  def setRotationFromEntityPitchAndYaw(level: Level, pos: BlockPos, value: Entity): Boolean =
+    level.getBlockEntity(pos) match {
+      case rotatable: traits.Rotatable => rotatable.setFromEntityPitchAndYaw(value); true
+      case _ => false
+    }
+
+  def toLocal(level: BlockGetter, pos: BlockPos, value: Direction): Direction =
+    level.getBlockEntity(pos) match {
+      case rotatable: traits.Rotatable => rotatable.toLocal(value)
+      case _ => value
+    }
+
+  def toGlobal(level: BlockGetter, pos: BlockPos, value: Direction): Direction =
+    level.getBlockEntity(pos) match {
+      case rotatable: traits.Rotatable => rotatable.toGlobal(value)
       case _ => value
     }
 
   // ----------------------------------------------------------------------- //
-  // Block
+  // 方块实体
   // ----------------------------------------------------------------------- //
 
-  override def isSideSolid(world: IBlockAccess, x: Int, y: Int, z: Int, side: Direction) = true
+  /** 原 `createTileEntity`；返回 `null` 表示该方块没有方块实体。 */
+  def createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity = null
 
-  override def canHarvestBlock(player: Player, meta: Int) = true
-
-  override def canBeReplacedByLeaves(world: IBlockAccess, x: Int, y: Int, z: Int) = false
-
-  override def canCreatureSpawn(creature: EnumCreatureType, world: IBlockAccess, x: Int, y: Int, z: Int) = false
-
-  override def getValidRotations(world: Level, x: Int, y: Int, z: Int) = validRotations_
-
-  override def onBlockPreDestroy(world: Level, x: Int, y: Int, z: Int, metadata: Int) =
-    if (!world.isRemote) world.getTileEntity(x, y, z) match {
-      case inventory: Inventory => inventory.dropAllSlots()
-      case _ => // Ignore.
-    }
+  /** 原 `hasTileEntity(metadata)`。 */
+  def hasBlockEntity: Boolean = true
 
   // ----------------------------------------------------------------------- //
+  // 物品提示
+  // ----------------------------------------------------------------------- //
 
-  override def rotateBlock(world: Level, x: Int, y: Int, z: Int, axis: Direction) =
-    world.getTileEntity(x, y, z) match {
-      case rotatable: tileentity.traits.Rotatable if rotatable.rotate(axis) =>
-        world.markBlockForUpdate(x, y, z)
-        true
-      case _ => false
-    }
+  /** 原 `rarity(stack)`。 */
+  def rarity(stack: ItemStack): net.minecraft.world.item.Rarity = net.minecraft.world.item.Rarity.COMMON
 
-  override def recolourBlock(world: Level, x: Int, y: Int, z: Int, side: Direction, colour: Int) =
-    world.getTileEntity(x, y, z) match {
-      case colored: Colored if colored.color != Color.byMeta(colour) =>
-        colored.color = Color.byMeta(colour)
-        world.markBlockForUpdate(x, y, z)
-        true // Blame Vexatos.
-      case _ => super.recolourBlock(world, x, y, z, side, colour)
-    }
-
-  // This function can mess things up badly in single player if not
-  // synchronized because it sets fields in an instance stored in the
-  // static block list... which is used by both server and client thread.
-  // The other place where this is locked is in collisionRayTrace below,
-  // which seems to be the only built-in function that *logically* depends
-  // on the state bounds (rest is rendering which is unimportant).
-  final override def setBlockBoundsBasedOnState(world: IBlockAccess, x: Int, y: Int, z: Int) =
-    this.synchronized(doSetBlockBoundsBasedOnState(world, x, y, z))
-
-  protected def doSetBlockBoundsBasedOnState(world: IBlockAccess, x: Int, y: Int, z: Int): Unit =
-    super.setBlockBoundsBasedOnState(world, x, y, z)
-
-  protected def setBlockBounds(bounds: AABB): Unit = {
-    setBlockBounds(
-      bounds.minX.toFloat,
-      bounds.minY.toFloat,
-      bounds.minZ.toFloat,
-      bounds.maxX.toFloat,
-      bounds.maxY.toFloat,
-      bounds.maxZ.toFloat)
+  /**
+   * 原 `addInformation`。
+   *
+   * 1.21.1 的物品提示挂在 **Item** 上（`Item#appendHoverText`），而 OC 的方块物品由注册层
+   * 统一创建成普通 `BlockItem`，因此这里通过 `ItemTooltipEvent`（见 [[BlockTooltipHandler]]）
+   * 把提示补回方块物品。
+   */
+  def addInformation(stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {
+    tooltipHead(stack, player, tooltip, advanced)
+    tooltipBody(stack, player, tooltip, advanced)
+    tooltipTail(stack, player, tooltip, advanced)
   }
 
-  // NOTE: must not be final for immibis microblocks to work.
-  override def collisionRayTrace(world: Level, x: Int, y: Int, z: Int, start: Vec3, end: Vec3) =
-    this.synchronized(intersect(world, x, y, z, start, end))
+  protected def tooltipHead(stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {}
 
-  override def getCollisionBoundingBoxFromPool(world: Level, x: Int, y: Int, z: Int) = this.synchronized {
-    doSetBlockBoundsBasedOnState(world, x, y, z)
-    super.getCollisionBoundingBoxFromPool(world, x, y, z)
+  protected def tooltipBody(stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {
+    tooltip.addAll(Tooltip.get(getClass.getSimpleName))
   }
 
-  protected def intersect(world: Level, x: Int, y: Int, z: Int, start: Vec3, end: Vec3) =
-    super.collisionRayTrace(world, x, y, z, start, end)
+  protected def tooltipTail(stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {}
+}
 
-  final override def canPlaceBlockOnSide(world: Level, x: Int, y: Int, z: Int, side: Int) =
-    canPlaceBlockOnSide(world, x, y, z, toLocal(world, x, y, z, Direction.getOrientation(side).getOpposite))
-
-  def canPlaceBlockOnSide(world: Level, x: Int, y: Int, z: Int, side: Direction) =
-    super.canPlaceBlockOnSide(world, x, y, z, side.getOpposite.ordinal)
-
-  // ----------------------------------------------------------------------- //
-
-  final override def canConnectRedstone(world: IBlockAccess, x: Int, y: Int, z: Int, side: Int) =
-    canConnectRedstone(world, x, y, z, side match {
-      case -1 => Direction.UP
-      case 0 => Direction.NORTH
-      case 1 => Direction.EAST
-      case 2 => Direction.SOUTH
-      case 3 => Direction.WEST
-    })
-
-  def canConnectRedstone(world: IBlockAccess, x: Int, y: Int, z: Int, side: Direction) = false
-
-  final override def isProvidingStrongPower(world: IBlockAccess, x: Int, y: Int, z: Int, side: Int) =
-    isProvidingStrongPower(world, x, y, z, Direction.getOrientation(side).getOpposite)
-
-  def isProvidingStrongPower(world: IBlockAccess, x: Int, y: Int, z: Int, side: Direction) =
-    isProvidingWeakPower(world, x, y, z, side)
-
-  final override def isProvidingWeakPower(world: IBlockAccess, x: Int, y: Int, z: Int, side: Int) =
-    isProvidingWeakPower(world, x, y, z, Direction.getOrientation(side).getOpposite)
-
-  def isProvidingWeakPower(world: IBlockAccess, x: Int, y: Int, z: Int, side: Direction) = 0
+/**
+ * OpenComputers 方块基类。
+ *
+ * 具体方块的构造形态：
+ * {{{
+ *   class Adapter(properties: BlockBehaviour.Properties = SimpleBlock.properties())
+ *     extends SimpleBlock(properties) with traits.GUI
+ * }}}
+ */
+class SimpleBlock(properties: BlockBehaviour.Properties = SimpleBlock.properties())
+  extends Block(properties) with EntityBlock with SimpleBlockHooks {
 
   // ----------------------------------------------------------------------- //
+  // 方块实体
+  // ----------------------------------------------------------------------- //
 
-  // NOTE: must not be final for immibis microblocks to work.
-  override def onBlockActivated(world: Level, x: Int, y: Int, z: Int, player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean =
-    world.getTileEntity(x, y, z) match {
-      case colored: Colored if Color.isDye(player.getHeldItem) =>
-        colored.color = Color.dyeColor(player.getHeldItem)
-        world.markBlockForUpdate(x, y, z)
-        if (colored.consumesDye) {
-          player.getHeldItem.splitStack(1)
-        }
-        true
-      case _ => onBlockActivated(world, x, y, z, player, Direction.getOrientation(side), hitX, hitY, hitZ)
+  override def newBlockEntity(pos: BlockPos, state: BlockState): BlockEntity = createBlockEntity(pos, state)
+
+  /**
+   * 方块实体 tick 驱动（原 `TileEntity#updateEntity`）。
+   *
+   * 没有方块实体的方块（`createBlockEntity` 返回 `null`）原版不会注册 ticker，
+   * 因此这里只需在 `hasBlockEntity` 为真时返回。
+   */
+  override def getTicker[T <: BlockEntity](level: Level, state: BlockState, blockEntityType: BlockEntityType[T]): BlockEntityTicker[T] =
+    if (hasBlockEntity) SimpleBlock.ticker.asInstanceOf[BlockEntityTicker[T]] else null
+
+  // ----------------------------------------------------------------------- //
+  // 渲染 / 形状
+  // ----------------------------------------------------------------------- //
+
+  override protected def getRenderShape(state: BlockState): RenderShape = renderShape
+
+  override protected def getShape(state: BlockState, level: BlockGetter, pos: BlockPos, context: CollisionContext): VoxelShape =
+    blockShape(state, level, pos, context)
+
+  override protected def getCollisionShape(state: BlockState, level: BlockGetter, pos: BlockPos, context: CollisionContext): VoxelShape =
+    blockCollisionShape(state, level, pos, context)
+
+  override protected def skipRendering(state: BlockState, adjacentState: BlockState, side: Direction): Boolean =
+    !shouldSideBeRendered(state, adjacentState, side)
+
+  // ----------------------------------------------------------------------- //
+  // 红石
+  // ----------------------------------------------------------------------- //
+
+  override protected def isSignalSource(state: BlockState): Boolean = providesRedstoneSignal
+
+  override protected def getSignal(state: BlockState, level: BlockGetter, pos: BlockPos, direction: Direction): Int =
+    isProvidingWeakPower(state, level, pos, direction)
+
+  override protected def getDirectSignal(state: BlockState, level: BlockGetter, pos: BlockPos, direction: Direction): Int =
+    isProvidingStrongPower(state, level, pos, direction)
+
+  override def canConnectRedstone(state: BlockState, level: BlockGetter, pos: BlockPos, direction: Direction): Boolean =
+    canConnectRedstoneTo(state, level, pos, direction)
+
+  // ----------------------------------------------------------------------- //
+  // 交互
+  // ----------------------------------------------------------------------- //
+
+  override protected def useWithoutItem(state: BlockState, level: Level, pos: BlockPos, player: Player, hit: BlockHitResult): InteractionResult =
+    useBlock(state, level, pos, player, hit)
+
+  override protected def useItemOn(stack: ItemStack, state: BlockState, level: Level, pos: BlockPos, player: Player,
+                                   hand: InteractionHand, hit: BlockHitResult): ItemInteractionResult =
+    useItemOnBlock(stack, state, level, pos, player, hand, hit)
+
+  // ----------------------------------------------------------------------- //
+  // 邻居变化 / 放置 / 破坏
+  // ----------------------------------------------------------------------- //
+
+  override protected def neighborChanged(state: BlockState, level: Level, pos: BlockPos, neighborBlock: Block,
+                                         neighborPos: BlockPos, movedByPiston: Boolean): Unit =
+    onNeighborBlockChange(state, level, pos, neighborBlock)
+
+  override def onNeighborChange(state: BlockState, level: LevelReader, pos: BlockPos, neighborPos: BlockPos): Unit =
+    onNeighborChanged(state, level, pos, neighborPos)
+
+  override protected def onRemove(state: BlockState, level: Level, pos: BlockPos, newState: BlockState, movedByPiston: Boolean): Unit = {
+    // 只有「换成了别的方块」才算被拆除；同一方块的 BlockState 变化（例如旋转）不算。
+    if (state.getBlock ne newState.getBlock) {
+      onBlockPreDestroy(state, level, pos)
     }
+    super.onRemove(state, level, pos, newState, movedByPiston)
+  }
 
-  def onBlockActivated(world: Level, x: Int, y: Int, z: Int, player: Player, side: Direction, hitX: Float, hitY: Float, hitZ: Float) = false
+  override def setPlacedBy(level: Level, pos: BlockPos, state: BlockState,
+                           placer: net.minecraft.world.entity.LivingEntity, stack: ItemStack): Unit = {
+    super.setPlacedBy(level, pos, state, placer, stack)
+    onBlockPlacedBy(state, level, pos, placer, stack)
+  }
+
+  override protected def playerDestroy(level: Level, player: Player, pos: BlockPos, state: BlockState,
+                                       blockEntity: BlockEntity, tool: ItemStack): Unit = {
+    playerDestroyBlock(state, level, pos, player, blockEntity, tool)
+    super.playerDestroy(level, player, pos, state, blockEntity, tool)
+  }
+
+  // ----------------------------------------------------------------------- //
+  // 比较器
+  // ----------------------------------------------------------------------- //
+
+  override protected def hasAnalogOutputSignal(state: BlockState): Boolean = providesAnalogOutput
+
+  override protected def getAnalogOutputSignal(state: BlockState, level: Level, pos: BlockPos): Int =
+    analogOutputSignal(state, level, pos)
+
+  /** `BlockPlaceContext` 版的替换判定，直接沿用原版语义（保留覆写点给子类）。 */
+  override protected def canBeReplaced(state: BlockState, useContext: BlockPlaceContext): Boolean =
+    super.canBeReplaced(state, useContext)
+}
+
+object SimpleBlock {
+
+  /** OC 方块通用属性（等价于 1.7.10 `SimpleBlock` 构造里的 `setHardness(2f)` / `setResistance(5)`）。 */
+  def properties(): BlockBehaviour.Properties =
+    BlockBehaviour.Properties.of().
+      strength(2f, 5f).
+      sound(SoundType.METAL).
+      dynamicShape()
+
+  /** 非完整方块（线缆、屏幕、键盘等）：不遮挡相邻面。 */
+  def nonOccluding(): BlockBehaviour.Properties =
+    properties().noOcclusion()
+
+  /** 通用 ticker：把 1.21.1 的方块实体 tick 转发到 [[li.cil.oc.common.tileentity.traits.TileEntity#tick]]。 */
+  val ticker: BlockEntityTicker[BlockEntity] = new BlockEntityTicker[BlockEntity] {
+    override def tick(level: Level, pos: BlockPos, state: BlockState, blockEntity: BlockEntity): Unit =
+      blockEntity match {
+        case te: traits.TileEntity =>
+          te.tick()
+          if (level.isClientSide) {
+            te.tickClient()
+          }
+        case _ => // 不是 OC 方块实体，忽略。
+      }
+  }
 }

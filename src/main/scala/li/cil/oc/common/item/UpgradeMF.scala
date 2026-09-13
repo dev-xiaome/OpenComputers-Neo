@@ -1,5 +1,7 @@
 package li.cil.oc.common.item
 
+import li.cil.oc.util.ItemStackNBTExtensions._
+
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.{Localization, Settings}
 import net.minecraft.nbt.CompoundTag
@@ -19,8 +21,8 @@ import net.minecraft.world.item.ItemStack
  */
 class UpgradeMF(props: Item.Properties) extends Item(props) with traits.Delegate with traits.ItemTier {
 
-  override def onItemUseFirst(stack: ItemStack, player: Player, position: BlockPosition,
-                              side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean = {
+  override def onItemUseFirstAction(stack: ItemStack, player: Player, position: BlockPosition,
+                                    side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean = {
     if (!player.level().isClientSide && player.isShiftKeyDown) {
       val data = if (stack.hasTag()) stack.getTag() else {
         val tag = new CompoundTag()
@@ -32,7 +34,7 @@ class UpgradeMF(props: Item.Properties) extends Item(props) with traits.Delegate
       data.putString(Settings.namespace + "dimension", player.level().dimension().location().toString)
       return true
     }
-    super.onItemUseFirst(stack, player, position, side, hitX, hitY, hitZ)
+    super.onItemUseFirstAction(stack, player, position, side, hitX, hitY, hitZ)
   }
 
   override protected def tooltipExtended(stack: ItemStack, tooltip: java.util.List[String]): Unit = {

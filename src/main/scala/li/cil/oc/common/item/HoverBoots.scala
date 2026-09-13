@@ -1,37 +1,43 @@
 package li.cil.oc.common.item
 
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 import li.cil.oc.Settings
-import li.cil.oc.client.Textures
-import li.cil.oc.client.renderer.item.HoverBootRenderer
 import li.cil.oc.common.item.data.HoverBootsData
-import li.cil.oc.util.ItemColorizer
-import net.minecraft.client.model.ModelBiped
-import net.minecraft.client.renderer.texture.IIconRegister
-import net.minecraft.world.entity.item.ItemEntity
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.entity.Entity
-import net.minecraft.world.entity.LivingEntity
-import net.minecraft.world.level.block.Blocks
-import net.minecraft.world.item.Rarity
-import net.minecraft.world.item.ArmorItem
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.effect.MobEffect
 import net.minecraft.world.effect.MobEffectInstance
-import net.minecraft.util.IIcon
-import net.minecraft.util.Mth
+import net.minecraft.world.effect.MobEffects
+import net.minecraft.world.entity.Entity
+import net.minecraft.world.entity.EquipmentSlot
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.ArmorItem
+import net.minecraft.world.item.ArmorMaterials
+import net.minecraft.world.item.Item
+import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
 
-class HoverBoots extends ItemArmor(ItemArmor.ArmorMaterial.DIAMOND, 0, 3) with traits.SimpleItem with traits.Chargeable {
-  setNoRepair()
+/**
+ * 「悬浮靴」（原 `li.cil.oc.common.item.HoverBoots`）。
+ *
+ * 降级说明（依赖未移植内容）：
+ *  - `ItemArmor(ItemArmor.ArmorMaterial.DIAMOND, 0, 3)` →
+ *    [[ArmorItem]](`ArmorMaterials.DIAMOND`, `ArmorItem.Type.BOOTS`)。
+ *  - `@SideOnly(Dist.CLIENT) getArmorModel` / `HoverBootRenderer`（`client.renderer.item`）
+ *    与 `registerIcons` / `getIconFromDamageForRenderPass` 全部删除：
+ *    1.21.1 的护甲外观走护甲模型 JSON + 装备纹理，染色走
+ *    `RegisterColorHandlersEvent.Item` + `ItemColor`（客户端阶段实现）。
+ *  - `getArmorTexture` / `getColorFromItemStack` / `onArmorTick` / `onEntityItemUpdate`
+ *    这些 1.7.10 的护甲钩子在 1.21.1 已不存在：
+ *    - 掉电减速改由 [[inventoryTick]] 在检测到玩家穿戴时施加（等价语义）；
+ *    - 「放进炼药锅洗掉染色」依赖 `ItemEntity` 的特殊更新钩子，1.21.1 无对应入口，
+ *      作为 TODO 保留。
+ *  - 能量条：1.21.1 用 [[isBarVisible]] + [[getBarWidth]] 表达，代替
+ *    `getDisplayDamage` / `getMaxDamage`。
+ */
+class HoverBoots(props: Item.Properties)
+  extends ArmorItem(ArmorMaterials.DIAMOND, ArmorItem.Type.BOOTS, props)
+    with traits.SimpleItem with traits.Chargeable {
 
-  override def getRarity(stack: ItemStack): EnumRarity = EnumRarity.uncommon
+  override def maxCharge(stack: ItemStack): Double = Settings.get.bufferHoverBoots
 
-  override def maxCharge(stack: ItemStack) = Settings.get.bufferHoverBoots
-
-  override def getCharge(stack: ItemStack): Double =
-    new HoverBootsData(stack).charge
+  override def getCharge(stack: ItemStack): Double = new HoverBootsData(stack).charge
 
   override def setCharge(stack: ItemStack, amount: Double): Unit = {
     val data = new HoverBootsData(stack)
@@ -61,81 +67,48 @@ class HoverBoots extends ItemArmor(ItemArmor.ArmorMaterial.DIAMOND, 0, 3) with t
     }
   }
 
-  @SideOnly(Dist.CLIENT)
-  override def getArmorModel(entityLiving: LivingEntity, itemStack: ItemStack, armorSlot: Int): ModelBiped = {
-    if (armorSlot == armorType) {
-      HoverBootRenderer.lightColor = if (ItemColorizer.hasColor(itemStack)) ItemColorizer.getColor(itemStack) else 0x66DD55
-      HoverBootRenderer
-    }
-    else super.getArmorModel(entityLiving, itemStack, armorSlot)
+  // ----------------------------------------------------------------------- //
+  // 能量条
+  // ----------------------------------------------------------------------- //
+
+  override def isBarVisible(stack: ItemStack): Boolean = true
+
+  override def getBarWidth(stack: ItemStack): Int = {
+    val max = Settings.get.bufferHoverBoots
+    if (max <= 0) 0 else math.round(13 * (getCharge(stack) / max).toFloat) max 0 min 13
   }
 
-  override def getArmorTexture(stack: ItemStack, entity: Entity, slot: Int, subType: String): String = {
-    if (entity.worldObj.isRemote) HoverBootRenderer.texture.toString
-    else null
-  }
+  override def getBarColor(stack: ItemStack): Int = 0x66DD55
 
-  override def onArmorTick(world: Level, player: Player, stack: ItemStack): Unit = {
-    super.onArmorTick(world, player, stack)
-    if (!Settings.get.ignorePower && player.getActivePotionEffect(Potion.moveSlowdown) == null && getCharge(stack) == 0) {
-      player.addPotionEffect(new PotionEffect(Potion.moveSlowdown.getId, 20, 1))
-    }
-  }
+  // ----------------------------------------------------------------------- //
+  // 行为
+  // ----------------------------------------------------------------------- //
 
-  override def onEntityItemUpdate(entity: ItemEntity): Boolean = {
-    if (entity != null && entity.worldObj != null && !entity.worldObj.isRemote && ItemColorizer.hasColor(entity.getEntityItem)) {
-      val x = Mth.floor_double(entity.posX)
-      val y = Mth.floor_double(entity.posY)
-      val z = Mth.floor_double(entity.posZ)
-      if (entity.worldObj.getBlock(x, y, z) == Blocks.cauldron) {
-        val meta = entity.worldObj.getBlockMetadata(x, y, z)
-        if (meta > 0) {
-          ItemColorizer.removeColor(entity.getEntityItem)
-          entity.worldObj.setBlockMetadataWithNotify(x, y, z, meta - 1, 3)
-          return true
+  override def inventoryTick(stack: ItemStack, world: Level, entity: Entity, slot: Int, selected: Boolean): Unit = {
+    entity match {
+      case player: Player if !world.isClientSide =>
+        // 1.7.10 的 `onArmorTick` 语义：穿在身上且没电时给缓慢效果。
+        if (!Settings.get.ignorePower && (player.getItemBySlot(EquipmentSlot.FEET) eq stack) &&
+          getCharge(stack) <= 0.0 && !player.hasEffect(MobEffects.MOVEMENT_SLOWDOWN)) {
+          player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 20, 1))
         }
-      }
+        // TODO(事件): 原版还有「把靴子丢进炼药锅洗掉染色」的行为，
+        // 1.21.1 没有 `Item#onEntityItemUpdate`，需要改用 `ItemEntity` 的 tick 事件
+        // （`common/event`）在移植后实现。
+      case _ =>
     }
-    super.onEntityItemUpdate(entity)
   }
+}
 
-  @SideOnly(Dist.CLIENT)
-  override def registerIcons(ir: IIconRegister): Unit = {
-    this.itemIcon = ir.registerIcon(this.getIconString)
-    Textures.HoverBoots.lightOverlay = ir.registerIcon(this.getIconString + "Light")
-  }
+object HoverBoots {
+  /** 默认属性：唯一堆叠、不可修复（原 `setNoRepair()`）。 */
+  def defaultProps(): Item.Properties =
+    new net.minecraft.world.item.Item.Properties().stacksTo(1).setNoRepair()
 
-  @SideOnly(Dist.CLIENT)
-  override def requiresMultipleRenderPasses(): Boolean = true
-
-  @SideOnly(Dist.CLIENT)
-  override def getIconFromDamageForRenderPass(meta: Int, pass: Int): IIcon = if (pass == 1) Textures.HoverBoots.lightOverlay else super.getIconFromDamageForRenderPass(meta, pass)
-
-  override def getColorFromItemStack(itemStack: ItemStack, pass: Int): Int = {
-    if (pass == 1) {
-      return if (ItemColorizer.hasColor(itemStack)) ItemColorizer.getColor(itemStack) else 0x66DD55
-    }
-    super.getColorFromItemStack(itemStack, pass)
-  }
-
-  override def getDisplayDamage(stack: ItemStack): Int = {
-    val data = new HoverBootsData(stack)
-    (Settings.get.bufferHoverBoots * (1 - data.charge / Settings.get.bufferHoverBoots)).toInt
-  }
-
-  override def getMaxDamage(stack: ItemStack): Int = Settings.get.bufferHoverBoots.toInt
-
-  // Always show energy bar.
-  override def isDamaged(stack: ItemStack): Boolean = true
-
-  // Contradictory as it may seem with the above, this avoids actual damage value changing.
-  override def isDamageable: Boolean = false
-
-  override def setDamage(stack: ItemStack, damage: Int): Unit = {
-    // Subtract energy when taking damage instead of actually damaging the item.
-    charge(stack, -damage, simulate = false)
-
-    // Set to 0 for old boots that may have been damaged before.
-    super.setDamage(stack, 0)
+  /** 充满电的悬浮靴（原 `Items.createChargedHoverBoots`）。 */
+  def createChargedHoverBoots(): ItemStack = {
+    val data = new HoverBootsData()
+    data.charge = Settings.get.bufferHoverBoots
+    data.createItemStack()
   }
 }

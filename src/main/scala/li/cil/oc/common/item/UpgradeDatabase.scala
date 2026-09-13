@@ -1,5 +1,7 @@
 package li.cil.oc.common.item
 
+import li.cil.oc.util.ItemStackNBTExtensions._
+
 import li.cil.oc.Settings
 import li.cil.oc.util.Rarity
 import net.minecraft.world.InteractionHand
@@ -19,7 +21,7 @@ import net.minecraft.world.level.Level
  *    菜单类型属于 `common/container` + `common/GuiHandler`（尚未移植），此处保留 TODO 占位。
  *  - `stack.setTagCompound(null)` → 清空自定义数据组件。
  */
-class UpgradeDatabase(props: Item.Properties, val tier: Int)
+class UpgradeDatabase(props: Item.Properties, override val tier: Int)
   extends Item(props) with traits.Delegate with traits.ItemTier {
 
   override protected def tooltipName: Option[String] = Option(super.unlocalizedName)

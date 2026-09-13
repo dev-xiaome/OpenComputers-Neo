@@ -94,7 +94,7 @@ object Tooltip {
  *  - `extendedTooltipName`：扩展提示键的显示名，占位为空串（"tooltip.TooLong" 的
  *    `%s` 参数会是空串，因此只显示“过长”的说明，不显示按键）
  */
-private object TooltipKeyBindings {
+private[oc] object TooltipKeyBindings {
   def showExtendedTooltips: Boolean = false
 
   def extendedTooltipName: String = ""

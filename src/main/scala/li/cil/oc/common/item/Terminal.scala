@@ -1,5 +1,7 @@
 package li.cil.oc.common.item
 
+import li.cil.oc.util.ItemStackNBTExtensions._
+
 import java.util
 
 import li.cil.oc.Localization

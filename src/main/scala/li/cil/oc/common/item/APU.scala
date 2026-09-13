@@ -15,7 +15,7 @@ import scala.language.existentials
  *    「先取父实现再拼后缀」的写法在 1.21.1 已不需要（会重复拼接），直接删掉。
  *  - 品质在注册期由 [[APU.tier]] 工厂固定；创造版（`Tier.Three`）按 `Tier.Four` 显示。
  */
-class APU(props: Item.Properties, val tier: Int)
+class APU(props: Item.Properties, override val tier: Int)
   extends Item(props) with traits.Delegate with traits.ItemTier with traits.CPULike with traits.GPULike {
 
   override def cpuTier: Int = math.min(Tier.Three, tier + 1)

@@ -1,0 +1,12 @@
+{
+    "parent":  "minecraft:block/cube",
+    "textures":  {
+                     "particle":  "opencomputers_neo:block/netsplittertop",
+                     "down":  "opencomputers_neo:block/netsplittertop",
+                     "up":  "opencomputers_neo:block/netsplittertop",
+                     "north":  "opencomputers_neo:block/netsplitterside",
+                     "south":  "opencomputers_neo:block/netsplitterside",
+                     "west":  "opencomputers_neo:block/netsplitterside",
+                     "east":  "opencomputers_neo:block/netsplitterside"
+                 }
+}

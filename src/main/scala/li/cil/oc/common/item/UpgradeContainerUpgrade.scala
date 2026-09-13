@@ -7,7 +7,7 @@ import net.minecraft.world.item.Item
  *
  * 对应 `Constants.ItemName.UpgradeContainerTier1..3`。
  */
-class UpgradeContainerUpgrade(props: Item.Properties, val tier: Int)
+class UpgradeContainerUpgrade(props: Item.Properties, override val tier: Int)
   extends Item(props) with traits.Delegate with traits.ItemTier {
 
   override protected def tooltipName: Option[String] = Option(super.unlocalizedName)

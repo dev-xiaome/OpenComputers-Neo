@@ -23,12 +23,12 @@ import net.minecraft.world.level.Level
 class InkCartridge(props: Item.Properties) extends Item(props) with traits.Delegate {
 
   /** 原 `getContainerItem(stack)`：返回一个空墨盒。 */
-  def getContainerItem(stack: ItemStack): ItemStack = {
+  override def getContainerItem(stack: ItemStack): ItemStack = {
     val empty = api.Items.get(Constants.ItemName.InkCartridgeEmpty)
     if (empty == null) null else empty.createItemStack(1)
   }
 
-  def hasContainerItem(stack: ItemStack): Boolean = true
+  override def hasContainerItem(stack: ItemStack): Boolean = true
 
   override def use(world: Level, player: Player, hand: InteractionHand): InteractionResultHolder[ItemStack] = {
     val stack = player.getItemInHand(hand)

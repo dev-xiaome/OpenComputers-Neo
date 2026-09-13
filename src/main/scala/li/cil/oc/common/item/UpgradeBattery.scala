@@ -15,21 +15,21 @@ import net.minecraft.world.item.ItemStack
  *    [[Item#isBarVisible]] / [[Item#getBarWidth]] 控制，因此旧的 `damage` / `maxDamage`
  *    只作为 OC 内部语义保留（供 `ItemCosts` 等调用）。
  */
-class UpgradeBattery(props: Item.Properties, val tier: Int)
+class UpgradeBattery(props: Item.Properties, override val tier: Int)
   extends Item(props) with traits.Delegate with traits.ItemTier with Chargeable {
 
   override protected def tooltipName: Option[String] = Option(super.unlocalizedName)
 
   override protected def tooltipData: Seq[Any] = Seq(Settings.get.bufferCapacitorUpgrades(tier).toInt)
 
-  override def isDamageable: Boolean = true
+  override def isDamageable(stack: ItemStack): Boolean = true
 
-  override def damage(stack: ItemStack): Int = {
+  override def getDamage(stack: ItemStack): Int = {
     val data = new NodeData(stack)
     ((1 - data.buffer.getOrElse(0.0) / Settings.get.bufferCapacitorUpgrades(tier)) * 100).toInt
   }
 
-  override def maxDamage(stack: ItemStack): Int = 100
+  override def getMaxDamage(stack: ItemStack): Int = 100
 
   // ----------------------------------------------------------------------- //
 

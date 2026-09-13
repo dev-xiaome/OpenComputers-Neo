@@ -10,7 +10,7 @@ import net.minecraft.world.item.ItemStack
  * 1.21.1 迁移要点：品质在注册期由 [[ComponentBus.tier]] 工厂固定；
  * 创造版（`tier == Tier.Four`）因为驱动把它当作 T3，需要单独指定品质。
  */
-class ComponentBus(props: Item.Properties, val tier: Int)
+class ComponentBus(props: Item.Properties, override val tier: Int)
   extends Item(props) with traits.Delegate with traits.ItemTier {
 
   override protected def tooltipName: Option[String] = Option(super.unlocalizedName)

@@ -1,5 +1,7 @@
 package li.cil.oc.common.item
 
+import li.cil.oc.util.ItemStackNBTExtensions._
+
 import li.cil.oc.Settings
 import li.cil.oc.util.Tooltip
 import net.minecraft.world.entity.player.Player

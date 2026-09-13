@@ -1,53 +1,62 @@
 package li.cil.oc.common.tileentity.traits
 
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 import li.cil.oc.Settings
 import li.cil.oc.api.internal
-import li.cil.oc.server.PacketSender
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.level.block.entity.BlockEntity
 
-trait Colored extends BlockEntity with internal.Colored {
+/**
+ * 可被染色的方块实体（对应 1.7.10 的 `traits.Colored`）。
+ *
+ * 1.21.1 迁移要点：
+ *  - 颜色同步：1.7.10 通过 `server.PacketSender.sendColorChange(this)` 发包，`server` 包尚未移植，
+ *    这里改为「方块更新 + 客户端同步标签」——[[BlockEntityBase]] 的 `getUpdateTag` 会调用
+ *    `writeToNBTForClient`，其中包含 `renderColor`，因此客户端能拿到颜色。
+ *    TODO(server.PacketSender): 网络层移植后改回专用包，避免同步整个方块实体。
+ */
+trait Colored extends TileEntity with internal.Colored {
+  // 注意：Scala 的自类型不会被继承，TileEntity 的子 trait 必须重新声明。
+  self: BlockEntity =>
+
   private var _color = 0
 
-  def color = _color
+  def color: Int = _color
 
-  def color_=(value: Int) = if (value != _color) {
+  def color_=(value: Int): Unit = if (value != _color) {
     _color = value
     onColorChanged()
   }
 
-  def consumesDye = false
+  def consumesDye: Boolean = false
 
-  override def getColor = color
+  override def getColor: Int = color
 
-  override def setColor(value: Int) = color = value
+  override def setColor(value: Int): Unit = color = value
 
   protected def onColorChanged(): Unit = {
     if (world != null && isServer) {
-      PacketSender.sendColorChange(this)
+      markBlockForUpdate()
     }
   }
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     if (nbt.contains(Settings.namespace + "renderColor")) {
-      _color = nbt.getInteger(Settings.namespace + "renderColor")
+      _color = nbt.getInt(Settings.namespace + "renderColor")
     }
   }
 
-  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.putInt(Settings.namespace + "renderColor", _color)
   }
 
-  @SideOnly(Dist.CLIENT)
-  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
-    _color = nbt.getInteger("renderColor")
+    _color = nbt.getInt("renderColor")
   }
 
-  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putInt("renderColor", _color)
   }

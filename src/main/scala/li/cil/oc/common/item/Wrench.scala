@@ -20,7 +20,7 @@ import net.minecraft.world.level.Level
  *  - `Item#setHarvestLevel` / `setMaxStackSize` 已删除：1.21.1 分别改由
  *    `Item.Properties#stacksTo` 与数据包标签（`mineable`）表达，堆叠上限在注册期指定。
  *  - `onItemUseFirst(stack, player, world, x, y, z, side, hitX, hitY, hitZ)` →
- *    [[traits.Delegate#onItemUseFirst]]（`BlockPosition` + `UseOnContext` 拆包）。
+ *    [[traits.Delegate#onItemUseFirstAction]]（`BlockPosition` + `UseOnContext` 拆包）。
  *  - `Block#rotateBlock` / `Block#onNeighborBlockChange` 在 1.21.1 已不存在：
  *    前者由方块自身（`RotatedPillarBlock` 等）+ `BlockState` 属性表达，
  *    后者改为 `BlockState#updateNeighbourShapes` / `Level#blockUpdated`。
@@ -28,8 +28,15 @@ import net.minecraft.world.level.Level
  */
 class Wrench(props: Item.Properties) extends Item(props) with traits.SimpleItem with api.internal.Wrench {
 
-  override def onItemUseFirst(stack: ItemStack, player: Player, position: li.cil.oc.util.BlockPosition,
-                              side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean = {
+  /**
+   * 原 `onItemUseFirst`。
+   *
+   * 注意：`Wrench` 只混入 [[traits.SimpleItem]]（而不是 `traits.Delegate`），
+   * 因为 `SimpleItem` 没有 `use` 覆写，不会与 `IItemExtension#useOn` 的默认实现冲突；
+   * 因此这个方法不带 `override`。
+   */
+  def onItemUseFirstAction(stack: ItemStack, player: Player, position: li.cil.oc.util.BlockPosition,
+                           side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean = {
     position.world match {
       case Some(world) =>
         val pos = position.toChunkCoordinates

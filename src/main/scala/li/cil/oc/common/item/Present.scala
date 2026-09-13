@@ -7,25 +7,42 @@ import li.cil.oc.OpenComputers
 import li.cil.oc.api
 import li.cil.oc.util.InventoryUtils
 import li.cil.oc.util.ItemUtils
+import net.minecraft.sounds.SoundEvents
+import net.minecraft.sounds.SoundSource
+import net.minecraft.world.InteractionHand
+import net.minecraft.world.InteractionResultHolder
 import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
 
 import scala.collection.mutable
 
-class Present(val parent: Delegator) extends traits.Delegate {
+/**
+ * 「礼包」（原 `li.cil.oc.common.item.Present`）：右键随机获得一件 OC 物品。
+ *
+ * 1.21.1 迁移要点：
+ *  - `stack.stackSize` → `stack.getCount` / `stack.shrink` / `stack.setCount`
+ *  - `world.playSoundAtEntity(player, "random.levelup", ...)` →
+ *    `world.playSound(null, x, y, z, SoundEvents.PLAYER_LEVELUP, ...)`
+ *  - `world.isRemote` → `world.isClientSide`
+ */
+class Present(props: Item.Properties) extends Item(props) with traits.Delegate {
+
   showInItemList = false
 
-  override def onItemRightClick(stack: ItemStack, world: Level, player: Player) = {
-    if (stack.stackSize > 0) {
-      stack.stackSize -= 1
-      if (!world.isRemote) {
-        world.playSoundAtEntity(player, "random.levelup", 0.2f, 1f)
+  override def use(world: Level, player: Player, hand: InteractionHand): InteractionResultHolder[ItemStack] = {
+    val stack = player.getItemInHand(hand)
+    if (stack.getCount > 0) {
+      if (!world.isClientSide) {
+        world.playSound(null, player.getX, player.getY, player.getZ,
+          SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.2f, 1f)
         val present = Present.nextPresent()
         InventoryUtils.addToPlayerInventory(present, player)
       }
+      stack.shrink(1)
     }
-    stack
+    InteractionResultHolder.sidedSuccess(stack, world.isClientSide)
   }
 }
 
@@ -130,5 +147,5 @@ object Present {
 
   private val rng = new Random()
 
-  def nextPresent() = Presents(rng.nextInt(Presents.length)).copy()
+  def nextPresent(): ItemStack = Presents(rng.nextInt(Presents.length)).copy()
 }

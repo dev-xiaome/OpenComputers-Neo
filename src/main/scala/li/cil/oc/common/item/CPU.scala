@@ -13,7 +13,7 @@ import scala.language.existentials
  *  - `unlocalizedName` 由 [[li.cil.oc.common.item.traits.Delegate]] 自动拼出（类名 + tier）。
  *  - 品质在注册期由 [[CPU.tier]] 工厂固定。
  */
-class CPU(props: Item.Properties, val tier: Int)
+class CPU(props: Item.Properties, override val tier: Int)
   extends Item(props) with traits.Delegate with traits.ItemTier with traits.CPULike {
 
   override def cpuTier: Int = tier

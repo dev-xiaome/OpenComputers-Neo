@@ -45,7 +45,12 @@ trait SimpleItem extends Item {
    */
   def unlocalizedName: String = SimpleItem.unlocalizedNameOf(getClass)
 
-  /** 物品等级；普通物品不参与名字后缀，保持 [[li.cil.oc.common.Tier.None]] 即可。 */
+  /**
+   * 物品等级（0 起，`Tier.None` 表示不分级）。
+   *
+   * 默认不分级；分级物品在具体类里覆写（例如 `class Memory(props, override val tier: Int)`）。
+   * 具体类**必须**用 `override val`，否则会与这里的默认实现冲突。
+   */
   def tier: Int = li.cil.oc.common.Tier.None
 
   /** 翻译键（不含 `.name` 后缀）。等价于原 `setUnlocalizedName("oc." + id)`。 */

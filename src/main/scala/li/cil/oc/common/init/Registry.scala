@@ -145,6 +145,31 @@ object Registry extends ItemAPI {
   }
 
   // ----------------------------------------------------------------------- //
+  // 注册名规范化
+  // ----------------------------------------------------------------------- //
+
+  /**
+   * 把 [[li.cil.oc.Constants]] 里的常量名规范成合法的 1.21.1 注册名。
+   *
+   * 1.21.1 的注册名只允许 `[a-z0-9/._-]`：`DeferredRegister#register` 内部会调用
+   * `ResourceLocation.fromNamespaceAndPath(namespace, name)`，名字里出现大写字母会直接抛
+   * `ResourceLocationException`，而这一步发生在 **mod 构造期** → 启动即崩。
+   *
+   * 但 `Constants.ItemName` / `BlockName` 里有大量含大写的常量
+   * （`dataCard1`、`graphicsCard1`、`redstoneCard1`、`wirelessNetworkCard1`、
+   * `microcontrollerCase1`、`droneCase1`、`tabletCase1`、`cardContainer1`、
+   * `chipDiamond`、`nuggetIron` …），而且这些常量名**一个都不能改**
+   * （Lua 侧、配方、语言文件、`api.Items.get(name)` 都依赖它们）。
+   *
+   * 因此统一在这里做一次小写化：**对外注册用规范名**，
+   * 而 `descriptors` / `itemHolders` / `blockHolders` / `blockItemHolders` /
+   * `blockEntityHolders` / `creativeOrder` / `hiddenInCreativeTab` 等**查询用键仍保留常量名**，
+   * 于是 `api.Items.get(Constants.ItemName.DataCardTier1)` 等调用完全不受影响。
+   */
+  private def registryName(name: String): String =
+    if (name == null) null else name.toLowerCase(java.util.Locale.ROOT)
+
+  // ----------------------------------------------------------------------- //
   // 注册：物品
   // ----------------------------------------------------------------------- //
 
@@ -152,18 +177,18 @@ object Registry extends ItemAPI {
    * 注册一个独立物品。
    *
    * @param name     必须取 [[li.cil.oc.Constants.ItemName]] 中的常量（不改名），
-   *                 同时用作注册名与 [[ItemInfo#name]]。
+   *                 同时用作 [[ItemInfo#name]]；实际注册名会经 [[registryName]] 小写化。
    * @param supplier 物品工厂，**注册表事件之后**才会被调用，因此可以在里面 new 物品。
    */
   def registerItem[T <: Item](name: String, supplier: Supplier[T]): DeferredItem[T] = {
-    val holder = items.register(name, supplier)
+    val holder = items.register(registryName(name), supplier)
     registerItemInfo(name, holder)
     holder
   }
 
   /** 注册一个已有实例的物品（延迟到注册表事件后再返回该实例）。 */
   def registerItem[T <: Item](name: String, instance: T): DeferredItem[T] = {
-    val holder = items.register(name, new Supplier[T] {
+    val holder = items.register(registryName(name), new Supplier[T] {
       override def get(): T = instance
     })
     registerItemInfo(name, holder)
@@ -195,7 +220,7 @@ object Registry extends ItemAPI {
    * @param withBlockItem 是否注册同名 `BlockItem`（多方块内部方块可传 `false`）。
    */
   def registerBlock[T <: Block](name: String, supplier: Supplier[T], withBlockItem: Boolean): DeferredBlock[T] = {
-    val holder = blocks.register(name, supplier)
+    val holder = blocks.register(registryName(name), supplier)
     blockHolders += name -> holder
     descriptors += name -> new BaseItemInfo(name) {
       override def block(): Block = holder.value()
@@ -214,7 +239,7 @@ object Registry extends ItemAPI {
    * @param hidden 是否从创造模式标签页隐藏（例如机器人残留方块）。
    */
   def registerBlockItem[T <: Block](name: String, block: DeferredBlock[T], hidden: Boolean): DeferredItem[BlockItem] = {
-    val holder = items.register(name, new Supplier[BlockItem] {
+    val holder = items.register(registryName(name), new Supplier[BlockItem] {
       override def get(): BlockItem = new BlockItem(block.value(), new Item.Properties())
     })
     blockItemHolders += name -> holder
@@ -231,7 +256,7 @@ object Registry extends ItemAPI {
     val holder: DeferredBlock[T] = blockHolders.get(name) match {
       case Some(existing) => existing.asInstanceOf[DeferredBlock[T]]
       case _ =>
-        val created = blocks.register(name, new Supplier[T] {
+        val created = blocks.register(registryName(name), new Supplier[T] {
           override def get(): T = block
         })
         blockHolders += name -> created
@@ -261,7 +286,7 @@ object Registry extends ItemAPI {
    */
   def registerBlockEntity[T <: BlockEntity](name: String, supplier: Supplier[BlockEntityType[T]])
     : DeferredHolder[BlockEntityType[_], BlockEntityType[_]] = {
-    val holder = blockEntities.register(name, new Supplier[BlockEntityType[_]] {
+    val holder = blockEntities.register(registryName(name), new Supplier[BlockEntityType[_]] {
       override def get(): BlockEntityType[_] = supplier.get()
     })
     blockEntityHolders += name -> holder
@@ -283,7 +308,7 @@ object Registry extends ItemAPI {
   /** 注册菜单类型。 */
   def registerMenu[T <: MenuType[_]](name: String, supplier: Supplier[T])
     : DeferredHolder[MenuType[_], MenuType[_]] = {
-    val holder = menus.register(name, new Supplier[MenuType[_]] {
+    val holder = menus.register(registryName(name), new Supplier[MenuType[_]] {
       override def get(): MenuType[_] = supplier.get()
     })
     holder
@@ -329,9 +354,18 @@ object Registry extends ItemAPI {
   /** 名称 → 方块实例；不是方块时返回 `null`。 */
   def getBlock(name: String): Block = blockHolders.get(name).map(_.value()).orNull
 
-  /** 名称 → 方块实体类型；不是方块实体时返回 `null`。 */
+  /**
+   * 名称 → 方块实体类型；不是方块实体时返回 `null`。
+   *
+   * 查找时会额外尝试 [[registryName]] 规范化（全小写）后的名字：方块实体类型按
+   * 「类型名 = 方块注册路径（小写）」登记，而调用方往往拿着 `Constants.BlockName` 的常量
+   * （可能含大写，例如 `diskDrive`）来查，两者要能对上。
+   */
   def getBlockEntityType(name: String): BlockEntityType[_] =
-    blockEntityHolders.get(name).map(_.value()).orNull
+    if (name == null) null
+    else blockEntityHolders.get(name).
+      orElse(blockEntityHolders.get(registryName(name))).
+      map(_.value()).orNull
 
   /** 名称 → 物品延迟持有对象；不是物品时返回 `null`。 */
   def getItemHolder(name: String): DeferredHolder[Item, _ <: Item] =
@@ -481,24 +515,278 @@ object Registry extends ItemAPI {
     override def toString: String = s"ItemInfo($name)"
   }
 
-  /** 注册入口：物品部分（待 `common/item` 移植完成后补全）。 */
+  /** 注册入口：物品部分。 */
   object Items {
     /** 由 [[li.cil.oc.OpenComputers]] 在初始化阶段调用，注册全部独立物品。 */
     def init(): Unit = initItems()
 
-    /** 注册全部独立物品。TODO: 等 `li.cil.oc.common.item.*` 移植完成后逐个补上。 */
+    /**
+     * 注册全部独立物品。
+     *
+     * 1.7.10 的 `common/init/Items.scala` 用一个 `Delegator` + damage 值注册 100 多个子类型；
+     * 1.21.1 改为**逐个** `Constants.ItemName.*` 注册独立 `Item`，注册名即常量值
+     * （名字一个都不能改：Lua 侧与语言文件依赖它们）。
+     *
+     * 语言文件键仍然是 `item.oc.<类名><tier>.name`，由
+     * [[li.cil.oc.common.item.traits.SimpleItem#getDescriptionId]] 生成。
+     */
     def initItems(): Unit = {
-      // 每个 Constants.ItemName.* 对应一个独立物品，注册形态示例：
-      //
-      //   registerItem(Constants.ItemName.Wrench, () => new li.cil.oc.common.item.Wrench())
-      //   registerItem(Constants.ItemName.CPUTier1, () => li.cil.oc.common.item.CPU.tier(0))
-      //
-      // 分级物品建议在物品类的伴生对象里提供 `tier(t: Int): Item` 工厂，
-      // 由 `Item.Properties` + `tier` 构造，这样 unlocalizedName 会自动带上等级后缀
-      // （与语言文件键 `item.oc.<类名><tier>.name` 一致）。
-      //
-      // 注册完成后调用 `Registry.registerBuiltinAliases()`。
+      import li.cil.oc.Constants.ItemName
+      import li.cil.oc.common.item
+      import li.cil.oc.common.Tier
+      import li.cil.oc.util.Rarity
+
+      /** 基础属性：单堆叠。 */
+      def single(): Item.Properties = new Item.Properties().stacksTo(1)
+
+      /** 按等级给品质（与 1.7.10 的 `Rarity.byTier` 一致）。 */
+      def rarityFor(tier: Int): Item.Properties = new Item.Properties().rarity(Rarity.byTier(tier))
+
+      /** 注册物品；物品用 [[li.cil.oc.common.item.traits.Delegate#showInItemList]] 控制是否进标签页。 */
+      def reg[T <: Item](name: String, supplier: () => T): DeferredItem[T] = {
+        val holder = registerItem(name, new Supplier[T] {
+          override def get(): T = supplier()
+        })
+        holder.value() match {
+          case delegate: item.traits.Delegate if !delegate.showInItemList =>
+            hideBlockItemInCreativeTab(name)
+          case _ =>
+        }
+        holder
+      }
+
+      def regInstance[T <: Item](name: String, instance: T): DeferredItem[T] = {
+        val holder = registerItem(name, instance)
+        instance match {
+          case delegate: item.traits.Delegate if !delegate.showInItemList =>
+            hideBlockItemInCreativeTab(name)
+          case _ =>
+        }
+        holder
+      }
+
+      // ------------------------------------------------------------------ //
+      // 材料 / 简单物品
+      // ------------------------------------------------------------------ //
+
+      reg(ItemName.IronNugget, () => new item.IronNugget(new Item.Properties()))
+      reg(ItemName.CuttingWire, () => new item.CuttingWire(new Item.Properties()))
+      reg(ItemName.Acid, () => new item.Acid(single()))
+      reg(ItemName.Disk, () => new item.Disk(new Item.Properties()))
+      reg(ItemName.ButtonGroup, () => new item.ButtonGroup(new Item.Properties()))
+      reg(ItemName.ArrowKeys, () => new item.ArrowKeys(new Item.Properties()))
+      reg(ItemName.NumPad, () => new item.NumPad(new Item.Properties()))
+      reg(ItemName.Transistor, () => new item.Transistor(new Item.Properties()))
+      reg(ItemName.Alu, () => new item.ALU(new Item.Properties()))
+      reg(ItemName.ControlUnit, () => new item.ControlUnit(new Item.Properties()))
+      reg(ItemName.RawCircuitBoard, () => new item.RawCircuitBoard(new Item.Properties()))
+      reg(ItemName.CircuitBoard, () => new item.CircuitBoard(new Item.Properties()))
+      reg(ItemName.PrintedCircuitBoard, () => new item.PrintedCircuitBoard(new Item.Properties()))
+      reg(ItemName.Card, () => new item.CardBase(new Item.Properties()))
+      reg(ItemName.Interweb, () => new item.Interweb(new Item.Properties()))
+      reg(ItemName.DiamondChip, () => new item.DiamondChip(new Item.Properties()))
+      reg(ItemName.Chamelium, () => new item.Chamelium(single()))
+      reg(ItemName.InkCartridgeEmpty, () => new item.InkCartridgeEmpty(single()))
+      reg(ItemName.InkCartridge, () => new item.InkCartridge(single()))
+      reg(ItemName.TexturePicker, () => new item.TexturePicker(single()))
+      reg(ItemName.Manual, () => new item.Manual(single()))
+      reg(ItemName.Wrench, () => new item.Wrench(single()))
+      reg(ItemName.Present, () => new item.Present(single()))
+      reg(ItemName.EEPROM, () => new item.EEPROM(new Item.Properties()))
+      reg(ItemName.Floppy, () => new item.FloppyDisk(single()))
+      reg(ItemName.LootDisk, () => new item.FloppyDisk(single()))
+      // TODO(战利品磁盘): `LootDisk` 的匿名子类在原版里 `showInItemList = false`，
+      // 这里用同名类但不上标签页（见上面的 showInItemList 判定）。
+
+      // ------------------------------------------------------------------ //
+      // 分级组件
+      // ------------------------------------------------------------------ //
+
+      reg(ItemName.RAMTier1, () => item.Memory.tier(Tier.One))
+      reg(ItemName.RAMTier2, () => item.Memory.tier(Tier.Two))
+      reg(ItemName.RAMTier3, () => item.Memory.tier(Tier.Three))
+      reg(ItemName.RAMTier4, () => item.Memory.tier(Tier.Four))
+      reg(ItemName.RAMTier5, () => item.Memory.tier(Tier.Five))
+      reg(ItemName.RAMTier6, () => item.Memory.tier(Tier.Six))
+
+      reg(ItemName.CPUTier1, () => item.CPU.tier(Tier.One))
+      reg(ItemName.CPUTier2, () => item.CPU.tier(Tier.Two))
+      reg(ItemName.CPUTier3, () => item.CPU.tier(Tier.Three))
+
+      reg(ItemName.APUTier1, () => item.APU.tier(Tier.One))
+      reg(ItemName.APUTier2, () => item.APU.tier(Tier.Two))
+      reg(ItemName.APUCreative, () => item.APU.tier(Tier.Four))
+
+      reg(ItemName.ChipTier1, () => item.Microchip.tier(Tier.One))
+      reg(ItemName.ChipTier2, () => item.Microchip.tier(Tier.Two))
+      reg(ItemName.ChipTier3, () => item.Microchip.tier(Tier.Three))
+
+      reg(ItemName.GraphicsCardTier1, () => item.GraphicsCard.tier(Tier.One))
+      reg(ItemName.GraphicsCardTier2, () => item.GraphicsCard.tier(Tier.Two))
+      reg(ItemName.GraphicsCardTier3, () => item.GraphicsCard.tier(Tier.Three))
+
+      reg(ItemName.ComponentBusTier1, () => item.ComponentBus.tier(Tier.One))
+      reg(ItemName.ComponentBusTier2, () => item.ComponentBus.tier(Tier.Two))
+      reg(ItemName.ComponentBusTier3, () => item.ComponentBus.tier(Tier.Three))
+      reg(ItemName.ComponentBusCreative, () => item.ComponentBus.tier(Tier.Four))
+
+      reg(ItemName.DataCardTier1, () => new item.DataCard(single(), Tier.One))
+      reg(ItemName.DataCardTier2, () => new item.DataCard(single(), Tier.Two))
+      reg(ItemName.DataCardTier3, () => new item.DataCard(single(), Tier.Three))
+
+      // ------------------------------------------------------------------ //
+      // 存储（软盘 / 硬盘）
+      // ------------------------------------------------------------------ //
+
+      reg(ItemName.HDDTier1, () => new item.HardDiskDrive(single(), Tier.One))
+      reg(ItemName.HDDTier2, () => new item.HardDiskDrive(single(), Tier.Two))
+      reg(ItemName.HDDTier3, () => new item.HardDiskDrive(single(), Tier.Three))
+
+      // ------------------------------------------------------------------ //
+      // 卡
+      // ------------------------------------------------------------------ //
+
+      reg(ItemName.NetworkCard, () => new item.NetworkCard(single()))
+      reg(ItemName.WirelessNetworkCardTier1, () => new item.WirelessNetworkCard(single(), Tier.One))
+      reg(ItemName.WirelessNetworkCardTier2, () => new item.WirelessNetworkCard(single(), Tier.Two))
+      reg(ItemName.RedstoneCardTier1, () => new item.RedstoneCard(single(), Tier.One))
+      reg(ItemName.RedstoneCardTier2, () => new item.RedstoneCard(single(), Tier.Two))
+      reg(ItemName.InternetCard, () => new item.InternetCard(single()))
+      reg(ItemName.LinkedCard, () => new item.LinkedCard(single()))
+      reg(ItemName.AbstractBusCard, () => new item.AbstractBusCard(single()))
+      reg(ItemName.WorldSensorCard, () => new item.WorldSensorCard(single()))
+      reg(ItemName.DebugCard, () => new item.DebugCard(single()))
+      reg(ItemName.Debugger, () => new item.Debugger(single()))
+
+      // ------------------------------------------------------------------ //
+      // 外壳
+      // ------------------------------------------------------------------ //
+
+      reg(ItemName.MicrocontrollerCaseTier1, () => new item.MicrocontrollerCase(single(), Tier.One))
+      reg(ItemName.MicrocontrollerCaseTier2, () => new item.MicrocontrollerCase(single(), Tier.Two))
+      reg(ItemName.MicrocontrollerCaseCreative, () => new item.MicrocontrollerCase(single(), Tier.Four))
+      reg(ItemName.DroneCaseTier1, () => new item.DroneCase(single(), Tier.One))
+      reg(ItemName.DroneCaseTier2, () => new item.DroneCase(single(), Tier.Two))
+      reg(ItemName.DroneCaseCreative, () => new item.DroneCase(single(), Tier.Four))
+      reg(ItemName.TabletCaseTier1, () => new item.TabletCase(single(), Tier.One))
+      reg(ItemName.TabletCaseTier2, () => new item.TabletCase(single(), Tier.Two))
+      reg(ItemName.TabletCaseCreative, () => new item.TabletCase(single(), Tier.Four))
+
+      // ------------------------------------------------------------------ //
+      // 服务器 / 终端 / 平板 / 无人机
+      // ------------------------------------------------------------------ //
+
+      reg(ItemName.ServerTier1, () => item.Server.tier(Tier.One))
+      reg(ItemName.ServerTier2, () => item.Server.tier(Tier.Two))
+      reg(ItemName.ServerTier3, () => item.Server.tier(Tier.Three))
+      reg(ItemName.ServerCreative, () => item.Server.tier(Tier.Four))
+      reg(ItemName.Terminal, () => new item.Terminal(single()))
+      reg(ItemName.TerminalServer, () => new item.TerminalServer(single()))
+      reg(ItemName.DiskDriveMountable, () => new item.DiskDriveMountable(single()))
+      reg(ItemName.Tablet, () => new item.Tablet(single()))
+      reg(ItemName.Drone, () => new item.Drone(single()))
+
+      // ------------------------------------------------------------------ //
+      // 升级
+      // ------------------------------------------------------------------ //
+
+      reg(ItemName.SolarGeneratorUpgrade, () => new item.UpgradeSolarGenerator(single()))
+      reg(ItemName.GeneratorUpgrade, () => new item.UpgradeGenerator(single()))
+      reg(ItemName.SignUpgrade, () => new item.UpgradeSign(single()))
+      reg(ItemName.NavigationUpgrade, () => new item.UpgradeNavigation(single()))
+      reg(ItemName.PistonUpgrade, () => new item.UpgradePiston(single()))
+      reg(ItemName.CraftingUpgrade, () => new item.UpgradeCrafting(single()))
+      reg(ItemName.AngelUpgrade, () => new item.UpgradeAngel(single()))
+      reg(ItemName.ExperienceUpgrade, () => new item.UpgradeExperience(single()))
+      reg(ItemName.InventoryUpgrade, () => new item.UpgradeInventory(single()))
+      reg(ItemName.InventoryControllerUpgrade, () => new item.UpgradeInventoryController(single()))
+      reg(ItemName.ChunkloaderUpgrade, () => new item.UpgradeChunkloader(single()))
+      reg(ItemName.TractorBeamUpgrade, () => new item.UpgradeTractorBeam(single()))
+      reg(ItemName.LeashUpgrade, () => new item.UpgradeLeash(single()))
+      reg(ItemName.TankUpgrade, () => new item.UpgradeTank(single()))
+      reg(ItemName.TankControllerUpgrade, () => new item.UpgradeTankController(single()))
+      reg(ItemName.TradingUpgrade, () => new item.UpgradeTrading(single()))
+      reg(ItemName.MFU, () => new item.UpgradeMF(single()))
+
+      reg(ItemName.BatteryUpgradeTier1, () => new item.UpgradeBattery(rarityFor(Tier.One), Tier.One))
+      reg(ItemName.BatteryUpgradeTier2, () => new item.UpgradeBattery(rarityFor(Tier.Two), Tier.Two))
+      reg(ItemName.BatteryUpgradeTier3, () => new item.UpgradeBattery(rarityFor(Tier.Three), Tier.Three))
+
+      reg(ItemName.HoverUpgradeTier1, () => new item.UpgradeHover(single(), Tier.One))
+      reg(ItemName.HoverUpgradeTier2, () => new item.UpgradeHover(single(), Tier.Two))
+
+      reg(ItemName.DatabaseUpgradeTier1, () => item.UpgradeDatabase.tier(Tier.One))
+      reg(ItemName.DatabaseUpgradeTier2, () => item.UpgradeDatabase.tier(Tier.Two))
+      reg(ItemName.DatabaseUpgradeTier3, () => item.UpgradeDatabase.tier(Tier.Three))
+
+      reg(ItemName.CardContainerTier1, () => new item.UpgradeContainerCard(single(), Tier.One))
+      reg(ItemName.CardContainerTier2, () => new item.UpgradeContainerCard(single(), Tier.Two))
+      reg(ItemName.CardContainerTier3, () => new item.UpgradeContainerCard(single(), Tier.Three))
+      reg(ItemName.UpgradeContainerTier1, () => new item.UpgradeContainerUpgrade(single(), Tier.One))
+      reg(ItemName.UpgradeContainerTier2, () => new item.UpgradeContainerUpgrade(single(), Tier.Two))
+      reg(ItemName.UpgradeContainerTier3, () => new item.UpgradeContainerUpgrade(single(), Tier.Three))
+
+      reg(ItemName.Nanomachines, () => new item.Nanomachines(
+        single().rarity(net.minecraft.world.item.Rarity.UNCOMMON)))
+      regInstance(ItemName.HoverBoots, new item.HoverBoots(item.HoverBoots.defaultProps()
+        .rarity(net.minecraft.world.item.Rarity.UNCOMMON)))
+
+      // ------------------------------------------------------------------ //
+      // 由堆叠描述的伪物品（原 `Items.registerStack`）
+      // ------------------------------------------------------------------ //
+
+      registerStackItem(ItemName.LuaBios, size => {
+        val code = new Array[Byte](4 * 1024)
+        val stream = getClass.getResourceAsStream(Settings.scriptPath + "bios.lua")
+        val count = if (stream == null) 0 else try stream.read(code) finally stream.close()
+        val stack = registerEEPROM("EEPROM (Lua BIOS)", code.take(count), null, readonly = false)
+        if (stack != null) stack.setCount(size)
+        stack
+      })
+
+      registerStackItem(ItemName.OpenOS, size => createItemStack(ItemName.Floppy, size))
+
+      // ------------------------------------------------------------------ //
+      // 创造模式标签页里的预配置堆叠（原 `Items.init` 的 `additionalItems`）
+      // ------------------------------------------------------------------ //
+
+      // 这些条目没有独立 `Item`，因此不注册描述符，只作为额外堆叠追加到标签页。
+      def addCreativeStack(factory: => ItemStack): Unit = {
+        val stack = factory
+        if (stack != null && !stack.isEmpty) registeredItems += stack
+      }
+
+      addCreativeStack(item.Drone.createConfiguredDrone())
+      addCreativeStack(item.Microcontroller.createConfiguredMicrocontroller())
+      // TODO(创造模式): 原版还有一个预配置机器人（`Items.createConfiguredRobot`），
+      // 但机器人是方块（`BlockName.Robot` + `RobotData`），等 `common/block` 移植后补上。
+      addCreativeStack(item.Tablet.createConfiguredTablet())
+      addCreativeStack(item.HoverBoots.createChargedHoverBoots())
+
       registerBuiltinAliases()
+    }
+
+    /**
+     * 注册一个「由固定堆叠描述」的条目（等价于原 `Items.registerStack`）。
+     *
+     * 用于 `openos` / `luaBios` 这类没有独立 `Item` 类的条目，以及创造模式标签页里的
+     * 预配置堆叠（原版 `additionalItems`）：描述符返回预先构造好的堆叠的副本
+     * （原版 `createItemStack` 也是返回不可变模板的 `copy`）。
+     *
+     * @param factory 惰性工厂：**注册表事件之后**（即 `createItemStack` 被调用时）
+     *                才会求值，因此可以在里面访问 [[createItemStack]]。
+     */
+    private def registerStackItem(name: String, factory: Int => ItemStack): Unit = {
+      val info = new BaseItemInfo(name) {
+        override def item(): Item = {
+          val template = factory(1)
+          if (template == null || template.isEmpty) null else template.getItem
+        }
+
+        override def createItemStack(size: Int): ItemStack = factory(size)
+      }
+      descriptors += name -> info
+      creativeOrder += name
     }
   }
 

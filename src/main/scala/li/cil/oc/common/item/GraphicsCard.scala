@@ -11,7 +11,7 @@ import net.minecraft.world.item.Item
  *  - `unlocalizedName` 由 [[li.cil.oc.common.item.traits.Delegate]] 自动拼出。
  *  - 品质在注册期由 [[GraphicsCard.tier]] 工厂固定。
  */
-class GraphicsCard(props: Item.Properties, val tier: Int)
+class GraphicsCard(props: Item.Properties, override val tier: Int)
   extends Item(props) with traits.Delegate with traits.ItemTier with traits.GPULike {
 
   override def gpuTier: Int = tier

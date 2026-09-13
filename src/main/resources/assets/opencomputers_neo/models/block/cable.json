@@ -1,0 +1,12 @@
+{
+    "parent":  "minecraft:block/cube",
+    "textures":  {
+                     "particle":  "opencomputers_neo:block/cablepart",
+                     "down":  "opencomputers_neo:block/cablepart",
+                     "up":  "opencomputers_neo:block/cablepart",
+                     "north":  "opencomputers_neo:block/cablepart",
+                     "south":  "opencomputers_neo:block/cablepart",
+                     "west":  "opencomputers_neo:block/cablepart",
+                     "east":  "opencomputers_neo:block/cablepart"
+                 }
+}

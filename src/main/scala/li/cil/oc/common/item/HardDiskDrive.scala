@@ -14,7 +14,7 @@ import net.minecraft.world.item.ItemStack
  *    1.21.1 直接退化为 `Item#getName`（即语言文件里的名字）。
  *  - `displayName` 的返回类型从 `Option[String]` 变为 `Option[Component]`。
  */
-class HardDiskDrive(props: Item.Properties, val tier: Int)
+class HardDiskDrive(props: Item.Properties, override val tier: Int)
   extends Item(props) with traits.Delegate with traits.ItemTier with traits.FileSystemLike {
 
   val kiloBytes: Int = Settings.get.hddSizes(tier)

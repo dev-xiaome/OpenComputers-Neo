@@ -8,7 +8,7 @@ import net.minecraft.world.item.ItemStack
  *
  * 对应 `Constants.ItemName.TabletCaseTier1 / Tier2 / Creative`。
  */
-class TabletCase(props: Item.Properties, val tier: Int)
+class TabletCase(props: Item.Properties, override val tier: Int)
   extends Item(props) with traits.Delegate with traits.ItemTier {
 
   override protected def tierFromDriver(stack: ItemStack): Int = tier

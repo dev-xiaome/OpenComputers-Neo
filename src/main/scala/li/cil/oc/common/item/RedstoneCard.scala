@@ -15,7 +15,7 @@ import net.minecraft.world.item.ItemStack
  *  - 对第三方红石模组的提示（ProjectRed / RedLogic / MFR / WirelessRedstone）已移除，
  *    因为这些集成不在本次移植范围（见 docs/PORTING.md「其它模组集成」）。
  */
-class RedstoneCard(props: Item.Properties, val tier: Int)
+class RedstoneCard(props: Item.Properties, override val tier: Int)
   extends Item(props) with traits.Delegate with traits.ItemTier {
 
   override protected def tooltipName: Option[String] = Option(super.unlocalizedName)

@@ -12,7 +12,7 @@ import net.minecraft.world.item.ItemStack
  *  - `unlocalizedName` 由 [[li.cil.oc.common.item.traits.Delegate]] 自动拼出。
  *  - 品质在注册期由 [[Microchip.tier]] 工厂固定。
  */
-class Microchip(props: Item.Properties, val tier: Int) extends Item(props) with traits.Delegate {
+class Microchip(props: Item.Properties, override val tier: Int) extends Item(props) with traits.Delegate {
 
   override protected def tooltipName: Option[String] = Option(super.unlocalizedName)
 }

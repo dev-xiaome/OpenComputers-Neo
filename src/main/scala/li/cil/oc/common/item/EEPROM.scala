@@ -1,5 +1,7 @@
 package li.cil.oc.common.item
 
+import li.cil.oc.util.ItemStackNBTExtensions._
+
 import li.cil.oc.Settings
 import net.minecraft.network.chat.Component
 import net.minecraft.world.item.Item
