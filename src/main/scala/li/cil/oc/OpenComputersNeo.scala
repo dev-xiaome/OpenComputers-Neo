@@ -31,6 +31,11 @@ class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
   // （BlockEntityTypeAddBlocksEvent）。必须在 mod 构造期完成。
   Registry.init(modBus)
 
+  // 具体物品 / 方块的注册。两者目前是占位实现（对应原 `Items.init()` / `Blocks.init()`），
+  // 等 `common/item`、`common/block` 移植完成后在 `Registry.Items` / `Registry.Blocks` 里补全。
+  Registry.Items.init()
+  Registry.Blocks.init()
+
   modBus.addListener(new java.util.function.Consumer[FMLCommonSetupEvent] {
     override def accept(event: FMLCommonSetupEvent): Unit = event.enqueueWork(new Runnable {
       override def run(): Unit = {

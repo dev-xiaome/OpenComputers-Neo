@@ -17,7 +17,7 @@
 | `li.cil.oc.util` | ✅ | Scala 工具层全部编译通过（0 错误） |
 | 游戏内加载 | ✅ | `runClient` 可正常进入游戏；日志确认主类与配置初始化完成，生成 `config/opencomputers_neo.conf` |
 | 创造模式标签页 | ⚠️ | 已注册但**空**，游戏会隐藏空标签页 → 阶段 2 注册物品后才会显示 |
-| `li.cil.oc.common` | 🔄 | 阶段 2 进行中：先做注册层 + `common/item/traits` + `common/item/data` |
+| `li.cil.oc.common` | 🔄 | 阶段 2 进行中：注册层 ✅、网络传输层 ✅、`common/item/traits`+`data` ✅；`common/item` 顶层 / `common/block` / `common/tileentity` 待做 |
 | 物品 NBT 方案 | ✅ | 自定义数据组件 `opencomputers_neo:nbt`（`li.cil.oc.common.DataComponents`）+ `li.cil.oc.util.ItemNBT` + Scala 隐式类 |
 
 ## 关键设计决策
@@ -47,9 +47,13 @@
 
 1. `li.cil.oc.common` 阶段 2（进行中）
    - ✅ `common/Tier.scala`、`common/GuiType.scala`、`common/Slot.scala`、`common/Sound.scala` + `common/SoundEvents.java`
-   - 🔄 注册层（`common/init/**`）+ `common/item/traits/**` + `common/item/data/**` —— 代理施工中
-   - 🔄 网络传输层（`common/PacketBuilder|PacketType|PacketHandler`，新建 `common/network/`）—— 代理施工中
-   - ⬜ `common/item/*.scala` 顶层（97 文件）：把 `Delegator` + damage 子类型改造成**每个 `Constants.ItemName.*` 一个独立 `Item`**
+   - ✅ 注册层 `common/init/Registry.scala`（`DeferredRegister` 封装 + `BuildCreativeModeTabContentsEvent` 填充标签页 +
+     `api.Items` 接线；`Items.initItems()` / `Blocks.initBlocks()` 留了注册点）
+   - ✅ 网络传输层：`common/network/{OpenComputersPayload,NetworkDispatcher,OpenComputersNetwork}.java` +
+     `common/PacketBuilder.scala`、`common/PacketHandler.scala`（`PacketType.scala` 原样保留）
+     → 主类需调用 `li.cil.oc.common.PacketHandler.initialize(modBus)`
+   - ✅ `common/item/traits/**`（7 文件）、`common/item/data/**`（13 文件）
+   - 🔄 `common/item/*.scala` 顶层（约 90 文件）：改为「每个 `Constants.ItemName.*` 一个独立 `Item`」，并在 `Items.initItems()` 注册 —— 代理施工中
    - ⬜ `common/block/**`（40 文件）：`BlockBehaviour.Properties` + `BlockState` 属性 + `VoxelShape`，`ItemBlock` → `BlockItem`
    - ⬜ `common/tileentity/**`（62 文件）：`BlockEntity(BlockEntityType, BlockPos, BlockState)` + `EntityBlock#getTicker`
    - ⬜ `common/template`、`common/inventory`、`common/container`、`common/recipe`、`common/event`、`common/component`

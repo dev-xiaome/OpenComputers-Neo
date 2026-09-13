@@ -36,9 +36,10 @@ import scala.collection.mutable
  *   // 1) 在主类构造期（mod 构造期）调用一次：
  *   Registry.init(modBus)
  *
- *   // 2) 注册物品要等注册表事件之后才能调用 holder.value()，因此物品/方块类
- *   //    应当只把「工厂」交给本层，由本层负责延迟求值：
+ *   // 2) 注册物品要等注册表事件之后才能调用 holder.value()，因此只把「工厂」
+ *   //    交给本层，由本层负责延迟求值。分级物品请在伴生对象里提供工厂：
  *   Registry.registerItem(Constants.ItemName.Wrench, () => new li.cil.oc.common.item.Wrench())
+ *   Registry.registerItem(Constants.ItemName.CPUTier1, () => li.cil.oc.common.item.CPU.tier(0))
  *
  *   // 3) 查询：
  *   val info = Registry.get(Constants.ItemName.Wrench)     // ItemInfo
@@ -156,6 +157,20 @@ object Registry extends ItemAPI {
    */
   def registerItem[T <: Item](name: String, supplier: Supplier[T]): DeferredItem[T] = {
     val holder = items.register(name, supplier)
+    registerItemInfo(name, holder)
+    holder
+  }
+
+  /** 注册一个已有实例的物品（延迟到注册表事件后再返回该实例）。 */
+  def registerItem[T <: Item](name: String, instance: T): DeferredItem[T] = {
+    val holder = items.register(name, new Supplier[T] {
+      override def get(): T = instance
+    })
+    registerItemInfo(name, holder)
+    holder
+  }
+
+  private def registerItemInfo[T <: Item](name: String, holder: DeferredItem[T]): Unit = {
     val info = new BaseItemInfo(name) {
       override def item(): Item = holder.value()
 
@@ -164,14 +179,7 @@ object Registry extends ItemAPI {
     descriptors += name -> info
     itemHolders += name -> holder
     creativeOrder += name
-    holder
   }
-
-  /** 注册一个已有实例的物品（延迟到注册表事件后再返回该实例）。 */
-  def registerItem[T <: Item](name: String, instance: T): DeferredItem[T] =
-    registerItem(name, new Supplier[T] {
-      override def get(): T = instance
-    })
 
   // ----------------------------------------------------------------------- //
   // 注册：方块（含方块物品）
@@ -218,11 +226,19 @@ object Registry extends ItemAPI {
     holder
   }
 
-  /** 直接给一个已实例化的方块补注册 `BlockItem`。 */
-  def registerBlockItem[T <: Block](name: String, block: T, hidden: Boolean): DeferredItem[BlockItem] =
-    registerBlockItem(name, blocks.register(name + "BlockRef", new Supplier[T] {
-      override def get(): T = block
-    }), hidden)
+  /** 直接给一个已实例化的方块补注册 `BlockItem`（方块已有延迟持有对象时直接复用）。 */
+  def registerBlockItem[T <: Block](name: String, block: T, hidden: Boolean): DeferredItem[BlockItem] = {
+    val holder: DeferredBlock[T] = blockHolders.get(name) match {
+      case Some(existing) => existing.asInstanceOf[DeferredBlock[T]]
+      case _ =>
+        val created = blocks.register(name, new Supplier[T] {
+          override def get(): T = block
+        })
+        blockHolders += name -> created
+        created
+    }
+    registerBlockItem(name, holder, hidden)
+  }
 
   /** 把某个方块标记为「方块物品不进入创造模式标签页」。 */
   def hideBlockItemInCreativeTab(name: String): Unit = hiddenInCreativeTab += name
@@ -475,7 +491,11 @@ object Registry extends ItemAPI {
       // 每个 Constants.ItemName.* 对应一个独立物品，注册形态示例：
       //
       //   registerItem(Constants.ItemName.Wrench, () => new li.cil.oc.common.item.Wrench())
-      //   registerItem(Constants.ItemName.RAMTier1, () => new li.cil.oc.common.item.Memory(Constants.ItemName.RAMTier1, Tier.One))
+      //   registerItem(Constants.ItemName.CPUTier1, () => li.cil.oc.common.item.CPU.tier(0))
+      //
+      // 分级物品建议在物品类的伴生对象里提供 `tier(t: Int): Item` 工厂，
+      // 由 `Item.Properties` + `tier` 构造，这样 unlocalizedName 会自动带上等级后缀
+      // （与语言文件键 `item.oc.<类名><tier>.name` 一致）。
       //
       // 注册完成后调用 `Registry.registerBuiltinAliases()`。
       registerBuiltinAliases()
@@ -487,13 +507,14 @@ object Registry extends ItemAPI {
     /** 由 [[li.cil.oc.OpenComputers]] 在初始化阶段调用，注册全部方块与方块实体类型。 */
     def init(): Unit = initBlocks()
 
-    /** 注册全部方块与方块实体类型。TODO: 等 `li.cil.oc.common.block.*` 移植完成后补上。 */
+    /** 注册全部方块与方块实体类型。TODO: 等 `li.cil.oc.common.block` 移植完成后补上。 */
     def initBlocks(): Unit = {
       // 注册形态示例：
       //
-      //   registerBlock(Constants.BlockName.ScreenTier1, () => new li.cil.oc.common.block.Screen(Tier.One))
+      //   registerBlock(Constants.BlockName.ScreenTier1, () => new li.cil.oc.common.block.Screen(new BlockBehaviour.Properties()))
       //   registerBlockEntity(Constants.BlockName.ScreenTier1, () => BlockEntityType.Builder
       //     .of((pos, state) => new li.cil.oc.common.tileentity.Screen(pos, state), Array.empty[Block]: _*).build(null))
+      //   bindBlockEntityBlock(Constants.BlockName.ScreenTier1, Constants.BlockName.ScreenTier1)
     }
   }
 }
