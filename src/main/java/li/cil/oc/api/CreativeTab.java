@@ -24,7 +24,7 @@ public final class CreativeTab {
      * 通过 {@link #instance()} 获取实际标签页。
      */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> HOLDER = REGISTRY.register(
-            "OpenComputers",
+            "opencomputers",
             () -> CreativeModeTab.builder()
                     .title(Component.translatable("itemGroup.opencomputers_neo"))
                     .icon(() -> new net.minecraft.world.item.ItemStack(

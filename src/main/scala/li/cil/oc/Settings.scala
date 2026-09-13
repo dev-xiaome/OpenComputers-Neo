@@ -3,7 +3,6 @@ package li.cil.oc
 import com.google.common.net.InetAddresses
 import com.mojang.authlib.GameProfile
 import com.typesafe.config._
-import com.typesafe.config.impl.OpenComputersConfigCommentManipulationHook
 import li.cil.oc.Settings.DebugCardAccess
 import li.cil.oc.common.Tier
 import li.cil.oc.util.{InetAddressRange, InternetFilteringRule}
@@ -453,7 +452,7 @@ class Settings(val config: Config) {
     case "true" | "allow" | java.lang.Boolean.TRUE => DebugCardAccess.Allowed
     case "false" | "deny" | java.lang.Boolean.FALSE => DebugCardAccess.Forbidden
     case "whitelist" =>
-      val wlFile = FMLPaths.CONFIGDIR.get().resolve("OpenComputers").resolve("debug_card_whitelist.txt").toFile
+      val wlFile = FMLPaths.CONFIGDIR.get().resolve("opencomputers_neo").resolve("debug_card_whitelist.txt").toFile
 
       DebugCardAccess.Whitelist(wlFile)
 
@@ -542,7 +541,7 @@ object Settings {
       try {
         val plain = Source.fromFile(file)(Codec.UTF8).getLines().mkString("", newLine, newLine)
         val config = patchConfig(ConfigFactory.parseString(plain), defaults).withFallback(defaults)
-        settings = new Settings(config.getConfig("OpenComputers"))
+        settings = new Settings(config.getConfig("opencomputers"))
         config
       }
       catch {
@@ -550,7 +549,7 @@ object Settings {
           if (file.exists()) {
             throw new RuntimeException("Error parsing configuration file. To restore defaults, delete '" + file.getName + "' and restart the game.", e)
           }
-          settings = new Settings(defaults.getConfig("OpenComputers"))
+          settings = new Settings(defaults.getConfig("opencomputers"))
           defaults
       }
     for (key <- forbiddenConfigLists) {
@@ -620,14 +619,10 @@ object Settings {
         for (defaultRule <- defaults.getStringList(prefix + "internet.filteringRules").asScala) {
           internetFilteringRules += defaultRule
         }
-        var patchedRules: ConfigValue = ConfigValueFactory.fromIterable(internetFilteringRules.asJava)
-        try {
-          patchedRules = OpenComputersConfigCommentManipulationHook.setComments(
-            patchedRules, defaults.getValue(prefix + "internet.filteringRules").origin().comments()
-          )
-        } catch {
-          case _: Throwable => /* pass */
-        }
+        val patchedRules: ConfigValue = ConfigValueFactory.fromIterable(internetFilteringRules.asJava)
+        // 原版通过 com.typesafe.config.impl 的包内 API 复制注释；1.21.1 下该类会造成
+        // 模块拆分包（typesafe.config 与模组模块都含 com.typesafe.config.impl），
+        // 因此这里不再复制注释，仅保留配置值本身。
         patched = patched.withValue(prefix + "internet.filteringRules", patchedRules)
       }
       // 清空旧的废弃键值，避免后续校验直接抛错。

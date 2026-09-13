@@ -35,11 +35,50 @@ repositories {
 }
 
 dependencies {
-    implementation "org.scala-lang:scala-library:${scala_version}"
-    // opencomputers_neo 配置使用 typesafe config（原项目内嵌，这里改为依赖 + jarJar 打包）
-    implementation "com.typesafe:config:${typesafe_config_version}"
-    // Lua 运行时：原项目内嵌 repack 过的 OC-LuaJ 分支，这里先用上游 luaj-jse
-    implementation "org.luaj:luaj-jse:${luaj_version}"
+    // 仅编译期可见：运行期由下面的 ocRunLibs + jarJar 提供。
+    compileOnly "org.scala-lang:scala-library:${scala_version}"
+    compileOnly "com.typesafe:config:${typesafe_config_version}"
+    compileOnly "org.luaj:luaj-jse:${luaj_version}"
+
+    // 随模组一起打包（正式发布用）。
+    jarJar "org.scala-lang:scala-library:${scala_version}"
+    jarJar "com.typesafe:config:${typesafe_config_version}"
+    jarJar "org.luaj:luaj-jse:${luaj_version}"
+}
+
+// 开发环境专用：把这三个库塞进 FML 的传统 -cp 类路径。
+// ModDevGradle 会把普通 implementation 依赖放到 JVM 的 boot module path 上，
+// 模组的类加载器读不到（会抛 NoClassDefFoundError），所以这里额外写入 legacyClasspath 文件。
+configurations {
+    ocRunLibs
+}
+dependencies {
+    ocRunLibs "org.scala-lang:scala-library:${scala_version}"
+    ocRunLibs "com.typesafe:config:${typesafe_config_version}"
+    ocRunLibs "org.luaj:luaj-jse:${luaj_version}"
+}
+
+tasks.matching { it.name.startsWith('write') && it.name.endsWith('LegacyClasspath') }.configureEach { t ->
+    outputs.upToDateWhen { false }
+    doLast {
+        def extra = configurations.ocRunLibs.files.collect { it.absolutePath }
+        def out = t.legacyClasspathFile.get().asFile
+        out.append(System.lineSeparator() + extra.join(System.lineSeparator()) + System.lineSeparator())
+    }
+}
+
+// 真正生效的一步：ModDevGradle 不生成 -cp，库只能通过 JVM 的类路径被 app classloader 看到。
+// 在启动前把 -cp 追加到 run 的 VM 参数文件里。
+['runClient', 'runServer', 'runData', 'runGameTestServer', 'runTest'].each { runName ->
+    tasks.matching { it.name == runName }.configureEach { t ->
+        t.doFirst {
+            def argsFile = file("${buildDir}/moddev/${runName.substring(3).uncapitalize()}RunVmArgs.txt")
+            if (argsFile.exists()) {
+                def cp = configurations.ocRunLibs.files.collect { it.absolutePath }.join(';')
+                argsFile.append(System.lineSeparator() + '-cp' + System.lineSeparator() + '"' + cp + '"' + System.lineSeparator())
+            }
+        }
+    }
 }
 
 base {
