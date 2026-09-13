@@ -1,9 +1,10 @@
 package li.cil.oc.common.item
 
-import li.cil.oc.common.Tier
+import net.minecraft.world.item.Item
 
-class WirelessNetworkCard(val parent: Delegator, var tier: Int) extends traits.Delegate with traits.ItemTier {
-  override val unlocalizedName = super.unlocalizedName + tier
-  
-  override protected def tooltipName = Option(super.unlocalizedName)
+/** 「无线网卡」（原 `li.cil.oc.common.item.WirelessNetworkCard`）。 */
+class WirelessNetworkCard(props: Item.Properties, val tier: Int)
+  extends Item(props) with traits.Delegate with traits.ItemTier {
+
+  override protected def tooltipName: Option[String] = Option(super.unlocalizedName)
 }

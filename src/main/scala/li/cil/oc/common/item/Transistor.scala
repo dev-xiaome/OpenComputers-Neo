@@ -1,3 +1,6 @@
 package li.cil.oc.common.item
 
-class Transistor(val parent: Delegator) extends traits.Delegate
+import net.minecraft.world.item.Item
+
+/** 「晶体管」（原 `li.cil.oc.common.item.Transistor`）。 */
+class Transistor(props: Item.Properties) extends Item(props) with traits.Delegate

@@ -3,6 +3,7 @@ package li.cil.oc.common.item.traits
 import java.util
 
 import li.cil.oc.api
+import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ItemStackNBTExtensions._
 import li.cil.oc.util.Rarity
 import scala.jdk.CollectionConverters._
@@ -72,16 +73,51 @@ trait Delegate extends SimpleItem {
   /** 原 `onItemRightClick`。 */
   def onItemRightClick(stack: ItemStack, world: Level, player: Player): ItemStack = stack
 
-  /** 原 `onItemUse`。 */
-  def onItemUse(stack: ItemStack, context: UseOnContext): Boolean = false
+  /**
+   * 原 1.7.10 `onItemUse(stack, player, world, x, y, z, side, hitX, hitY, hitZ)` 的等价签名。
+   *
+   * 1.21.1 的入口是 `Item#useOn(UseOnContext)`；为了不让每个物品类都重复拆包，
+   * 这里保留旧签名作为可覆写钩子，由 [[useOn]] 调用。
+   */
+  def onItemUse(stack: ItemStack, player: Player, position: BlockPosition,
+                side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean = false
+
+  /** 原 `onItemUse` 的 `UseOnContext` 形式（内部转发到旧签名）。 */
+  def onItemUse(stack: ItemStack, context: UseOnContext): Boolean =
+    onItemUse(stack, context.getPlayer,
+      BlockPosition(context.getClickedPos.getX, context.getClickedPos.getY, context.getClickedPos.getZ, context.getLevel),
+      context.getClickedFace.ordinal, context.getClickLocation.x.toFloat, context.getClickLocation.y.toFloat,
+      context.getClickLocation.z.toFloat)
+
+  /** 原 `onItemUseFirst` 的等价签名（`player.isShiftKeyDown` 即旧版的 sneak 语义）。 */
+  def onItemUseFirst(stack: ItemStack, player: Player, position: BlockPosition,
+                     side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean = false
 
   /**
-   * 原 `onItemUseFirst`。
+   * 原 `onItemUseFirst` 的 `UseOnContext` 形式。
    *
    * 注意：NeoForge 的 `IItemExtension` 已有同名同参方法（返回 `InteractionResult`），
-   * 因此这里改名加 `Hook` 后缀避免冲突，由 [[useOn]] 负责分派。
+   * 因此这里改名加 `Hook` 后缀避免与接口方法冲突，由 [[useOn]] 负责分派。
    */
-  def onItemUseFirstHook(stack: ItemStack, context: UseOnContext): Boolean = false
+  def onItemUseFirstHook(stack: ItemStack, context: UseOnContext): Boolean =
+    onItemUseFirst(stack, context.getPlayer,
+      BlockPosition(context.getClickedPos.getX, context.getClickedPos.getY, context.getClickedPos.getZ, context.getLevel),
+      context.getClickedFace.ordinal, context.getClickLocation.x.toFloat, context.getClickLocation.y.toFloat,
+      context.getClickLocation.z.toFloat)
+
+  /**
+   * 原 1.7.10 `onEaten` 的 1.21.1 入口。
+   *
+   * 1.7.10 在 `onEaten` 里自行减少堆叠数量；1.21.1 由 `Item#finishUsingItem`
+   * 负责「消耗一个」的语义，这里只做转接，避免每个可食用物品重复实现。
+   */
+  override def finishUsingItem(stack: ItemStack, world: Level,
+                               entity: net.minecraft.world.entity.LivingEntity): ItemStack = {
+    entity match {
+      case player: Player => onEaten(stack, world, player)
+      case _ => stack
+    }
+  }
 
   /** 原 `getItemUseAction`。 */
   def getItemUseAction(stack: ItemStack): UseAnim = UseAnim.NONE

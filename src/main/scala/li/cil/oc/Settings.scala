@@ -516,7 +516,7 @@ object Settings {
     /* 1.8.3+ filtering rules migration */
     "internet.blacklist", "internet.whitelist"
   )
-  private val prefix = "OpenComputers."
+  private val prefix = "opencomputers."
 
   def basicScreenPixels: Int = screenResolutionsByTier(0)._1 * screenResolutionsByTier(0)._2
 

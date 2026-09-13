@@ -1,35 +1,23 @@
 package li.cil.oc.common.item
 
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 import li.cil.oc.Settings
-import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.Color
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.Item
 
-class FloppyDisk(val parent: Delegator) extends traits.Delegate with traits.FileSystemLike {
+/**
+ * 「软盘」（原 `li.cil.oc.common.item.FloppyDisk`）。
+ *
+ * 1.21.1 迁移要点：
+ *  - `registerIcons` / `icon(stack, pass)` 已删除：1.21.1 的贴图由模型 JSON + `ItemColor`
+ *    决定，彩色软盘按 `oc:color` NBT 通过 `RegisterColorHandlersEvent.Item` 染色
+ *    （客户端阶段，见 docs/PORTING.md）。因此这里不再持有 16 个 `IIcon`。
+ *  - `doesSneakBypassUse` 已删除（1.21.1 由方块侧决定）。
+ *  - `unlocalizedName` 固定为 `"FloppyDisk"`：战利品磁盘用匿名子类复用同一套语言条目，
+ *    1.21.1 下这些子类都注册在 `floppy` / `lootDisk` / `openos` 等不同注册名上。
+ */
+class FloppyDisk(props: Item.Properties) extends Item(props) with traits.Delegate with traits.FileSystemLike {
+
   // Necessary for anonymous subclasses used for loot disks.
-  override def unlocalizedName = "FloppyDisk"
+  override def unlocalizedName: String = "FloppyDisk"
 
-  val kiloBytes = Settings.get.floppySize
-
-  val icons = Array.fill[Icon](16)(null)
-
-  @SideOnly(Dist.CLIENT)
-  override def icon(stack: ItemStack, pass: Int) =
-    if (stack.hasTagCompound && stack.getTagCompound.contains(Settings.namespace + "color"))
-      Some(icons(stack.getTagCompound.getInteger(Settings.namespace + "color") max 0 min 15))
-    else
-      Some(icons(8))
-
-  override def registerIcons(iconRegister: IconRegister): Unit = {
-    val baseTextureName = Settings.resourceDomain + ":" + unlocalizedName + "_"
-    Color.dyes.zipWithIndex.foreach {
-      case (color, index) =>
-        icons(index) = iconRegister.registerIcon(baseTextureName + color)
-    }
-  }
-
-  override def doesSneakBypassUse(position: BlockPosition, player: Player): Boolean = true
+  override val kiloBytes: Int = Settings.get.floppySize
 }
