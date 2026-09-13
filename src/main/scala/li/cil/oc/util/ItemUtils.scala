@@ -1,16 +1,15 @@
 package li.cil.oc.util
 
-import java.util.Random
-
 import li.cil.oc.Constants
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.common.Tier
+import li.cil.oc.util.ItemStackNBTExtensions._
 import net.minecraft.core.HolderLookup
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.world.item.{BlockItem, BucketItem, ItemStack}
-import net.minecraft.world.item.crafting.{CraftingInput, Ingredient, Recipe, RecipeHolder, RecipeManager, RecipeType}
+import net.minecraft.world.item.crafting.{CraftingRecipe, RecipeManager}
 import net.neoforged.neoforge.server.ServerLifecycleHooks
 
 import scala.collection.mutable
@@ -91,11 +90,24 @@ object ItemUtils {
       case _ => return None
     }
 
-    val matching = manager.getAllRecipesFor(RecipeType.CRAFTING).asScala.
-      map(holder => holder.asInstanceOf[RecipeHolder[Recipe[CraftingInput]]]).
-      filter(holder => !holder.value().getResultItem(registries).isEmpty).
-      filter(holder => ItemStack.isSameItem(holder.value().getResultItem(registries), stack)).
-      map(holder => getFilteredInputs(resolveIngredients(holder.value().getIngredients), holder.value().getResultItem(registries).getCount))
+    /**
+     * 查找输出为 `stack` 的合成配方，并展开它的原料。
+     *
+     * 迁移说明：1.21.1 的 `RecipeManager#getAllRecipesFor` 带
+     * `<I <: RecipeInput, T <: Recipe[I]>` 两个类型参数，Scala 只能推断出 `T`，
+     * 会报 “inferred type arguments [Nothing, CraftingRecipe] do not conform”。
+     * 因此这里遍历不带泛型的 `getRecipes`，再对 `CraftingRecipe` 做模式匹配。
+     */
+    val matching = manager.getRecipes.asScala.
+      map(holder => (holder.value(), holder)).
+      collect {
+        case (recipe: CraftingRecipe, holder) if !holder.value().getResultItem(registries).isEmpty =>
+          (recipe, holder.value().getResultItem(registries))
+      }.
+      filter { case (_, result) => ItemStack.isSameItem(result, stack) }.
+      map { case (recipe, result) =>
+        getFilteredInputs(recipe.getIngredients.asScala.flatMap(_.getItems.headOption), result.getCount)
+      }
 
     val (ingredients, count) = matching.collectFirst {
       case (inputs, outputSize) if !inputs.exists(isInputBlacklisted) => (inputs, outputSize)
@@ -134,8 +146,6 @@ object ItemUtils {
       None
   }
 
-  private lazy val rng = new Random()
-
   /**
    * 配方管理器与注册表访问器。
    *
@@ -153,16 +163,6 @@ object ItemUtils {
       return Some((server.getRecipeManager, server.registryAccess()))
     }
     None
-  }
-
-  /** 把 `Ingredient` 列表展开为具体物品（每个原料任取一个代表物品）。 */
-  private def resolveIngredients(ingredients: java.util.List[Ingredient]): Iterable[ItemStack] =
-    ingredients.asScala.flatMap(resolveIngredient)
-
-  private def resolveIngredient(ingredient: Ingredient): Option[ItemStack] = {
-    val items = ingredient.getItems
-    if (items == null || items.isEmpty) None
-    else Option(items(rng.nextInt(items.length))).filter(!_.isEmpty)
   }
 
   /** 忽略数量的同类物品判断（等价于旧版 `ItemStack#isItemEqual`）。 */

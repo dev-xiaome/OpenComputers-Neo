@@ -5,9 +5,10 @@ import java.util
 import li.cil.oc.Constants
 import li.cil.oc.Localization
 import li.cil.oc.api
+import li.cil.oc.util.ItemStackNBTExtensions._
 import net.minecraft.core.HolderLookup
 import net.minecraft.world.item.{Item, ItemStack, Items}
-import net.minecraft.world.item.crafting.{CraftingInput, Recipe, RecipeHolder, RecipeManager, RecipeType}
+import net.minecraft.world.item.crafting.{CraftingRecipe, Recipe, RecipeManager, SmeltingRecipe, RecipeType}
 import net.minecraft.world.level.block.{Block, Blocks}
 import net.neoforged.neoforge.server.ServerLifecycleHooks
 
@@ -19,8 +20,10 @@ import scala.jdk.CollectionConverters._
  *
  * 1.21.1 迁移要点：
  *  - 配方系统重写：`CraftingManager.getInstance.getRecipeList` →
- *    `RecipeManager#getAllRecipesFor(RecipeType.CRAFTING)`；
- *    `FurnaceRecipes.smelting.getSmeltingList` → `RecipeType.SMELTING`
+ *    `RecipeManager#getRecipes`（旧版这里本意就是遍历全部配方；
+ *    `getAllRecipesFor` 在 Scala 下类型推断不出来，见 `findRecipe` 的注释）；
+ *    `FurnaceRecipes.smelting.getSmeltingList` 同样并入 `getRecipes` 后按
+ *    `CraftingRecipe` / `SmeltingRecipe` 分流
  *  - `ShapedRecipes` / `ShapelessRecipes` / `ShapedOreRecipe` / `ShapelessOreRecipe`
  *    统一为“`Ingredient` 列表 + 输出物品栈”，不再按类型分支
  *  - `OreDictionary.WILDCARD_VALUE` 已移除，`fuzzyEquals` 改用
@@ -49,7 +52,8 @@ object ItemCosts {
   terminate(Blocks.COBBLESTONE)
   terminate(Blocks.GLASS)
   terminate(Blocks.OAK_PLANKS)
-  terminate(Blocks.SAND)  terminate(Blocks.STONE)
+  terminate(Blocks.SAND)
+  terminate(Blocks.STONE)
   terminate(Items.BLAZE_ROD)
   terminate(Items.BUCKET)
   terminate(Items.CLAY_BALL)
@@ -112,24 +116,42 @@ object ItemCosts {
           case _ => counts += entry._1 -> entry._2
         }
       }
-      counts
+      counts.toMap
     }
 
-    /** 在合成 / 熔炼配方中查找目标物品的原料。 */
+    /**
+     * 在合成 / 熔炼配方中查找目标物品的原料。
+     *
+     * 迁移说明：1.21.1 的 `RecipeManager#getAllRecipesFor` 带
+     * `<I <: RecipeInput, T <: Recipe[I]>` 两个类型参数，Scala 只能推断出
+     * `T`（例如 `CraftingRecipe`）而推不出 `I`，会直接报
+     * “inferred type arguments [Nothing, CraftingRecipe] do not conform”。
+     * 因此这里改用不带泛型的 `getRecipes`，再按配方实现的接口做模式匹配取 `I`。
+     * 这样也顺带覆盖了 `RecipeType.SMELTING` ⇒ `SmeltingRecipe`。
+     */
     def findRecipe(stack: ItemStack): Option[(Iterable[ItemStack], Int)] = {
-      def resultOf(recipe: Recipe[CraftingInput]): ItemStack = recipe.getResultItem(registries)
+      /** 配方输出物品；空输出（如特殊配方）返回 `None`。 */
+      def resultOf(recipe: Recipe[_]): Option[ItemStack] = {
+        val result = recipe.getResultItem(registries)
+        if (result == null || result.isEmpty) None else Some(result)
+      }
 
-      val crafting = manager.getAllRecipesFor(RecipeType.CRAFTING).asScala.
-        map(holder => holder.asInstanceOf[RecipeHolder[Recipe[CraftingInput]]]).
-        find(holder => !resultOf(holder.value()).isEmpty && fuzzyEquals(stack, resultOf(holder.value())))
+      /** 展开 `Ingredient` 列表：tag 输入取第一个代表物品（等价旧版矿辞展开）。 */
+      def ingredientsOf(recipe: Recipe[_]): Iterable[ItemStack] =
+        recipe.getIngredients.asScala.flatMap(ingredient => ingredient.getItems.headOption)
+
+      val all = manager.getRecipes.asScala.map(holder => (holder.value(), holder))
+
+      val crafting = all.collectFirst {
+        case (recipe: CraftingRecipe, holder) if resultOf(recipe).exists(out => fuzzyEquals(stack, out)) =>
+          (ingredientsOf(recipe), holder.value().getResultItem(registries).getCount)
+      }
       crafting match {
-        case Some(holder) =>
-          val recipe = holder.value()
-          Some((recipe.getIngredients.asScala.flatMap(_.getItems.headOption), resultOf(recipe).getCount))
-        case _ =>
-          val smelting = manager.getAllRecipesFor(RecipeType.SMELTING).asScala.
-            find(holder => !holder.value().getResultItem(registries).isEmpty && fuzzyEquals(stack, holder.value().getResultItem(registries)))
-          smelting.map(holder => (holder.value().getIngredients.asScala.flatMap(_.getItems.headOption), holder.value().getResultItem(registries).getCount))
+        case Some(found) => Some(found)
+        case _ => all.collectFirst {
+          case (recipe: SmeltingRecipe, holder) if resultOf(recipe).exists(out => fuzzyEquals(stack, out)) =>
+            (ingredientsOf(recipe), holder.value().getResultItem(registries).getCount)
+        }
       }
     }
 
@@ -159,8 +181,13 @@ object ItemCosts {
               }
           }
         case list: util.ArrayList[ItemStack]@unchecked if !list.isEmpty =>
+          // 注意：不能写 `for (stack <- list if ...)`。Scala 2.13 的 for 守卫会脱糖成
+          // `withFilter`，而 `java.util.ArrayList` 上没有该方法（2.11 有 JavaConversions
+          // 的隐式兜底，2.13 已移除）。这里改成显式的迭代 + find。
           var result = Iterable.empty[(ItemStack, Double)]
-          for (stack <- list if result.isEmpty) {
+          val it = list.iterator()
+          while (result.isEmpty && it.hasNext) {
+            val stack = it.next()
             cache.find {
               case (key, value) => fuzzyEquals(key.inner, stack)
             } match {

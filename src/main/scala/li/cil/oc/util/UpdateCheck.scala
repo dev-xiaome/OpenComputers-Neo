@@ -108,8 +108,15 @@ object UpdateCheck {
     else aSuffix.compareTo(bSuffix)
   }
 
-  /** 是否有比当前版本更新的版本（供 GUI / 命令查询）。 */
-  def isUpdateAvailable: Boolean = info.value.exists(_.exists(_.nonEmpty))
+  /**
+   * 是否有比当前版本更新的版本（供 GUI / 命令查询）。
+   *
+   * 注意两个 `Option`/`Try` 的嵌套顺序：`info` 是 `Future[Option[Release]]`，
+   * `Future#value` 在 Scala 2.13 返回的是 `Option[Try[Option[Release]]]`
+   * （旧的 2.11 写法 `info.value.exists(_.exists(...))` 在 2.13 下外层拿到的是
+   * `Try`，而 `Try` 没有 `exists`）。这里显式拆开：未完成或失败都视为“没有更新”。
+   */
+  def isUpdateAvailable: Boolean = info.value.exists(_.toOption.exists(_.nonEmpty))
 
   /** 当前已安装的 mod 版本号（来自 `ModList`；未加载时回退到内置版本常量）。 */
   def localVersion: String =
