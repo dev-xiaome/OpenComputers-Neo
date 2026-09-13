@@ -1,137 +1,85 @@
 package li.cil.oc.common.tileentity.traits.power
 
-import java.util
-
-import appeng.api.AEApi
-import appeng.api.config.Actionable
-import appeng.api.config.PowerMultiplier
-import appeng.api.networking._
-import appeng.api.networking.energy.IEnergyGrid
-import appeng.api.util.AECableType
-import appeng.api.util.AEColor
-import appeng.api.util.DimensionalCoord
-import net.neoforged.fml.common.Optional
-import li.cil.oc.Settings
-import li.cil.oc.common.EventHandler
-import li.cil.oc.common.asm.Injectable
-import li.cil.oc.integration.Mods
-import li.cil.oc.integration.util.Power
-import net.minecraft.nbt.CompoundTag
 import net.minecraft.core.Direction
+import net.minecraft.nbt.CompoundTag
 
-import scala.jdk.CollectionConverters._
-
-@Injectable.Interface(value = "appeng.api.networking.IGridHost", modid = Mods.IDs.AppliedEnergistics2)
+/**
+ * AE2（Applied Energistics 2）能量集成 —— **未移植的降级占位实现**。
+ *
+ * ==原实现（1.7.10）==
+ * 通过 `@Injectable.Interface`（ASM 注入）让本 trait 实现 `appeng.api.networking.IGridHost`，
+ * 用 `AEApi.instance.createGridNode(new AppliedEnergistics2GridBlock(this))` 建立电网节点，
+ * 每 `Settings.get.tickFrequency` 刻用 `IEnergyGrid#extractAEPower` 抽能，
+ * 并通过 `Power.fromAE` / `Power.toAE` 换算单位。
+ *
+ * ==为什么降级==
+ *  - `li.cil.oc.common.asm.**`（ASM 注入层）在 1.21.1 已整体删除，不再能"注入式"实现第三方接口；
+ *  - AE2 的 API（`appeng.*`）未随本工程移植，`AEApi` / `IGridNode` / `IEnergyGrid` /
+ *    `DimensionalCoord` / `AECableType` 全部不可用；
+ *  - `li.cil.oc.common.EventHandler#scheduleAE2Add` 与 `li.cil.oc.integration.util.Power` 也未移植。
+ *
+ * ==恢复方式==
+ * AE2 移植后，把 `IGridHost` 相关实现放回本 trait（或改成 NeoForge Capability 形式接入），
+ * 并补回 `Power` 单位换算与 `EventHandler.scheduleAE2Add` 的等价逻辑。
+ * 现有的对外方法名（[[getGridNode]] / [[getCableConnectionType]] / [[securityBreak]]）
+ * 已经保留，恢复时只需替换返回类型与方法体。
+ */
 trait AppliedEnergistics2 extends Common {
-  private def useAppliedEnergistics2Power() = isServer && Mods.AppliedEnergistics2.isAvailable
+  // 注意：Scala 的自类型不会被继承，TileEntity 的每个子 trait 都必须重新声明。
+  self: net.minecraft.world.level.block.entity.BlockEntity =>
 
-  // 'Manual' lazy val, because lazy vals mess up the class loader, leading to class not found exceptions.
-  private var node: Option[AnyRef] = None
+  // TODO(integration.appeng): Mods.AppliedEnergistics2 集成未移植，恒为「未启用」，
+  // 因此下面所有更新/存档钩子都不会做任何事。
+  private def useAppliedEnergistics2Power() = false
 
-  override def updateEntity(): Unit = {
-    super.updateEntity()
-    if (useAppliedEnergistics2Power && world.getTotalWorldTime % Settings.get.tickFrequency == 0) {
-      updateEnergy()
-    }
+  // ----------------------------------------------------------------------- //
+
+  override def tick(): Unit = {
+    super.tick()
+    // TODO(integration.appeng): 原实现每 `Settings.get.tickFrequency` 刻调用 updateEnergy()，
+    // 逐面通过 `IEnergyGrid#extractAEPower(demand, Actionable.MODULATE, PowerMultiplier.CONFIG)`
+    // 抽能并 `Power.fromAE` / `Power.toAE` 换算。
   }
 
-  @Optional.Method(modid = Mods.IDs.AppliedEnergistics2)
-  private def updateEnergy(): Unit = {
-    tryAllSides((demand, side) => {
-      val grid = getGridNode(side).getGrid
-      if (grid != null) {
-        val cache = grid.getCache(classOf[IEnergyGrid]).asInstanceOf[IEnergyGrid]
-        if (cache != null) {
-          cache.extractAEPower(demand, Actionable.MODULATE, PowerMultiplier.CONFIG)
-        }
-        else 0.0
-      }
-      else 0.0
-    }, Power.fromAE, Power.toAE)
+  override protected def initialize(): Unit = {
+    super.initialize()
+    // TODO(integration.appeng): 原实现为 `EventHandler.scheduleAE2Add(this)`，
+    // 延迟一 tick 后 `getGridNode(UNKNOWN).updateState()` 把节点加入 AE 电网。
   }
 
-  override def validate(): Unit = {
-    super.validate()
-    if (useAppliedEnergistics2Power()) EventHandler.scheduleAE2Add(this)
-  }
-
-  override def invalidate(): Unit = {
-    super.invalidate()
-    if (useAppliedEnergistics2Power()) securityBreak()
-  }
-
-  override def onChunkUnload(): Unit = {
-    super.onChunkUnload()
-    if (useAppliedEnergistics2Power()) securityBreak()
+  override def dispose(): Unit = {
+    super.dispose()
+    // TODO(integration.appeng): 原实现在 `invalidate()` / `onChunkUnload()` 里调用 securityBreak()
+    // 销毁 AE 电网节点（`IGridNode#destroy()`）。注意 dispose 可能被调用两次，恢复时需保证幂等。
   }
 
   // ----------------------------------------------------------------------- //
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
-    if (useAppliedEnergistics2Power()) loadNode(nbt)
+    // TODO(integration.appeng): 原实现为 `getGridNode(UNKNOWN).loadFromNBT("oc:ae2power", nbt)`。
   }
 
-  @Optional.Method(modid = Mods.IDs.AppliedEnergistics2)
-  private def loadNode(nbt: CompoundTag): Unit = {
-    getGridNode(Direction.UNKNOWN).loadFromNBT(Settings.namespace + "ae2power", nbt)
-  }
-
-  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
-    if (useAppliedEnergistics2Power()) saveNode(nbt)
-  }
-
-  @Optional.Method(modid = Mods.IDs.AppliedEnergistics2)
-  private def saveNode(nbt: CompoundTag): Unit = {
-    getGridNode(Direction.UNKNOWN).saveToNBT(Settings.namespace + "ae2power", nbt)
+    // TODO(integration.appeng): 原实现为 `getGridNode(UNKNOWN).saveToNBT("oc:ae2power", nbt)`。
   }
 
   // ----------------------------------------------------------------------- //
 
-  @Optional.Method(modid = Mods.IDs.AppliedEnergistics2)
-  def getGridNode(side: Direction) = node match {
-    case Some(gridNode: IGridNode) => gridNode
-    case _ if isServer =>
-      val gridNode = AEApi.instance.createGridNode(new AppliedEnergistics2GridBlock(this))
-      node = Option(gridNode)
-      gridNode
-    case _ => null
-  }
+  /**
+   * TODO(integration.appeng): 原返回 `appeng.api.networking.IGridNode`（服务端首次调用时创建并缓存）。
+   * AE2 API 不可用时返回 `null`（与客户端分支的返回值一致）。
+   */
+  def getGridNode(side: Direction): AnyRef = null
 
-  @Optional.Method(modid = Mods.IDs.AppliedEnergistics2)
-  def getCableConnectionType(side: Direction) = AECableType.SMART
+  /**
+   * TODO(integration.appeng): 原返回 `appeng.api.util.AECableType.SMART`。
+   */
+  def getCableConnectionType(side: Direction): AnyRef = null
 
-  @Optional.Method(modid = Mods.IDs.AppliedEnergistics2)
-  def securityBreak(): Unit = {
-    getGridNode(Direction.UNKNOWN).destroy()
-  }
-}
-
-class AppliedEnergistics2GridBlock(val tileEntity: AppliedEnergistics2) extends IGridBlock {
-  override def getIdlePowerUsage = 0.0
-
-  override def getFlags = util.EnumSet.noneOf(classOf[GridFlags])
-
-  // rv1
-  def isWorldAccessable = true
-
-  // rv2
-  def isWorldAccessible = true
-
-  override def getLocation = new DimensionalCoord(tileEntity)
-
-  override def getGridColor = AEColor.Transparent
-
-  override def onGridNotification(p1: GridNotification) {}
-
-  override def setNetworkStatus(p1: IGrid, p2: Int) {}
-
-  override def getConnectableSides = util.EnumSet.copyOf(Direction.VALID_DIRECTIONS.filter(tileEntity.canConnectPower).toList)
-
-  override def getMachine = tileEntity.asInstanceOf[IGridHost]
-
-  override def gridChanged() {}
-
-  override def getMachineRepresentation = null
+  /**
+   * TODO(integration.appeng): 原销毁 AE 电网节点（`getGridNode(UNKNOWN).destroy()`）。
+   */
+  def securityBreak(): Unit = {}
 }

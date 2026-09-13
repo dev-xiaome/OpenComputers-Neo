@@ -1,27 +1,53 @@
 package li.cil.oc.common.tileentity.traits.power
 
-import net.neoforged.fml.common.Optional
-import li.cil.oc.common.asm.Injectable
-import li.cil.oc.integration.Mods
-import li.cil.oc.integration.util.Power
 import net.minecraft.core.Direction
 
-@Injectable.Interface(value = "cofh.api.energy.IEnergyHandler", modid = Mods.IDs.CoFHEnergy)
+/**
+ * RedstoneFlux（RF / CoFH 能量）集成 —— **未移植的降级占位实现**。
+ *
+ * ==原实现（1.7.10）==
+ * 通过 `@Injectable.Interface`（ASM 注入）让本 trait 实现 `cofh.api.energy.IEnergyHandler`：
+ * `receiveEnergy` 用 `Power.fromRF` / `Power.toRF` 换算后注入 OC 缓冲，
+ * `getEnergyStored` / `getMaxEnergyStored` 报告缓冲余量，`extractEnergy` 恒为 0（只做输入）。
+ *
+ * ==为什么降级==
+ *  - ASM 注入层（`li.cil.oc.common.asm.**`）在 1.21.1 已整体删除；
+ *  - CoFH 的 RF API 未随本工程移植（`cofh.api.*` 不可用）；
+ *  - `li.cil.oc.integration.util.Power` 与 `li.cil.oc.integration.Mods` 也未移植。
+ *
+ * 兼容提示：1.21.1 上跨模组能量统一走 NeoForge 的 `Capabilities.EnergyStorage`
+ * （`IEnergyStorage`：`receiveEnergy` / `extractEnergy` / `getEnergyStored` / `getMaxEnergyStored` /
+ * `canExtract` / `canReceive`）。恢复该集成时建议直接实现 `IEnergyStorage` 并注册
+ * `Capabilities.EnergyStorage.BLOCK`（由 `Registry` 统一注册），方法名可与本文件保持一致。
+ */
 trait RedstoneFlux extends Common {
-  @Optional.Method(modid = Mods.IDs.CoFHEnergy)
-  def canConnectEnergy(from: Direction) = Mods.CoFHEnergy.isAvailable && canConnectPower(from)
+  // 注意：Scala 的自类型不会被继承，TileEntity 的每个子 trait 都必须重新声明。
+  self: net.minecraft.world.level.block.entity.BlockEntity =>
 
-  @Optional.Method(modid = Mods.IDs.CoFHEnergy)
-  def receiveEnergy(from: Direction, maxReceive: Int, simulate: Boolean) =
-    if (!Mods.CoFHEnergy.isAvailable) 0
-    else Power.toRF(tryChangeBuffer(from, Power.fromRF(maxReceive), !simulate))
+  /**
+   * TODO(integration.cofh): 原为 `Mods.CoFHEnergy.isAvailable && canConnectPower(from)`；
+   * 集成未移植，恒为 `false`。
+   */
+  def canConnectEnergy(from: Direction): Boolean = false
 
-  @Optional.Method(modid = Mods.IDs.CoFHEnergy)
-  def getEnergyStored(from: Direction) = Power.toRF(globalBuffer(from))
+  /**
+   * TODO(integration.cofh): 原为
+   * `Power.toRF(tryChangeBuffer(from, Power.fromRF(maxReceive), !simulate))`；这里返回 0。
+   */
+  def receiveEnergy(from: Direction, maxReceive: Int, simulate: Boolean): Int = 0
 
-  @Optional.Method(modid = Mods.IDs.CoFHEnergy)
-  def getMaxEnergyStored(from: Direction) = Power.toRF(globalBufferSize(from))
+  /**
+   * TODO(integration.cofh): 原为 `Power.toRF(globalBuffer(from))`。
+   */
+  def getEnergyStored(from: Direction): Int = 0
 
-  @Optional.Method(modid = Mods.IDs.CoFHEnergy)
-  def extractEnergy(from: Direction, maxExtract: Int, simulate: Boolean) = 0
+  /**
+   * TODO(integration.cofh): 原为 `Power.toRF(globalBufferSize(from))`。
+   */
+  def getMaxEnergyStored(from: Direction): Int = 0
+
+  /**
+   * TODO(integration.cofh): 原实现就恒返回 0（RF 集成只做输入）。
+   */
+  def extractEnergy(from: Direction, maxExtract: Int, simulate: Boolean): Int = 0
 }

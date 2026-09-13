@@ -8,14 +8,19 @@ import li.cil.oc.Settings
 import li.cil.oc.api.detail.ItemAPI
 import li.cil.oc.api.detail.ItemInfo
 import li.cil.oc.api.fs.FileSystem
+import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.core.registries.Registries
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.inventory.MenuType
 import net.minecraft.world.item.{BlockItem, CreativeModeTab, Item, ItemStack}
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
+import net.minecraft.world.level.block.state.BlockState
 import net.neoforged.bus.api.{EventPriority, IEventBus}
+import net.neoforged.neoforge.capabilities.{Capabilities, ICapabilityProvider, RegisterCapabilitiesEvent}
 import net.neoforged.neoforge.event.{BlockEntityTypeAddBlocksEvent, BuildCreativeModeTabContentsEvent}
+import net.neoforged.neoforge.fluids.capability.IFluidHandler
+import net.neoforged.neoforge.items.IItemHandler
 import net.neoforged.neoforge.registries.{DeferredBlock, DeferredHolder, DeferredItem, DeferredRegister}
 
 import scala.collection.mutable
@@ -108,6 +113,9 @@ object Registry extends ItemAPI {
 
   private var initialized = false
 
+  /** mod 事件总线引用（[[init]] 里保存），方块能力注册需要用它挂 [[RegisterCapabilitiesEvent]]。 */
+  private var modBusRef: IEventBus = null
+
   // ----------------------------------------------------------------------- //
   // 初始化
   // ----------------------------------------------------------------------- //
@@ -116,6 +124,7 @@ object Registry extends ItemAPI {
   def init(modBus: IEventBus): Unit = {
     if (initialized) return
     initialized = true
+    modBusRef = modBus
 
     items.register(modBus)
     blocks.register(modBus)
@@ -790,19 +799,163 @@ object Registry extends ItemAPI {
     }
   }
 
-  /** 注册入口：方块部分（待 `common/block` 移植完成后补全）。 */
+  /** 注册入口：方块部分。 */
   object Blocks {
     /** 由 [[li.cil.oc.OpenComputers]] 在初始化阶段调用，注册全部方块与方块实体类型。 */
     def init(): Unit = initBlocks()
 
-    /** 注册全部方块与方块实体类型。TODO: 等 `li.cil.oc.common.block` 移植完成后补上。 */
+    /** 小写化注册名：1.21.1 的 `ResourceLocation` 只允许 `[a-z0-9/._-]`。 */
+    private def key(name: String): String = name.toLowerCase(java.util.Locale.ROOT)
+
+    /**
+     * 注册全部方块与方块实体类型。
+     *
+     * 与 1.7.10 的 `common/init/Blocks.scala` 一一对应：
+     *
+     *  - 1.7.10 的 `GameRegistry.registerTileEntity(classOf[T], name)` → [[registerBlockEntity]] +
+     *    [[bindBlockEntityBlock]]；这里按「**一个方块一个方块实体类型**」登记，类型名 = 方块注册路径
+     *    （小写），于是 `BlockEntityBase.typeOf(state.getBlock)` 能直接反查到类型；
+     *  - 1.7.10 的 `Items.registerBlock(...)` / `Recipes.addBlock(...)`（注册 + 加配方）在 1.21.1 拆成
+     *    [[registerBlock]]（含同名 `BlockItem`）与数据包配方；配方层尚未移植，
+     *    TODO(common.recipe): 等 `common/recipe` 完成后补 `data/opencomputers_neo/recipe/` 下的 json 配方；
+     *  - 等级方块（`new Case(Tier.One)` 等）在 1.7.10 是同一个方块的 metadata 子类型，
+     *    1.21.1 改为**每个等级一个独立方块**，名字沿用 `Constants.BlockName.*`
+     *    （`Tier.One = 0`、`Two = 1`、`Three = 2`、`Four = 3`，与原 metadata 一致）；
+     *  - 原 `Items.registerBlock` 注册的「技术方块」只有 `robotAfterimage` 需要从创造模式标签页隐藏。
+     */
     def initBlocks(): Unit = {
-      // 注册形态示例：
-      //
-      //   registerBlock(Constants.BlockName.ScreenTier1, () => new li.cil.oc.common.block.Screen(new BlockBehaviour.Properties()))
-      //   registerBlockEntity(Constants.BlockName.ScreenTier1, () => BlockEntityType.Builder
-      //     .of((pos, state) => new li.cil.oc.common.tileentity.Screen(pos, state), Array.empty[Block]: _*).build(null))
-      //   bindBlockEntityBlock(Constants.BlockName.ScreenTier1, Constants.BlockName.ScreenTier1)
+      // 方块物品的 tooltip：1.21.1 挂在 Item 上，这里用 ItemTooltipEvent 转发到
+      // `SimpleBlockHooks#addInformation`（原 `ItemBlock#addInformation`）。
+      li.cil.oc.common.block.BlockTooltipHandler.register()
+
+      import li.cil.oc.Constants.BlockName
+      import li.cil.oc.common.{Tier, block, tileentity}
+
+      /** 有方块实体的方块名（用于末尾统一注册 NeoForge 能力）。 */
+      val entities = mutable.ArrayBuffer.empty[String]
+
+      /** 注册方块 + 同名的方块实体类型 + 双向绑定。 */
+      def blockWithEntity[T <: Block](name: String)(blockSupplier: => T)
+                                     (factory: (BlockPos, BlockState) => BlockEntity): Unit = {
+        registerBlock(name, new Supplier[T] {
+          override def get(): T = blockSupplier
+        })
+        val entityName = key(name)
+        registerBlockEntity(entityName, new BlockEntityType.BlockEntitySupplier[BlockEntity] {
+          override def create(pos: BlockPos, state: BlockState): BlockEntity = factory(pos, state)
+        })
+        bindBlockEntityBlock(name, entityName)
+        entities += entityName
+      }
+
+      /** 注册没有方块实体的方块。 */
+      def blockOnly[T <: Block](name: String)(supplier: => T): Unit =
+        registerBlock(name, new Supplier[T] {
+          override def get(): T = supplier
+        })
+
+      // ------------------------------------------------------------------ //
+      // 方块（顺序与 1.7.10 的 `common/init/Blocks.scala` 保持一致）
+      // ------------------------------------------------------------------ //
+
+      blockWithEntity(BlockName.AccessPoint)(new block.AccessPoint())((pos, state) => new tileentity.AccessPoint(pos, state))
+      blockWithEntity(BlockName.Adapter)(new block.Adapter())((pos, state) => new tileentity.Adapter(pos, state))
+      blockWithEntity(BlockName.Assembler)(new block.Assembler())((pos, state) => new tileentity.Assembler(pos, state))
+      blockWithEntity(BlockName.Cable)(new block.Cable())((pos, state) => new tileentity.Cable(pos, state))
+      blockWithEntity(BlockName.Capacitor)(new block.Capacitor())((pos, state) => new tileentity.Capacitor(pos, state))
+      blockWithEntity(BlockName.CarpetedCapacitor)(new block.CarpetedCapacitor())((pos, state) => new tileentity.CarpetedCapacitor(pos, state))
+      blockWithEntity(BlockName.CaseTier1)(new block.Case(Tier.One))((pos, state) => new tileentity.Case(pos, state))
+      blockWithEntity(BlockName.CaseTier2)(new block.Case(Tier.Two))((pos, state) => new tileentity.Case(pos, state))
+      blockWithEntity(BlockName.CaseTier3)(new block.Case(Tier.Three))((pos, state) => new tileentity.Case(pos, state))
+      // 创造模式机箱（原 `Case(Tier.Four)`，仅创造模式标签页可见）。
+      blockWithEntity(BlockName.CaseCreative)(new block.Case(Tier.Four))((pos, state) => new tileentity.Case(pos, state))
+      blockWithEntity(BlockName.Charger)(new block.Charger())((pos, state) => new tileentity.Charger(pos, state))
+      blockWithEntity(BlockName.Disassembler)(new block.Disassembler())((pos, state) => new tileentity.Disassembler(pos, state))
+      blockWithEntity(BlockName.DiskDrive)(new block.DiskDrive())((pos, state) => new tileentity.DiskDrive(pos, state))
+      blockWithEntity(BlockName.Geolyzer)(new block.Geolyzer())((pos, state) => new tileentity.Geolyzer(pos, state))
+      blockWithEntity(BlockName.HologramTier1)(new block.Hologram(Tier.One))((pos, state) => new tileentity.Hologram(pos, state))
+      blockWithEntity(BlockName.HologramTier2)(new block.Hologram(Tier.Two))((pos, state) => new tileentity.Hologram(pos, state))
+      blockWithEntity(BlockName.Keyboard)(new block.Keyboard())((pos, state) => new tileentity.Keyboard(pos, state))
+      blockWithEntity(BlockName.Microcontroller)(new block.Microcontroller())((pos, state) => new tileentity.Microcontroller(pos, state))
+      blockWithEntity(BlockName.MotionSensor)(new block.MotionSensor())((pos, state) => new tileentity.MotionSensor(pos, state))
+      blockWithEntity(BlockName.NetSplitter)(new block.NetSplitter())((pos, state) => new tileentity.NetSplitter(pos, state))
+      blockWithEntity(BlockName.PowerConverter)(new block.PowerConverter())((pos, state) => new tileentity.PowerConverter(pos, state))
+      blockWithEntity(BlockName.PowerDistributor)(new block.PowerDistributor())((pos, state) => new tileentity.PowerDistributor(pos, state))
+      blockWithEntity(BlockName.Raid)(new block.Raid())((pos, state) => new tileentity.Raid(pos, state))
+      blockWithEntity(BlockName.Redstone)(new block.Redstone())((pos, state) => new tileentity.Redstone(pos, state))
+      blockWithEntity(BlockName.Relay)(new block.Relay())((pos, state) => new tileentity.Relay(pos, state))
+      blockWithEntity(BlockName.ScreenTier1)(new block.Screen(Tier.One))((pos, state) => new tileentity.Screen(pos, state))
+      blockWithEntity(BlockName.ScreenTier2)(new block.Screen(Tier.Two))((pos, state) => new tileentity.Screen(pos, state))
+      blockWithEntity(BlockName.ScreenTier3)(new block.Screen(Tier.Three))((pos, state) => new tileentity.Screen(pos, state))
+      blockWithEntity(BlockName.Rack)(new block.Rack())((pos, state) => new tileentity.Rack(pos, state))
+      blockWithEntity(BlockName.Switch)(new block.Switch())((pos, state) => new tileentity.Switch(pos, state))
+      blockWithEntity(BlockName.Print)(new block.Print())((pos, state) => new tileentity.Print(pos, state))
+      blockWithEntity(BlockName.Printer)(new block.Printer())((pos, state) => new tileentity.Printer(pos, state))
+      blockWithEntity(BlockName.Waypoint)(new block.Waypoint())((pos, state) => new tileentity.Waypoint(pos, state))
+      blockWithEntity(BlockName.Transposer)(new block.Transposer())((pos, state) => new tileentity.Transposer(pos, state))
+
+      // 机器人：1.7.10 的 `robot` 方块（metadata 区分 Robot / RobotProxy / RobotAfterimage），
+      // 1.21.1 拆成两个独立方块；机器人本体由 `RobotProxy` 方块实体承载。
+      blockWithEntity(BlockName.Robot)(new block.RobotProxy())((pos, state) => new tileentity.RobotProxy(pos, state))
+
+      // 没有方块实体的方块。
+      blockOnly(BlockName.RobotAfterimage)(new block.RobotAfterimage())
+      hideBlockItemInCreativeTab(BlockName.RobotAfterimage)
+      blockOnly(BlockName.ChameliumBlock)(new block.ChameliumBlock())
+      blockOnly(BlockName.Endstone)(new block.FakeEndstone())
+
+      // ------------------------------------------------------------------ //
+      // 能力注册
+      // ------------------------------------------------------------------ //
+
+      registerCapabilities(entities.toSeq)
+    }
+
+    /**
+     * 把 `IItemHandler` / `IFluidHandler` 能力挂到方块实体类型上。
+     *
+     * 1.21.1 的能力查询是
+     * {{{
+     *   Capabilities.ItemHandler.BLOCK.getCapability(level, pos, state, blockEntity, side)
+     * }}}
+     * 而注册必须在 mod 事件总线的 [[net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent]]
+     * 里完成（构造函数之后、注册表冻结之后）。
+     *
+     * 本项目约定：
+     *  - 有物品栏的方块实体混入 [[li.cil.oc.common.tileentity.ItemHandlerProvider]]
+     *    （其实现类本身就是 `IItemHandler`，即 `traits.Inventory` / `traits.ComponentInventory`）；
+     *  - 有储罐的（机器人 / 机架等）混入 [[li.cil.oc.common.tileentity.FluidHandlerProvider]]；
+     *  - 没有混入的方块实体，能力查询返回 `null`（等价于“不支持该能力”），不会崩。
+     */
+    private def registerCapabilities(names: Seq[String]): Unit = {
+      if (modBusRef == null || names.isEmpty) return
+      modBusRef.addListener(EventPriority.NORMAL, false, classOf[RegisterCapabilitiesEvent],
+        new java.util.function.Consumer[RegisterCapabilitiesEvent] {
+          override def accept(event: RegisterCapabilitiesEvent): Unit = {
+            for (name <- names) {
+              val beType = getBlockEntityType(name)
+              if (beType != null) {
+                val typed = beType.asInstanceOf[BlockEntityType[BlockEntity]]
+                event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, typed,
+                  new ICapabilityProvider[BlockEntity, Direction, IItemHandler] {
+                    override def getCapability(blockEntity: BlockEntity, side: Direction): IItemHandler =
+                      blockEntity match {
+                        case provider: li.cil.oc.common.tileentity.ItemHandlerProvider => provider.itemHandler(side)
+                        case _ => null
+                      }
+                  })
+                event.registerBlockEntity(Capabilities.FluidHandler.BLOCK, typed,
+                  new ICapabilityProvider[BlockEntity, Direction, IFluidHandler] {
+                    override def getCapability(blockEntity: BlockEntity, side: Direction): IFluidHandler =
+                      blockEntity match {
+                        case provider: li.cil.oc.common.tileentity.FluidHandlerProvider => provider.fluidHandler(side)
+                        case _ => null
+                      }
+                  })
+              }
+            }
+          }
+        })
     }
   }
 }

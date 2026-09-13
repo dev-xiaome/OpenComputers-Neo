@@ -2,7 +2,7 @@ package li.cil.oc.common.tileentity
 
 import li.cil.oc.OpenComputersNeo
 import li.cil.oc.common.tileentity.traits.TileEntity
-import net.minecraft.core.{BlockPos, HolderLookup}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.protocol.Packet
 import net.minecraft.network.protocol.game.{ClientGamePacketListener, ClientboundBlockEntityDataPacket}
@@ -96,6 +96,32 @@ abstract class BlockEntityBase(beType: BlockEntityType[_], pos: BlockPos, state:
   override def getUpdatePacket(): Packet[ClientGamePacketListener] =
     ClientboundBlockEntityDataPacket.create(this)
 
+}
+
+/**
+ * 提供 NeoForge **物品能力**（`Capabilities.ItemHandler.BLOCK`）的方块实体。
+ *
+ * 1.7.10 里方块实体直接实现 `IInventory` / `ISidedInventory`，其它模组靠接口判定；
+ * 1.21.1 改为**能力（Capability）**：`Registry` 在 `RegisterCapabilitiesEvent` 里为每个
+ * 方块实体类型注册 `IItemHandler` 能力，查询方用
+ * `Capabilities.ItemHandler.BLOCK.getCapability(level, pos, state, blockEntity, side)`。
+ *
+ * 因此 OC 的方块实体只要混入本 trait（它的实现类本身就是 `IItemHandler`），
+ * 就会被自动接上能力；需要按面区分的处理器覆写 [[itemHandler]] 即可。
+ */
+trait ItemHandlerProvider extends net.neoforged.neoforge.items.IItemHandler {
+  /** 指定面的物品处理器；`side` 可能为 `null`（表示“任意面”）。默认忽略面。 */
+  def itemHandler(side: Direction): net.neoforged.neoforge.items.IItemHandler = this
+}
+
+/**
+ * 提供 NeoForge **流体能力**（`Capabilities.FluidHandler.BLOCK`）的方块实体。
+ *
+ * 对应 1.7.10 的 `IFluidHandler`（机器人 / 机架等内部储罐）。
+ */
+trait FluidHandlerProvider {
+  /** 指定面的流体处理器；`side` 可能为 `null`（表示“任意面”）。 */
+  def fluidHandler(side: Direction): net.neoforged.neoforge.fluids.capability.IFluidHandler
 }
 
 object BlockEntityBase {

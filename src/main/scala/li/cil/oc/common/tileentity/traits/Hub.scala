@@ -1,29 +1,46 @@
 package li.cil.oc.common.tileentity.traits
 
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.network._
 import li.cil.oc.common.tileentity.traits
 import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.MovingAverage
-import net.minecraft.nbt.CompoundTag
-import net.minecraftforge.common.util.Constants.NBT
 import net.minecraft.core.Direction
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.Tag
 
 import scala.collection.mutable
 
+/**
+ * 组件总线（交换机 / 集线器）方块实体 trait（对应 1.7.10 的 `traits.Hub`）。
+ *
+ * 每个面持有一个 [[api.network.Environment]]（"plug"）节点：两侧网络通过本 trait 中继
+ * 网络包（带 TTL、队列上限与中继冷却），中继统计用 [[MovingAverage]] 平滑。
+ *
+ * ==1.21.1 迁移要点==
+ *  - `ForgeDirection.VALID_DIRECTIONS` → `Direction.values()`（顺序与原 `ForgeDirection`
+ *    的 ordinal 一致，`plugs(side.ordinal)` 的索引语义不变）。
+ *  - `Direction` 没有 `UNKNOWN`：所有 `side` 参数都必然是真实方向，`canConnect` 只做空值判断。
+ *  - `world.getTotalWorldTime` → `world.getGameTime`。
+ *  - `NBTTagCompound#hasKey/getInteger/setInteger` → `contains/getInt/putInt`；
+ *    `tag.getDirection` / `tag.setDirection` 由 [[li.cil.oc.util.ExtendedNBT]] 提供
+ *    （方向以 byte 存取，`-1` 表示「无来源侧」）。
+ *  - 删除 `@SideOnly(Side.CLIENT)`（NeoForge 会因此抛异常）；`canConnect` 本来就只在客户端调用。
+ */
 trait Hub extends traits.Environment with SidedEnvironment {
+  // 注意：Scala 的自类型不会被继承，TileEntity 的每个子 trait 都必须重新声明。
+  self: net.minecraft.world.level.block.entity.BlockEntity =>
+
   override def node: Node = null
 
   override protected def isConnected = plugs.exists(plug =>
     plug != null &&
-    plug.node != null &&
-    plug.node.address != null &&
-    plug.node.network != null)
+      plug.node != null &&
+      plug.node.address != null &&
+      plug.node.network != null)
 
-  protected val plugs = Direction.VALID_DIRECTIONS.map(side => createPlug(side))
+  protected val plugs = Direction.values().map(side => createPlug(side))
 
   val queue = mutable.Queue.empty[(Option[Direction], Packet)]
 
@@ -54,15 +71,16 @@ trait Hub extends traits.Environment with SidedEnvironment {
 
   // ----------------------------------------------------------------------- //
 
-  @SideOnly(Dist.CLIENT)
-  override def canConnect(side: Direction) = side != Direction.UNKNOWN
+  // 仅客户端调用；1.7.10 的 `@SideOnly(Side.CLIENT)` 已删除（NeoForge 会因此抛异常）。
+  // `Direction` 没有 `UNKNOWN`，参数必然是真实方向。
+  override def canConnect(side: Direction): Boolean = side != null
 
-  override def sidedNode(side: Direction) = if (side != Direction.UNKNOWN) plugs(side.ordinal()).node else null
+  override def sidedNode(side: Direction): Node = if (side != null) plugs(side.ordinal()).node else null
 
   // ----------------------------------------------------------------------- //
 
-  override def updateEntity(): Unit = {
-    super.updateEntity()
+  override def tick(): Unit = {
+    super.tick()
     if (relayCooldown > 0) {
       relayCooldown -= 1
     }
@@ -79,13 +97,13 @@ trait Hub extends traits.Environment with SidedEnvironment {
           relayCooldown = relayDelay - 1
         }
       }
-      else if (world.getTotalWorldTime % relayDelay == 0) {
+      else if (world != null && world.getGameTime % relayDelay == 0) {
         packetsPerCycleAvg += 0
       }
     }
   }
 
-  def tryEnqueuePacket(sourceSide: Option[Direction], packet: Packet) = queue.synchronized {
+  def tryEnqueuePacket(sourceSide: Option[Direction], packet: Packet): Boolean = queue.synchronized {
     if (packet.ttl > 0 && queue.size < maxQueueSize) {
       queue += sourceSide -> packet.hop()
       if (relayCooldown < 0) {
@@ -97,7 +115,7 @@ trait Hub extends traits.Environment with SidedEnvironment {
   }
 
   protected def relayPacket(sourceSide: Option[Direction], packet: Packet): Unit = {
-    for (side <- Direction.VALID_DIRECTIONS) {
+    for (side <- Direction.values()) {
       if (sourceSide.isEmpty || sourceSide.get != side) {
         val node = sidedNode(side)
         if (node != null) {
@@ -107,24 +125,24 @@ trait Hub extends traits.Environment with SidedEnvironment {
     }
   }
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
-    nbt.getList(Settings.namespace + "plugs", NBT.TAG_COMPOUND).toArray[CompoundTag].
+    nbt.getList(Settings.namespace + "plugs", Tag.TAG_COMPOUND).toArray[CompoundTag].
       zipWithIndex.foreach {
       case (tag, index) => plugs(index).node.load(tag)
     }
-    nbt.getList(Settings.namespace + "queue", NBT.TAG_COMPOUND).foreach(
+    nbt.getList(Settings.namespace + "queue", Tag.TAG_COMPOUND).foreach(
       (tag: CompoundTag) => {
         val side = tag.getDirection("side")
         val packet = api.Network.newPacket(tag)
         queue += side -> packet
       })
     if (nbt.contains(Settings.namespace + "relayCooldown")) {
-      relayCooldown = nbt.getInteger(Settings.namespace + "relayCooldown")
+      relayCooldown = nbt.getInt(Settings.namespace + "relayCooldown")
     }
   }
 
-  override def writeToNBTForServer(nbt: CompoundTag) = queue.synchronized {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = queue.synchronized {
     super.writeToNBTForServer(nbt)
     // Side check for Waila (and other mods that may call this client side).
     if (isServer) {
@@ -133,14 +151,14 @@ trait Hub extends traits.Environment with SidedEnvironment {
         if (plug.node != null)
           plug.node.save(plugNbt)
         plugNbt
-      }))
+      }).toIndexedSeq)
       nbt.setNewTagList(Settings.namespace + "queue", queue.map {
         case (sourceSide, packet) =>
           val tag = new CompoundTag()
           tag.setDirection("side", sourceSide)
           packet.save(tag)
           tag
-      })
+      }.toIndexedSeq)
       if (relayCooldown > 0) {
         nbt.putInt(Settings.namespace + "relayCooldown", relayCooldown)
       }
@@ -160,18 +178,18 @@ trait Hub extends traits.Environment with SidedEnvironment {
       }
     }
 
-    override def onConnect(node: Node) = onPlugConnect(this, node)
+    override def onConnect(node: Node): Unit = onPlugConnect(this, node)
 
-    override def onDisconnect(node: Node) = onPlugDisconnect(this, node)
+    override def onDisconnect(node: Node): Unit = onPlugDisconnect(this, node)
 
     def isPrimary = plugs(plugs.indexWhere(_.node.network == node.network)) == this
 
     def plugsInOtherNetworks = plugs.filter(_.node.network != node.network)
   }
 
-  protected def onPlugConnect(plug: Plug, node: Node) {}
+  protected def onPlugConnect(plug: Plug, node: Node): Unit = {}
 
-  protected def onPlugDisconnect(plug: Plug, node: Node) {}
+  protected def onPlugDisconnect(plug: Plug, node: Node): Unit = {}
 
   protected def onPlugMessage(plug: Plug, message: Message): Unit = {
     if (message.name == "network.message" && !plugs.exists(_.node == message.source)) message.data match {

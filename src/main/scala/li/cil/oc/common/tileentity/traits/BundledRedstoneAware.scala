@@ -2,29 +2,36 @@ package li.cil.oc.common.tileentity.traits
 
 import java.util
 
-import net.neoforged.fml.common.Optional
 import li.cil.oc.Settings
-import li.cil.oc.api.machine.Arguments
-import li.cil.oc.integration.Mods
-import li.cil.oc.integration.util.BundledRedstone
-import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedNBT._
-import li.cil.oc.util.ExtendedWorld._
-import mods.immibis.redlogic.api.wiring.IBundledEmitter
-import mods.immibis.redlogic.api.wiring.IBundledUpdatable
-import mrtjp.projectred.api.IBundledTile
+import net.minecraft.core.Direction
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.IntArrayTag
-import net.minecraftforge.common.util.Constants.NBT
-import net.minecraft.core.Direction
-import powercrystals.minefactoryreloaded.api.rednet.IRedNetNetworkContainer
+import net.minecraft.nbt.Tag
 
-@Optional.InterfaceList(Array(
-  new Optional.Interface(iface = "mods.immibis.redlogic.api.wiring.IBundledEmitter", modid = Mods.IDs.RedLogic),
-  new Optional.Interface(iface = "mods.immibis.redlogic.api.wiring.IBundledUpdatable", modid = Mods.IDs.RedLogic),
-  new Optional.Interface(iface = "mrtjp.projectred.api.IBundledTile", modid = Mods.IDs.ProjectRedTransmission)
-))
-trait BundledRedstoneAware extends RedstoneAware with IBundledEmitter with IBundledUpdatable with IBundledTile {
+/**
+ * 支持「捆绑红石」（bundled redstone）/ RedNet 的方块实体 trait
+ * （对应 1.7.10 的 `traits.BundledRedstoneAware`）。
+ *
+ * ==1.21.1 迁移要点==
+ *  - `ForgeDirection` → `Direction`；1.21.1 的 `Direction` 序数与 1.7.10 的
+ *    `ForgeDirection` 完全一致（DOWN=0, UP=1, NORTH=2, SOUTH=3, WEST=4, EAST=5），
+ *    因此 `_bundledInput` / `_bundledOutput` 的下标语义不变。
+ *  - `NBTTagList` + `func_150302_c()` → `ListTag` + `IntArrayTag#getAsIntArray`。
+ *  - `ForgeDirection.VALID_DIRECTIONS` → `Direction.values()`。
+ *
+ * ==降级说明==
+ * 原实现实现 RedLogic 的 `IBundledEmitter` / `IBundledUpdatable` 与 ProjectRed 的
+ * `IBundledTile`，并直接引用 MFR 的 `IRedNetNetworkContainer`。这些模组 API 全部未移植
+ * （且 1.21.1 已移除 ASM 接口注入），因此：
+ *  - 三个第三方接口不再实现，`getBundledCableStrength` / `onBundledInputChanged` /
+ *    `canConnectBundled` / `getBundledSignal` 被移除；恢复集成时请在独立驱动中重新实现；
+ *  - `Mods.MineFactoryReloaded` 分支（RedNet 网络刷新）与 `Mods.ProjectRedTransmission`
+ *    分支被移除，仅保留 OC 自身的捆绑输入/输出 API 与对外通知。
+ */
+trait BundledRedstoneAware extends RedstoneAware {
+  // 注意：Scala 的自类型不会被继承，TileEntity 的每个子 trait 都必须重新声明。
+  self: net.minecraft.world.level.block.entity.BlockEntity =>
 
   protected[tileentity] val _bundledInput = Array.fill(6)(Array.fill(16)(-1))
 
@@ -102,21 +109,21 @@ trait BundledRedstoneAware extends RedstoneAware with IBundledEmitter with IBund
     }
   }
 
+  /** 捆绑输出缓存（注意：与原 1.7.10 实现一致，返回的是 `_bundledInput` 的引用）。 */
   def getBundledOutput: Array[Array[Int]] = _bundledInput
 
   def getBundledOutput(side: Direction): Array[Int] = _bundledOutput(checkSide(toLocal(side)))
 
   def getBundledOutput(side: Direction, color: Int): Int = getBundledOutput(side)(checkColor(color))
 
+  /**
+   * 通知外界某一侧的捆绑输出发生了变化。
+   *
+   * TODO(integration): 原实现在此处额外刷新 MFR 的 RedNet 网络
+   * （`Mods.MineFactoryReloaded` 可用时对 `IRedNetNetworkContainer` 调用 `updateNetwork`）。
+   * MFR 集成不再移植，该分支已移除。
+   */
   def notifyChangedSide(side: Direction): Unit = {
-    if (Mods.MineFactoryReloaded.isAvailable) {
-      val blockPos = BlockPosition(x, y, z).offset(side)
-      world.getBlock(blockPos) match {
-        case block: IRedNetNetworkContainer => block.updateNetwork(world, blockPos.x, blockPos.y, blockPos.z, side.getOpposite)
-        case _ =>
-      }
-    }
-
     onRedstoneOutputChanged(side)
   }
 
@@ -148,7 +155,7 @@ trait BundledRedstoneAware extends RedstoneAware with IBundledEmitter with IBund
 
   def setBundledOutput(values: util.Map[_, _]): Boolean = {
     var changed: Boolean = false
-    Direction.VALID_DIRECTIONS.foreach(side => {
+    Direction.values().foreach(side => {
       val sideIndex = toLocal(side).ordinal
       // due to a bug in our jnlua layer, I cannot loop the map
       getObjectFuzzy(values, sideIndex) match {
@@ -163,29 +170,32 @@ trait BundledRedstoneAware extends RedstoneAware with IBundledEmitter with IBund
 
   override def updateRedstoneInput(side: Direction): Unit = {
     super.updateRedstoneInput(side)
-    setBundledInput(side, BundledRedstone.computeBundledInput(position, side))
+    // TODO(integration.util.BundledRedstone): 原为 `BundledRedstone.computeBundledInput(position, side)`。
+    // 没有任何 provider 时原实现返回 `null`，`setBundledInput` 会据此把该侧 16 个颜色全部清零，
+    // 这里保持完全一致的行为；恢复 RedLogic / ProjectRed / BluePower / MFR 集成时请改回 provider 链。
+    setBundledInput(side, null: Array[Int])
   }
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
 
-    nbt.getList(Settings.namespace + "rs.bundledInput", NBT.TAG_INT_ARRAY).toArray[IntArrayTag].
-      map(_.func_150302_c()).zipWithIndex.foreach {
+    nbt.getList(Settings.namespace + "rs.bundledInput", Tag.TAG_INT_ARRAY).toArray[IntArrayTag].
+      map(_.getAsIntArray).zipWithIndex.foreach {
       case (input, index) if index < _bundledInput.length =>
         val safeLength = input.length min _bundledInput(index).length
         input.copyToArray(_bundledInput(index), 0, safeLength)
       case _ =>
     }
-    nbt.getList(Settings.namespace + "rs.bundledOutput", NBT.TAG_INT_ARRAY).toArray[IntArrayTag].
-      map(_.func_150302_c()).zipWithIndex.foreach {
+    nbt.getList(Settings.namespace + "rs.bundledOutput", Tag.TAG_INT_ARRAY).toArray[IntArrayTag].
+      map(_.getAsIntArray).zipWithIndex.foreach {
       case (input, index) if index < _bundledOutput.length =>
         val safeLength = input.length min _bundledOutput(index).length
         input.copyToArray(_bundledOutput(index), 0, safeLength)
       case _ =>
     }
 
-    nbt.getList(Settings.namespace + "rs.rednetInput", NBT.TAG_INT_ARRAY).toArray[IntArrayTag].
-      map(_.func_150302_c()).zipWithIndex.foreach {
+    nbt.getList(Settings.namespace + "rs.rednetInput", Tag.TAG_INT_ARRAY).toArray[IntArrayTag].
+      map(_.getAsIntArray).zipWithIndex.foreach {
       case (input, index) if index < _rednetInput.length =>
         val safeLength = input.length min _rednetInput(index).length
         input.copyToArray(_rednetInput(index), 0, safeLength)
@@ -193,43 +203,20 @@ trait BundledRedstoneAware extends RedstoneAware with IBundledEmitter with IBund
     }
   }
 
-  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
 
-    nbt.setNewTagList(Settings.namespace + "rs.bundledInput", _bundledInput.view)
-    nbt.setNewTagList(Settings.namespace + "rs.bundledOutput", _bundledOutput.view)
+    nbt.setNewTagList(Settings.namespace + "rs.bundledInput", _bundledInput.map(rows => new IntArrayTag(rows)).toIndexedSeq)
+    nbt.setNewTagList(Settings.namespace + "rs.bundledOutput", _bundledOutput.map(rows => new IntArrayTag(rows)).toIndexedSeq)
 
-    nbt.setNewTagList(Settings.namespace + "rs.rednetInput", _rednetInput.view)
+    nbt.setNewTagList(Settings.namespace + "rs.rednetInput", _rednetInput.map(rows => new IntArrayTag(rows)).toIndexedSeq)
   }
 
   // ----------------------------------------------------------------------- //
 
   override protected def onRedstoneOutputEnabledChanged(): Unit = {
-    if (Mods.MineFactoryReloaded.isAvailable) {
-      for (side <- Direction.VALID_DIRECTIONS) {
-        val blockPos = BlockPosition(x, y, z).offset(side)
-        world.getBlock(blockPos) match {
-          case block: IRedNetNetworkContainer => block.updateNetwork(world, x, y, z, side.getOpposite)
-          case _ =>
-        }
-      }
-    }
+    // TODO(integration): 原实现额外刷新 MFR 的 RedNet 网络（逐侧查找 `IRedNetNetworkContainer`）。
+    // MFR 集成不再移植，该分支已移除。
     super.onRedstoneOutputEnabledChanged()
   }
-
-  // ----------------------------------------------------------------------- //
-
-  @Optional.Method(modid = Mods.IDs.RedLogic)
-  def getBundledCableStrength(blockFace: Int, toDirection: Int): Array[Byte] = getBundledOutput(Direction.getOrientation(toDirection)).map(value => math.min(math.max(value, 0), 255).toByte)
-
-  @Optional.Method(modid = Mods.IDs.RedLogic)
-  def onBundledInputChanged(): Unit = checkRedstoneInputChanged()
-
-  // ----------------------------------------------------------------------- //
-
-  @Optional.Method(modid = Mods.IDs.ProjectRedTransmission)
-  def canConnectBundled(side: Int): Boolean = _isOutputEnabled
-
-  @Optional.Method(modid = Mods.IDs.ProjectRedTransmission)
-  def getBundledSignal(side: Int): Array[Byte] = getBundledOutput(Direction.getOrientation(side)).map(value => math.min(math.max(value, 0), 255).toByte)
 }

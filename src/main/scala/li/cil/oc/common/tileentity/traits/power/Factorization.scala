@@ -1,93 +1,77 @@
 package li.cil.oc.common.tileentity.traits.power
 
-import net.neoforged.fml.common.Optional
-import factorization.api.Charge
-import factorization.api.Coord
-import factorization.api.IChargeConductor
-import li.cil.oc.OpenComputers
-import li.cil.oc.Settings
-import li.cil.oc.common.asm.Injectable
-import li.cil.oc.integration.Mods
-import li.cil.oc.integration.util.Power
 import net.minecraft.nbt.CompoundTag
 
-@Injectable.Interface(value = "factorization.api.IChargeConductor", modid = Mods.IDs.Factorization)
+/**
+ * Factorization（电荷）能量集成 —— **未移植的降级占位实现**。
+ *
+ * ==原实现（1.7.10）==
+ * 通过 `@Injectable.Interface`（ASM 注入）让本 trait 实现 `factorization.api.IChargeConductor`，
+ * 内部持有一个 `factorization.api.Charge`，每 tick 调用 `Charge#update()`，
+ * 每 `Settings.get.tickFrequency` 刻用 `Charge#deplete(amount)` 取电，
+ * 并通过 `Power.fromCharge` / `Power.toCharge` 换算单位；
+ * 存档时用 `Charge#readFromNBT/writeToNBT(nbt, "fzpower")`。
+ *
+ * ==为什么降级==
+ *  - ASM 注入层（`li.cil.oc.common.asm.**`）在 1.21.1 已整体删除；
+ *  - Factorization 未移植，`factorization.api.*`（`Charge` / `Coord` / `IChargeConductor`）
+ *    全部不可用；
+ *  - `li.cil.oc.integration.util.Power` 与 `li.cil.oc.common.EventHandler` 也未移植。
+ *
+ * ==恢复方式==
+ * 恢复集成时请把 `Charge` 相关逻辑放回本 trait（或改为 NeoForge Capability 形式接入），
+ * 对外方法名 [[getCharge]] / [[getInfo]] / [[getCoord]] 已保留。
+ */
 trait Factorization extends Common {
-  private def useFactorizationPower() = isServer && Mods.Factorization.isAvailable
+  // 注意：Scala 的自类型不会被继承，TileEntity 的每个子 trait 都必须重新声明。
+  self: net.minecraft.world.level.block.entity.BlockEntity =>
 
-  @Optional.Method(modid = Mods.IDs.Factorization)
-  private lazy val charge: AnyRef = this match {
-    case conductor: IChargeConductor => new Charge(conductor)
-    case _ =>
-      OpenComputers.log.warn("Failed setting up Factorization power, which most likely means the class transformer did not run. You're probably running in an incorrectly configured development environment. Try adding `-Dfml.coreMods.load=li.cil.oc.common.launch.TransformerLoader` to the VM options of your run configuration.")
-      null
+  // TODO(integration.factorization): Mods.Factorization 集成未移植，恒为「未启用」。
+  private def useFactorizationPower() = false
+
+  // ----------------------------------------------------------------------- //
+
+  override def tick(): Unit = {
+    // TODO(integration.factorization): 原实现在此先 `getCharge.update()`，
+    // 再每 `Settings.get.tickFrequency` 刻调用 updateEnergy()
+    // （`Charge#deplete(demand)` + `Power.fromCharge` / `Power.toCharge`）。
+    super.tick()
+  }
+
+  override def dispose(): Unit = {
+    // TODO(integration.factorization): 原实现在 `invalidate()` 里调用 `getCharge.invalidate()`，
+    // 在 `onChunkUnload()` 里（未 invalid 时）调用 `getCharge.remove()`。
+    // 1.21.1 的 `dispose()` 同时承担这两个时机且可能被调用两次，恢复时需保证幂等。
+    super.dispose()
   }
 
   // ----------------------------------------------------------------------- //
 
-  override def updateEntity(): Unit = {
-    if (useFactorizationPower()) updateEnergy()
-    super.updateEntity()
-  }
-
-  @Optional.Method(modid = Mods.IDs.Factorization)
-  private def updateEnergy(): Unit = {
-    getCharge.update()
-    if (world.getTotalWorldTime % Settings.get.tickFrequency == 0) {
-      tryAllSides((demand, _) => getCharge.deplete(demand.toInt), Power.fromCharge, Power.toCharge)
-    }
-  }
-
-  override def invalidate(): Unit = {
-    if (useFactorizationPower()) invalidateCharge()
-    super.invalidate()
-  }
-
-  @Optional.Method(modid = Mods.IDs.Factorization)
-  private def invalidateCharge(): Unit = {
-    getCharge.invalidate()
-  }
-
-  override def onChunkUnload(): Unit = {
-    if (useFactorizationPower()) removeCharge()
-    super.onChunkUnload()
-  }
-
-  @Optional.Method(modid = Mods.IDs.Factorization)
-  private def removeCharge(): Unit = {
-    if (!isInvalid) getCharge.remove()
-  }
-
-  // ----------------------------------------------------------------------- //
-
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
-    if (useFactorizationPower()) loadCharge(nbt)
+    // TODO(integration.factorization): 原实现为 `getCharge.readFromNBT(nbt, "fzpower")`。
   }
 
-  @Optional.Method(modid = Mods.IDs.Factorization)
-  private def loadCharge(nbt: CompoundTag): Unit = {
-    getCharge.readFromNBT(nbt, "fzpower")
-  }
-
-  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
-    if (useFactorizationPower()) saveCharge(nbt)
-  }
-
-  @Optional.Method(modid = Mods.IDs.Factorization)
-  private def saveCharge(nbt: CompoundTag): Unit = {
-    getCharge.writeToNBT(nbt, "fzpower")
+    // TODO(integration.factorization): 原实现为 `getCharge.writeToNBT(nbt, "fzpower")`。
   }
 
   // ----------------------------------------------------------------------- //
 
-  @Optional.Method(modid = Mods.IDs.Factorization)
-  def getCharge = if (Mods.Factorization.isAvailable) charge.asInstanceOf[Charge] else null
+  /**
+   * TODO(integration.factorization): 原返回 `factorization.api.Charge`；
+   * 与原实现一致，Factorization 不可用时返回 `null`。
+   */
+  def getCharge: AnyRef = null
 
-  @Optional.Method(modid = Mods.IDs.Factorization)
-  def getInfo = ""
+  /**
+   * TODO(integration.factorization): 原实现恒返回空串（`IChargeConductor` 的调试信息）。
+   */
+  def getInfo: String = ""
 
-  @Optional.Method(modid = Mods.IDs.Factorization)
-  def getCoord = new Coord(this)
+  /**
+   * TODO(integration.factorization): 原返回 `new factorization.api.Coord(this)`。
+   */
+  def getCoord: AnyRef = null
 }

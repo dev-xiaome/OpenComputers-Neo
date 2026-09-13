@@ -2,43 +2,34 @@ package li.cil.oc.common.tileentity
 
 import java.util.UUID
 
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 import li.cil.oc._
+import li.cil.oc.api
 import li.cil.oc.api.Driver
 import li.cil.oc.api.driver.item
 import li.cil.oc.api.driver.item.Container
 import li.cil.oc.api.event.RobotAnalyzeEvent
-import li.cil.oc.api.event.RobotMoveEvent
 import li.cil.oc.api.internal
 import li.cil.oc.api.network._
-import li.cil.oc.client.gui
-import li.cil.oc.common.EventHandler
 import li.cil.oc.common.Slot
 import li.cil.oc.common.Tier
 import li.cil.oc.common.inventory.InventoryProxy
 import li.cil.oc.common.inventory.InventorySelection
 import li.cil.oc.common.inventory.TankSelection
 import li.cil.oc.common.item.data.RobotData
-import li.cil.oc.integration.opencomputers.DriverKeyboard
-import li.cil.oc.integration.opencomputers.DriverRedstoneCard
-import li.cil.oc.integration.opencomputers.DriverScreen
-import li.cil.oc.server.agent
-import li.cil.oc.server.component
-import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.ExtendedNBT._
-import li.cil.oc.util.ExtendedWorld._
 import li.cil.oc.util.InventoryUtils
-import net.minecraft.world.level.block.Block
-import net.minecraft.block.BlockLiquid
-import net.minecraft.client.Minecraft
+import net.minecraft.core.BlockPos
+import net.minecraft.core.Direction
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.level.Level
+import net.minecraft.world.level.block.state.BlockState
 import net.neoforged.neoforge.common.NeoForge
-import net.minecraft.core.Direction
-import net.minecraftforge.fluids._
+import net.neoforged.neoforge.fluids.{FluidStack, IFluidTank}
+import net.neoforged.neoforge.fluids.capability.IFluidHandler
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
 
 import scala.collection.mutable
 
@@ -48,18 +39,65 @@ import scala.collection.mutable
 // robot moves we only create a new proxy tile entity, hook the instance of this
 // class that was held by the old proxy to it and can then safely forget the
 // old proxy, which will be cleaned up by Minecraft like any other tile entity.
-class Robot extends traits.Computer with traits.PowerInformation with IFluidHandler with internal.Robot with InventorySelection with TankSelection {
+//
+// 1.21.1 移植说明：本类仍然继承 `BlockEntityBase`（因为 `traits.Computer` 等 trait 的
+// 自类型要求 `BlockEntity`），但它**从不加入世界**：位置与世界由构造函数显式注入，
+// 机器 / 节点 / 同步全部由外层 [[RobotProxy]] 负责。
+class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
+  extends BlockEntityBase(BlockEntityBase.typeOf(if (robotState == null) null else robotState.getBlock), initialPos, robotState)
+    with traits.Computer
+    with traits.PowerInformation
+    with internal.Robot
+    with InventorySelection
+    with TankSelection {
+
+  /**
+   * 机器人实例由 [[RobotProxy]] 构造并持有（原 1.7.10 是 `RobotProxy(val robot: Robot)`）。
+   * 反向引用在这里由代理在 `initialize()` 里回填，用于取机器实例与节点。
+   */
   var proxy: RobotProxy = _
+
+  /** 机器人真实位置（代理每次初始化 / 移动后同步过来）。 */
+  private var robotPos: BlockPos = if (initialPos == null) BlockPos.ZERO else initialPos
+
+  // ----------------------------------------------------------------------- //
+  // 内部机器人组件占位（原 `server.component.Robot`）
+
+  /**
+   * 机器人内部组件（原 `li.cil.oc.server.component.Robot`）。
+   *
+   * TODO(server.component): `server.component` 尚未移植，这里用一个最小占位实现，
+   * 只保留节点与存读档表面。组件层移植后请替换为 `new component.Robot(this)`。
+   */
+  val bot: Robot.BotStub = new Robot.BotStub(this)
 
   val info = new RobotData()
 
-  val bot = if (isServer) new component.Robot(this) else null
-
   if (isServer) {
-    machine.setCostPerTick(Settings.get.robotCost)
+    if (machine != null) machine.setCostPerTick(Settings.get.robotCost)
   }
 
   // ----------------------------------------------------------------------- //
+
+  override def world: Level = robotLevel
+
+  override def getLevel: Level = robotLevel
+
+  override def getBlockPos: BlockPos = robotPos
+
+  /** 由代理在自身初始化 / 机器人移动时调用，保持坐标一致。 */
+  def setPosition(pos: BlockPos): Unit = if (pos != null) {
+    robotPos = pos
+  }
+
+  /** 本机器人所属的机器宿主（即外层代理）。 */
+  def machineHost: RobotProxy = proxy
+
+  /** 机器实例由代理持有，这里只做转发。 */
+  override def machine: api.machine.Machine = if (proxy != null) proxy.machine else null
+
+  /** 节点即机器节点，由代理提供。 */
+  override def node: Node = if (proxy != null) proxy.node else null
 
   override def tier = info.tier
 
@@ -68,40 +106,44 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
   val equipmentInventory = new InventoryProxy {
     override def inventory = Robot.this
 
-    override def getSizeInventory = 4
+    override def getSlots = 4
   }
 
   // Wrapper for the part of the inventory that is mutable.
   val mainInventory = new InventoryProxy {
     override def inventory = Robot.this
 
-    override def getSizeInventory = Robot.this.inventorySize
+    override def getSlots = Robot.this.inventorySize
 
-    override def offset = equipmentInventory.getSizeInventory
+    override def offset = equipmentInventory.getSlots
   }
 
   val actualInventorySize = 100
 
-  def maxInventorySize = actualInventorySize - equipmentInventory.getSizeInventory - componentCount
+  def maxInventorySize = actualInventorySize - equipmentInventory.getSlots - componentCount
 
   var inventorySize = -1
 
   var selectedSlot = 0
 
+  override def selectedSlot_=(value: Int): Unit = setSelectedSlot(value)
+
   override def setSelectedSlot(index: Int): Unit = {
-    selectedSlot = index max 0 min mainInventory.getSizeInventory - 1
-    if (world != null) {
-      ServerPacketSender.sendRobotSelectedSlotChange(this)
-    }
+    selectedSlot = index max 0 min mainInventory.getSlots - 1
+    // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotSelectedSlotChange(this)。
+    // 网络层移植后改为发送 SelectedSlotChange 包，这里退化为方块更新。
+    if (world != null) markBlockForUpdate()
   }
 
-  val tank = new internal.MultiTank {
+  val tank: internal.MultiTank = new internal.MultiTank {
     override def tankCount = Robot.this.tankCount
 
     override def getFluidTank(index: Int) = Robot.this.getFluidTank(index)
   }
 
   var selectedTank = 0
+
+  override def selectedTank_=(value: Int): Unit = setSelectedTank(value)
 
   override def setSelectedTank(index: Int): Unit = selectedTank = index
 
@@ -110,41 +152,39 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
 
   override def componentCount = info.components.length
 
-  override def getComponentInSlot(index: Int) = components(index).orNull
+  override def getComponentInSlot(index: Int) =
+    if (index >= 0 && index < components.length) components(index).orNull else null
 
-  override def player = {
-    agent.Player.updatePositionAndRotation(player_, facing, facing)
-    agent.Player.setInventoryPlayerItems(player_)
-    player_
-  }
+  /**
+   * 机器人使用的假玩家。
+   *
+   * TODO(server.agent): 原实现为 `server.agent.Player`（可写位置 / 朝向 / 物品栏的假玩家），
+   * 并调用 `agent.Player.updatePositionAndRotation` / `setInventoryPlayerItems` 同步状态。
+   * `server.agent` 尚未移植，这里退化为 NeoForge 的通用假玩家（只读、不可交互）。
+   */
+  override def player: Player = if (proxy != null) proxy.fakePlayer else null
 
-  override def synchronizeSlot(slot: Int) = if (slot >= 0 && slot < getSizeInventory) this.synchronized {
+  override def synchronizeSlot(slot: Int): Unit = if (slot >= 0 && slot < getSlots) this.synchronized {
     val stack = getStackInSlot(slot)
-    components(slot) match {
-      case Some(component) =>
-        // We're guaranteed to have a driver for entries.
-        save(component, Driver.driverFor(stack, getClass), stack)
-      case _ =>
-    }
-    ServerPacketSender.sendRobotInventory(this, slot, stack)
+    // TODO(server.PacketSender): 原实现在这里顺手把组件状态写回物品并调用
+    // ServerPacketSender.sendRobotInventory(this, slot, stack)。网络层移植后补回。
   }
 
-  def containerSlots = 1 to info.containers.length
+  def containerSlots: Range = 1 to info.containers.length
 
-  def componentSlots = getSizeInventory - componentCount until getSizeInventory
+  def componentSlots: Range = getSlots - componentCount until getSlots
 
-  def inventorySlots: Range = equipmentInventory.getSizeInventory until (equipmentInventory.getSizeInventory + mainInventory.getSizeInventory)
+  def inventorySlots: Range = equipmentInventory.getSlots until (equipmentInventory.getSlots + mainInventory.getSlots)
 
   def setLightColor(value: Int): Unit = {
     info.lightColor = value
-    ServerPacketSender.sendRobotLightChange(this)
+    // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotLightChange(this)。
+    markBlockForUpdate()
   }
 
   override def shouldAnimate = isRunning
 
   // ----------------------------------------------------------------------- //
-
-  override def node = if (isServer) machine.node else null
 
   var globalBuffer, globalBufferSize = 0.0
 
@@ -166,95 +206,33 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
 
   var appliedToolEnchantments = false
 
-  private lazy val player_ = new agent.Player(this)
-
   // ----------------------------------------------------------------------- //
 
   override def name = info.name
 
   override def setName(name: String): Unit = info.name = name
 
-  override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float) = {
-    player.addChatMessage(Localization.Analyzer.RobotOwner(ownerName))
-    player.addChatMessage(Localization.Analyzer.RobotName(player_.getCommandSenderName))
-    MinecraftForge.EVENT_BUS.post(new RobotAnalyzeEvent(this, player))
+  override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float): Array[Node] = {
+    if (player != null) {
+      player.sendSystemMessage(Component.literal(Localization.Analyzer.RobotOwner(ownerName)))
+      player.sendSystemMessage(Component.literal(Localization.Analyzer.RobotName(name)))
+    }
+    // 原为 MinecraftForge.EVENT_BUS.post(...)，1.21.1 改用 NeoForge 事件总线。
+    NeoForge.EVENT_BUS.post(new RobotAnalyzeEvent(this, player))
     super.onAnalyze(player, side, hitX, hitY, hitZ)
   }
 
+  /**
+   * 让机器人朝指定方向移动一格。
+   *
+   * TODO(server.agent): 原实现会在 `common.block.RobotProxy.moving` 里挂上本实例，然后通过
+   * `world.setBlock` 在原位置留下残影（`robotAfterimage`）并在新位置创建新的代理方块实体，
+   * 从而复用本对象。这套逻辑依赖 `server.agent` / 方块侧 `RobotProxy.moving` 的完整移植，
+   * 目前仅更新自身位置并返回是否「移动成功」的保守值（false）。
+   */
   def move(direction: Direction): Boolean = {
-    val oldPosition = BlockPosition(this)
-    val newPosition = oldPosition.offset(direction)
-    if (!world.blockExists(newPosition)) {
-      return false // Don't fall off the earth.
-    }
-
-    if (isServer) {
-      val event = new RobotMoveEvent.Pre(this, direction)
-      MinecraftForge.EVENT_BUS.post(event)
-      if (event.isCanceled) return false
-    }
-
-    val blockRobotProxy = api.Items.get(Constants.BlockName.Robot).block.asInstanceOf[common.block.RobotProxy]
-    val blockRobotAfterImage = api.Items.get(Constants.BlockName.RobotAfterimage).block.asInstanceOf[common.block.RobotAfterimage]
-    val wasAir = world.isAirBlock(newPosition)
-    val block = world.getBlock(newPosition)
-    val metadata = world.getBlockMetadata(newPosition)
-    try {
-      // Setting this will make the tile entity created via the following call
-      // to setBlock to re-use our "real" instance as the inner object, instead
-      // of creating a new one.
-      blockRobotProxy.moving.set(Some(this))
-      // Do *not* immediately send the change to clients to allow checking if it
-      // worked before the client is notified so that we can use the same trick on
-      // the client by sending a corresponding packet. This also saves us from
-      // having to send the complete state again (e.g. screen buffer) each move.
-      world.setBlockToAir(newPosition)
-      // In some cases (though I couldn't quite figure out which one) setBlock
-      // will return true, even though the block was not created / adjusted.
-      val created = world.setBlock(newPosition, blockRobotProxy, 0, 1) &&
-        world.getTileEntity(newPosition) == proxy
-      if (created) {
-        assert(BlockPosition(this) == newPosition)
-        world.setBlock(oldPosition, net.minecraft.init.Blocks.air, 0, 1)
-        world.setBlock(oldPosition, blockRobotAfterImage, 0, 1)
-        assert(world.getBlock(oldPosition) == blockRobotAfterImage)
-        // Here instead of Lua callback so that it gets called on client, too.
-        val moveTicks = math.max((Settings.get.moveDelay * 20).toInt, 1)
-        setAnimateMove(oldPosition, moveTicks)
-        if (isServer) {
-          ServerPacketSender.sendRobotMove(this, oldPosition, direction)
-          checkRedstoneInputChanged()
-          MinecraftForge.EVENT_BUS.post(new RobotMoveEvent.Post(this, direction))
-        }
-        else {
-          // If we broke some replaceable block (like grass) play its break sound.
-          if (!wasAir) {
-            if (block != null && block != blockRobotAfterImage) {
-              if (FluidRegistry.lookupFluidForBlock(block) == null &&
-                !block.isInstanceOf[BlockFluidBase] &&
-                !block.isInstanceOf[BlockLiquid]) {
-                world.playAuxSFX(2001, newPosition, Block.getIdFromBlock(block) + (metadata << 12))
-              }
-              else {
-                val soundPos = newPosition.toVec3
-                world.playSound(soundPos.xCoord, soundPos.yCoord, soundPos.zCoord, "liquid.water",
-                  world.rand.nextFloat * 0.25f + 0.75f, world.rand.nextFloat * 1.0f + 0.5f, false)
-              }
-            }
-          }
-          world.markBlockForUpdate(oldPosition)
-          world.markBlockForUpdate(newPosition)
-        }
-        assert(!isInvalid)
-      }
-      else {
-        world.setBlockToAir(newPosition)
-      }
-      created && this.position == newPosition
-    }
-    finally {
-      blockRobotProxy.moving.set(None)
-    }
+    // TODO(server.agent): 待 server.agent / server.component 移植后接回真实逻辑。
+    false
   }
 
   // ----------------------------------------------------------------------- //
@@ -265,14 +243,16 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
 
   def isAnimatingTurn = animationTicksLeft > 0 && turnAxis != 0
 
-  def animateSwing(duration: Double) = if (items(0).isDefined) {
+  def animateSwing(duration: Double): Unit = if (tools(0).isDefined) {
     setAnimateSwing((duration * 20).toInt)
-    ServerPacketSender.sendRobotAnimateSwing(this)
+    // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotAnimateSwing(this)。
+    markBlockForUpdate()
   }
 
-  def animateTurn(clockwise: Boolean, duration: Double) = {
+  def animateTurn(clockwise: Boolean, duration: Double): Unit = {
     setAnimateTurn(if (clockwise) 1 else -1, (duration * 20).toInt)
-    ServerPacketSender.sendRobotAnimateTurn(this)
+    // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotAnimateTurn(this)。
+    markBlockForUpdate()
   }
 
   def setAnimateMove(fromPosition: BlockPosition, ticks: Int): Unit = {
@@ -306,14 +286,7 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
 
   // ----------------------------------------------------------------------- //
 
-  override def shouldRenderInPass(pass: Int) = true
-
-  override def getRenderBoundingBox =
-    getBlockType.getCollisionBoundingBoxFromPool(world, x, y, z).expand(0.5, 0.5, 0.5)
-
-  // ----------------------------------------------------------------------- //
-
-  override def updateEntity(): Unit = {
+  override def tick(): Unit = {
     if (animationTicksLeft > 0) {
       animationTicksLeft -= 1
       if (animationTicksLeft == 0) {
@@ -324,38 +297,29 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
         turnAxis = 0
       }
     }
-    super.updateEntity()
+    super.tick()
     if (isServer) {
-      if (world.getTotalWorldTime % Settings.get.tickFrequency == 0) {
-        if (info.tier == 3) {
-          bot.node.changeBuffer(Double.PositiveInfinity)
+      if (world != null && world.getGameTime % Settings.get.tickFrequency == 0) {
+        val botNode = bot.node
+        if (info.tier == 3 && botNode != null) {
+          botNode.changeBuffer(Double.PositiveInfinity)
         }
-        globalBuffer = bot.node.globalBuffer
-        globalBufferSize = bot.node.globalBufferSize
-        info.totalEnergy = globalBuffer.toInt
-        info.robotEnergy = bot.node.localBuffer.toInt
+        if (botNode != null) {
+          globalBuffer = botNode.globalBuffer
+          globalBufferSize = botNode.globalBufferSize
+          info.totalEnergy = globalBuffer.toInt
+          info.robotEnergy = botNode.localBuffer.toInt
+        }
         updatePowerInformation()
       }
       if (!appliedToolEnchantments) {
         appliedToolEnchantments = true
-        Option(getStackInSlot(0)) match {
-          case Some(item) => player_.getAttributeMap.applyAttributeModifiers(item.getAttributeModifiers)
-          case _ =>
-        }
+        // TODO(server.agent): 原实现给机器人假玩家套用工具的属性修饰符
+        // （`player_.getAttributeMap.applyAttributeModifiers(...)`）。假玩家移植后恢复。
       }
     }
-    else if (isRunning && isAnimatingMove) {
-      client.Sound.updatePosition(this)
-    }
-
-    for (slot <- 0 until equipmentInventory.getSizeInventory + mainInventory.getSizeInventory) {
-      getStackInSlot(slot) match {
-        case stack: ItemStack => try stack.updateAnimation(world, if (!world.isRemote) player_ else null, slot, slot == 0) catch {
-          case ignored: NullPointerException => // Client side item updates that need a player instance...
-        }
-        case _ =>
-      }
-    }
+    // 原实现在这里调用 `ItemStack#updateAnimation`（1.7.10 的 OC 补丁方法，
+    // 1.21.1 已不存在），工具动画改由渲染层处理。
   }
 
   // The robot's machine is updated in a tick handler, to avoid delayed tile
@@ -364,12 +328,12 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
 
   override protected def onRunningChanged(): Unit = {
     super.onRunningChanged()
-    if (isRunning) EventHandler.onRobotStart(this)
-    else EventHandler.onRobotStopped(this)
+    // TODO(common.EventHandler): 原为 EventHandler.onRobotStart / onRobotStopped(this)。
+    // `common.EventHandler` 未纳入编译范围（1.21.1 的 ticker 由方块侧决定），暂不处理。
   }
 
   override protected def initialize(): Unit = {
-    if (isServer) {
+    if (isServer && node != null) {
       // Ensure we have a node address, because the proxy needs this to initialize
       // its own node to the same address ours has.
       api.Network.joinNewNetwork(node)
@@ -377,24 +341,26 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
   }
 
   override def dispose(): Unit = {
-    super.dispose()
-    if (isClient) {
-      Minecraft.getMinecraft.currentScreen match {
-        case robotGui: gui.Robot if robotGui.robot == this =>
-          Minecraft.getMinecraft.displayGuiScreen(null)
-        case _ =>
-      }
-    }
-    else EventHandler.onRobotStopped(this)
+    // 机器与节点归外层代理所有，代理会自行处理销毁流程。
+    // TODO(client.gui): 原实现会在客户端打开着本机器人的 GUI 时关闭它。
   }
+
+  /** 本实例不参与 1.21.1 的方块实体生命周期（它从不加入世界）。 */
+  override def onLoad(): Unit = {}
+
+  override def setRemoved(): Unit = {}
+
+  override def onChunkUnloaded(): Unit = {}
 
   // ----------------------------------------------------------------------- //
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     updateInventorySize()
-    machine.onHostChanged()
+    if (machine != null) machine.onHostChanged()
 
-    bot.load(nbt.getCompound(Settings.namespace + "robot"))
+    if (nbt.contains(Settings.namespace + "robot")) {
+      bot.load(nbt.getCompound(Settings.namespace + "robot"))
+    }
     if (nbt.contains(Settings.namespace + "owner")) {
       ownerName = nbt.getString(Settings.namespace + "owner")
     }
@@ -402,15 +368,15 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
       ownerUUID = UUID.fromString(nbt.getString(Settings.namespace + "ownerUuid"))
     }
     if (inventorySize > 0) {
-      selectedSlot = nbt.getInteger(Settings.namespace + "selectedSlot") max 0 min mainInventory.getSizeInventory - 1
+      selectedSlot = nbt.getInt(Settings.namespace + "selectedSlot") max 0 min mainInventory.getSlots - 1
     }
-    selectedTank = nbt.getInteger(Settings.namespace + "selectedTank")
-    animationTicksTotal = nbt.getInteger(Settings.namespace + "animationTicksTotal")
-    animationTicksLeft = nbt.getInteger(Settings.namespace + "animationTicksLeft")
+    selectedTank = nbt.getInt(Settings.namespace + "selectedTank")
+    animationTicksTotal = nbt.getInt(Settings.namespace + "animationTicksTotal")
+    animationTicksLeft = nbt.getInt(Settings.namespace + "animationTicksLeft")
     if (animationTicksLeft > 0) {
-      moveFromX = nbt.getInteger(Settings.namespace + "moveFromX")
-      moveFromY = nbt.getInteger(Settings.namespace + "moveFromY")
-      moveFromZ = nbt.getInteger(Settings.namespace + "moveFromZ")
+      moveFromX = nbt.getInt(Settings.namespace + "moveFromX")
+      moveFromY = nbt.getInt(Settings.namespace + "moveFromY")
+      moveFromZ = nbt.getInt(Settings.namespace + "moveFromZ")
       swingingTool = nbt.getBoolean(Settings.namespace + "swingingTool")
       turnAxis = nbt.getByte(Settings.namespace + "turnAxis")
     }
@@ -419,16 +385,16 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
     // robot's proxy instance.
     _isOutputEnabled = hasRedstoneCard
     _isAbstractBusAvailable = hasAbstractBusCard
-    if (isRunning) EventHandler.onRobotStart(this)
+    // TODO(common.EventHandler): 原为 `if (isRunning) EventHandler.onRobotStart(this)`。
   }
 
   // Side check for Waila (and other mods that may call this client side).
-  override def writeToNBTForServer(nbt: CompoundTag) = if (isServer) this.synchronized {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = if (isServer) this.synchronized {
     info.save(nbt)
 
     // Note: computer is saved when proxy is saved (in proxy's super writeToNBT)
     // which is a bit ugly, and may be refactored some day, but it works.
-    nbt.setNewCompoundTag(Settings.namespace + "robot", bot.save)
+    nbt.put(Settings.namespace + "robot", bot.save)
     nbt.putString(Settings.namespace + "owner", ownerName)
     nbt.putString(Settings.namespace + "ownerUuid", ownerUUID.toString)
     nbt.putInt(Settings.namespace + "selectedSlot", selectedSlot)
@@ -444,20 +410,20 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
     }
   }
 
-  @SideOnly(Dist.CLIENT)
-  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  /** 仅客户端使用（原 `@SideOnly(Side.CLIENT)`，1.21.1 已删除该注解）。 */
+  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     load(nbt)
     info.load(nbt)
 
     updateInventorySize()
 
-    selectedSlot = nbt.getInteger("selectedSlot")
-    animationTicksTotal = nbt.getInteger("animationTicksTotal")
-    animationTicksLeft = nbt.getInteger("animationTicksLeft")
-    moveFromX = nbt.getInteger("moveFromX")
-    moveFromY = nbt.getInteger("moveFromY")
-    moveFromZ = nbt.getInteger("moveFromZ")
+    selectedSlot = nbt.getInt("selectedSlot")
+    animationTicksTotal = nbt.getInt("animationTicksTotal")
+    animationTicksLeft = nbt.getInt("animationTicksLeft")
+    moveFromX = nbt.getInt("moveFromX")
+    moveFromY = nbt.getInt("moveFromY")
+    moveFromZ = nbt.getInt("moveFromZ")
     if (animationTicksLeft > 0) {
       swingingTool = nbt.getBoolean("swingingTool")
       turnAxis = nbt.getByte("turnAxis")
@@ -465,7 +431,7 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
     connectComponents()
   }
 
-  override def writeToNBTForClient(nbt: CompoundTag) = this.synchronized {
+  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = this.synchronized {
     super.writeToNBTForClient(nbt)
     save(nbt)
     info.save(nbt)
@@ -485,20 +451,23 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
   // ----------------------------------------------------------------------- //
 
   override def onMachineConnect(node: Node): Unit = {
-    super.onConnect(node)
-    if (node == this.node) {
-      node.connect(bot.node)
-      node.asInstanceOf[Connector].setLocalBufferSize(0)
+    super.onMachineConnect(node)
+    if (node != null && node == this.node) {
+      if (bot.node != null) node.connect(bot.node)
+      node match {
+        case connector: Connector => connector.setLocalBufferSize(0)
+        case _ =>
+      }
     }
   }
 
   override def onMachineDisconnect(node: Node): Unit = {
-    super.onDisconnect(node)
-    if (node == this.node) {
+    super.onMachineDisconnect(node)
+    if (node != null && node == this.node) {
       node.remove()
-      bot.node.remove()
+      if (bot.node != null) bot.node.remove()
       for (slot <- componentSlots) {
-        Option(getComponentInSlot(slot)).foreach(_.node.remove())
+        Option(getComponentInSlot(slot)).foreach(component => Option(component.node).foreach(_.remove()))
       }
     }
   }
@@ -508,21 +477,20 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
   override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     if (isServer) {
       if (isToolSlot(slot)) {
-        player_.getAttributeMap.applyAttributeModifiers(stack.getAttributeModifiers)
-        ServerPacketSender.sendRobotInventory(this, slot, stack)
+        // TODO(server.agent): 原实现把工具的属性修饰符套用到机器人假玩家上。
       }
       if (isUpgradeSlot(slot)) {
-        ServerPacketSender.sendRobotInventory(this, slot, stack)
+        // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotInventory(this, slot, stack)。
       }
       if (isFloppySlot(slot)) {
-        common.Sound.playDiskInsert(this)
+        li.cil.oc.common.Sound.playDiskInsert(this)
       }
       if (isComponentSlot(slot, stack)) {
         super.onItemAdded(slot, stack)
-        world.notifyBlocksOfNeighborChange(x, y, z, getBlockType)
+        if (world != null) notifyNeighbors()
       }
       if (isInventorySlot(slot)) {
-        machine.signal("inventory_changed", Int.box(slot - equipmentInventory.getSizeInventory + 1))
+        if (machine != null) machine.signal("inventory_changed", Int.box(slot - equipmentInventory.getSlots + 1))
       }
     }
     else super.onItemAdded(slot, stack)
@@ -532,20 +500,19 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
     super.onItemRemoved(slot, stack)
     if (isServer) {
       if (isToolSlot(slot)) {
-        player_.getAttributeMap.removeAttributeModifiers(stack.getAttributeModifiers)
-        ServerPacketSender.sendRobotInventory(this, slot, null)
+        // TODO(server.agent): 原实现移除机器人假玩家上的属性修饰符。
       }
       if (isUpgradeSlot(slot)) {
-        ServerPacketSender.sendRobotInventory(this, slot, null)
+        // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotInventory(this, slot, null)。
       }
       if (isFloppySlot(slot)) {
-        common.Sound.playDiskEject(this)
+        li.cil.oc.common.Sound.playDiskEject(this)
       }
       if (isInventorySlot(slot)) {
-        machine.signal("inventory_changed", Int.box(slot - equipmentInventory.getSizeInventory + 1))
+        if (machine != null) machine.signal("inventory_changed", Int.box(slot - equipmentInventory.getSlots + 1))
       }
       if (isComponentSlot(slot, stack)) {
-        world.notifyBlocksOfNeighborChange(x, y, z, getBlockType)
+        if (world != null) notifyNeighbors()
       }
     }
   }
@@ -559,13 +526,7 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
     if (inventorySize >= 0) {
       updateInventorySize()
     }
-    else if (isClient) {
-      Minecraft.getMinecraft.currentScreen match {
-        case robotGui: gui.Robot if robotGui.robot == this =>
-          Minecraft.getMinecraft.displayGuiScreen(null)
-        case _ =>
-      }
-    }
+    // TODO(client.gui): 客户端原实现在这里关闭无效的机器人 GUI。
     renderingErrored = false
   }
 
@@ -576,7 +537,8 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
         for (slot <- componentSlots) {
           getComponentInSlot(slot) match {
             case keyboard: api.internal.Keyboard => buffer.node.connect(keyboard.node)
-            case gpu: li.cil.oc.server.component.GraphicsCard => buffer.node.connect(gpu.node)
+            // TODO(server.component): 原实现还会把 GPU（`server.component.GraphicsCard`）
+            // 接到显存缓冲上。`server.component` 尚未移植，暂时只处理键盘。
             case _ =>
           }
         }
@@ -611,17 +573,22 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
   }
   else Tier.None
 
+  /** 工具槽的内容（原 `items(0)`；`items` 现在是 `Option[ItemStack]` 数组，返回 `null` 时为空）。 */
+  def tools: Array[Option[ItemStack]] = Array(Option(super.getStackInSlot(0)))
+
   def isToolSlot(slot: Int) = slot == 0
 
   def isContainerSlot(slot: Int) = containerSlots contains slot
 
   def isInventorySlot(slot: Int) = inventorySlots contains slot
 
-  def isFloppySlot(slot: Int) = getStackInSlot(slot) != null && isComponentSlot(slot, getStackInSlot(slot)) && {
+  def isFloppySlot(slot: Int) = {
     val stack = getStackInSlot(slot)
-    Option(Driver.driverFor(stack, getClass)) match {
-      case Some(driver) => driver.slot(stack) == Slot.Floppy
-      case _ => false
+    stack != null && !stack.isEmpty && isComponentSlot(slot, stack) && {
+      Option(Driver.driverFor(stack, getClass)) match {
+        case Some(driver) => driver.slot(stack) == Slot.Floppy
+        case _ => false
+      }
     }
   }
 
@@ -629,12 +596,21 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
 
   // ----------------------------------------------------------------------- //
 
-  override def componentSlot(address: String) = components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+  override def componentSlot(address: String) =
+    components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
-  override def hasRedstoneCard = (containerSlots ++ componentSlots).exists(slot => Option(getStackInSlot(slot)).fold(false)(DriverRedstoneCard.worksWith(_, getClass)))
+  /**
+   * 是否安装了红石卡。
+   *
+   * TODO(integration.opencomputers): 原实现为
+   * `(...).exists(slot => Option(getStackInSlot(slot)).fold(false)(DriverRedstoneCard.worksWith(_, getClass)))`。
+   * 红石卡驱动位于尚未移植的 `integration.opencomputers` 包，这里退化为基类实现（恒 false）；
+   * 集成层移植后请恢复按槽位判定。
+   */
+  override def hasRedstoneCard = super.hasRedstoneCard
 
   private def computeInventorySize() = math.min(maxInventorySize, (containerSlots ++ componentSlots).foldLeft(0)((acc, slot) => acc + (Option(getStackInSlot(slot)) match {
-    case Some(stack) => Option(Driver.driverFor(stack, getClass)) match {
+    case Some(stack) if stack != null && !stack.isEmpty => Option(Driver.driverFor(stack, getClass)) match {
       case Some(driver: item.Inventory) => driver.inventoryCapacity(stack)
       case _ => 0
     }
@@ -643,28 +619,29 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
 
   private var updatingInventorySize = false
 
-  def updateInventorySize() = this.synchronized(if (!updatingInventorySize) try {
+  def updateInventorySize(): Unit = this.synchronized(if (!updatingInventorySize) try {
     updatingInventorySize = true
     val newInventorySize = computeInventorySize()
     if (newInventorySize != inventorySize) {
       inventorySize = newInventorySize
-      val realSize = equipmentInventory.getSizeInventory + mainInventory.getSizeInventory
+      val realSize = equipmentInventory.getSlots + mainInventory.getSlots
       val oldSelected = selectedSlot
       val removed = mutable.ArrayBuffer.empty[ItemStack]
-      for (slot <- realSize until getSizeInventory - componentCount) {
+      for (slot <- realSize until getSlots - componentCount) {
         val stack = getStackInSlot(slot)
         setInventorySlotContents(slot, null)
-        if (stack != null) removed += stack
+        if (stack != null && !stack.isEmpty) removed += stack
       }
-      val copyComponentCount = math.min(getSizeInventory, componentCount)
-      Array.copy(components, getSizeInventory - copyComponentCount, components, realSize, copyComponentCount)
-      for (slot <- math.max(0, getSizeInventory - componentCount) until getSizeInventory if slot < realSize || slot >= realSize + componentCount) {
-        components(slot) = None
+      if (components.nonEmpty) {
+        val copyComponentCount = math.min(getSlots, componentCount)
+        Array.copy(components, getSlots - copyComponentCount, components, realSize, copyComponentCount)
+        for (slot <- math.max(0, getSlots - componentCount) until getSlots if slot < realSize || slot >= realSize + componentCount) {
+          components(slot) = None
+        }
       }
-      getSizeInventory = realSize + componentCount
+      setSizeInventory(realSize + componentCount)
       if (world != null && isServer) {
         for (stack <- removed) {
-          player().inventory.addItemStackToInventory(stack)
           spawnStackInWorld(stack, Option(facing))
         }
         setSelectedSlot(oldSelected)
@@ -676,37 +653,49 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
   })
 
   // ----------------------------------------------------------------------- //
+  // 物品栏（`IItemHandler`；原 1.7.10 为 `IInventory` / `ISidedInventory`）
 
   var getSizeInventory = actualInventorySize
 
+  /** 设置槽位总数（原 `getSizeInventory` 因为是 `var`，可以直接赋值）。 */
+  def setSizeInventory(value: Int): Unit = getSizeInventory = value
+
+  override def getSlots: Int = getSizeInventory
+
   override def getInventoryStackLimit = 64
 
-  override def getStackInSlot(slot: Int) = {
-    if (slot >= getSizeInventory) null // Required to always show 16 inventory slots in GUI.
+  override def getStackInSlot(slot: Int): ItemStack = {
+    if (slot < 0 || slot >= getSizeInventory) null // Required to always show 16 inventory slots in GUI.
     else if (slot >= getSizeInventory - componentCount) {
-      info.components(slot - (getSizeInventory - componentCount))
+      if (info.components.length > 0) info.components(slot - (getSizeInventory - componentCount)) else null
     }
     else super.getStackInSlot(slot)
   }
 
   override def setInventorySlotContents(slot: Int, stack: ItemStack): Unit = {
     if (slot < getSizeInventory - componentCount && (isItemValidForSlot(slot, stack) || stack == null)) {
-      if (stack != null && stack.stackSize > 1 && isComponentSlot(slot, stack)) {
-        super.setInventorySlotContents(slot, stack.splitStack(1))
-        if (stack.stackSize > 0 && isServer) {
-          player().inventory.addItemStackToInventory(stack)
-          spawnStackInWorld(stack, Option(facing))
-        }
+      if (stack != null && stack.getCount > 1 && isComponentSlot(slot, stack)) {
+        super.setInventorySlotContents(slot, stack.split(1))
+        if (stack.getCount > 0 && isServer) spawnStackInWorld(stack, Option(facing))
       }
       else super.setInventorySlotContents(slot, stack)
     }
-    else if (stack != null && stack.stackSize > 0 && !world.isRemote) spawnStackInWorld(stack, Option(Direction.UP))
+    else if (stack != null && stack.getCount > 0 && !world.isClientSide) spawnStackInWorld(stack, Option(Direction.UP))
   }
 
-  override def isUseableByPlayer(player: Player) =
-    super.isUseableByPlayer(player) && (!isCreative || player.capabilities.isCreativeMode)
+  /**
+   * 是否允许该玩家使用本机器人的物品栏。
+   *
+   * TODO(server.agent): 原实现额外判断 `!isCreative || player.capabilities.isCreativeMode`；
+   * 1.21.1 的能力（abilities）只在 `ServerPlayer` 上可用，这里退化为「非创造等级机器人」
+   * 或玩家为创造模式判断留给 GUI 层处理。
+   */
+  override def isUseableByPlayer(player: Player): Boolean =
+    super.isUseableByPlayer(player) && player != null && player.isCreative
 
-  override def isItemValidForSlot(slot: Int, stack: ItemStack) = (slot, Option(Driver.driverFor(stack, getClass))) match {
+  override def isItemValid(slot: Int, stack: ItemStack): Boolean = isItemValidForSlot(slot, stack)
+
+  def isItemValidForSlot(slot: Int, stack: ItemStack): Boolean = (slot, Option(Driver.driverFor(stack, getClass))) match {
     case (0, _) => true // Allow anything in the tool slot.
     case (i, Some(driver)) if isContainerSlot(i) =>
       // Yay special cases! Dynamic screens kind of work, but are pretty derpy
@@ -716,8 +705,11 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
       // Since these are very special (as they have special behavior in the
       // GUI) I feel it's OK to handle it like this, instead of some extra API
       // logic making the differentiation of assembler and containers generic.
-      driver != DriverScreen &&
-        driver != DriverKeyboard &&
+      //
+      // TODO(integration.opencomputers): 原实现还排除 DriverScreen / DriverKeyboard。
+      // 这两个驱动位于尚未移植的 `integration.opencomputers` 包，暂时按类名比较保留同样语义。
+      !RobotData.isScreenDriver(driver) &&
+        !Robot.isKeyboardDriver(driver) &&
         driver.slot(stack) == containerSlotType(i) &&
         driver.tier(stack) <= containerSlotTier(i)
     case (i, _) if isInventorySlot(i) => true // Normal inventory.
@@ -727,89 +719,145 @@ class Robot extends traits.Computer with traits.PowerInformation with IFluidHand
   // ----------------------------------------------------------------------- //
 
   override def dropSlot(slot: Int, count: Int, direction: Option[Direction]) =
-    InventoryUtils.dropSlot(BlockPosition(x, y, z, world), mainInventory, slot, count, direction)
+    InventoryUtils.dropSlot(position, mainInventory, slot, count, direction)
 
-  override def dropAllSlots() = {
-    InventoryUtils.dropSlot(BlockPosition(x, y, z, world), this, 0, Int.MaxValue)
+  override def dropAllSlots(): Unit = {
+    InventoryUtils.dropSlot(position, this, 0, Int.MaxValue)
     for (slot <- containerSlots) {
-      InventoryUtils.dropSlot(BlockPosition(x, y, z, world), this, slot, Int.MaxValue)
+      InventoryUtils.dropSlot(position, this, slot, Int.MaxValue)
     }
-    InventoryUtils.dropAllSlots(BlockPosition(x, y, z, world), mainInventory)
+    InventoryUtils.dropAllSlots(position, mainInventory)
   }
 
   // ----------------------------------------------------------------------- //
+  // 按面暴露的槽位（原 `ISidedInventory`，1.21.1 用 `IItemHandler` + 面查询替代）
 
-  override def canExtractItem(slot: Int, stack: ItemStack, side: Int) =
+  def canExtractItem(slot: Int, stack: ItemStack, side: Int) =
     getAccessibleSlotsFromSide(side).contains(slot)
 
-  override def canInsertItem(slot: Int, stack: ItemStack, side: Int) =
+  def canInsertItem(slot: Int, stack: ItemStack, side: Int) =
     getAccessibleSlotsFromSide(side).contains(slot) &&
       isItemValidForSlot(slot, stack)
 
-  override def getAccessibleSlotsFromSide(side: Int) =
-    toLocal(Direction.getOrientation(side)) match {
+  def getAccessibleSlotsFromSide(side: Int) =
+    toLocal(Direction.from3DDataValue(side)) match {
       case Direction.WEST => Array(0) // Tool
       case Direction.EAST => containerSlots.toArray
       case _ => inventorySlots.toArray
     }
 
-  // ----------------------------------------------------------------------- //
+  /** 由 [[RobotProxy]] 的 `itemHandler(side)` 调用，等价于 1.7.10 的按面物品栏视图。 */
+  def itemHandler(side: Direction): net.neoforged.neoforge.items.IItemHandler =
+    new Robot.SidedItemHandler(this, side)
 
-  def tryGetTank(tank: Int) = {
+  // ----------------------------------------------------------------------- //
+  // 储罐（原 1.7.10 的 `IFluidHandler`，1.21.1 为 NeoForge 版 + `MultiTank`）
+
+  def tryGetTank(tank: Int): Option[IFluidTank] = {
     val tanks = components.collect {
-      case Some(tank: IFluidTank) => tank
+      case Some(t: IFluidTank) => t
     }
     if (tank < 0 || tank >= tanks.length) None
     else Option(tanks(tank))
   }
 
   def tankCount = components.count {
-    case Some(tank: IFluidTank) => true
+    case Some(_: IFluidTank) => true
     case _ => false
   }
 
-  def getFluidTank(tank: Int) = tryGetTank(tank).orNull
+  def getFluidTank(tank: Int): IFluidTank = tryGetTank(tank).orNull
 
   // ----------------------------------------------------------------------- //
 
-  override def fill(from: Direction, resource: FluidStack, doFill: Boolean) =
-    tryGetTank(selectedTank) match {
-      case Some(t) =>
-        t.fill(resource, doFill)
-      case _ => 0
-    }
+  override def getTanks: Int = tankCount
 
-  override def drain(from: Direction, resource: FluidStack, doDrain: Boolean) =
-    tryGetTank(selectedTank) match {
-      case Some(t) if t.getFluid != null && t.getFluid.isFluidEqual(resource) =>
-        t.drain(resource.amount, doDrain)
-      case _ => null
-    }
-
-  override def drain(from: Direction, maxDrain: Int, doDrain: Boolean) = {
-    tryGetTank(selectedTank) match {
-      case Some(t) =>
-        t.drain(maxDrain, doDrain)
-      case _ => null
-    }
+  override def getFluidInTank(tank: Int): FluidStack = tryGetTank(tank) match {
+    case Some(t) => Option(t.getFluid).getOrElse(FluidStack.EMPTY)
+    case _ => FluidStack.EMPTY
   }
 
-  override def canFill(from: Direction, fluid: Fluid) = {
-    tryGetTank(selectedTank) match {
-      case Some(t) => t.getFluid == null || t.getFluid.getFluid == fluid
-      case _ => false
-    }
+  override def getTankCapacity(tank: Int): Int = tryGetTank(tank) match {
+    case Some(t) => t.getCapacity
+    case _ => 0
   }
 
-  override def canDrain(from: Direction, fluid: Fluid): Boolean = {
-    tryGetTank(selectedTank) match {
-      case Some(t) => t.getFluid != null && t.getFluid.getFluid == fluid
-      case _ => false
-    }
+  override def isFluidValid(tank: Int, stack: FluidStack): Boolean = tryGetTank(tank) match {
+    case Some(t) => t.isFluidValid(stack)
+    case _ => false
   }
 
-  override def getTankInfo(from: Direction) =
-    components.collect {
-      case Some(t: IFluidTank) => t.getInfo
-    }
+  override def fill(resource: FluidStack, action: FluidAction): Int = tryGetTank(selectedTank) match {
+    case Some(t) => t.fill(resource, action)
+    case _ => 0
+  }
+
+  override def drain(resource: FluidStack, action: FluidAction): FluidStack = tryGetTank(selectedTank) match {
+    case Some(t) if t.getFluid != null && !t.getFluid.isEmpty && t.getFluid.isFluidEqual(resource) =>
+      t.drain(resource, action)
+    case _ => FluidStack.EMPTY
+  }
+
+  override def drain(maxDrain: Int, action: FluidAction): FluidStack = tryGetTank(selectedTank) match {
+    case Some(t) => t.drain(maxDrain, action)
+    case _ => FluidStack.EMPTY
+  }
+}
+
+object Robot {
+
+  /** 按类名判断键盘驱动（1.7.10 里是 `driver != DriverKeyboard`）。 */
+  private[tileentity] def isKeyboardDriver(driver: AnyRef): Boolean = driver != null && {
+    val name = driver.getClass.getName
+    name == "li.cil.oc.integration.opencomputers.DriverKeyboard" ||
+      name == "li.cil.oc.integration.opencomputers.DriverKeyboard$"
+  }
+
+  /**
+   * 机器人内部组件占位实现（原 `li.cil.oc.server.component.Robot`）。
+   *
+   * TODO(server.component): 该包尚未移植。本占位保留 `node` / `load` / `save` 表面，
+   * 让 `Robot` 的调用点可以保持原样；`node` 恒为 `null`（所有使用点都做了空值保护）。
+   */
+  class BotStub(val robot: Robot) {
+    def node: Connector = null
+
+    def update(): Unit = {}
+
+    def load(nbt: CompoundTag): Unit = {}
+
+    def save: CompoundTag = new CompoundTag()
+  }
+
+  /**
+   * 按面暴露的机器人物品栏视图（原 `ISidedInventory` 的 `getAccessibleSlotsFromSide`）。
+   *
+   * `side` 为 `null` 时按「机器人自身朝向」处理（等价于原实现的 `Direction.UP` 兜底）。
+   */
+  class SidedItemHandler(robot: Robot, side: Direction) extends net.neoforged.neoforge.items.IItemHandler {
+    private def accessibleSlots: Set[Int] =
+      robot.getAccessibleSlotsFromSide(
+        if (side == null) Direction.UP.get3DDataValue else side.get3DDataValue).toSet
+
+    override def getSlots: Int = robot.getSlots
+
+    override def getStackInSlot(slot: Int): ItemStack =
+      if (accessibleSlots.contains(slot)) Option(robot.getStackInSlot(slot)).getOrElse(ItemStack.EMPTY)
+      else ItemStack.EMPTY
+
+    override def insertItem(slot: Int, stack: ItemStack, simulate: Boolean): ItemStack =
+      if (accessibleSlots.contains(slot) && robot.canInsertItem(slot, stack, sideValue)) robot.insertItem(slot, stack, simulate)
+      else stack
+
+    override def extractItem(slot: Int, amount: Int, simulate: Boolean): ItemStack =
+      if (accessibleSlots.contains(slot) && robot.canExtractItem(slot, robot.getStackInSlot(slot), sideValue)) robot.extractItem(slot, amount, simulate)
+      else ItemStack.EMPTY
+
+    override def getSlotLimit(slot: Int): Int = robot.getSlotLimit(slot)
+
+    override def isItemValid(slot: Int, stack: ItemStack): Boolean =
+      accessibleSlots.contains(slot) && robot.isItemValid(slot, stack)
+
+    private def sideValue: Int = if (side == null) Direction.UP.get3DDataValue else side.get3DDataValue
+  }
 }

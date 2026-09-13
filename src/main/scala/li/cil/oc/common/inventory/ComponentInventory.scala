@@ -1,6 +1,7 @@
 package li.cil.oc.common.inventory
 
 import li.cil.oc.OpenComputers
+import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.Driver
 import li.cil.oc.api.driver.{Item => ItemDriver}
@@ -9,20 +10,31 @@ import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.ManagedEnvironment
 import li.cil.oc.api.network.Node
 import li.cil.oc.api.util.Lifecycle
-import li.cil.oc.integration.opencomputers.Item
-import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.item.ItemStack
 
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
+/**
+ * 把物品栏里的组件物品通过 `li.cil.oc.api.Driver` 变成 `ManagedEnvironment` 并挂到节点上
+ * （对应 1.7.10 的 `common.inventory.ComponentInventory`）。
+ *
+ * 1.21.1 迁移要点：
+ *  - `getSizeInventory` → `getSlots`，`getInventoryStackLimit` → `getSlotLimit`。
+ *  - `stack == null` 判空 → `stack == null || stack.isEmpty`（`getStackInSlot` 现在返回
+ *    `ItemStack.EMPTY` 而不是 `null`）。
+ *  - `tag.func_150296_c`（清空标签用）→ `tag.getAllKeys.asScala`。
+ *  - `Item.dataTag(stack)` 属于尚未纳入编译范围的 `li.cil.oc.integration.opencomputers`
+ *    包，见 [[dataTag]] 里的降级说明。
+ */
 trait ComponentInventory extends Inventory with network.Environment {
   private var _components: Array[Option[ManagedEnvironment]] = _
   protected var isSizeInventoryReady: Boolean = true
 
   def components: Array[Option[ManagedEnvironment]] = {
     if (_components == null && isSizeInventoryReady) {
-      _components = Array.fill[Option[ManagedEnvironment]](getSizeInventory)(None)
+      _components = Array.fill[Option[ManagedEnvironment]](getSlots)(None)
     }
     if (_components == null) Array[Option[ManagedEnvironment]]() else _components
   }
@@ -53,9 +65,9 @@ trait ComponentInventory extends Inventory with network.Environment {
   // ----------------------------------------------------------------------- //
 
   def connectComponents(): Unit = {
-    for (slot <- 0 until getSizeInventory if slot >= 0 && slot < components.length) {
+    for (slot <- 0 until getSlots if slot >= 0 && slot < components.length) {
       val stack = getStackInSlot(slot)
-      if (stack != null && components(slot).isEmpty && isComponentSlot(slot, stack)) {
+      if (stack != null && !stack.isEmpty && components(slot).isEmpty && isComponentSlot(slot, stack)) {
         components(slot) = Option(Driver.driverFor(stack)) match {
           case Some(driver) =>
             Option(driver.createEnvironment(stack, host)) match {
@@ -99,20 +111,20 @@ trait ComponentInventory extends Inventory with network.Environment {
 
   // ----------------------------------------------------------------------- //
 
-  override def save(nbt: CompoundTag) = {
+  override def save(nbt: CompoundTag): Unit = {
     saveComponents()
     super.save(nbt) // Save items after updating their tags.
   }
 
   def saveComponents(): Unit = {
-    for (slot <- 0 until getSizeInventory) {
+    for (slot <- 0 until getSlots) {
       val stack = getStackInSlot(slot)
-      if (stack != null) {
+      if (stack != null && !stack.isEmpty) {
         if (slot >= components.length) {
           // isSizeInventoryReady was added to resolve issues where an inventory was used before its
           // nbt data had been parsed. See https://github.com/MightyPirates/OpenComputers/issues/2522
           // If this error is hit again, perhaps another subtype needs to handle nbt loading like Case does
-          OpenComputers.log.error(s"ComponentInventory components length ${components.length} does not accommodate inventory size ${getSizeInventory}")
+          OpenComputers.log.error(s"ComponentInventory components length ${components.length} does not accommodate inventory size ${getSlots}")
           return
         } else {
           components(slot) match {
@@ -128,9 +140,9 @@ trait ComponentInventory extends Inventory with network.Environment {
 
   // ----------------------------------------------------------------------- //
 
-  override def getInventoryStackLimit = 1
+  override def getSlotLimit(slot: Int): Int = 1
 
-  override protected def onItemAdded(slot: Int, stack: ItemStack) = if (slot >= 0 && slot < components.length && isComponentSlot(slot, stack)) {
+  override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = if (slot >= 0 && slot < components.length && isComponentSlot(slot, stack)) {
     Option(Driver.driverFor(stack)).foreach(driver =>
       Option(driver.createEnvironment(stack, host)) match {
         case Some(component) => this.synchronized {
@@ -178,7 +190,7 @@ trait ComponentInventory extends Inventory with network.Environment {
     }
   }
 
-  def isComponentSlot(slot: Int, stack: ItemStack) = true
+  def isComponentSlot(slot: Int, stack: ItemStack): Boolean = true
 
   protected def connectItemNode(node: Node): Unit = {
     if (this.node != null && node != null) {
@@ -186,15 +198,32 @@ trait ComponentInventory extends Inventory with network.Environment {
     }
   }
 
-  protected def dataTag(driver: ItemDriver, stack: ItemStack) =
-    Option(driver.dataTag(stack)).getOrElse(Item.dataTag(stack))
+  /**
+   * 取组件的数据标签（组件的存档都写在这里）。
+   *
+   * 原实现：`Option(driver.dataTag(stack)).getOrElse(Item.dataTag(stack))`，
+   * 其中 `li.cil.oc.integration.opencomputers.Item.dataTag` 会把标签挂到
+   * `<namespace>data` 下。该集成层尚未纳入编译范围，
+   * TODO(integration.opencomputers.Item): 这里内联了同样的逻辑；等该包移植后改回调用。
+   */
+  protected def dataTag(driver: ItemDriver, stack: ItemStack): CompoundTag =
+    Option(driver.dataTag(stack)).getOrElse(fallbackDataTag(stack))
+
+  private def fallbackDataTag(stack: ItemStack): CompoundTag = {
+    if (stack == null || stack.isEmpty) return new CompoundTag()
+    if (!stack.hasTag()) stack.setTag(new CompoundTag())
+    val nbt = stack.getTag()
+    val key = Settings.namespace + "data"
+    if (!nbt.contains(key)) nbt.put(key, new CompoundTag())
+    nbt.getCompound(key)
+  }
 
   protected def save(component: ManagedEnvironment, driver: ItemDriver, stack: ItemStack): Unit = {
     try {
       val tag = dataTag(driver, stack)
       // Clear the tag compound before saving to get the same behavior as
       // in tile entities (otherwise entries have to be cleared manually).
-      for (key <- tag.func_150296_c.map(_.asInstanceOf[String])) {
+      for (key <- tag.getAllKeys.asScala) {
         tag.remove(key)
       }
       component.save(tag)

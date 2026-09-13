@@ -1,45 +1,51 @@
 package li.cil.oc.common.inventory
 
-import net.minecraft.inventory.IInventory
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.items.IItemHandler
 
-trait SimpleInventory extends IInventory {
-  override def hasCustomInventoryName = false
+/**
+ * 物品栏的「规模信息」抽象层（对应 1.7.10 的 `li.cil.oc.common.inventory.SimpleInventory`）。
+ *
+ * 1.7.10 的 `IInventory` 在 1.21.1 已被 NeoForge 的 `IItemHandler` 取代，映射关系：
+ * {{{
+ *  getSizeInventory          → getSlots
+ *  getInventoryStackLimit    → getSlotLimit(slot)（旧名字保留为兼容转发）
+ *  getInventoryStackRequired → getInventoryStackRequired（幽灵槽位语义，保持原名）
+ *  isItemValidForSlot        → isItemValid(slot, stack)
+ *  decrStackSize             → extractItem(slot, amount, simulate)
+ *  markDirty()               → 由持有者实现（方块实体走 `traits.TileEntity#markDirty`）
+ * }}}
+ */
+trait SimpleInventory extends IItemHandler {
+  /** 槽位数量（原 `getSizeInventory`）。 */
+  override def getSlots: Int
 
-  override def getInventoryStackLimit = 64
+  /**
+   * 指定槽位的容量（原 `getInventoryStackLimit`；1.7.10 里是全区统一值）。
+   *
+   * 默认转发到 [[getInventoryStackLimit]]，这样 1.7.10 里覆写旧名字的子类也能生效；
+   * 新代码请直接覆写本方法。
+   */
+  override def getSlotLimit(slot: Int): Int = getInventoryStackLimit
 
-  // Items required in a slot before it's set to null (for ghost stacks).
-  def getInventoryStackRequired = 1
+  /** 兼容 1.7.10 的统一容量查询；新代码请覆写 [[getSlotLimit]]。 */
+  def getInventoryStackLimit: Int = 64
 
-  override def openInventory(): Unit = {}
+  /** 槽位里至少要放这么多物品才算「有物品」（幽灵槽位用，保持原名）。 */
+  def getInventoryStackRequired: Int = 1
 
-  override def closeInventory(): Unit = {}
+  /** 是否允许把 `stack` 放进 `slot`（原 `isItemValidForSlot`）。 */
+  override def isItemValid(slot: Int, stack: ItemStack): Boolean = true
 
-  override def decrStackSize(slot: Int, amount: Int): ItemStack = {
-    if (slot >= 0 && slot < getSizeInventory) {
-      (getStackInSlot(slot) match {
-        case stack: ItemStack if stack.stackSize - amount < getInventoryStackRequired =>
-          setInventorySlotContents(slot, null)
-          stack
-        case stack: ItemStack =>
-          val result = stack.splitStack(amount)
-          markDirty()
-          result
-        case _ => null
-      }) match {
-        case stack: ItemStack if stack.stackSize > 0 => stack
-        case _ => null
-      }
-    }
-    else null
-  }
+  /**
+   * 标记需要存盘（原 `IInventory#markDirty`）。
+   *
+   * `IItemHandler` 已没有这个概念，因此声明为抽象：方块实体由
+   * [[li.cil.oc.common.tileentity.traits.TileEntity#markDirty]] 提供实现，
+   * 物品 / 实体持有的物品栏由各自覆写。
+   */
+  def markDirty(): Unit
 
-  override def getStackInSlotOnClosing(slot: Int) = {
-    if (slot >= 0 && slot < getSizeInventory) {
-      val stack = getStackInSlot(slot)
-      setInventorySlotContents(slot, null)
-      stack
-    }
-    else null
-  }
+  /** 原 `decrStackSize`：从槽位取出物品，转发到 `IItemHandler#extractItem`。 */
+  def decrStackSize(slot: Int, amount: Int): ItemStack = extractItem(slot, amount, simulate = false)
 }

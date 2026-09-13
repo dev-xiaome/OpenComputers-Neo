@@ -1,57 +1,64 @@
 package li.cil.oc.common.inventory
 
-import net.minecraft.world.entity.player.Player
-import net.minecraft.inventory.IInventory
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.items.IItemHandler
 
-trait InventoryProxy extends IInventory {
-  def inventory: IInventory
+/**
+ * 把某个物品栏的一段槽位「投影」成独立物品栏
+ * （对应 1.7.10 的 `common.inventory.InventoryProxy`）。
+ *
+ * 1.21.1 迁移要点：
+ *  - `IInventory` → `IItemHandler`：`getSizeInventory` → `getSlots`，`setInventorySlotContents`
+ *    → `insertItem`，`decrStackSize` → `extractItem`，`isItemValidForSlot` → `isItemValid`。
+ *  - 原 `offset` / `isValidSlot` 的映射规则原样保留：对外槽位 `slot` 映射到
+ *    底层槽位 `slot + offset`，合法范围由 [[getSlots]] 与 [[offset]] 共同决定。
+ *  - `getStackInSlot` 在 1.21.1 必须返回 `ItemStack.EMPTY` 而不是 `null`。
+ */
+trait InventoryProxy extends IItemHandler {
+  def inventory: IItemHandler
 
-  def offset = 0
+  def offset: Int = 0
 
-  override def getSizeInventory = inventory.getSizeInventory
+  /** 暴露的槽位数量（原 `getSizeInventory`），默认与底层物品栏等长。 */
+  override def getSlots: Int = inventory.getSlots
 
-  override def getInventoryStackLimit = inventory.getInventoryStackLimit
-
-  override def getInventoryName = inventory.getInventoryName
-
-  override def hasCustomInventoryName = inventory.hasCustomInventoryName
-
-  override def isUseableByPlayer(player: Player) = inventory.isUseableByPlayer(player)
-
-  override def isItemValidForSlot(slot: Int, stack: ItemStack) = {
+  override def getSlotLimit(slot: Int): Int = {
     val offsetSlot = slot + offset
-    isValidSlot(offsetSlot) && inventory.isItemValidForSlot(offsetSlot, stack)
+    if (isValidSlot(offsetSlot)) inventory.getSlotLimit(offsetSlot)
+    else 0
   }
 
-  override def getStackInSlot(slot: Int) = {
+  override def isItemValid(slot: Int, stack: ItemStack): Boolean = {
+    val offsetSlot = slot + offset
+    isValidSlot(offsetSlot) && inventory.isItemValid(offsetSlot, stack)
+  }
+
+  override def getStackInSlot(slot: Int): ItemStack = {
     val offsetSlot = slot + offset
     if (isValidSlot(offsetSlot)) inventory.getStackInSlot(offsetSlot)
-    else null
+    else ItemStack.EMPTY
   }
 
-  override def decrStackSize(slot: Int, amount: Int) = {
+  override def insertItem(slot: Int, stack: ItemStack, simulate: Boolean): ItemStack = {
     val offsetSlot = slot + offset
-    if (isValidSlot(offsetSlot)) inventory.decrStackSize(offsetSlot, amount)
-    else null
+    if (isValidSlot(offsetSlot)) inventory.insertItem(offsetSlot, stack, simulate)
+    else stack
   }
 
-  override def getStackInSlotOnClosing(slot: Int) = {
+  override def extractItem(slot: Int, amount: Int, simulate: Boolean): ItemStack = {
     val offsetSlot = slot + offset
-    if (isValidSlot(offsetSlot)) inventory.getStackInSlotOnClosing(offsetSlot)
-    else null
+    if (isValidSlot(offsetSlot)) inventory.extractItem(offsetSlot, amount, simulate)
+    else ItemStack.EMPTY
   }
 
-  override def setInventorySlotContents(slot: Int, stack: ItemStack) = {
-    val offsetSlot = slot + offset
-    if (isValidSlot(offsetSlot)) inventory.setInventorySlotContents(offsetSlot, stack)
+  /**
+   * 原 `IInventory#markDirty`。1.21.1 的 `IItemHandler` 没有该概念，
+   * 这里在底层物品栏恰好是 OC 方块实体时转发存盘标记。
+   */
+  def markDirty(): Unit = inventory match {
+    case tileEntity: li.cil.oc.common.tileentity.traits.TileEntity => tileEntity.markDirty()
+    case _ =>
   }
 
-  override def markDirty() = inventory.markDirty()
-
-  override def openInventory() = inventory.openInventory()
-
-  override def closeInventory() = inventory.closeInventory()
-
-  private def isValidSlot(slot: Int) = slot >= offset && slot < getSizeInventory + offset
+  private def isValidSlot(slot: Int): Boolean = slot >= offset && slot < getSlots + offset
 }

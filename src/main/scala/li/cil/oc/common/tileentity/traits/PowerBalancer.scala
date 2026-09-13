@@ -5,14 +5,26 @@ import li.cil.oc.api.network.Connector
 import li.cil.oc.api.network.SidedEnvironment
 import net.minecraft.core.Direction
 
+/**
+ * 在多个网络之间均衡能量缓冲的方块实体（配电箱 PowerDistributor）
+ * （对应 1.7.10 的 `common.tileentity.traits.PowerBalancer`）。
+ *
+ * 1.21.1 迁移要点：
+ *  - `updateEntity()` → [[TileEntity.tick]]（覆写时先调 `super.tick()`）。
+ *  - `world.getTotalWorldTime` → `world.getGameTime`。
+ *  - `ForgeDirection.VALID_DIRECTIONS` → `Direction.values()`（1.21.1 没有 `UNKNOWN`）。
+ */
 trait PowerBalancer extends PowerInformation with SidedEnvironment {
+  // 注意：Scala 的自类型不会被继承，每个子 trait 都必须重新声明。
+  self: net.minecraft.world.level.block.entity.BlockEntity =>
+
   var globalBuffer, globalBufferSize = 0.0
 
   protected def isConnected: Boolean
 
-  override def updateEntity(): Unit = {
-    super.updateEntity()
-    if (isServer && isConnected && world.getTotalWorldTime % Settings.get.tickFrequency == 0) {
+  override def tick(): Unit = {
+    super.tick()
+    if (isServer && isConnected && world.getGameTime % Settings.get.tickFrequency == 0) {
       val nodes = connectors
       def network(connector: Connector) = if (connector != null && connector.network != null) connector.network else this
       // Yeeeeah, so that just happened... it's not a beauty, but it works. This
@@ -46,7 +58,7 @@ trait PowerBalancer extends PowerInformation with SidedEnvironment {
     }
   }
 
-  protected def distribute() = {
+  protected def distribute(): (Double, Double) = {
     var sumBuffer, sumSize = 0.0
     for (node <- connectors if isPrimary(node)) {
       sumBuffer += node.globalBuffer
@@ -55,12 +67,12 @@ trait PowerBalancer extends PowerInformation with SidedEnvironment {
     (sumBuffer, sumSize)
   }
 
-  private def connectors = Direction.VALID_DIRECTIONS.view.map(sidedNode(_) match {
+  private def connectors: IndexedSeq[Connector] = Direction.values().toIndexedSeq.map(sidedNode(_) match {
     case connector: Connector => connector
     case _ => null
   })
 
-  private def isPrimary(connector: Connector) = {
+  private def isPrimary(connector: Connector): Boolean = {
     val nodes = connectors
     connector != null && nodes(nodes.indexWhere(node => node != null && node.network == connector.network)) == connector
   }

@@ -3,28 +3,45 @@ package li.cil.oc.common.tileentity
 import java.util
 
 import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.Driver
 import li.cil.oc.api.driver.DeviceInfo
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.internal
 import li.cil.oc.api.network.Analyzable
 import li.cil.oc.api.network._
 import li.cil.oc.common.Slot
-import li.cil.oc.server.{PacketSender => ServerPacketSender}
+import li.cil.oc.util.ExtendedNBT._
+import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.nbt.{CompoundTag, ListTag, Tag}
+import net.minecraft.sounds.{SoundEvents, SoundSource}
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.nbt.ListTag
-import net.minecraftforge.common.util.Constants.NBT
-import net.minecraft.core.Direction
+import net.minecraft.world.level.block.state.BlockState
 
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
-class Adapter extends traits.Environment with traits.ComponentInventory with traits.OpenSides with Analyzable with internal.Adapter with DeviceInfo {
+/**
+ * 适配器（原 1.7.10 `common.tileentity.Adapter`）：把相邻方块的 `api.driver.SidedBlock`
+ * 驱动暴露成组件，从而让计算机能访问非 OC 方块。
+ *
+ * 纹理：全部面 = Adapter（本方块为完整立方体，仅正面有一个插槽纹理）。
+ *
+ * 1.21.1 迁移要点：
+ *  - 构造函数改为 `(pos, state)`，方块实体类型由方块反查（见 [[BlockEntityBase.typeOf]]）。
+ *  - `IInventory#getSizeInventory` → `IItemHandler#getSlots`、`isItemValidForSlot` → `isItemValid`。
+ *  - `ForgeDirection` → `Direction`（`Direction.VALID_DIRECTIONS` → `Direction.values()`，
+ *    `side.offsetX/Y/Z` → `BlockPos#relative`）。
+ *  - `world.getTileEntity(x, y, z)` → `world.getBlockEntity(pos)`。
+ *  - `world.markBlockForUpdate` / `notifyBlocksOfNeighborChange` / `playSoundEffect` 按 §2 映射表替换。
+ */
+class Adapter(pos: BlockPos, state: BlockState)
+  extends BlockEntityBase(BlockEntityBase.typeOf(state.getBlock), pos, state)
+    with traits.Environment with traits.ComponentInventory with traits.OpenSides with Analyzable with internal.Adapter with DeviceInfo {
+
   val node = api.Network.newNode(this, Visibility.Network).create()
 
   private val blocks = Array.fill[Option[(ManagedEnvironment, api.driver.SidedBlock)]](6)(None)
@@ -49,12 +66,15 @@ class Adapter extends traits.Environment with traits.ComponentInventory with tra
   override def setSideOpen(side: Direction, value: Boolean): Unit = {
     super.setSideOpen(side, value)
     if (isServer) {
-      ServerPacketSender.sendAdapterState(this)
-      world.playSoundEffect(x + 0.5, y + 0.5, z + 0.5, "tile.piston.out", 0.5f, world.rand.nextFloat() * 0.25f + 0.7f)
-      world.notifyBlocksOfNeighborChange(x, y, z, block)
+      // TODO(server.PacketSender): 原为 ServerPacketSender.sendAdapterState(this)，网络层移植后改回专用包。
+      markBlockForUpdate()
+      world.playSound(null, x + 0.5, y + 0.5, z + 0.5, SoundEvents.PISTON_EXTEND, SoundSource.BLOCKS,
+        0.5f, world.random.nextFloat() * 0.25f + 0.7f)
+      notifyNeighbors()
       neighborChanged(side)
-    } else {
-      world.markBlockForUpdate(x, y, z)
+    }
+    else {
+      markBlockForUpdate()
     }
   }
 
@@ -64,17 +84,17 @@ class Adapter extends traits.Environment with traits.ComponentInventory with tra
     (blocks collect {
       case Some((environment, _)) => environment.node
     }) ++
-    (components collect {
-      case Some(environment) => environment.node
-    })
+      (components collect {
+        case Some(environment) => environment.node
+      })
   }
 
   // ----------------------------------------------------------------------- //
 
-  override def canUpdate = isServer
+  override def canUpdate: Boolean = isServer
 
-  override def updateEntity(): Unit = {
-    super.updateEntity()
+  override def tick(): Unit = {
+    super.tick()
     if (updatingBlocks.nonEmpty) {
       for (block <- updatingBlocks) {
         block.update()
@@ -84,8 +104,8 @@ class Adapter extends traits.Environment with traits.ComponentInventory with tra
 
   def neighborChanged(d: Direction): Unit = {
     if (node != null && node.network != null) {
-      val (x, y, z) = (this.x + d.offsetX, this.y + d.offsetY, this.z + d.offsetZ)
-      world.getTileEntity(x, y, z) match {
+      val neighborPos = blockPos.relative(d)
+      world.getBlockEntity(neighborPos) match {
         case _: traits.Environment =>
         // Don't provide adaption for our stuffs. This is mostly to avoid
         // cables and other non-functional stuff popping up in the adapter
@@ -93,7 +113,7 @@ class Adapter extends traits.Environment with traits.ComponentInventory with tra
         // but the only 'downside' is that it can't be used to manipulate
         // inventories, which I actually consider a plus :P
         case _ =>
-          Option(api.Driver.driverFor(world, x, y, z, d)) match {
+          Option(api.Driver.driverFor(world, neighborPos.getX, neighborPos.getY, neighborPos.getZ, d)) match {
             case Some(newDriver) if isSideOpen(d) => blocks(d.ordinal()) match {
               case Some((oldEnvironment, driver)) =>
                 if (newDriver != driver) {
@@ -104,7 +124,7 @@ class Adapter extends traits.Environment with traits.ComponentInventory with tra
                   node.disconnect(oldEnvironment.node)
 
                   // Then rebuild - if we have something.
-                  val environment = newDriver.createEnvironment(world, x, y, z, d)
+                  val environment = newDriver.createEnvironment(world, neighborPos.getX, neighborPos.getY, neighborPos.getZ, d)
                   if (environment != null) {
                     blocks(d.ordinal()) = Some((environment, newDriver))
                     if (environment.canUpdate) {
@@ -119,7 +139,7 @@ class Adapter extends traits.Environment with traits.ComponentInventory with tra
                   return
                 }
                 // A challenger appears. Maybe.
-                val environment = newDriver.createEnvironment(world, x, y, z, d)
+                val environment = newDriver.createEnvironment(world, neighborPos.getX, neighborPos.getY, neighborPos.getZ, d)
                 if (environment != null) {
                   blocks(d.ordinal()) = Some((environment, newDriver))
                   if (environment.canUpdate) {
@@ -151,7 +171,7 @@ class Adapter extends traits.Environment with traits.ComponentInventory with tra
 
   def neighborChanged(): Unit = {
     if (node != null && node.network != null) {
-      for (d <- Direction.VALID_DIRECTIONS) {
+      for (d <- Direction.values()) {
         neighborChanged(d)
       }
     }
@@ -175,31 +195,31 @@ class Adapter extends traits.Environment with traits.ComponentInventory with tra
 
   // ----------------------------------------------------------------------- //
 
-  override def getSizeInventory = 1
+  override def getSlots = 1
 
-  override def isItemValidForSlot(slot: Int, stack: ItemStack) = (slot, Option(Driver.driverFor(stack, getClass))) match {
+  override def isItemValid(slot: Int, stack: ItemStack): Boolean = (slot, Option(Driver.driverFor(stack, getClass))) match {
     case (0, Some(driver)) => driver.slot(stack) == Slot.Upgrade
     case _ => false
   }
 
   // ----------------------------------------------------------------------- //
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
 
-    val blocksNbt = nbt.getList(Settings.namespace + "adapter.blocks", NBT.TAG_COMPOUND)
-    (0 until (blocksNbt.tagCount min blocksData.length)).
-      map(blocksNbt.getCompoundTagAt).
+    val blocksNbt = nbt.getList(Settings.namespace + "adapter.blocks", Tag.TAG_COMPOUND)
+    (0 until (blocksNbt.size() min blocksData.length)).
+      map(blocksNbt.getCompound).
       zipWithIndex.
       foreach {
-      case (blockNbt, i) =>
-        if (blockNbt.contains("name") && blockNbt.contains("data")) {
-          blocksData(i) = Some(new BlockData(blockNbt.getString("name"), blockNbt.getCompound("data")))
-        }
-    }
+        case (blockNbt, i) =>
+          if (blockNbt.contains("name") && blockNbt.contains("data")) {
+            blocksData(i) = Some(new BlockData(blockNbt.getString("name"), blockNbt.getCompound("data")))
+          }
+      }
   }
 
-  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
 
     val blocksNbt = new ListTag()
