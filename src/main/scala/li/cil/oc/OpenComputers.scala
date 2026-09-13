@@ -11,7 +11,7 @@ import java.io.File
  * [[li.cil.oc.OpenComputersNeo]]，这里仅保留常量与由 Java 侧驱动的初始化逻辑。
  */
 object OpenComputers {
-  final val ID = "open_computers_neo"
+  final val ID = "opencomputers_neo"
 
   final val Name = "OpenComputers Neo"
 

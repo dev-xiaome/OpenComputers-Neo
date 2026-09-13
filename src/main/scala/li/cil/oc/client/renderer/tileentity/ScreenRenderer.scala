@@ -87,7 +87,7 @@ object ScreenRenderer extends TileEntitySpecialRenderer {
 
     if (screen.buffer.isRenderingEnabled) {
       val profiler = Minecraft.getMinecraft.mcProfiler
-      profiler.startSection("opencomputers:screen_text")
+      profiler.startSection("opencomputers_neo:screen_text")
       draw()
       profiler.endSection()
     }

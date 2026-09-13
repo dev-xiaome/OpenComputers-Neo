@@ -265,7 +265,7 @@ abstract class LuaStateFactory {
         else path + "/"
       }
       else {
-        val path = new File("opencomputers/natives")
+        val path = new File("OpenComputers/natives")
         path.mkdirs()
         path.getAbsolutePath + File.separator
       }

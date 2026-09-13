@@ -3,9 +3,8 @@ package li.cil.oc.util
 import li.cil.oc.api.network.EnvironmentHost
 import net.minecraft.core.Direction
 import net.minecraft.world.entity.player.Player
-import net.minecraft.world.level.BlockGetter
-import net.minecraft.world.level.Level
-import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.{BlockAndTintGetter, BlockGetter, Level, LightLayer}
+import net.minecraft.world.level.block.{BaseFireBlock, Block, LevelEvent}
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.state.BlockState
 
@@ -15,7 +14,7 @@ import scala.language.implicitConversions
  * `Level` / `BlockGetter` 的扩展。
  *
  * 1.21.1 迁移要点：
- *  - `World` → `Level`，`IBlockAccess` → `BlockGetter`
+ *  - `Level` → `Level`，`IBlockAccess` → `BlockGetter`
  *  - `getBlock(x, y, z)` → `getBlockState(pos).getBlock`（或直接用 `getBlockState(pos)`）
  *  - `getTileEntity` → `getBlockEntity`
  *  - `blockExists` → `isLoaded`
@@ -54,12 +53,26 @@ object ExtendedWorld {
     def isAirBlock(position: BlockPosition): Boolean = getBlockState(position).isAir
 
     /**
-     * 旧版返回 (skyLight << 20) | (blockLight << 4) | (minBrightness << 4) 的打包亮度。
-     * 1.21.1 对应 `BlockAndTintGetter#getMaxLocalRawBrightness(pos, minBrightness)`，
-     * 已包含 `minBrightness` 参数，直接委托即可。
+     * 旧版返回 `(skyLight << 20) | (blockLight << 4)` 的打包亮度：低 16 位是方块光、
+     * 高 16 位是天空光，调用方普遍用 `brightness % 65536` / `brightness / 65536` 取分量。
+     * <br>
+     * 1.21.1 已没有这个打包方法（`BlockAndTintGetter#getRawBrightness` 只返回单值亮度），
+     * 因此这里用 [[net.minecraft.world.level.LightLayer]] 分别取天空光 / 方块光后手工打包，
+     * 位布局与 1.21.1 客户端的 `LightTexture.pack(blockLight, skyLight)` 完全一致；
+     * 同时保留旧版“方块光不低于 `minBrightness`”的语义。
+     * <br>
+     * 注意：`getBrightness` 定义在 `BlockAndTintGetter` 上而非 `BlockGetter` 上，
+     * 因此这里做一次类型判定；退化情况（理论上不会发生，`Level` 一定实现了该接口）
+     * 只返回 `minBrightness` 对应的方块光。
      */
-    def getLightBrightnessForSkyBlocks(position: BlockPosition, minBrightness: Int): Int =
-      world.getMaxLocalRawBrightness(position.toChunkCoordinates, minBrightness)
+    def getLightBrightnessForSkyBlocks(position: BlockPosition, minBrightness: Int): Int = world match {
+      case getter: BlockAndTintGetter =>
+        val pos = position.toChunkCoordinates
+        val sky = getter.getBrightness(LightLayer.SKY, pos)
+        val block = math.max(getter.getBrightness(LightLayer.BLOCK, pos), minBrightness)
+        (block << 4) | (sky << 20)
+      case _ => minBrightness << 4
+    }
   }
 
   class ExtendedWorld(override val world: Level) extends ExtendedBlockAccess(world) {
@@ -71,8 +84,19 @@ object ExtendedWorld {
     def destroyBlockInWorldPartially(entityId: Int, position: BlockPosition, progress: Int): Unit =
       world.destroyBlockProgress(entityId, position.toChunkCoordinates, progress)
 
-    def extinguishFire(player: Player, position: BlockPosition, side: Direction): Boolean =
-      world.extinguishFire(player, position.toChunkCoordinates, side)
+    /**
+     * 1.7.10 的 `World#extinguishFire(player, x, y, z, side)` 在 1.21.1 已被移除，
+     * 这里按原语义手工实现：判定 `side` 方向相邻的方块是否为火，是则播放熄灭音效并移除。
+     */
+    def extinguishFire(player: Player, position: BlockPosition, side: Direction): Boolean = {
+      val pos = position.toChunkCoordinates.relative(side)
+      if (world.getBlockState(pos).getBlock.isInstanceOf[BaseFireBlock]) {
+        world.levelEvent(player, LevelEvent.SOUND_EXTINGUISH_FIRE, pos, 0)
+        world.removeBlock(pos, false)
+        true
+      }
+      else false
+    }
 
     /** 等价于旧版 `Block#getBlockHardness` → 1.21.1 的 `BlockState#getDestroySpeed`。 */
     def getBlockHardness(position: BlockPosition): Float =

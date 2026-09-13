@@ -7,7 +7,7 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandler;
  * <br>
  * This is specifically for containers where the side does not matter when
  * accessing the internal tanks, only the index of the tank; unlike with the
- * {@link net.minecraftforge.fluids.IFluidHandler} interface.
+ * {@link IFluidHandler} interface.
  */
 public interface MultiTank {
     /**
@@ -17,9 +17,12 @@ public interface MultiTank {
 
     /**
      * Get the installed fluid tank with the specified index.
+     * <br>
+     * 1.21.1 的 NeoForge 流体 API 中不存在 1.7.10 的 {@code IFluidTank}，
+     * 单个“罐”统一用 {@link IFluidHandler} 表示（通常其内部只有一个槽位）。
      *
      * @param index the index of the tank to get.
      * @return the tank with the specified index.
      */
-    IFluidTank getFluidTank(int index);
+    IFluidHandler getFluidTank(int index);
 }

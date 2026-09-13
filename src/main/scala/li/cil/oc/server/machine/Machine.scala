@@ -378,7 +378,7 @@ class Machine(val host: MachineHost) extends prefab.ManagedEnvironment with mach
           if (annotation.direct) {
             consumeCallBudget(1.0 / annotation.limit)
           }
-          component.invoke(method, this, args: _*)
+          component.invoke(method, this, args.toSeq: _*)
         case _ => throw new IllegalArgumentException("no such component")
       }
     }
@@ -396,7 +396,7 @@ class Machine(val host: MachineHost) extends prefab.ManagedEnvironment with mach
         if (annotation.direct) {
           consumeCallBudget(1.0 / annotation.limit)
         }
-        val arguments = new ArgumentsImpl(Seq(args: _*))
+        val arguments = new ArgumentsImpl(Seq(args.toSeq: _*))
         Registry.convert(callback(value, this, arguments))
       case _ => throw new NoSuchMethodException()
     }
@@ -630,10 +630,10 @@ class Machine(val host: MachineHost) extends prefab.ManagedEnvironment with mach
   override def onMessage(message: Message): Unit = {
     message.data match {
       case Array(name: String, args@_*) if message.name == "computer.signal" =>
-        signal(name, Seq(message.source.address) ++ args: _*)
+        signal(name, Seq(message.source.address) ++ args.toSeq: _*)
       case Array(player: Player, name: String, args@_*) if message.name == "computer.checked_signal" =>
         if (canInteract(player.getCommandSenderName))
-          signal(name, Seq(message.source.address) ++ args: _*)
+          signal(name, Seq(message.source.address) ++ args.toSeq: _*)
       case _ =>
         if (message.name == "computer.start" && !isPaused) start()
         else if (message.name == "computer.stop") stop()

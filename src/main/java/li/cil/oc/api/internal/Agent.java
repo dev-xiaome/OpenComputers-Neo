@@ -2,7 +2,7 @@ package li.cil.oc.api.internal;
 
 import li.cil.oc.api.machine.MachineHost;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.inventory.IInventory;
+import net.neoforged.neoforge.items.IItemHandler;
 
 import java.util.UUID;
 
@@ -17,8 +17,13 @@ public interface Agent extends MachineHost, Rotatable {
      * provided by containers installed in the robot, if any.
      * <br>
      * If an agent has no equipment slots this will be a zero-sized inventory.
+     * <br>
+     * 注意：1.21.1 用 {@link IItemHandler} 取代了 {@code IInventory}，
+     * 原 {@code getSizeInventory()} 对应 {@link IItemHandler#getSlots()}，
+     * 原 {@code decrStackSize(...)} 对应 {@link IItemHandler#extractItem(int, int, boolean)}，
+     * 原 {@code setInventorySlotContents(...)} 对应 {@link IItemHandler#insertItem(int, net.minecraft.world.item.ItemStack, boolean)}。
      */
-    IInventory equipmentInventory();
+    IItemHandler equipmentInventory();
 
     /**
      * The main inventory of this agent, which it (usually) also can
@@ -26,7 +31,7 @@ public interface Agent extends MachineHost, Rotatable {
      * <br>
      * If an agent has no inventory slots this will be a zero-sized inventory.
      */
-    IInventory mainInventory();
+    IItemHandler mainInventory();
 
     /**
      * Provides access to the tanks of the agent.

@@ -2,19 +2,16 @@ package li.cil.oc.util
 
 import java.nio.ByteBuffer
 
-import cpw.mods.fml.common.FMLCommonHandler
-import net.neoforged.bus.api.SubscribeEvent
-import cpw.mods.fml.common.gameevent.TickEvent.ClientTickEvent
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import net.minecraft.client.Minecraft
-import net.minecraft.client.audio.PositionedSoundRecord
-import net.minecraft.client.audio.SoundCategory
-import net.minecraft.resources.ResourceLocation
+import net.minecraft.client.resources.sounds.SimpleSoundInstance
+import net.minecraft.sounds.{SoundEvents, SoundSource}
+import net.neoforged.bus.api.SubscribeEvent
+import net.neoforged.neoforge.client.event.ClientTickEvent
+import net.neoforged.neoforge.common.NeoForge
 import org.lwjgl.BufferUtils
-import org.lwjgl.openal.AL
-import org.lwjgl.openal.AL10
-import org.lwjgl.openal.OpenALException
+import org.lwjgl.openal.{AL10, ALC10}
 
 import scala.collection.mutable
 
@@ -24,6 +21,18 @@ import scala.collection.mutable
  * and will play them through OpenAL, acquiring sources as necessary.
  * Tones that have finished playing are disposed automatically in the
  * tick handler.
+ *
+ * 1.21.1 迁移要点：
+ *  - `Minecraft.getMinecraft` → `Minecraft.getInstance()`，`thePlayer` → `player`
+ *  - `gameSettings.getSoundLevel(SoundCategory.BLOCKS)` → `options.getSoundSourceVolume(SoundSource.BLOCKS)`
+ *  - `PositionedSoundRecord` → `SimpleSoundInstance.forUI(...)`；`getSoundHandler` → `getSoundManager`，
+ *    `playDelayedSound` → `playDelayed`
+ *  - 事件注册：`FMLCommonHandler.instance.bus.register(this)` + `TickEvent.ClientTickEvent`
+ *    → `NeoForge.EVENT_BUS.register(this)` + `ClientTickEvent.Post`
+ *  - 距离衰减用 `player.distanceTo(x, y, z)` 保持原有的线性衰减语义
+ *
+ * TODO(音频): OpenAL 上下文在 1.21.1 由 Minecraft 音响系统托管；若运行期出现
+ * 上下文冲突，应改为接入 `net.minecraft.client.sounds.SoundEngine` 而非直接操作 AL。
  */
 object Audio {
   private def sampleRate = Settings.get.beepSampleRate
@@ -34,17 +43,35 @@ object Audio {
 
   private val sources = mutable.Set.empty[Source]
 
-  private def volume = Minecraft.getMinecraft.gameSettings.getSoundLevel(SoundCategory.BLOCKS)
+  private def volume: Float = {
+    val mc = Minecraft.getInstance
+    if (mc == null) 0f else mc.options.getSoundSourceVolume(SoundSource.BLOCKS)
+  }
 
   private var disableAudio = false
+
+  /**
+   * 当前线程是否已绑定可用的 OpenAL 上下文。
+   * <br>
+   * LWJGL 3 已移除 `AL.isCreated`（`AL` 现在只是无状态的绑定层，是否“已创建”要看
+   * 上下文）。1.21.1 里上下文由 Minecraft 的音响系统创建，这里用
+   * `ALC10.alcGetCurrentContext()` 判定；OpenAL 未加载时（`UnsatisfiedLinkError`）
+   * 视作不可用。
+   */
+  private def isALCreated: Boolean =
+    try ALC10.alcGetCurrentContext() != 0L
+    catch { case _: Throwable => false }
 
   def play(x: Float, y: Float, z: Float, frequencyInHz: Int, durationInMilliseconds: Int): Unit = {
     play(x, y, z, ".", frequencyInHz, durationInMilliseconds)
   }
 
   def play(x: Float, y: Float, z: Float, pattern: String, frequencyInHz: Int = 1000, durationInMilliseconds: Int = 200): Unit = {
-    val mc = Minecraft.getMinecraft
-    val distanceBasedGain = math.max(0, 1 - mc.thePlayer.getDistance(x, y, z) / maxDistance).toFloat
+    val mc = Minecraft.getInstance
+    if (mc == null || mc.player == null) return
+    // 1.21.1 的 Entity 只提供平方距离，这里开方以保持原有的线性衰减。
+    val distance = math.sqrt(mc.player.distanceToSqr(x, y, z))
+    val distanceBasedGain = math.max(0, 1 - distance / maxDistance).toFloat
     val gain = distanceBasedGain * volume
     if (gain <= 0 || amplitude <= 0) return
 
@@ -58,14 +85,14 @@ object Audio {
       val clampedFrequency = ((frequencyInHz - 20) max 0 min 1980) / 1980f + 0.5f
       var delay = 0
       for (ch <- pattern) {
-        val record = new PositionedSoundRecord(new ResourceLocation("note.harp"), gain, clampedFrequency, x, y, z)
-        if (delay == 0) mc.getSoundHandler.playSound(record)
-        else mc.getSoundHandler.playDelayedSound(record, delay)
+        val record = SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_HARP.value(), gain, clampedFrequency)
+        if (delay == 0) mc.getSoundManager.play(record)
+        else mc.getSoundManager.playDelayed(record, delay)
         delay += ((if (ch == '.') durationInMilliseconds else 2 * durationInMilliseconds) * 20 / 1000) max 1
       }
     }
     else {
-      if (AL.isCreated) {
+      if (isALCreated) {
         val sampleCounts = pattern.toCharArray.
           map(ch => if (ch == '.') durationInMilliseconds else 2 * durationInMilliseconds).
           map(_ * sampleRate / 1000)
@@ -114,7 +141,7 @@ object Audio {
       sources.synchronized(sources --= sources.filter(_.checkFinished))
 
       // Clear error stack.
-      if (AL.isCreated) {
+      if (isALCreated) {
         try AL10.alGetError() catch {
           case _: UnsatisfiedLinkError =>
             OpenComputers.log.warn("Negotiations with OpenAL broke down, disabling sounds.")
@@ -167,7 +194,7 @@ object Audio {
       }
     }
 
-    def checkFinished = AL10.alGetSourcei(source, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING && {
+    def checkFinished: Boolean = AL10.alGetSourcei(source, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING && {
       AL10.alDeleteSources(source)
       AL10.alDeleteBuffers(buffer)
       true
@@ -175,7 +202,10 @@ object Audio {
   }
 
   // Having the error code in an accessible way is really cool, you know.
-  class LessUselessOpenALException(val errorCode: Int) extends OpenALException(errorCode)
+  // 1.21.1 的 LWJGL 3 已移除 `org.lwjgl.openal.OpenALException`，改为继承 `RuntimeException`，
+  // 这样既能 `throw`，又能通过 `errorCode` 读取具体的 AL 错误码。
+  class LessUselessOpenALException(val errorCode: Int)
+    extends RuntimeException(s"OpenAL error code: $errorCode")
 
   // Custom implementation of Util.checkALError() that uses our custom exception.
   def checkALError(): Unit = {
@@ -185,10 +215,10 @@ object Audio {
     }
   }
 
-  FMLCommonHandler.instance.bus.register(this)
+  NeoForge.EVENT_BUS.register(this)
 
   @SubscribeEvent
-  def onTick(e: ClientTickEvent): Unit = {
+  def onTick(e: ClientTickEvent.Post): Unit = {
     update()
   }
 }

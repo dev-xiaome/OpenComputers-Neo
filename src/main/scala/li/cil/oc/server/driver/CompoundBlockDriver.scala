@@ -26,7 +26,7 @@ class CompoundBlockDriver(val sidedBlocks: Array[driver.SidedBlock], val blocks:
       }
     } filter (_ != null)
     if (list.isEmpty) null
-    else new CompoundBlockEnvironment(cleanName(tryGetName(world, x, y, z, list.map(_._2))), list: _*)
+    else new CompoundBlockEnvironment(cleanName(tryGetName(world, x, y, z, list.map(_._2))), list.toSeq: _*)
   }
 
   override def worksWith(world: Level, x: Int, y: Int, z: Int, side: Direction) = sidedBlocks.forall(_.worksWith(world, x, y, z, side)) && blocks.forall(_.worksWith(world, x, y, z))

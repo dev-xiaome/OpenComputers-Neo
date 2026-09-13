@@ -159,11 +159,11 @@ public abstract class RackMountableRenderEvent extends Event {
          * @param u1       the upper end of the vertical area to render at.
          */
         public void renderOverlay(final VertexConsumer consumer, final float u0, final float u1) {
-            // 逆时针写出两个三角形，与 1.7.10 的 addVertexWithUV 顺序保持一致。
+            // 逆时针写出四边形（与 1.7.10 的 addVertexWithUV 顺序等价），法线朝 +Z。
             consumer.addVertex(u0, v0, 0).setUv(u0, v0).setColor(0xFFFFFFFF).setLight(0x00F000F0).setNormal(0, 0, 1);
-            consumer.addVertex(u0, v1, 0).setUv(u0, v1).setColor(0xFFFFFFFF).setLight(0x00F000F0).setNormal(0, 0, 1);
-            consumer.addVertex(u1, v1, 0).setUv(u1, v1).setColor(0xFFFFFFFF).setLight(0x00F000F0).setNormal(0, 0, 1);
             consumer.addVertex(u1, v0, 0).setUv(u1, v0).setColor(0xFFFFFFFF).setLight(0x00F000F0).setNormal(0, 0, 1);
+            consumer.addVertex(u1, v1, 0).setUv(u1, v1).setColor(0xFFFFFFFF).setLight(0x00F000F0).setNormal(0, 0, 1);
+            consumer.addVertex(u0, v1, 0).setUv(u0, v1).setColor(0xFFFFFFFF).setLight(0x00F000F0).setNormal(0, 0, 1);
         }
     }
 }

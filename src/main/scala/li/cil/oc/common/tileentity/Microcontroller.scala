@@ -188,14 +188,14 @@ class Microcontroller extends traits.PowerAcceptor with traits.Hub with traits.C
 
   override protected def onPlugMessage(plug: Plug, message: Message): Unit = {
     if (message.name == "network.message" && message.source.network != snooperNode.network) {
-      snooperNode.sendToReachable(message.name, message.data: _*)
+      snooperNode.sendToReachable(message.name, message.data.toSeq: _*)
     }
   }
 
   override def onMessage(message: Message): Unit = {
     if (message.name == "network.message" && message.source.network == snooperNode.network) {
       for (side <- Direction.VALID_DIRECTIONS if outputSides(side.ordinal) && side != facing) {
-        sidedNode(side).sendToReachable(message.name, message.data: _*)
+        sidedNode(side).sendToReachable(message.name, message.data.toSeq: _*)
       }
     }
   }

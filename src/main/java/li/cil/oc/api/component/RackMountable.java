@@ -4,9 +4,9 @@ import li.cil.oc.api.network.Analyzable;
 import li.cil.oc.api.network.ComponentHost;
 import li.cil.oc.api.network.ManagedEnvironment;
 import li.cil.oc.api.util.StateAware;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.inventory.IInventory;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.player.Player;
+import net.neoforged.neoforge.items.IItemHandler;
 
 /**
  * Use this interface on environments provided by drivers for items that can
@@ -19,7 +19,7 @@ import net.minecraft.nbt.CompoundTag;
  * defined by the rack's configuration.
  * <br>
  * Note: mountables may implement the {@link ComponentHost} interface and
- * {@link IInventory}. In this case, if they contain a redstone card and have
+ * {@link IItemHandler}. In this case, if they contain a redstone card and have
  * a state of <tt>State.IsWorking</tt> the rack will visually connect to
  * redstone, for example. Same goes for abstract bus cards, and potentially
  * more things in the future.

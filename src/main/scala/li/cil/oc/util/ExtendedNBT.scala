@@ -294,13 +294,15 @@ object ExtendedNBT {
     }
 
     def map[T <: Tag, Value](f: T => Value): IndexedSeq[Value] = {
+      // 注意：默认作用域里的 `IndexedSeq` 是 `scala.collection.immutable.IndexedSeq`，
+      // 而 `mutable.ArrayBuffer` 只实现 `scala.collection.IndexedSeq`，因此必须转换。
       val buffer = mutable.ArrayBuffer.empty[Value]
       var i = 0
       while (i < nbt.size()) {
         buffer += f(nbt.get(i).asInstanceOf[T])
         i += 1
       }
-      buffer
+      buffer.toIndexedSeq
     }
 
     def toArray[T: ClassTag]: Array[T] = map((t: T) => t).toArray
@@ -310,13 +312,14 @@ object ExtendedNBT {
     def addAll(values: Iterable[Tag]): Unit = values.foreach(nbt.add)
 
     def toTypedSeq: Seq[Tag] = {
+      // 同上：`Seq` 是 `scala.collection.immutable.Seq`，需从 `ArrayBuffer` 转换。
       val buffer = mutable.ArrayBuffer.empty[Tag]
       var i = 0
       while (i < nbt.size()) {
         buffer += nbt.get(i)
         i += 1
       }
-      buffer
+      buffer.toIndexedSeq
     }
 
     def tagCount: Int = nbt.size()

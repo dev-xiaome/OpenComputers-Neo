@@ -1,14 +1,19 @@
 package li.cil.oc.util
 
 import li.cil.oc.util.ExtendedWorld._
-import net.minecraft.core.Direction
+import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.entity.vehicle.AbstractMinecartContainer
 import net.minecraft.world.item.ItemStack
+import net.minecraft.world.level.Level
 import net.neoforged.neoforge.capabilities.Capabilities
 import net.neoforged.neoforge.items.IItemHandler
+
+// `Level#getEntitiesOfClass` 返回 `java.util.List`，需要 `.asScala` 才能使用 Scala 的
+// 集合操作（Scala 2.13 的 `scala.jdk.CollectionConverters`）。
+import scala.jdk.CollectionConverters._
 
 /**
  * 物品栏（`IItemHandler`）相关工具。
@@ -45,20 +50,33 @@ object InventoryUtils {
   def inventorySourceAt(position: BlockPosition): Option[InventorySource] = position.world match {
     case Some(world) if world.isLoaded(position.toChunkCoordinates) =>
       val pos = position.toChunkCoordinates
-      val blockInventory = Option(world.getBlockEntity(pos)).
-        flatMap(_.getCapability(Capabilities.ItemHandler.BLOCK, null))
+      val blockInventory = Option(blockItemHandler(world, pos))
       blockInventory match {
         case Some(inventory) => Some(BlockInventorySource(position, inventory))
         case _ =>
           val entity = world.getEntitiesOfClass(classOf[AbstractMinecartContainer], position.bounds).
+            asScala.
             find(!_.isRemoved)
           entity match {
-            case Some(cart) => Option(cart.getCapability(Capabilities.ItemHandler.ENTITY)).
+            case Some(cart) => Option(Capabilities.ItemHandler.ENTITY.getCapability(cart, null)).
               map(inventory => EntityInventorySource(cart, inventory))
             case _ => None
           }
       }
     case _ => None
+  }
+
+  /**
+   * 通过 NeoForge 方块能力查询物品栏。
+   * <br>
+   * 1.21.1 的 `BlockEntity` 已没有 `getCapability`，必须使用
+   * `Capabilities.ItemHandler.BLOCK.getCapability(level, pos, state, blockEntity, side)`；
+   * `side` 为 `null` 表示不限定面。无物品栏时返回 `null`。
+   */
+  private def blockItemHandler(world: Level, pos: BlockPos): IItemHandler = {
+    val state = world.getBlockState(pos)
+    val blockEntity = world.getBlockEntity(pos)
+    Capabilities.ItemHandler.BLOCK.getCapability(world, pos, state, blockEntity, null)
   }
 
   /**
@@ -154,6 +172,9 @@ object InventoryUtils {
     extractFromInventorySlot(consumer, inventory, side, slot, limit, simulate = false)
 
   private def extractFromInventorySlot(consumer: ItemStack => Unit, inventory: IItemHandler, side: Direction, slot: Int, limit: Int, simulate: Boolean): Int = {
+    // TODO(标签): 1.21.1 的 `IItemHandler` 没有“按面判断能否抽取”的查询
+    //（旧版 `ISidedInventory#canExtractItem`），面过滤由能力提供方在
+    // `extractItem` 内部完成，故 `side` 参数仅用于兼容旧签名。
     if (limit <= 0 || slot < 0 || slot >= inventory.getSlots) return 0
 
     val inSlot = inventory.getStackInSlot(slot)

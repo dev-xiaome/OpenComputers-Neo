@@ -27,7 +27,7 @@ class Robot(playerInventory: Inventory, val robot: tileentity.Robot) extends Dyn
     case Some(buffer: api.internal.TextBuffer) => buffer
   }.headOption.orNull
 
-  override protected val hasKeyboard = robot.info.components.map(api.Driver.driverFor(_, robot.getClass)).contains(opencomputers.DriverKeyboard)
+  override protected val hasKeyboard = robot.info.components.map(api.Driver.driverFor(_, robot.getClass)).contains(OpenComputers.DriverKeyboard)
 
   private val withScreenHeight = 256
   private val noScreenHeight = 108

@@ -16,7 +16,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  */
 public final class DataComponents {
     /** 与 li.cil.oc.OpenComputersNeo.MODID 保持一致（Java 侧不能引用 Scala 常量）。 */
-    public static final String MOD_ID = "open_computers_neo";
+    public static final String MOD_ID = "opencomputers_neo";
 
     public static final DeferredRegister<DataComponentType<?>> REGISTRY =
             DeferredRegister.create(Registries.DATA_COMPONENT_TYPE, MOD_ID);

@@ -6,7 +6,6 @@ import net.minecraft.core.Direction
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.BucketPickup
-import net.minecraft.world.level.block.LiquidBlock
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.material.Fluid
 import net.minecraft.world.level.material.FluidState
@@ -44,13 +43,25 @@ object FluidUtils {
   def fluidHandlerAt(position: BlockPosition): Option[IFluidHandler] = position.world match {
     case Some(world) if world.isLoaded(position.toChunkCoordinates) =>
       val pos = position.toChunkCoordinates
-      val blockHandler = Option(world.getBlockEntity(pos)).
-        flatMap(_.getCapability(Capabilities.FluidHandler.BLOCK, null))
+      val blockHandler = Option(blockFluidHandler(world, pos))
       blockHandler match {
         case Some(handler) => Option(handler)
-        case _ => Option(GenericBlockWrapper(position))
+        case _ => Option(new GenericBlockWrapper(position))
       }
     case _ => None
+  }
+
+  /**
+   * 通过 NeoForge 方块能力查询流体处理器。
+   * <br>
+   * 1.21.1 的 `BlockEntity` 已没有 `getCapability`，必须使用
+   * `Capabilities.FluidHandler.BLOCK.getCapability(level, pos, state, blockEntity, side)`；
+   * `side` 为 `null` 表示不限定面。无处理器时返回 `null`。
+   */
+  private def blockFluidHandler(world: Level, pos: BlockPos): IFluidHandler = {
+    val state = world.getBlockState(pos)
+    val blockEntity = world.getBlockEntity(pos)
+    Capabilities.FluidHandler.BLOCK.getCapability(world, pos, state, blockEntity, null)
   }
 
   /** 查询某个槽位的流体信息。 */
@@ -142,27 +153,28 @@ object FluidUtils {
     def currentWrapper: Option[IFluidHandler] = position.world match {
       case Some(world) if world.isLoaded(position.toChunkCoordinates) =>
         val pos = position.toChunkCoordinates
-        Option(world.getBlockEntity(pos)).flatMap(_.getCapability(Capabilities.FluidHandler.BLOCK, null)) match {
+        val state = world.getBlockState(pos)
+        // 先看方块实体能力，再回退到内建液体 / 空气方块包装。
+        Option(blockFluidHandler(world, pos)) match {
           case Some(handler) => Option(handler)
-          case _ => blockWrapper(world, pos, world.getBlockState(pos))
+          case _ => blockWrapper(state)
         }
       case _ => None
     }
 
-    private def blockWrapper(world: Level, pos: BlockPos, state: BlockState): Option[IFluidHandler] = state.getBlock match {
-      case block: BucketPickup if isFullLiquidBlock(world, pos, state) =>
-        Option(new LiquidBlockWrapper(position, block))
+    private def blockWrapper(state: BlockState): Option[IFluidHandler] = state.getBlock match {
+      case _: BucketPickup if isFullLiquidBlock(state) =>
+        // 1.21.1 的可抽取液体方块统一实现了 `BucketPickup`（`LiquidBlock` 即是）。
+        Option(new LiquidBlockWrapper(position, state.getBlock.asInstanceOf[BucketPickup]))
       case block if state.isAir || state.canBeReplaced =>
         Option(new AirBlockWrapper(position, block))
       case _ => None
     }
 
     /** 旧版 `getBlockMetadata == 0` 的等价判断：是否为液体源方块。 */
-    private def isFullLiquidBlock(world: Level, pos: BlockPos, state: BlockState): Boolean = state.getBlock match {
-      case block: LiquidBlock => block.fluid.isSource(state.getFluidState)
-      case _ =>
-        val fluidState = state.getFluidState
-        !fluidState.isEmpty && fluidState.isSource
+    private def isFullLiquidBlock(state: BlockState): Boolean = {
+      val fluidState = state.getFluidState
+      fluidState != null && !fluidState.isEmpty && fluidState.isSource
     }
   }
 
@@ -247,19 +259,21 @@ object FluidUtils {
 
     override def fill(resource: FluidStack, action: FluidAction): Int = {
       if (!canPlace(resource)) return 0
-      if (action.execute()) {
-        position.world.foreach { world =>
-          val pos = position.toChunkCoordinates
-          val fluidType = resource.getFluid.getFluidType
-          val state = fluidType.getBlockForFluidState(world, pos, resource.getFluid.defaultFluidState())
-          if (state != null && !state.isAir) {
-            world.setBlock(pos, state, Block.UPDATE_ALL)
-            // 这个“假”的邻居更新是让静止液体开始流动所必需的。
-            world.updateNeighborsAt(pos, state.getBlock)
+      position.world match {
+        case Some(world) =>
+          if (action.execute()) {
+            val pos = position.toChunkCoordinates
+            val fluidType = resource.getFluid.getFluidType
+            val state = fluidType.getBlockForFluidState(world, pos, resource.getFluid.defaultFluidState())
+            if (state != null && !state.isAir) {
+              world.setBlock(pos, state, Block.UPDATE_ALL)
+              // 这个“假”的邻居更新是让静止液体开始流动所必需的。
+              world.updateNeighborsAt(pos, state.getBlock)
+            }
           }
-        }
+          BucketVolume
+        case _ => 0
       }
-      BucketVolume
     }
 
     private def canPlace(resource: FluidStack): Boolean =

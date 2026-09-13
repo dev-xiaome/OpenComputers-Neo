@@ -178,7 +178,7 @@ class Drone(val world: Level) extends Entity(world) with MachineHost with intern
 
   override def consumeCallBudget(callCost: Double) = machine.consumeCallBudget(callCost)
 
-  override def signal(name: String, args: AnyRef*) = machine.signal(name, args: _*)
+  override def signal(name: String, args: AnyRef*) = machine.signal(name, args.toSeq: _*)
 
   // ----------------------------------------------------------------------- //
 

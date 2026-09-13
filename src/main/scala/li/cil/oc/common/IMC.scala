@@ -95,7 +95,7 @@ object IMC {
       }
       else if (message.key == "registerProgramDiskLabel" && message.isNBTMessage) {
         OpenComputers.log.debug(s"Registering new program location mapping for program '${message.getNBTValue.getString("program")}' being on disk '${message.getNBTValue.getString("label")}' from mod ${message.getSender}.")
-        ProgramLocations.addMapping(message.getNBTValue.getString("program"), message.getNBTValue.getString("label"), message.getNBTValue.getList("architectures", NBT.TAG_STRING).map((tag: StringTag) => tag.func_150285_a_()).toArray: _*)
+        ProgramLocations.addMapping(message.getNBTValue.getString("program"), message.getNBTValue.getString("label"), message.getNBTValue.getList("architectures", NBT.TAG_STRING).map((tag: StringTag) => tag.func_150285_a_()).toArray.toSeq: _*)
       }
       else {
         OpenComputers.log.warn(s"Got an unrecognized or invalid IMC message '${message.key}' from mod ${message.getSender}.")
@@ -108,18 +108,18 @@ object IMC {
     val className = name.substring(0, nameSplit)
     val methodName = name.substring(nameSplit + 1)
     val clazz = Class.forName(className)
-    val method = clazz.getDeclaredMethod(methodName, signature: _*)
+    val method = clazz.getDeclaredMethod(methodName, signature.toSeq: _*)
     if (!Modifier.isStatic(method.getModifiers)) throw new IllegalArgumentException(s"Method $name is not static.")
     method
   }
 
-  def tryInvokeStatic[T](method: Method, args: AnyRef*)(default: T): T = try method.invoke(null, args: _*).asInstanceOf[T] catch {
+  def tryInvokeStatic[T](method: Method, args: AnyRef*)(default: T): T = try method.invoke(null, args.toSeq: _*).asInstanceOf[T] catch {
     case t: Throwable =>
       OpenComputers.log.warn(s"Error invoking callback ${method.getDeclaringClass.getCanonicalName + "." + method.getName}.", t)
       default
   }
 
-  def tryInvokeStaticVoid(method: Method, args: AnyRef*): Unit = try method.invoke(null, args: _*) catch {
+  def tryInvokeStaticVoid(method: Method, args: AnyRef*): Unit = try method.invoke(null, args.toSeq: _*) catch {
     case t: Throwable =>
       OpenComputers.log.warn(s"Error invoking callback ${method.getDeclaringClass.getCanonicalName + "." + method.getName}.", t)
   }

@@ -32,7 +32,7 @@ class ComputerAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
 
     computer.set("totalMemory", (_: Varargs) => LuaValue.valueOf(owner.memory))
 
-    computer.set("pushSignal", (args: Varargs) => LuaValue.valueOf(machine.signal(args.checkjstring(1), toSimpleJavaObjects(args, 2): _*)))
+    computer.set("pushSignal", (args: Varargs) => LuaValue.valueOf(machine.signal(args.checkjstring(1), toSimpleJavaObjects(args, 2).toSeq: _*)))
 
     // And it's /tmp address...
     computer.set("tmpAddress", (_: Varargs) => {

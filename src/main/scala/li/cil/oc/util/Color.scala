@@ -3,6 +3,10 @@ package li.cil.oc.util
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.world.item.{Item, ItemStack, Items}
 
+// `Registry#getTagNames` 返回 `java.util.stream.Stream`，需要 `.iterator().asScala`
+// 才能使用 Scala 的集合操作（Scala 2.13 的 `scala.jdk.CollectionConverters`）。
+import scala.jdk.CollectionConverters._
+
 /**
  * OC 的 16 色板工具。
  *
@@ -115,16 +119,24 @@ object Color {
     "orange" -> Items.ORANGE_DYE,
     "white" -> Items.WHITE_DYE)
 
-  /** 读取物品上 `dyes/` 前缀的通用标签，取得其颜色名。 */
-  private def dyeTagPaths(stack: ItemStack): Set[String] = {
+  /**
+   * 该物品所属的、以 `dyes/` 开头的通用标签所对应的颜色名。
+   *
+   * 1.21.1 里没有现成的 “查某个 TagKey 里是否包含某物品” 的公开 API（`Registry#getTag`
+   * 只返回标签内容，`ItemStack#is` 又需要一个 `TagKey`），所以这里反过来遍历所有
+   * `dyes/xxx` 标签，逐个用 `stack.is` 判定。调用点很少，开销可接受。
+   */
+  private def dyeTagPaths(stack: ItemStack): Set[String] =
     BuiltInRegistries.ITEM.getTagNames
       .iterator()
       .asScala
-      .map(_.location().getPath)
-      .filter(_.startsWith("dyes/"))
-      .map(_.stripPrefix("dyes/"))
+      .filter(tag => tag.location().getPath.startsWith("dyes/"))
+      .map { tag =>
+        val name = tag.location().getPath.stripPrefix("dyes/")
+        name -> stack.is(tag)
+      }
+      .collect { case (name, true) => name }
       .toSet
-  }
 
   def byMeta(meta: Int) = byOreName(dyes(15 - meta))
 
@@ -136,6 +148,7 @@ object Color {
       byOreName.keys.find(name => dyeColorNames.get(name).exists(tagged.contains)) match {
         case some@Some(_) => some
         case None =>
+          // 回退：原版染料物品（标签数据缺失时仍可识别）。
           byOreName.keys.find(name => dyeColorNames.get(name).flatMap(vanillaDyes.get).exists(stack.is))
       }
     }

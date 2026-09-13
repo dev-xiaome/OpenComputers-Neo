@@ -1,11 +1,11 @@
 package li.cil.oc.api.event;
 
-import net.neoforged.bus.api.ICancellableEvent;
-import net.neoforged.bus.api.Event;
 import li.cil.oc.api.network.Node;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.neoforged.bus.api.Event;
+import net.neoforged.bus.api.ICancellableEvent;
 
 /**
  * Events for handling file system access and representing it on the client.
@@ -18,9 +18,10 @@ import net.minecraft.world.level.Level;
  * <br>
  * Canceling this event is provided to allow registering higher priority
  * event handlers that override default behavior.
+ * <br>
+ * 取消事件（{@link ICancellableEvent#setCanceled(boolean)}）即可阻止默认行为。
  */
-@Cancelable
-public class FileSystemAccessEvent extends Event {
+public class FileSystemAccessEvent extends Event implements ICancellableEvent {
     protected String sound;
 
     protected Level world;
@@ -44,10 +45,11 @@ public class FileSystemAccessEvent extends Event {
      */
     protected FileSystemAccessEvent(String sound, BlockEntity tileEntity, CompoundTag data) {
         this.sound = sound;
-        this.world = tileEntity.getWorldObj();
-        this.x = tileEntity.xCoord + 0.5;
-        this.y = tileEntity.yCoord + 0.5;
-        this.z = tileEntity.zCoord + 0.5;
+        // 1.21.1：BlockEntity 的坐标通过 getBlockPos() 取得，level 通过 getLevel() 取得。
+        this.world = tileEntity.getLevel();
+        this.x = tileEntity.getBlockPos().getX() + 0.5;
+        this.y = tileEntity.getBlockPos().getY() + 0.5;
+        this.z = tileEntity.getBlockPos().getZ() + 0.5;
         this.tileEntity = tileEntity;
         this.data = data;
     }

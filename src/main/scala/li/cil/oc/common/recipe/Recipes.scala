@@ -48,14 +48,14 @@ object Recipes {
     register(instance match {
       case simple: SimpleBlock => simple.createItemStack()
       case _ => new ItemStack(instance)
-    }, oreDict: _*)
+    }, oreDict.toSeq: _*)
     instance
   }
 
   def addSubItem[T <: Delegate](delegate: T, name: String, oreDict: String*) = {
     Items.registerItem(delegate, name)
     addRecipe(delegate.createItemStack(), name)
-    register(delegate.createItemStack(), oreDict: _*)
+    register(delegate.createItemStack(), oreDict.toSeq: _*)
     delegate
   }
 
@@ -65,14 +65,14 @@ object Recipes {
     register(instance match {
       case simple: SimpleItem => simple.createItemStack()
       case _ => new ItemStack(instance)
-    }, oreDict: _*)
+    }, oreDict.toSeq: _*)
     instance
   }
 
   def addStack(stack: ItemStack, name: String, oreDict: String*) = {
     Items.registerStack(stack, name)
     addRecipe(stack, name)
-    register(stack, oreDict: _*)
+    register(stack, oreDict.toSeq: _*)
     stack
   }
 
@@ -102,14 +102,14 @@ object Recipes {
 
     try {
       val recipeSets = Array("default", "hardmode", "gregtech", "peaceful")
-      val recipeDirectory = new File(Loader.instance.getConfigDir + File.separator + "opencomputers")
+      val recipeDirectory = new File(Loader.instance.getConfigDir + File.separator + "OpenComputers")
       val userRecipes = new File(recipeDirectory, "user.recipes")
       userRecipes.getParentFile.mkdirs()
       if (!userRecipes.exists()) {
-        FileUtils.copyURLToFile(getClass.getResource("/assets/opencomputers/recipes/user.recipes"), userRecipes)
+        FileUtils.copyURLToFile(getClass.getResource("/assets/opencomputers_neo/recipes/user.recipes"), userRecipes)
       }
       for (recipeSet <- recipeSets) {
-        FileUtils.copyURLToFile(getClass.getResource(s"/assets/opencomputers/recipes/$recipeSet.recipes"), new File(recipeDirectory, s"$recipeSet.recipes"))
+        FileUtils.copyURLToFile(getClass.getResource(s"/assets/opencomputers_neo/recipes/$recipeSet.recipes"), new File(recipeDirectory, s"$recipeSet.recipes"))
       }
       lazy val config: ConfigParseOptions = ConfigParseOptions.defaults.
         setSyntax(ConfigSyntax.CONF).

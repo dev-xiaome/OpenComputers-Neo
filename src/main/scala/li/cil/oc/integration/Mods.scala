@@ -151,7 +151,7 @@ object Mods {
     final val Mystcraft = "mystcraft"
     final val NotEnoughItems = "jei"
     final val NotEnoughKeys = "notenoughkeys"
-    final val OpenComputers = "open_computers_neo"
+    final val OpenComputers = "opencomputers_neo"
     final val PortalGun = "portalgun"
     final val ProjectRedCore = "projectred-core"
     final val ProjectRedTransmission = "projectred-transmission"

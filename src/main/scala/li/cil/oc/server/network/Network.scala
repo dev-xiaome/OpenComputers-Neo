@@ -193,7 +193,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
       throw new IllegalArgumentException("Source node must be in this network.")
     data.get(target) match {
       case Some(node) if node.data.canBeReachedFrom(source) =>
-        send(source, Iterable(node.data), name, args: _*)
+        send(source, Iterable(node.data), name, args.toSeq: _*)
       case _ =>
     }
   }
@@ -201,13 +201,13 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
   def sendToNeighbors(source: ImmutableNode, name: String, args: AnyRef*) = {
     if (source.network != wrapper)
       throw new IllegalArgumentException("Source node must be in this network.")
-    send(source, neighbors(source).filter(_.reachability != Visibility.None), name, args: _*)
+    send(source, neighbors(source).filter(_.reachability != Visibility.None), name, args.toSeq: _*)
   }
 
   def sendToReachable(source: ImmutableNode, name: String, args: AnyRef*) = {
     if (source.network != wrapper)
       throw new IllegalArgumentException("Source node must be in this network.")
-    send(source, reachableNodes(source), name, args: _*)
+    send(source, reachableNodes(source), name, args.toSeq: _*)
   }
 
   def sendToVisible(source: ImmutableNode, name: String, args: AnyRef*) = {
@@ -215,7 +215,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
       throw new IllegalArgumentException("Source node must be in this network.")
     send(source, reachableNodes(source) collect {
       case component: api.network.Component if component.canBeSeenFrom(source) => component
-    }, name, args: _*)
+    }, name, args.toSeq: _*)
   }
 
   // ----------------------------------------------------------------------- //
@@ -372,7 +372,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
     }
 
   private def send(source: ImmutableNode, targets: Iterable[ImmutableNode], name: String, args: AnyRef*): Unit = {
-    val message = new Network.Message(source, name, Array(args: _*))
+    val message = new Network.Message(source, name, Array(args.toSeq: _*))
     targets.foreach(_.host.onMessage(message))
   }
 
@@ -793,16 +793,16 @@ object Network extends api.detail.NetworkAPI {
     def neighbors(node: ImmutableNode) = network.neighbors(node).asJava
 
     def sendToAddress(source: ImmutableNode, target: String, name: String, data: AnyRef*) =
-      network.sendToAddress(source, target, name, data: _*)
+      network.sendToAddress(source, target, name, data.toSeq: _*)
 
     def sendToNeighbors(source: ImmutableNode, name: String, data: AnyRef*) =
-      network.sendToNeighbors(source, name, data: _*)
+      network.sendToNeighbors(source, name, data.toSeq: _*)
 
     def sendToReachable(source: ImmutableNode, name: String, data: AnyRef*) =
-      network.sendToReachable(source, name, data: _*)
+      network.sendToReachable(source, name, data.toSeq: _*)
 
     def sendToVisible(source: ImmutableNode, name: String, data: AnyRef*) =
-      network.sendToVisible(source, name, data: _*)
+      network.sendToVisible(source, name, data.toSeq: _*)
 
     def globalBuffer = network.globalBuffer
 

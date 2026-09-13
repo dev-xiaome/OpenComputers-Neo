@@ -3,8 +3,8 @@ package li.cil.oc.api.internal;
 import li.cil.oc.api.component.RackMountable;
 import li.cil.oc.api.network.EnvironmentHost;
 import li.cil.oc.api.network.SidedEnvironment;
-import net.minecraft.inventory.IInventory;
 import net.minecraft.nbt.CompoundTag;
+import net.neoforged.neoforge.items.IItemHandler;
 
 /**
  * This interface is implemented by the rack tile entity.
@@ -20,7 +20,7 @@ import net.minecraft.nbt.CompoundTag;
  * i.e. without having to link against internal classes. This also means that
  * <em>you should not implement this</em>.
  */
-public interface Rack extends SidedEnvironment, EnvironmentHost, Rotatable, IInventory {
+public interface Rack extends SidedEnvironment, EnvironmentHost, Rotatable, IItemHandler {
     /**
      * Determine the index of the specified mountable.
      *

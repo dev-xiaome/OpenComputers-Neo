@@ -17,7 +17,7 @@ package object oc extends ExtendedItemStack {
 
   def asScalaBuffer[A](l: java.util.List[A]): scala.collection.mutable.Buffer[A] = l.asScala
 
-  def asJavaCollection[A](i: Iterable[A]): java.util.Collection[A] = i.asJava
+  def asJavaCollection[A](i: Iterable[A]): java.util.Collection[A] = scala.jdk.javaapi.CollectionConverters.asJavaCollection(i)
 
   def seqAsJavaList[A](s: Seq[A]): java.util.List[A] = s.asJava
 

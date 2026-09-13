@@ -29,13 +29,13 @@ object Localization {
   def canLocalize(key: String): Boolean = Language.getInstance.has(key)
 
   def localizeLater(formatKey: String, values: AnyRef*): Component =
-    Component.translatable(resolveKey(formatKey).getOrElse(formatKey), values: _*)
+    Component.translatable(resolveKey(formatKey).getOrElse(formatKey), values.toSeq: _*)
 
   def localizeLater(key: String): Component =
     resolveKey(key).map(k => Component.translatable(k)).getOrElse(Component.literal(key))
 
   def localizeImmediately(formatKey: String, values: AnyRef*): String =
-    Component.translatable(resolveKey(formatKey).getOrElse(formatKey), values: _*).getString
+    Component.translatable(resolveKey(formatKey).getOrElse(formatKey), values.toSeq: _*).getString
       .split(nl).map(_.trim).mkString("\n")
 
   def localizeImmediately(key: String): String =

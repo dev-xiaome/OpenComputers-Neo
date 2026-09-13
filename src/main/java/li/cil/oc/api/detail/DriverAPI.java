@@ -7,11 +7,11 @@ import li.cil.oc.api.driver.InventoryProvider;
 import li.cil.oc.api.driver.Item;
 import li.cil.oc.api.driver.SidedBlock;
 import li.cil.oc.api.network.EnvironmentHost;
+import net.minecraft.core.Direction;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.inventory.IInventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.core.Direction;
+import net.neoforged.neoforge.items.IItemHandler;
 
 import java.util.Collection;
 import java.util.Set;
@@ -201,7 +201,7 @@ public interface DriverAPI {
      * @param player the player holding the item. May be <tt>null</tt>.
      * @return the inventory implementation interfacing the stack, or <tt>null</tt>.
      */
-    IInventory inventoryFor(ItemStack stack, Player player);
+    IItemHandler inventoryFor(ItemStack stack, Player player);
 
     /**
      * Get a list of all registered block drivers.

@@ -14,8 +14,8 @@ import net.minecraft.world.phys.Vec3
  *
  * 1.21.1 迁移要点：
  *  - `Vec3.createVectorHelper(x, y, z)` → `new Vec3(x, y, z)`；`xCoord/yCoord/zCoord` → `x/y/z`
- *  - `AxisAlignedBB.getBoundingBox(...)` → `new AABB(...)`
- *  - `ForgeDirection.offsetX/...` → `Direction.getStepX()/...`
+ *  - `AABB.getBoundingBox(...)` → `new AABB(...)`
+ *  - `Direction.offsetX/...` → `Direction.getStepX()/...`
  *  - `Entity.posX/posY/posZ` → `Entity.getX()/getY()/getZ()`，`entity.worldObj` → `entity.level()`
  *  - `EnvironmentHost` 的访问器已改为方法：`xPosition()` / `world()`
  *  - 移除了 AE2（Applied Energistics 2）集成部分（`apply(coord: DimensionalCoord)`）

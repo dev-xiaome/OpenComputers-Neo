@@ -874,15 +874,15 @@ object TextBuffer {
         args += player.getCommandSenderName
       }
 
-      owner.node.sendToReachable("computer.checked_signal", args: _*)
+      owner.node.sendToReachable("computer.checked_signal", args.toSeq: _*)
     }
 
     private def sendToKeyboards(name: String, values: AnyRef*): Unit = {
       owner.host match {
         case screen: tileentity.Screen =>
-          screen.screens.foreach(_.node.sendToNeighbors(name, values: _*))
+          screen.screens.foreach(_.node.sendToNeighbors(name, values.toSeq: _*))
         case _ =>
-          owner.node.sendToNeighbors(name, values: _*)
+          owner.node.sendToNeighbors(name, values.toSeq: _*)
       }
     }
   }

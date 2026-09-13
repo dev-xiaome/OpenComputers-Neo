@@ -14,7 +14,8 @@ class InternetFilteringRule(val ruleString: String) {
       ruleParts.head match {
         case "allow" | "deny" =>
           val value = ruleParts.head.equals("allow")
-          val predicates = mutable.MutableList[(InetAddress, String) => Boolean]()
+          // Scala 2.13 已移除 `mutable.MutableList`，改用 `mutable.ArrayBuffer`。
+          val predicates = mutable.ArrayBuffer.empty[(InetAddress, String) => Boolean]
           ruleParts.tail.foreach(f => {
             val filter = f.split(":", 2)
             filter.head match {

@@ -1,13 +1,11 @@
 package li.cil.oc.api.network;
 
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.core.Direction;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
- * This interface is like {@link net.minecraft.inventory.ISidedInventory} is to
- * {@link net.minecraft.inventory.IInventory}, it allows an environment to
+ * This interface is like {@link net.neoforged.neoforge.items.IItemHandler} is to
+ * an inventory: it allows an environment to
  * specify different node access for its different sides.
  * <br>
  * This interface is intended to be used on tile entities that are environments.
@@ -46,10 +44,11 @@ public interface SidedEnvironment {
      * since nodes are not created on the client side.
      * <br>
      * The side is relative to the environment, same as for <tt>sidedNode</tt>.
+     * <br>
+     * 仅客户端调用；1.21.1 已移除 {@code @SideOnly}。
      *
      * @param side the side to check for.
      * @return whether the environment provides a node for the specified side.
      */
-    @SideOnly(Dist.CLIENT)
     boolean canConnect(Direction side);
 }

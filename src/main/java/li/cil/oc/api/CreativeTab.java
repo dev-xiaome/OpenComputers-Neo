@@ -12,7 +12,7 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  */
 public final class CreativeTab {
     /** 与 li.cil.oc.OpenComputersNeo.MODID 保持一致（Java 侧不能引用 Scala 常量）。 */
-    public static final String MOD_ID = "open_computers_neo";
+    public static final String MOD_ID = "opencomputers_neo";
 
     public static final DeferredRegister<CreativeModeTab> REGISTRY =
             DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MOD_ID);
@@ -24,9 +24,9 @@ public final class CreativeTab {
      * 通过 {@link #instance()} 获取实际标签页。
      */
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> HOLDER = REGISTRY.register(
-            "opencomputers",
+            "OpenComputers",
             () -> CreativeModeTab.builder()
-                    .title(Component.translatable("itemGroup.open_computers_neo"))
+                    .title(Component.translatable("itemGroup.opencomputers_neo"))
                     .icon(() -> new net.minecraft.world.item.ItemStack(
                             net.minecraft.world.item.Items.COMMAND_BLOCK))
                     .build());

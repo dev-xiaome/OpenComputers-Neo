@@ -110,5 +110,5 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
   }
 
   protected def signal(args: AnyRef*) =
-    node.sendToReachable("computer.checked_signal", args: _*)
+    node.sendToReachable("computer.checked_signal", args.toSeq: _*)
 }

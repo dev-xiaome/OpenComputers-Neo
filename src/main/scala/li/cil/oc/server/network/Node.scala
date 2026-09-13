@@ -94,14 +94,14 @@ trait Node extends ImmutableNode {
 // for some reason it fails compiling on Linux otherwise (no clue why).
 trait NodeVarargPart extends ImmutableNode {
   def sendToAddress(target: String, name: String, data: AnyRef*) =
-    if (network != null) network.sendToAddress(this, target, name, data: _*)
+    if (network != null) network.sendToAddress(this, target, name, data.toSeq: _*)
 
   def sendToNeighbors(name: String, data: AnyRef*) =
-    if (network != null) network.sendToNeighbors(this, name, data: _*)
+    if (network != null) network.sendToNeighbors(this, name, data.toSeq: _*)
 
   def sendToReachable(name: String, data: AnyRef*) =
-    if (network != null) network.sendToReachable(this, name, data: _*)
+    if (network != null) network.sendToReachable(this, name, data.toSeq: _*)
 
   def sendToVisible(name: String, data: AnyRef*) =
-    if (network != null) network.sendToVisible(this, name, data: _*)
+    if (network != null) network.sendToVisible(this, name, data.toSeq: _*)
 }

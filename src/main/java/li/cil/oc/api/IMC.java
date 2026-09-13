@@ -453,7 +453,7 @@ public final class IMC {
      * <p>
      * 保持公开可见，方便调用方在需要时区分消息目标；方法名与 NBT 结构仍与旧版一致。
      */
-    public static final String MOD_ID = "open_computers_neo";
+    public static final String MOD_ID = "opencomputers_neo";
 
     private IMC() {
     }

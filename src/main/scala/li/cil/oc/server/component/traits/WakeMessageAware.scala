@@ -35,7 +35,7 @@ trait WakeMessageAware extends traits.NetworkAware {
   protected def receivePacket(packet: Packet, distance: Double, host: EnvironmentHost): Unit = {
     if (packet.source != node.address && Option(packet.destination).forall(_ == node.address)) {
       if (isPacketAccepted(packet, distance)) {
-        node.sendToReachable("computer.signal", Seq("modem_message", packet.source, Int.box(packet.port), Double.box(distance)) ++ packet.data: _*)
+        node.sendToReachable("computer.signal", Seq("modem_message", packet.source, Int.box(packet.port), Double.box(distance)) ++ packet.data.toSeq: _*)
       }
 
       // Accept wake-up messages regardless of port because we close all ports

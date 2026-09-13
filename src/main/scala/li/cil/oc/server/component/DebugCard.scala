@@ -267,7 +267,7 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
 
   override def receivePacket(packet: Packet): Unit = {
     val distance = 0
-    node.sendToReachable("computer.signal", Seq("debug_message", packet.source, Int.box(packet.port), Double.box(distance)) ++ packet.data: _*)
+    node.sendToReachable("computer.signal", Seq("debug_message", packet.source, Int.box(packet.port), Double.box(distance)) ++ packet.data.toSeq: _*)
   }
 
   override def address: String = if(node != null) node.address() else "debug"
@@ -741,7 +741,7 @@ object DebugCard {
 
     override def call(context: Context, arguments: Arguments): Array[AnyRef] = {
       OpenComputers.log.info("TestValue.call(" + arguments.toArray.mkString(", ") + ")")
-      result(arguments.toArray: _*)
+      result(arguments.toArray.toSeq: _*)
     }
 
     override def dispose(context: Context): Unit = {

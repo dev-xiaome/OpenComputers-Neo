@@ -55,7 +55,7 @@ class ComputerAPI(owner: NativeLuaArchitecture) extends NativeLuaAPI(owner) {
     lua.setField(-2, "totalMemory")
 
     lua.pushScalaFunction(lua => {
-      lua.pushBoolean(machine.signal(lua.checkString(1), lua.toSimpleJavaObjects(2): _*))
+      lua.pushBoolean(machine.signal(lua.checkString(1), lua.toSimpleJavaObjects(2).toSeq: _*))
       1
     })
     lua.setField(-2, "pushSignal")

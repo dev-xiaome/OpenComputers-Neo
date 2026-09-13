@@ -41,7 +41,7 @@ import java.lang.annotation.Target;
  * <br>
  * For example:
  * <pre>
- *     {@literal @}Optional.Interface(iface = "li.cil.oc.api.network.SimpleComponent", modid = "OpenComputers")
+ *     {@literal @}Optional.Interface(iface = "li.cil.oc.api.network.SimpleComponent", modid = "opencomputers_neo")
  *     public class TileEntityMyFancyThing extends BlockEntity
  *            implements SimpleComponent
  *     {
@@ -51,7 +51,7 @@ import java.lang.annotation.Target;
  *         }
  *
  *         {@literal @}Callback
- *         {@literal @}Optional.Method(modid = "OpenComputers")
+ *         {@literal @}Optional.Method(modid = "opencomputers_neo")
  *         public Object[] greet(Context context, Arguments args) {
  *             return new Object[]{String.format("Hello, %s!", args.checkString(0))};
  *         }
@@ -60,8 +60,8 @@ import java.lang.annotation.Target;
  * Using the alternative method to provide methods:
  * <pre>
  *     {@literal @}Optional.InterfaceList({
- *         {@literal @}Optional.Interface(iface = "li.cil.oc.api.network.SimpleComponent", modid = "OpenComputers"),
- *         {@literal @}Optional.Interface(iface = "li.cil.oc.api.network.ManagedPeripheral", modid = "OpenComputers")
+ *         {@literal @}Optional.Interface(iface = "li.cil.oc.api.network.SimpleComponent", modid = "opencomputers_neo"),
+ *         {@literal @}Optional.Interface(iface = "li.cil.oc.api.network.ManagedPeripheral", modid = "opencomputers_neo")
  *     })
  *     public class TileEntityMyFancyThing extends BlockEntity
  *            implements SimpleComponent, ManagedPeripheral
@@ -75,7 +75,7 @@ import java.lang.annotation.Target;
  *             return new String[] {"greet"};
  *         }
  *
- *         {@literal @}Optional.Method(modid = "OpenComputers")
+ *         {@literal @}Optional.Method(modid = "opencomputers_neo")
  *         public Object[] invoke(String method, Context context, Arguments args) {
  *             if ("greet".equals(method)) {
  *                 return new Object[]{String.format("Hello, %s!", args.checkString(0))};

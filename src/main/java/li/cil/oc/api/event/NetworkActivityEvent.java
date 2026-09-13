@@ -1,10 +1,10 @@
 package li.cil.oc.api.event;
 
-import net.neoforged.bus.api.Event;
 import li.cil.oc.api.network.Node;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.neoforged.bus.api.Event;
 
 /**
  * Events for handling network activity and representing it on the client.
@@ -38,10 +38,11 @@ public class NetworkActivityEvent extends Event {
      * @param data       the additional data.
      */
     protected NetworkActivityEvent(BlockEntity tileEntity, CompoundTag data) {
-        this.world = tileEntity.getWorldObj();
-        this.x = tileEntity.xCoord + 0.5;
-        this.y = tileEntity.yCoord + 0.5;
-        this.z = tileEntity.zCoord + 0.5;
+        // 1.21.1：BlockEntity 的坐标通过 getBlockPos() 取得，level 通过 getLevel() 取得。
+        this.world = tileEntity.getLevel();
+        this.x = tileEntity.getBlockPos().getX() + 0.5;
+        this.y = tileEntity.getBlockPos().getY() + 0.5;
+        this.z = tileEntity.getBlockPos().getZ() + 0.5;
         this.tileEntity = tileEntity;
         this.data = data;
     }

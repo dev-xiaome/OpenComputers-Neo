@@ -82,7 +82,7 @@ trait Delegate {
   @SideOnly(Dist.CLIENT)
   def tooltipLines(stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {
     if (tooltipName.isDefined) {
-      tooltip.addAll(Tooltip.get(tooltipName.get, tooltipData: _*))
+      tooltip.addAll(Tooltip.get(tooltipName.get, tooltipData.toSeq: _*))
       tooltipExtended(stack, tooltip)
     }
     tooltipCosts(stack, tooltip)

@@ -1,8 +1,8 @@
 package li.cil.oc.api.event;
 
-import net.neoforged.bus.api.ICancellableEvent;
-import net.neoforged.bus.api.Event;
 import li.cil.oc.api.network.EnvironmentHost;
+import net.neoforged.bus.api.Event;
+import net.neoforged.bus.api.ICancellableEvent;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -13,8 +13,7 @@ import java.util.Map;
  * When cancelling this event, the respective method will bail and report
  * that the operation failed.
  */
-@Cancelable
-public abstract class GeolyzerEvent extends Event {
+public abstract class GeolyzerEvent extends Event implements ICancellableEvent {
     /**
      * The container of the geolyzer component. This can either be the
      * geolyzer block, or something with the geolyzer upgrade (a robot).

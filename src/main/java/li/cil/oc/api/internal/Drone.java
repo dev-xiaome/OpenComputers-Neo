@@ -34,8 +34,8 @@ public interface Drone extends Agent, EnvironmentHost, Rotatable, Tiered {
     /**
      * Get the drones velocity vector.
      * <br>
-     * Note that this is really just the underlying entity's <tt>motionX/Y/Z</tt>,
-     * so you can cast this to {@link net.minecraft.entity.Entity} and use that
+     * Note that this is really just the underlying entity's motion, so you can
+     * cast this to {@link net.minecraft.world.entity.Entity} and use that
      * instead, if you'd like.
      */
     Vec3 getVelocity();

@@ -18,25 +18,33 @@ import org.apache.logging.log4j.Logger
  * NeoForge 需要能反射实例化 mod 类，而 Scala object 的构造器不可用，
  * 因此这里用普通 class。
  */
-@Mod("open_computers_neo")
+@Mod("opencomputers_neo")
 class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
   OpenComputersNeo.log.info("Greetings, user! Booting OpenComputers Neo.")
 
   DataComponents.REGISTRY.register(modBus)
   CreativeTab.register(modBus)
 
-  modBus.addListener((event: FMLCommonSetupEvent) => event.enqueueWork(() => {
-    val configFile = FMLPaths.CONFIGDIR.get().resolve("open_computers_neo.conf").toFile
-    OpenComputers.loadSettings(configFile)
-  }))
+  modBus.addListener(new java.util.function.Consumer[FMLCommonSetupEvent] {
+    override def accept(event: FMLCommonSetupEvent): Unit = event.enqueueWork(new Runnable {
+      override def run(): Unit = {
+        val configFile = FMLPaths.CONFIGDIR.get().resolve("opencomputers_neo.conf").toFile
+        OpenComputers.loadSettings(configFile)
+      }
+    })
+  })
 
-  modBus.addListener((event: FMLClientSetupEvent) => event.enqueueWork(() => {
-    // 客户端初始化（方块实体渲染器、菜单、按键绑定等）将在后续阶段接入。
-  }))
+  modBus.addListener(new java.util.function.Consumer[FMLClientSetupEvent] {
+    override def accept(event: FMLClientSetupEvent): Unit = event.enqueueWork(new Runnable {
+      override def run(): Unit = {
+        // 客户端初始化（方块实体渲染器、菜单、按键绑定等）将在后续阶段接入。
+      }
+    })
+  })
 }
 
 object OpenComputersNeo {
-  final val MODID = "open_computers_neo"
+  final val MODID = "opencomputers_neo"
   final val NAME = "OpenComputers Neo"
   final val VERSION = "1.0.0"
 

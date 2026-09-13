@@ -232,8 +232,12 @@ object FontUtils {
     try {
       OpenComputers.log.info("Initializing font glyph width overrides...")
       val time = System.currentTimeMillis()
-      val font = FontUtils.getClass.getResourceAsStream("/assets/opencomputers/font.hex")
-      try {
+      // 1.21.1：资源命名空间已改为 OpenComputers（见 docs/PORTING.md），
+      // 直接用无绝对路径的类路径资源名，避免写死命名空间。
+      val font = getClass.getResourceAsStream("/font.hex")
+      if (font == null) {
+        OpenComputers.log.error("Unable to locate font.hex on the classpath; glyph width overrides skipped.")
+      } else try {
         var line: String = null
         val input = new BufferedReader(new InputStreamReader(font, StandardCharsets.UTF_8))
         var out_of_range_glyph: Int = 0

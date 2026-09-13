@@ -32,9 +32,13 @@ foreach ($f in $files) {
         $text = [regex]::Replace($text, $procPattern, '${1}: Unit = {')
         $procCount += $before
     }
+    $text = $text -replace '\bSide\.SERVER\b', 'Dist.DEDICATED_SERVER'
+
     foreach ($pair in $replacements) {
         $text = [regex]::Replace($text, $pair[0], $pair[1])
     }
+    # Scala 2.13: varargs splice requires immutable.Seq
+    $text = [regex]::Replace($text, '(?<!\.toSeq)(?<!\.toArray)(?<!\.toList)(?<!\.toIndexedSeq)(?<!\.toVector)(\)|\b[A-Za-z_][A-Za-z0-9_]*)(\s*): _\*', '$1.toSeq$2: _*')
     if ($text -ne $orig) {
         [System.IO.File]::WriteAllText($f.FullName, $text)
         $changed++

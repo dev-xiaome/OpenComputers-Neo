@@ -1,17 +1,21 @@
 package li.cil.oc.util
 
-import java.util.concurrent.Executors
+import java.util.concurrent.{Executors, ScheduledExecutorService, ThreadFactory, TimeUnit}
 import java.util.concurrent.Future
-import java.util.concurrent.ScheduledExecutorService
-import java.util.concurrent.ThreadFactory
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicInteger
 
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 
 import scala.collection.mutable
 
+/**
+ * OC 后台线程池工厂（文件保存、网络过滤等使用）。
+ *
+ * 1.21.1 / Java 21 迁移要点：
+ *  - `System.getSecurityManager` 自 Java 18 起被标记为废弃、Java 24 起彻底移除，
+ *    这里不再查询安全管理器，直接使用当前线程的线程组。
+ *  - `new ThreadFactory { def newThread(...) = ... }` 的过程语法补上 `Unit`。
+ */
 object ThreadPoolFactory {
   val priority = {
     // For InternetFilteringRuleTest, where Settings.get is not provided.
@@ -23,18 +27,15 @@ object ThreadPoolFactory {
     else custom max Thread.MIN_PRIORITY min Thread.MAX_PRIORITY
   }
 
-  def create(name: String, threads: Int) = Executors.newScheduledThreadPool(threads,
+  def create(name: String, threads: Int): ScheduledExecutorService = Executors.newScheduledThreadPool(threads,
     new ThreadFactory() {
       private val baseName = "OpenComputers-" + name + "-"
 
-      private val threadNumber = new AtomicInteger(1)
+      private val threadNumber = new java.util.concurrent.atomic.AtomicInteger(1)
 
-      private val group = System.getSecurityManager match {
-        case null => Thread.currentThread().getThreadGroup
-        case s => s.getThreadGroup
-      }
+      private val group = Thread.currentThread().getThreadGroup
 
-      def newThread(r: Runnable) = {
+      def newThread(r: Runnable): Thread = {
         val thread = new Thread(group, r, baseName + threadNumber.getAndIncrement)
         if (!thread.isDaemon) {
           thread.setDaemon(true)
@@ -55,6 +56,9 @@ object ThreadPoolFactory {
   }
 }
 
+/**
+ * 带自动重建能力的线程池包装（服务器未启动 / 线程池被关闭时按需重建）。
+ */
 class SafeThreadPool(val name: String, val threads: Int) {
   private var _threadPool: ScheduledExecutorService = _
 

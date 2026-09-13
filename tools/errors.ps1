@@ -3,7 +3,7 @@ param(
     [string]$Task = 'compileScala',
     [string]$Out = 'D:\Workspace\temp\oc-build.txt'
 )
-Set-Location 'D:\Workspace\Mods\1.21.1\OpenComputers Neo'
+Set-Location 'D:\Workspace\Mods\1.21.1\opencomputers_neo Neo'
 cmd /c "gradlew.bat $Task --console=plain --continue > `"$Out`" 2>&1"
 $lines = Get-Content $Out
 $errs = $lines | Select-String -Pattern '^(.*\.(scala|java)):(\d+): (error|错误)'

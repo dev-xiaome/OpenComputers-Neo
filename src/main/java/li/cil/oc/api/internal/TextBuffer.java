@@ -1,7 +1,5 @@
 package li.cil.oc.api.internal;
 
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
 import li.cil.oc.api.Persistable;
 import li.cil.oc.api.network.ManagedEnvironment;
 import net.minecraft.world.entity.player.Player;
@@ -494,8 +492,9 @@ public interface TextBuffer extends ManagedEnvironment, Persistable {
      *
      * @return <tt>true</tt> if the displayed content changed since the last
      * call to this method.
+     * <br>
+     * 仅客户端调用；1.21.1 已移除 {@code @SideOnly}，服务端调用会抛异常。
      */
-    @SideOnly(Dist.CLIENT)
     boolean renderText();
 
     /**
@@ -506,8 +505,9 @@ public interface TextBuffer extends ManagedEnvironment, Persistable {
      * of a single char in pixels.
      *
      * @return the total width of the rendered buffer, in pixels.
+     * <br>
+     * 仅客户端调用。
      */
-    @SideOnly(Dist.CLIENT)
     int renderWidth();
 
     /**
@@ -518,8 +518,9 @@ public interface TextBuffer extends ManagedEnvironment, Persistable {
      * of a single char in pixels.
      *
      * @return the total height of the rendered buffer, in pixels.
+     * <br>
+     * 仅客户端调用。
      */
-    @SideOnly(Dist.CLIENT)
     int renderHeight();
 
     /**
@@ -529,16 +530,18 @@ public interface TextBuffer extends ManagedEnvironment, Persistable {
      * state changes, i.e. when it runs out of power or gets back power.
      *
      * @param enabled whether the text buffer should be rendered.
+     * <br>
+     * 仅客户端调用。
      */
-    @SideOnly(Dist.CLIENT)
     void setRenderingEnabled(boolean enabled);
 
     /**
      * Gets whether the contents of the buffer should currently be rendered.
      *
      * @see #setRenderingEnabled(boolean)
+     * <br>
+     * 仅客户端调用。
      */
-    @SideOnly(Dist.CLIENT)
     boolean isRenderingEnabled();
 
     // ----------------------------------------------------------------------- //

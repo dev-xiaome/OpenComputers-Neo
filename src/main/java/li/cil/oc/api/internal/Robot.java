@@ -1,11 +1,9 @@
 package li.cil.oc.api.internal;
 
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.api.distmarker.OnlyIn;
-import li.cil.oc.api.network.EnvironmentHost;
 import li.cil.oc.api.network.Environment;
-import net.minecraft.inventory.ISidedInventory;
+import li.cil.oc.api.network.EnvironmentHost;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
+import net.neoforged.neoforge.items.IItemHandler;
 
 /**
  * This interface allows interaction with robots.
@@ -19,8 +17,8 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandler;
  * follows:
  * <ul>
  * <li>Tool</li>
- * <li><tt>equipmentInventory.getSizeInventory</tt> hot-swappable components.</li>
- * <li><tt>mainInventory.getSizeInventory</tt> internal inventory slots.</li>
+ * <li><tt>equipmentInventory.getSlots()</tt> hot-swappable components.</li>
+ * <li><tt>mainInventory.getSlots()</tt> internal inventory slots.</li>
  * <li><tt>componentCount</tt> hard-wired components.</li>
  * </ul>
  * Note that there may be no hot-swappable (or even built-in) components or
@@ -29,7 +27,7 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandler;
  * <br>
  * This interface is <em>not meant to be implemented</em>, just used.
  */
-public interface Robot extends Agent, Environment, EnvironmentHost, Tiered, ISidedInventory, IFluidHandler {
+public interface Robot extends Agent, Environment, EnvironmentHost, Tiered, IItemHandler, IFluidHandler {
     /**
      * The number of built-in components in this robot.
      */
@@ -74,7 +72,8 @@ public interface Robot extends Agent, Environment, EnvironmentHost, Tiered, ISid
      * This is explicitly meant for client side use, to allow upgrade renderers
      * to know whether to resume animations or not, based on whether the robot
      * is currently powered on or not.
+     * <br>
+     * 仅客户端调用；1.21.1 已移除 {@code @SideOnly}，请勿在服务端调用本方法。
      */
-    @SideOnly(Dist.CLIENT)
     boolean shouldAnimate();
 }

@@ -226,7 +226,7 @@ object Achievement {
     // Missing @Override causes ambiguity, so cast is required; still a virtual call,
     // so Achievement.registerStat is still the method that's really being called.
     All.foreach(_.asInstanceOf[StatBase].registerStat())
-    AchievementPage.registerAchievementPage(new AchievementPage(OpenComputers.Name, All: _*))
+    AchievementPage.registerAchievementPage(new AchievementPage(OpenComputers.Name, All.toSeq: _*))
   }
 
   def onAssemble(stack: ItemStack, player: Player): Unit = {

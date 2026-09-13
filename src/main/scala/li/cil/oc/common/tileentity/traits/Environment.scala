@@ -129,5 +129,5 @@ trait Environment extends BlockEntity with network.Environment with network.Envi
 
   // ----------------------------------------------------------------------- //
 
-  protected def result(args: Any*) = li.cil.oc.util.ResultWrapper.result(args: _*)
+  protected def result(args: Any*) = li.cil.oc.util.ResultWrapper.result(args.toSeq: _*)
 }
