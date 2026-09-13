@@ -9,7 +9,7 @@ import li.cil.repack.com.naef.jnlua.JavaFunction
 import li.cil.repack.com.naef.jnlua.LuaState
 import li.cil.repack.com.naef.jnlua.LuaType
 
-import scala.collection.convert.WrapAsScala._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.math.ScalaNumber
@@ -68,7 +68,7 @@ object ExtendedLuaState {
       }
     }
 
-    def pushList(obj: AnyRef, list: Iterator[(Any, Int)], memo: util.IdentityHashMap[Any, Int]) {
+    def pushList(obj: AnyRef, list: Iterator[(Any, Int)], memo: util.IdentityHashMap[Any, Int]): Unit = {
       lua.newTable()
       val tableIndex = lua.getTop
       memo += obj -> tableIndex
@@ -83,7 +83,7 @@ object ExtendedLuaState {
       lua.pushValue(tableIndex)
     }
 
-    def pushTable(obj: AnyRef, map: Map[_, _], memo: util.IdentityHashMap[Any, Int]) {
+    def pushTable(obj: AnyRef, map: Map[_, _], memo: util.IdentityHashMap[Any, Int]): Unit = {
       lua.newTable(0, map.size)
       val tableIndex = lua.getTop
       memo += obj -> tableIndex

@@ -7,6 +7,11 @@ import net.minecraft.nbt.CompoundTag;
 /**
  * Simple base implementation of the <tt>ManagedEnvironment</tt> interface, so
  * unused methods don't clutter the implementing class.
+ * <br>
+ * <b>1.21.1 移植说明</b>：{@code NBTTagCompound} 的方法名已更新
+ * （{@code getCompoundTag} → {@code getCompound}，{@code setTag} → {@code put}）。
+ * 另外这个基类承担的是“托管环境”的存取，和方块实体无关，因此这里不需要
+ * {@code HolderLookup.Provider}。
  */
 public abstract class ManagedEnvironment implements li.cil.oc.api.network.ManagedEnvironment {
     // Should be initialized using setNode(api.Network.newNode()). See TileEntityEnvironment.
@@ -45,7 +50,7 @@ public abstract class ManagedEnvironment implements li.cil.oc.api.network.Manage
     @Override
     public void load(final CompoundTag nbt) {
         if (node() != null) {
-            node().load(nbt.getCompoundTag("node"));
+            node().load(nbt.getCompound("node"));
         }
     }
 
@@ -61,13 +66,13 @@ public abstract class ManagedEnvironment implements li.cil.oc.api.network.Manage
 
                 final CompoundTag nodeTag = new CompoundTag();
                 node().save(nodeTag);
-                nbt.setTag("node", nodeTag);
+                nbt.put("node", nodeTag);
 
                 node().remove();
             } else {
                 final CompoundTag nodeTag = new CompoundTag();
                 node().save(nodeTag);
-                nbt.setTag("node", nodeTag);
+                nbt.put("node", nodeTag);
             }
         }
     }

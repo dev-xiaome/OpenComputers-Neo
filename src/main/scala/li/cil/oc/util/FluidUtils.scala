@@ -1,34 +1,62 @@
 package li.cil.oc.util
 
-import li.cil.oc.util.ExtendedBlock._
 import li.cil.oc.util.ExtendedWorld._
-import net.minecraft.world.level.block.Block
-import net.minecraft.block.BlockDynamicLiquid
-import net.minecraft.block.BlockLiquid
-import net.minecraft.block.BlockStaticLiquid
-import net.minecraft.world.level.block.Blocks
+import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
+import net.minecraft.world.level.Level
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.block.BucketPickup
+import net.minecraft.world.level.block.LiquidBlock
+import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.level.material.Fluid
+import net.minecraft.world.level.material.FluidState
+import net.neoforged.neoforge.capabilities.Capabilities
 import net.neoforged.neoforge.fluids.FluidStack
-import net.minecraftforge.fluids.FluidContainerRegistry
-import net.minecraftforge.fluids.FluidRegistry
-import net.neoforged.neoforge.fluids.FluidStack
-import net.neoforged.neoforge.fluids.capability.templates.FluidTank
-import net.minecraftforge.fluids.FluidTankInfo
-import net.neoforged.neoforge.fluids.IFluidBlock
+import net.neoforged.neoforge.fluids.FluidType
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
 
+/**
+ * 流体（`IFluidHandler`）相关工具。
+ *
+ * 1.21.1 迁移要点：
+ *  - `net.minecraftforge.fluids.*` → `net.neoforged.neoforge.fluids.*`
+ *  - `FluidRegistry` 已移除，改用 `FluidState` / `FluidType` / 注册表
+ *  - `FluidContainerRegistry.BUCKET_VOLUME` → `FluidType.BUCKET_VOLUME`
+ *  - `IFluidBlock` 已移除，改为 `LiquidBlock` + `BucketPickup`
+ *  - `IFluidHandler#getTankInfo` / `FluidTankInfo` 已移除，
+ *    改为 `getTanks()` / `getFluidInTank(i)` / `getTankCapacity(i)`；
+ *    这里用 [[TankInfo]] 承载等价信息
+ *  - 所有 `side` 参数仅用于兼容旧签名：新 API 由能力的 `Direction` 上下文决定面
+ */
 object FluidUtils {
+  /** 桶容量（1000 mB）。 */
+  final val BucketVolume: Int = FluidType.BUCKET_VOLUME
+
+  /** 单槽流体信息（等价于已移除的 `FluidTankInfo`）。 */
+  final case class TankInfo(fluid: FluidStack, capacity: Int)
+
   /**
    * Retrieves an actual fluid handler implementation for a specified world coordinate.
    * <br>
    * This performs special handling for in-world liquids.
    */
   def fluidHandlerAt(position: BlockPosition): Option[IFluidHandler] = position.world match {
-    case Some(world) if world.blockExists(position) => world.getTileEntity(position) match {
-      case handler: IFluidHandler => Option(handler)
-      case _ => Option(new GenericBlockWrapper(position))
-    }
+    case Some(world) if world.isLoaded(position.toChunkCoordinates) =>
+      val pos = position.toChunkCoordinates
+      val blockHandler = Option(world.getBlockEntity(pos)).
+        flatMap(_.getCapability(Capabilities.FluidHandler.BLOCK, null))
+      blockHandler match {
+        case Some(handler) => Option(handler)
+        case _ => Option(GenericBlockWrapper(position))
+      }
     case _ => None
+  }
+
+  /** 查询某个槽位的流体信息。 */
+  def tankInfo(handler: IFluidHandler, tank: Int): Option[TankInfo] = {
+    if (handler == null || tank < 0 || tank >= handler.getTanks) return None
+    Some(TankInfo(handler.getFluidInTank(tank), handler.getTankCapacity(tank)))
   }
 
   /**
@@ -38,28 +66,28 @@ object FluidUtils {
    * then insert it into the specified sink handler. If the insertion fails, the
    * fluid will remain in the source handler.
    * <br>
-   * This returns <tt>true</tt> if some fluid was transferred.
+   * This returns the amount of fluid transferred.
    */
-  def transferBetweenFluidHandlers(source: IFluidHandler, sourceSide: Direction, sink: IFluidHandler, sinkSide: Direction, limit: Int = FluidContainerRegistry.BUCKET_VOLUME, sourceTank: Int = -1) : Int = {
-    val ti = source.getTankInfo(sourceSide)
-    val srcFluid = if (sourceTank < 0 || ti == null || ti.length <= sourceTank) null else ti(sourceTank).fluid.copy()
+  def transferBetweenFluidHandlers(source: IFluidHandler, sourceSide: Direction, sink: IFluidHandler, sinkSide: Direction, limit: Int = BucketVolume, sourceTank: Int = -1): Int = {
+    if (source == null || sink == null || limit <= 0) return 0
 
-    val nullFluid = srcFluid == null;
-    val drained = if (nullFluid)
-      source.drain(sourceSide, limit, false)
-    else {
-      srcFluid.amount = limit
-      source.drain(sourceSide, srcFluid, false)
+    val tank = if (sourceTank < 0) 0 else sourceTank
+    val template = tankInfo(source, tank) match {
+      case Some(info) if !info.fluid.isEmpty => info.fluid.copy()
+      case _ => null
     }
-    if (drained != null) {
-      val filled = sink.fill(sinkSide, drained, false)
-      if (nullFluid) {
-        sink.fill(sinkSide, source.drain(sourceSide, filled, true), true)
-      } else {
-        srcFluid.amount = filled
-        sink.fill(sinkSide, source.drain(sourceSide, srcFluid, true), true)
-      }
-    } else 0
+
+    val drained = if (template == null) source.drain(limit, FluidAction.SIMULATE)
+    else source.drain(new FluidStack(template.getFluid, limit), FluidAction.SIMULATE)
+    if (drained.isEmpty) return 0
+
+    val accepted = sink.fill(drained, FluidAction.SIMULATE)
+    if (accepted <= 0) return 0
+
+    if (template == null) source.drain(accepted, FluidAction.EXECUTE)
+    else source.drain(new FluidStack(template.getFluid, accepted), FluidAction.EXECUTE)
+    sink.fill(new FluidStack(drained.getFluid, accepted), FluidAction.EXECUTE)
+    accepted
   }
 
   /**
@@ -69,121 +97,172 @@ object FluidUtils {
    * This uses the <tt>fluidHandlerAt</tt> method, and therefore handles special
    * cases such as fluid blocks.
    */
-  def transferBetweenFluidHandlersAt(sourcePos: BlockPosition, sourceSide: Direction, sinkPos: BlockPosition, sinkSide: Direction, limit: Int = FluidContainerRegistry.BUCKET_VOLUME, sourceTank: Int = -1) =
+  def transferBetweenFluidHandlersAt(sourcePos: BlockPosition, sourceSide: Direction, sinkPos: BlockPosition, sinkSide: Direction, limit: Int = BucketVolume, sourceTank: Int = -1): Int =
     fluidHandlerAt(sourcePos).fold(0)(source =>
       fluidHandlerAt(sinkPos).fold(0)(sink =>
         transferBetweenFluidHandlers(source, sourceSide, sink, sinkSide, limit, sourceTank)))
 
   /**
    * Lookup fluid taking into account flowing liquid blocks...
+   * <br>
+   * TODO(标签): 1.21.1 没有 `FluidRegistry.lookupFluidForBlock`，且流体信息只能通过
+   * `FluidState` 获得（需要世界与坐标）。此处保留旧签名，固定返回 `null`；
+   * 请改用 [[lookupFluidStateForBlock]]。
    */
-  def lookupFluidForBlock(block: Block): Fluid = {
-    if (block == Blocks.flowing_lava) FluidRegistry.LAVA
-    else if (block == Blocks.flowing_water) FluidRegistry.WATER
-    else FluidRegistry.lookupFluidForBlock(block)
+  def lookupFluidForBlock(block: Block): Fluid = null
+
+  /** 方块对应流体的 `FluidState`，无流体时返回 `null`。 */
+  def lookupFluidStateForBlock(world: Level, position: BlockPosition): FluidState = {
+    val state = world.getBlockState(position.toChunkCoordinates)
+    val fluidState = state.getFluidState
+    if (fluidState == null || fluidState.isEmpty) null else fluidState
   }
 
   // ----------------------------------------------------------------------- //
 
   private class GenericBlockWrapper(position: BlockPosition) extends IFluidHandler {
-    override def canDrain(from: Direction, fluid: Fluid): Boolean = currentWrapper.fold(false)(_.canDrain(from, fluid))
+    override def getTanks: Int = 1
 
-    override def drain(from: Direction, resource: FluidStack, doDrain: Boolean): FluidStack = currentWrapper.fold(null: FluidStack)(_.drain(from, resource, doDrain))
+    override def getFluidInTank(tank: Int): FluidStack = currentWrapper.fold(FluidStack.EMPTY)(_.getFluidInTank(tank))
 
-    override def drain(from: Direction, maxDrain: Int, doDrain: Boolean): FluidStack = currentWrapper.fold(null: FluidStack)(_.drain(from, maxDrain, doDrain))
+    override def getTankCapacity(tank: Int): Int = currentWrapper.fold(0)(_.getTankCapacity(tank))
 
-    override def canFill(from: Direction, fluid: Fluid): Boolean = currentWrapper.fold(false)(_.canFill(from, fluid))
+    override def isFluidValid(tank: Int, stack: FluidStack): Boolean =
+      currentWrapper.fold(false)(_.isFluidValid(tank, stack))
 
-    override def fill(from: Direction, resource: FluidStack, doFill: Boolean): Int = currentWrapper.fold(0)(_.fill(from, resource, doFill))
+    override def drain(resource: FluidStack, action: FluidAction): FluidStack =
+      currentWrapper.fold(FluidStack.EMPTY)(_.drain(resource, action))
 
-    override def getTankInfo(from: Direction): Array[FluidTankInfo] = currentWrapper.fold(Array.empty[FluidTankInfo])(_.getTankInfo(from))
+    override def drain(maxDrain: Int, action: FluidAction): FluidStack =
+      currentWrapper.fold(FluidStack.EMPTY)(_.drain(maxDrain, action))
 
-    def currentWrapper = if (position.world.get.blockExists(position)) position.world.get.getBlock(position) match {
-      case block: IFluidBlock => Option(new FluidBlockWrapper(position, block))
-      case block: BlockStaticLiquid if lookupFluidForBlock(block) != null && isFullLiquidBlock => Option(new LiquidBlockWrapper(position, block))
-      case block: BlockDynamicLiquid if lookupFluidForBlock(block) != null && isFullLiquidBlock => Option(new LiquidBlockWrapper(position, block))
-      case block: Block if block.isAir(position) || block.isReplaceable(position) => Option(new AirBlockWrapper(position, block))
+    override def fill(resource: FluidStack, action: FluidAction): Int =
+      currentWrapper.fold(0)(_.fill(resource, action))
+
+    def currentWrapper: Option[IFluidHandler] = position.world match {
+      case Some(world) if world.isLoaded(position.toChunkCoordinates) =>
+        val pos = position.toChunkCoordinates
+        Option(world.getBlockEntity(pos)).flatMap(_.getCapability(Capabilities.FluidHandler.BLOCK, null)) match {
+          case Some(handler) => Option(handler)
+          case _ => blockWrapper(world, pos, world.getBlockState(pos))
+        }
       case _ => None
     }
-    else None
 
-    def isFullLiquidBlock = position.world.get.getBlockMetadata(position) == 0
+    private def blockWrapper(world: Level, pos: BlockPos, state: BlockState): Option[IFluidHandler] = state.getBlock match {
+      case block: BucketPickup if isFullLiquidBlock(world, pos, state) =>
+        Option(new LiquidBlockWrapper(position, block))
+      case block if state.isAir || state.canBeReplaced =>
+        Option(new AirBlockWrapper(position, block))
+      case _ => None
+    }
+
+    /** 旧版 `getBlockMetadata == 0` 的等价判断：是否为液体源方块。 */
+    private def isFullLiquidBlock(world: Level, pos: BlockPos, state: BlockState): Boolean = state.getBlock match {
+      case block: LiquidBlock => block.fluid.isSource(state.getFluidState)
+      case _ =>
+        val fluidState = state.getFluidState
+        !fluidState.isEmpty && fluidState.isSource
+    }
   }
 
   private trait BlockWrapperBase extends IFluidHandler {
     protected def uncheckedDrain(doDrain: Boolean): FluidStack
 
-    override def drain(from: Direction, resource: FluidStack, doDrain: Boolean): FluidStack = {
-      val drained = uncheckedDrain(false)
-      if (drained != null && (resource == null || (drained.getFluid == resource.getFluid && drained.amount <= resource.amount))) {
-        uncheckedDrain(doDrain)
-      }
-      else null
+    override def getTanks: Int = 1
+
+    override def isFluidValid(tank: Int, stack: FluidStack): Boolean = false
+
+    override def fill(resource: FluidStack, action: FluidAction): Int = 0
+
+    override def drain(resource: FluidStack, action: FluidAction): FluidStack = {
+      // 旧签名允许 `resource` 为 null，这里归一化为具体数量。
+      val requested = if (resource == null || resource.isEmpty) BucketVolume else resource.getAmount
+      drainAmount(requested, action, resource)
     }
 
-    override def drain(from: Direction, maxDrain: Int, doDrain: Boolean): FluidStack = {
+    override def drain(maxDrain: Int, action: FluidAction): FluidStack =
+      drainAmount(maxDrain, action, null)
+
+    private def drainAmount(maxDrain: Int, action: FluidAction, filter: FluidStack): FluidStack = {
       val drained = uncheckedDrain(false)
-      if (drained != null && drained.amount <= maxDrain) {
-        uncheckedDrain(doDrain)
+      if (drained == null || drained.isEmpty || drained.getAmount > maxDrain) FluidStack.EMPTY
+      else if (filter != null && !filter.isEmpty && (drained.getFluid != filter.getFluid)) FluidStack.EMPTY
+      else if (action.execute()) {
+        val result = uncheckedDrain(true)
+        if (result == null) FluidStack.EMPTY else result
       }
-      else null
+      else drained
+    }
+  }
+
+  /** 液体方块（`LiquidBlock` / `BucketPickup`）的流体处理器包装。 */
+  private class LiquidBlockWrapper(val position: BlockPosition, val block: BucketPickup) extends BlockWrapperBase {
+    private val AssumedCapacity = BucketVolume
+
+    override def getFluidInTank(tank: Int): FluidStack = {
+      val fluid = fluidState
+      if (fluid == null) FluidStack.EMPTY else new FluidStack(fluid, AssumedCapacity)
     }
 
-    override def canFill(from: Direction, fluid: Fluid): Boolean = false
+    override def getTankCapacity(tank: Int): Int = AssumedCapacity
 
-    override def fill(from: Direction, resource: FluidStack, doFill: Boolean): Int = 0
-  }
-
-  private class FluidBlockWrapper(val position: BlockPosition, val block: IFluidBlock) extends BlockWrapperBase {
-    final val AssumedCapacity = FluidContainerRegistry.BUCKET_VOLUME
-
-    override def canDrain(from: Direction, fluid: Fluid): Boolean = block.canDrain(position)
-
-    override def getTankInfo(from: Direction): Array[FluidTankInfo] = Array(new FluidTankInfo(new FluidTank(block.getFluid, (block.getFilledPercentage(position) * AssumedCapacity).toInt, AssumedCapacity)))
-
-    override protected def uncheckedDrain(doDrain: Boolean): FluidStack = block.drain(position, doDrain)
-  }
-
-  private class LiquidBlockWrapper(val position: BlockPosition, val block: BlockLiquid) extends BlockWrapperBase {
-    val fluid = lookupFluidForBlock(block)
-
-    override def canDrain(from: Direction, fluid: Fluid): Boolean = true
-
-    override def getTankInfo(from: Direction): Array[FluidTankInfo] = Array(new FluidTankInfo(new FluidTank(fluid, FluidContainerRegistry.BUCKET_VOLUME, FluidContainerRegistry.BUCKET_VOLUME)))
+    private def fluidState: Fluid = position.world match {
+      case Some(world) =>
+        val state = world.getBlockState(position.toChunkCoordinates)
+        val fluidState = state.getFluidState
+        if (fluidState == null || fluidState.isEmpty) null else fluidState.getType
+      case _ => null
+    }
 
     override protected def uncheckedDrain(doDrain: Boolean): FluidStack = {
-      if (doDrain) {
-        position.world.get.setBlockToAir(position)
+      val fluid = fluidState
+      if (fluid == null) return FluidStack.EMPTY
+      position.world match {
+        case Some(world) =>
+          val pos = position.toChunkCoordinates
+          if (doDrain) {
+            // 1.21.1 用 `BucketPickup#pickupBlock` 取出液体（等价于旧版的 setBlockToAir + getItem）。
+            block.pickupBlock(null, world, pos, world.getBlockState(pos))
+          }
+          new FluidStack(fluid, AssumedCapacity)
+        case _ => FluidStack.EMPTY
       }
-      new FluidStack(fluid, FluidContainerRegistry.BUCKET_VOLUME)
     }
   }
 
+  /** 空气 / 可替换方块的流体处理器包装：只支持注入。 */
   private class AirBlockWrapper(val position: BlockPosition, val block: Block) extends IFluidHandler {
-    override def canDrain(from: Direction, fluid: Fluid): Boolean = false
+    override def getTanks: Int = 1
 
-    override def drain(from: Direction, resource: FluidStack, doDrain: Boolean): FluidStack = null
+    override def getFluidInTank(tank: Int): FluidStack = FluidStack.EMPTY
 
-    override def drain(from: Direction, maxDrain: Int, doDrain: Boolean): FluidStack = null
+    override def getTankCapacity(tank: Int): Int = BucketVolume
 
-    override def canFill(from: Direction, fluid: Fluid): Boolean = fluid.canBePlacedInWorld
+    override def isFluidValid(tank: Int, stack: FluidStack): Boolean = canPlace(stack)
 
-    override def fill(from: Direction, resource: FluidStack, doFill: Boolean): Int = {
-      if (resource != null && resource.getFluid.canBePlacedInWorld && resource.getFluid.getBlock != null && resource.amount >= 1000) {
-        if (doFill) {
-          val world = position.world.get
-          if (!world.isAirBlock(position) && !world.isAnyLiquid(position.bounds))
-            world.breakBlock(position)
-          world.setBlock(position, resource.getFluid.getBlock)
-          // This fake neighbor update is required to get stills to start flowing.
-          world.notifyBlockOfNeighborChange(position, world.getBlock(position))
+    override def drain(resource: FluidStack, action: FluidAction): FluidStack = FluidStack.EMPTY
+
+    override def drain(maxDrain: Int, action: FluidAction): FluidStack = FluidStack.EMPTY
+
+    override def fill(resource: FluidStack, action: FluidAction): Int = {
+      if (!canPlace(resource)) return 0
+      if (action.execute()) {
+        position.world.foreach { world =>
+          val pos = position.toChunkCoordinates
+          val fluidType = resource.getFluid.getFluidType
+          val state = fluidType.getBlockForFluidState(world, pos, resource.getFluid.defaultFluidState())
+          if (state != null && !state.isAir) {
+            world.setBlock(pos, state, Block.UPDATE_ALL)
+            // 这个“假”的邻居更新是让静止液体开始流动所必需的。
+            world.updateNeighborsAt(pos, state.getBlock)
+          }
         }
-        FluidContainerRegistry.BUCKET_VOLUME
       }
-      else 0
+      BucketVolume
     }
 
-    override def getTankInfo(from: Direction): Array[FluidTankInfo] = Array.empty
+    private def canPlace(resource: FluidStack): Boolean =
+      resource != null && !resource.isEmpty && resource.getAmount >= BucketVolume
   }
-
 }

@@ -6,11 +6,10 @@
  * classes and / or rename them if you wish. Just don't make changes to them
  * while leaving them in the same package with the same name and then ship them
  * with your mod!
+ * <br>
+ * <b>1.21.1 移植说明</b>：1.7.10 的包级注解 {@code @cpw.mods.fml.common.API}
+ * 在 NeoForge 上不存在（FML 的 {@code @API} 机制已移除），因此这里删掉了该注解。
+ * {@link li.cil.oc.api.API#ID_OWNER} 与 {@link li.cil.oc.api.API#VERSION} 仍然保留，
+ * 需要声明 API 归属的模组可以自行读取这两个常量。
  */
-@cpw.mods.fml.common.API(
-        owner = API.ID_OWNER,
-        provides = "OpenComputersAPI|Prefab",
-        apiVersion = API.VERSION)
 package li.cil.oc.api.prefab;
-
-import li.cil.oc.api.API;

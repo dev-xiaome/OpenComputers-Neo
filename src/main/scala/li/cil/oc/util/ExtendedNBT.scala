@@ -19,7 +19,7 @@ import scala.reflect.ClassTag
  *  - `NBT.TAG_*` → [[net.minecraft.nbt.Tag.TAG_*]]
  *  - `new NBTTagXxx(v)` → `XxxTag.valueOf(v)`
  *  - `func_1502xx_x()` 系列 → `getAsXxx`
- *  - `NBTTagList` 的遍历/映射语义改为基于下标访问
+ *  - `ListTag` 的遍历/映射语义改为基于下标访问
  *  - `ItemStack` 的序列化需要 `HolderLookup.Provider`，无上下文时使用 `RegistryAccess.EMPTY`
  */
 object ExtendedNBT {

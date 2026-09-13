@@ -37,7 +37,7 @@ object PackedColor {
 
     def inflate(value: Int): Int
 
-    def validate(value: Color) {
+    def validate(value: Color): Unit = {
       if (value.isPalette) {
         throw new IllegalArgumentException("color palette not supported")
       }
@@ -67,7 +67,7 @@ object PackedColor {
   abstract class PaletteFormat extends ColorFormat {
     override def inflate(value: Int) = palette(math.max(0, math.min(palette.length - 1, value)))
 
-    override def validate(value: Color) {
+    override def validate(value: Color): Unit = {
       if (value.isPalette && (value.value < 0 || value.value >= palette.length)) {
         throw new IllegalArgumentException("invalid palette index")
       }
@@ -104,12 +104,12 @@ object PackedColor {
       0xCCCCCC, 0x336699, 0x9933CC, 0x333399,
       0x663300, 0x336600, 0xFF3333, 0x000000)
 
-    override def load(nbt: CompoundTag) {
+    override def load(nbt: CompoundTag): Unit = {
       val loaded = nbt.getIntArray("palette")
       Array.copy(loaded, 0, palette, 0, math.min(loaded.length, palette.length))
     }
 
-    override def save(nbt: CompoundTag) {
+    override def save(nbt: CompoundTag): Unit = {
       nbt.putIntArray("palette", palette)
     }
   }

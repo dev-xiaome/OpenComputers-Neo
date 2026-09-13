@@ -163,6 +163,7 @@ foreach ($f in $files) {
     foreach ($k in $symbolMap.Keys) {
         $text = [regex]::Replace($text, '\b' + [regex]::Escape($k) + '\b', $symbolMap[$k])
     }
+    $text = $text -replace 'li\.cil\.repack\.org\.luaj', 'org.luaj'
 
     $text = $text -replace '\bSide\.CLIENT\b', 'Dist.CLIENT'
     $text = $text -replace '\bSide\.SERVER\b', 'Dist.DEDICATED_SERVER'

@@ -16,7 +16,7 @@ import net.minecraftforge.oredict.OreDictionary
 import net.minecraftforge.oredict.ShapedOreRecipe
 import net.minecraftforge.oredict.ShapelessOreRecipe
 
-import scala.collection.convert.WrapAsScala._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 object ItemCosts {
@@ -64,7 +64,7 @@ object ItemCosts {
     ingredients.size > 0 && (ingredients.size > 1 || !ingredients.head._1.isItemEqual(stack))
   }
 
-  def addTooltip(stack: ItemStack, tooltip: util.List[String]) {
+  def addTooltip(stack: ItemStack, tooltip: util.List[String]): Unit = {
     tooltip.add(Localization.Tooltip.Materials)
     for ((ingredient, count) <- computeIngredients(stack)) {
       val line = math.ceil(count).toInt + "x " + ingredient.getDisplayName

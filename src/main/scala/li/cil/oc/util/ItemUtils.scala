@@ -19,7 +19,7 @@ import net.minecraft.item.crafting.ShapelessRecipes
 import net.minecraftforge.oredict.ShapedOreRecipe
 import net.minecraftforge.oredict.ShapelessOreRecipe
 
-import scala.collection.convert.WrapAsScala._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 object ItemUtils {

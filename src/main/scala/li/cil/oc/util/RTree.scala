@@ -2,6 +2,12 @@ package li.cil.oc.util
 
 import scala.collection.mutable
 
+/**
+ * 三维 R 树（原实现未直接使用 Minecraft API，逻辑保持不变）。
+ *
+ * 2.13 迁移：`mutable.Set` 的 `+=` / `-=` / `++=` 与 `Iterable.foldRight` 语义未变，
+ * 这里仅补齐过程语法的显式 `Unit` 返回类型并给几处推导加上类型标注。
+ */
 class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, Double, Double)) {
   if (M < 2) throw new IllegalArgumentException("maxEntries must be larger or equal to 2.")
 
@@ -93,7 +99,7 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
       }
     }
 
-    private def uncheckedAdd(value: Node) {
+    private def uncheckedAdd(value: Node): Unit = {
       var bestChild: Option[Node] = null
       var bestGrowth = Double.PositiveInfinity
       var bestVolume = Double.PositiveInfinity
@@ -167,12 +173,12 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
       None
     }
 
-    def query(query: Rectangle) =
+    def query(query: Rectangle): Iterable[Data] =
       if (query.intersects(bounds))
         children.foldRight(Iterable.empty[Data])((child, result) => result ++ child.query(query))
       else Iterable.empty[Data]
 
-    private def split() = {
+    private def split(): NonLeaf = {
       val values = children.toArray
       var seed1: Option[Node] = None
       var seed2: Option[Node] = None
@@ -197,7 +203,7 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
           val r1 = new SplitResult(mutable.Set(s1), s1.bounds)
           val r2 = new SplitResult(mutable.Set(s2), s2.bounds)
 
-          val list = mutable.Set.empty ++ values
+          val list = mutable.Set.empty[Node] ++ values
           list -= s1
           list -= s2
           while (list.nonEmpty) {
@@ -308,7 +314,7 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
   }
 
   private class SplitResult(val set: mutable.Set[Node], var bounds: Rectangle) {
-    def add(value: Node) {
+    def add(value: Node): Unit = {
       set += value
       bounds = bounds.including(value.bounds)
     }

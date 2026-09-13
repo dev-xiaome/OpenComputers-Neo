@@ -38,6 +38,8 @@ dependencies {
     implementation "org.scala-lang:scala-library:${scala_version}"
     // OpenComputers 配置使用 typesafe config（原项目内嵌，这里改为依赖 + jarJar 打包）
     implementation "com.typesafe:config:${typesafe_config_version}"
+    // Lua 运行时：原项目内嵌 repack 过的 OC-LuaJ 分支，这里先用上游 luaj-jse
+    implementation "org.luaj:luaj-jse:${luaj_version}"
 }
 
 base {
@@ -49,6 +51,9 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 // ---- Scala 支持 ----
 sourceSets.main.scala.srcDirs = ['src/main/scala']
+// 移植期间：只编译已完成移植的 Scala 包，保证工程随时可编译、可启动。
+// 完成一个包就把它加到 gradle.properties 的 scala_ported_packages 里。
+sourceSets.main.scala.setIncludes(scala_ported_packages.split(',') as List)
 
 tasks.named('compileScala', ScalaCompile) {
     dependsOn tasks.named('compileJava')

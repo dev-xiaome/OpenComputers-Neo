@@ -2,8 +2,14 @@ package li.cil.oc.util
 
 import net.minecraft.nbt.CompoundTag
 
+/**
+ * 把二维 `Short` 数组（屏幕颜色缓冲）序列化进 NBT。
+ *
+ * 1.21.1 的 NBT API 已把 `getInteger`/`setInteger` 等改名为 `getInt`/`putInt`，
+ * 布尔查询由 `hasKey` 改为 `contains`；其余逻辑与原版一致。
+ */
 object NbtDataStream {
-  def getShortArray(nbt: CompoundTag, key: String, array2d: Array[Array[Short]], w: Int, h: Int) : Boolean = {
+  def getShortArray(nbt: CompoundTag, key: String, array2d: Array[Array[Short]], w: Int, h: Int): Boolean = {
     if (!nbt.contains(key)) {
       return false
     }
@@ -21,7 +27,7 @@ object NbtDataStream {
     true
   }
 
-  def getIntArrayLegacy(nbt: CompoundTag, key: String, array2d: Array[Array[Short]], w: Int, h: Int) : Boolean = {
+  def getIntArrayLegacy(nbt: CompoundTag, key: String, array2d: Array[Array[Short]], w: Int, h: Int): Boolean = {
     if (!nbt.contains(key)) {
       return false
     }

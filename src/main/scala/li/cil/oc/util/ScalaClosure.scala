@@ -3,12 +3,12 @@ package li.cil.oc.util
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.api.machine.Value
-import li.cil.repack.org.luaj.vm2.LuaString
-import li.cil.repack.org.luaj.vm2.LuaValue
-import li.cil.repack.org.luaj.vm2.Varargs
-import li.cil.repack.org.luaj.vm2.lib.VarArgFunction
+import org.luaj.vm2.LuaString
+import org.luaj.vm2.LuaValue
+import org.luaj.vm2.Varargs
+import org.luaj.vm2.lib.VarArgFunction
 
-import scala.collection.convert.WrapAsScala._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.math.ScalaNumber

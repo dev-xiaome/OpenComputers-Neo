@@ -109,7 +109,7 @@ object Audio {
     }
   }
 
-  def update() {
+  def update(): Unit = {
     if (!disableAudio) {
       sources.synchronized(sources --= sources.filter(_.checkFinished))
 
@@ -188,7 +188,7 @@ object Audio {
   FMLCommonHandler.instance.bus.register(this)
 
   @SubscribeEvent
-  def onTick(e: ClientTickEvent) {
+  def onTick(e: ClientTickEvent): Unit = {
     update()
   }
 }

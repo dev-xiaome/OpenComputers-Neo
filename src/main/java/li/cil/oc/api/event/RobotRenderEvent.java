@@ -1,12 +1,12 @@
 package li.cil.oc.api.event;
 
-import net.neoforged.bus.api.ICancellableEvent;
 import li.cil.oc.api.driver.item.UpgradeRenderer;
 import li.cil.oc.api.internal.Agent;
 import li.cil.oc.api.internal.Robot;
 import net.minecraft.world.item.ItemStack;
-import org.lwjgl.util.vector.Vector3f;
-import org.lwjgl.util.vector.Vector4f;
+import net.neoforged.bus.api.ICancellableEvent;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.util.Set;
 
@@ -20,8 +20,7 @@ import java.util.Set;
  * <em>Important</em>: the robot instance may be null in this event, in
  * case the render pass is for rendering the robot in an inventory.
  */
-@Cancelable
-public class RobotRenderEvent extends RobotEvent {
+public class RobotRenderEvent extends RobotEvent implements ICancellableEvent {
     /**
      * Points on the robot at which component models may be rendered.
      * <br>
@@ -54,14 +53,14 @@ public class RobotRenderEvent extends RobotEvent {
         public final Vector3f offset = new Vector3f(0, 0, 0);
 
         /**
-         * The orientation of the mount point specified by the angle and the
-         * vector to rotate around. The rotation is applied in one
-         * GL11.glRotate() call. Note that the <tt>W</tt> component of the
-         * vector is the rotation.
+         * The orientation of the mount point as a rotation applied
+         * <em>before</em> the offset above is applied.
          * <br>
-         * Note that the rotation is applied <em>before</em> the translation.
+         * 1.21.1 不再有 {@code GL11.glRotate()}，统一用 JOML 的四元数描述朝向：
+         * 需要按“绕任意轴转任意角度”组合时，直接对该四元数做 {@code rotateAxis(...)}
+         * 或 {@code mul(...)} 即可。
          */
-        public final Vector4f rotation = new Vector4f(0, 0, 0, 0);
+        public final Quaternionf rotation = new Quaternionf();
 
         /**
          * The mount point's reference name.

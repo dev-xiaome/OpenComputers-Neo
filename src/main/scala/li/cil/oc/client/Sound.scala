@@ -1,0 +1,261 @@
+package li.cil.oc.client
+
+import java.net.MalformedURLException
+import java.net.URL
+import java.net.URLConnection
+import java.net.URLStreamHandler
+import java.util.Timer
+import java.util.TimerTask
+import java.util.UUID
+import com.google.common.base.Charsets
+import cpw.mods.fml.client.FMLClientHandler
+import cpw.mods.fml.common.eventhandler.{EventPriority, SubscribeEvent}
+import cpw.mods.fml.common.gameevent.TickEvent.ClientTickEvent
+import li.cil.oc.OpenComputers
+import li.cil.oc.Settings
+import net.minecraft.client.Minecraft
+import net.minecraft.client.audio.SoundCategory
+import net.minecraft.client.audio.SoundManager
+import net.minecraft.client.audio.SoundPoolEntry
+import net.minecraft.server.MinecraftServer
+import net.minecraft.server.integrated.IntegratedServer
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.resources.ResourceLocation
+import net.minecraftforge.client.event.sound.SoundLoadEvent
+import net.neoforged.neoforge.event.level.LevelEvent
+import paulscode.sound.SoundSystemConfig
+
+import scala.collection.mutable
+import scala.io.Source
+import scala.ref.WeakReference
+
+object Sound {
+  private val sources = mutable.WeakHashMap.empty[BlockEntity, PseudoLoopingStream]
+
+  private val commandQueue = mutable.PriorityQueue.empty[Command]
+
+  private var lastVolume = FMLClientHandler.instance.getClient.gameSettings.getSoundLevel(SoundCategory.BLOCKS)
+
+  private val updateTimer = new Timer("OpenComputers-SoundUpdater", true)
+  if (Settings.get.soundVolume > 0) {
+    updateTimer.scheduleAtFixedRate(new TimerTask {
+      override def run(): Unit = {
+        sources.synchronized(updateCallable = Some(() => {
+          updateVolume()
+          processQueue()
+        }))
+      }
+    }, 500, 50)
+  }
+
+  private var updateCallable = None: Option[() => Unit]
+
+  // Set in init event.
+  var manager: SoundManager = _
+
+  def soundSystem = if (manager != null) manager.sndSystem else null
+
+  private def updateVolume(): Unit = {
+    val volume =
+      if (isGamePaused) 0f
+      else FMLClientHandler.instance.getClient.gameSettings.getSoundLevel(SoundCategory.BLOCKS)
+    if (volume != lastVolume) {
+      lastVolume = volume
+      sources.synchronized {
+        for (sound <- sources.values) {
+          sound.updateVolume()
+        }
+      }
+    }
+  }
+
+  private def isGamePaused = MinecraftServer.getServer != null && !MinecraftServer.getServer.isDedicatedServer && (MinecraftServer.getServer match {
+    case integrated: IntegratedServer => Minecraft.getMinecraft.isGamePaused
+    case _ => false
+  })
+
+  private def processQueue(): Unit = {
+    if (commandQueue.nonEmpty) {
+      commandQueue.synchronized {
+        while (commandQueue.nonEmpty && commandQueue.head.when < System.currentTimeMillis()) {
+          if (commandQueue.head.tileEntity.get.isEmpty) {
+            commandQueue.dequeue()
+          } else {
+            try commandQueue.dequeue()() catch {
+              case t: Throwable => OpenComputers.log.warn("Error processing sound command.", t)
+            }
+          }
+        }
+      }
+    }
+  }
+
+  def startLoop(tileEntity: BlockEntity, name: String, volume: Float = 1f, delay: Long = 0) {
+    if (Settings.get.soundVolume > 0) {
+      commandQueue.synchronized {
+        commandQueue += new StartCommand(System.currentTimeMillis() + delay, new WeakReference[BlockEntity](tileEntity), name, volume)
+      }
+    }
+  }
+
+  def stopLoop(tileEntity: BlockEntity): Unit = {
+    if (Settings.get.soundVolume > 0) {
+      commandQueue.synchronized {
+        commandQueue += new StopCommand(new WeakReference[BlockEntity](tileEntity))
+      }
+    }
+  }
+
+  def updatePosition(tileEntity: BlockEntity): Unit = {
+    if (Settings.get.soundVolume > 0) {
+      commandQueue.synchronized {
+        commandQueue += new UpdatePositionCommand(new WeakReference[BlockEntity](tileEntity))
+      }
+    }
+  }
+
+  @SubscribeEvent
+  def onSoundLoad(event: SoundLoadEvent): Unit = {
+    manager = event.manager
+  }
+
+  private var hasPreloaded = Settings.get.soundVolume <= 0
+
+  @SubscribeEvent
+  def onTick(e: ClientTickEvent): Unit = {
+    if (soundSystem != null) {
+      if (!hasPreloaded) {
+        hasPreloaded = true
+        new Thread(new Runnable() {
+          override def run(): Unit = {
+            val preloadConfigLocation = new ResourceLocation(Settings.resourceDomain, "sounds/preload.cfg")
+            val preloadConfigResource = Minecraft.getMinecraft.getResourceManager.getResource(preloadConfigLocation)
+            for (location <- Source.fromInputStream(preloadConfigResource.getInputStream)(Charsets.UTF_8).getLines()) {
+              val url = getClass.getClassLoader.getResource(location)
+              if (url != null) try {
+                val sourceName = "preload_" + location
+                soundSystem.newSource(false, sourceName, url, location, true, 0, 0, 0, SoundSystemConfig.ATTENUATION_NONE, 16)
+                soundSystem.activate(sourceName)
+                soundSystem.removeSource(sourceName)
+              } catch {
+                case _: Throwable => // Meh.
+              }
+              else OpenComputers.log.warn(s"Couldn't preload sound $location!")
+            }
+          }
+        })
+      }
+
+      sources.synchronized {
+        updateCallable.foreach(_())
+        updateCallable = None
+      }
+    }
+  }
+
+  @SubscribeEvent(priority = EventPriority.LOWEST)
+  def onWorldUnload(event: WorldEvent.Unload): Unit = {
+    commandQueue.synchronized(commandQueue.clear())
+    sources.synchronized(try sources.foreach(_._2.stop()) catch {
+      case _: Throwable => // Ignore.
+    })
+    sources.clear()
+  }
+
+  private abstract class Command(val when: Long, val tileEntity: WeakReference[BlockEntity]) extends Ordered[Command] {
+    def apply(): Unit
+
+    override def compare(that: Command) = (that.when - when).toInt
+  }
+
+  private class StartCommand(when: Long, tileEntity: WeakReference[BlockEntity], val name: String, val volume: Float) extends Command(when, tileEntity) {
+    override def apply(): Unit = {
+      sources.synchronized {
+        sources.getOrElseUpdate(tileEntity.get.get, new PseudoLoopingStream(tileEntity, volume)).play(name)
+      }
+    }
+  }
+
+  private class StopCommand(tileEntity: WeakReference[BlockEntity]) extends Command(System.currentTimeMillis() + 1, tileEntity) {
+    override def apply(): Unit = {
+      sources.synchronized {
+        sources.remove(tileEntity.get.get) match {
+          case Some(sound) => sound.stop()
+          case _ =>
+        }
+      }
+      commandQueue.synchronized {
+        // Remove all other commands for this tile entity from the queue. This
+        // is inefficient, but we generally don't expect the command queue to
+        // be very long, so this should be OK.
+        commandQueue ++= commandQueue.dequeueAll.filter(_.tileEntity.get.get == tileEntity.get.get)
+      }
+    }
+  }
+
+  private class UpdatePositionCommand(tileEntity: WeakReference[BlockEntity]) extends Command(System.currentTimeMillis(), tileEntity) {
+    override def apply(): Unit = {
+      sources.synchronized {
+        sources.get(tileEntity.get.get) match {
+          case Some(sound) => sound.updatePosition()
+          case _ =>
+        }
+      }
+    }
+  }
+
+  private class PseudoLoopingStream(val tileEntity: WeakReference[BlockEntity], val volume: Float, val source: String = UUID.randomUUID.toString) {
+    var initialized = false
+
+    def updateVolume(): Unit = {
+      soundSystem.setVolume(source, lastVolume * volume * Settings.get.soundVolume)
+    }
+
+    def updatePosition(): Unit = {
+      if (tileEntity.get.isDefined) soundSystem.setPosition(source, tileEntity.get.get.xCoord, tileEntity.get.get.yCoord, tileEntity.get.get.zCoord)
+      else soundSystem.setPosition(source, 0, 0, 0)
+    }
+
+    def play(name: String): Unit = {
+      val resourceName = s"${Settings.resourceDomain}:$name"
+      val sound = Minecraft.getMinecraft.getSoundHandler.getSound(new ResourceLocation(resourceName))
+      val resource = (sound.func_148720_g: SoundPoolEntry).getSoundPoolEntryLocation
+      if (!initialized) {
+        initialized = true
+        if (tileEntity.get.isDefined) soundSystem.newSource(false, source, toUrl(resource), resource.toString, true, tileEntity.get.get.xCoord, tileEntity.get.get.yCoord, tileEntity.get.get.zCoord, SoundSystemConfig.ATTENUATION_LINEAR, 16)
+        else soundSystem.newSource(false, source, toUrl(resource), resource.toString, false, 0, 0, 0, SoundSystemConfig.ATTENUATION_NONE, 0)
+        updateVolume()
+        soundSystem.activate(source)
+      }
+      soundSystem.play(source)
+    }
+
+    def stop(): Unit = {
+      if (soundSystem != null) try {
+        soundSystem.stop(source)
+        soundSystem.removeSource(source)
+      }
+      catch {
+        case _: Throwable =>
+      }
+    }
+  }
+
+  // This is copied from SoundManager.getURLForSoundResource, which is private.
+  private def toUrl(resource: ResourceLocation): URL = {
+    val name = s"mcsounddomain:${resource.getResourceDomain}:${resource.getResourcePath}"
+    try {
+      new URL(null, name, new URLStreamHandler {
+        protected def openConnection(url: URL): URLConnection = new URLConnection(url) {
+          def connect(): Unit = {
+          }
+
+          override def getInputStream = Minecraft.getMinecraft.getResourceManager.getResource(resource).getInputStream
+        }
+      })
+    }
+    catch {
+      case _: MalformedURLException => null
+    }
+  }
+}

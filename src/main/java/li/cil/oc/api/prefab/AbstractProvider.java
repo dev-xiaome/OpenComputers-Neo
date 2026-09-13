@@ -58,7 +58,8 @@ public abstract class AbstractProvider implements BehaviorProvider {
     @Override
     public CompoundTag writeToNBT(Behavior behavior) {
         CompoundTag nbt = new CompoundTag();
-        nbt.setString("provider", id);
+        // 1.21.1：NBTTagCompound#setString 改名为 putString。
+        nbt.putString("provider", id);
         writeBehaviorToNBT(behavior, nbt);
         return nbt;
     }

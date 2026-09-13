@@ -1,0 +1,80 @@
+package li.cil.oc.server.component
+
+import java.util
+
+import li.cil.oc.{Constants, OpenComputers, api}
+import li.cil.oc.api.driver.DeviceInfo
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
+import li.cil.oc.api.internal
+import li.cil.oc.api.network._
+import li.cil.oc.api.prefab
+import li.cil.oc.util.BlockPosition
+import li.cil.oc.util.ExtendedWorld._
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.ItemStack
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.ListTag
+import net.minecraft.core.Direction
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.core.Direction
+
+import scala.jdk.CollectionConverters._
+
+class UpgradeBarcodeReader(val host: EnvironmentHost) extends prefab.ManagedEnvironment with DeviceInfo {
+  override val node = api.Network.newNode(this, Visibility.Network).
+    withComponent("barcode_reader").
+    withConnector().
+    create()
+
+  private final lazy val deviceInfo = Map(
+    DeviceAttribute.Class -> DeviceClass.Generic,
+    DeviceAttribute.Description -> "Barcode reader upgrade",
+    DeviceAttribute.Vendor -> Constants.DeviceInfo.DefaultVendor,
+    DeviceAttribute.Product -> "Readerizer Deluxe"
+  )
+
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+
+  override def onMessage(message: Message): Unit = {
+    super.onMessage(message)
+    if (message.name == "tablet.use") message.source.host match {
+      case machine: api.machine.Machine => (machine.host, message.data) match {
+        case (tablet: internal.Tablet, Array(nbt: CompoundTag, stack: ItemStack, player: Player, blockPos: BlockPosition, side: Direction, hitX: java.lang.Float, hitY: java.lang.Float, hitZ: java.lang.Float)) =>
+          host.world.getTileEntity(blockPos) match {
+            case analyzable: Analyzable =>
+              processNodes(analyzable.onAnalyze(player, side.ordinal(), hitX.toFloat, hitY.toFloat, hitZ.toFloat), nbt)
+            case host: SidedEnvironment =>
+              processNodes(Array(host.sidedNode(side)), nbt)
+            case host: Environment =>
+              processNodes(Array(host.node), nbt)
+            case _ => // Ignore
+          }
+          case _ => // Ignore
+      }
+      case _ => // Ignore
+    }
+  }
+
+  private def processNodes(nodes: Array[Node], nbt: CompoundTag): Unit = if (nodes != null) {
+    val readerNBT = new ListTag()
+
+    for (node <- nodes if node != null) {
+      val nodeNBT = new CompoundTag()
+      node match {
+        case component: Component =>
+          nodeNBT.putString("type", component.name)
+        case _ =>
+      }
+
+      val address = node.address()
+      if (address != null && !address.isEmpty) {
+        nodeNBT.putString("address", node.address())
+      }
+
+      readerNBT.add(nodeNBT)
+    }
+
+    nbt.put("analyzed", readerNBT)
+  }
+}

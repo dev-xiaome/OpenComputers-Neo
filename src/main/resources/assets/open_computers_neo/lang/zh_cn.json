@@ -1,4 +1,5 @@
 {
+  "itemGroup.open_computers_neo": "OpenComputers Neo",
   "tile.oc.accessPoint.name": "§c无线接入点§7",
   "tile.oc.adapter.name": "适配器",
   "tile.oc.assembler.name": "电子装配机",

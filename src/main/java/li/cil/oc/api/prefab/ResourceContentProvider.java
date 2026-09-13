@@ -1,15 +1,16 @@
 package li.cil.oc.api.prefab;
 
-import com.google.common.base.Charsets;
 import li.cil.oc.api.manual.ContentProvider;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.packs.resources.Resource;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Optional;
 
 /**
  * Basic implementation of a content provider based on Minecraft's resource
@@ -22,6 +23,16 @@ import java.util.ArrayList;
  * OpenComputers documentation lives, and it is queried first - meaning if you
  * have a page with the same path as one in OpenComputers, it is practically
  * unreachable (because the OC provider is always queried first).
+ * <br>
+ * <b>1.21.1 移植说明</b>：
+ * <ul>
+ * <li>{@code new ResourceLocation(namespace, path)} 的构造器已私有化，改用
+ * {@link ResourceLocation#fromNamespaceAndPath(String, String)}。</li>
+ * <li>{@code ResourceManager#getResource} 现在返回 {@link Optional}，并且
+ * {@link Resource#open()} 需要显式关闭，这里改用 try-with-resources。</li>
+ * <li>{@code Charsets.UTF_8} 换成 JDK 的 {@link StandardCharsets#UTF_8}。</li>
+ * <li>手册本身是客户端功能，本类只在客户端使用。</li>
+ * </ul>
  */
 @SuppressWarnings("UnusedDeclaration")
 public class ResourceContentProvider implements ContentProvider {
@@ -40,26 +51,24 @@ public class ResourceContentProvider implements ContentProvider {
 
     @Override
     public Iterable<String> getContent(String path) {
-        final ResourceLocation location = new ResourceLocation(resourceDomain, basePath + (path.startsWith("/") ? path.substring(1) : path));
-        InputStream is = null;
+        final ResourceLocation location = ResourceLocation.fromNamespaceAndPath(
+                resourceDomain, basePath + (path.startsWith("/") ? path.substring(1) : path));
         try {
-            is = Minecraft.getMinecraft().getResourceManager().getResource(location).getInputStream();
-            final BufferedReader reader = new BufferedReader(new InputStreamReader(is, Charsets.UTF_8));
-            final ArrayList<String> lines = new ArrayList<String>();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                lines.add(line);
+            final Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(location);
+            if (resource.isEmpty()) {
+                return null;
             }
-            return lines;
+            try (InputStream is = resource.get().open()) {
+                final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
+                final ArrayList<String> lines = new ArrayList<String>();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    lines.add(line);
+                }
+                return lines;
+            }
         } catch (Throwable ignored) {
             return null;
-        } finally {
-            if (is != null) {
-                try {
-                    is.close();
-                } catch (IOException ignored) {
-                }
-            }
         }
     }
 }
