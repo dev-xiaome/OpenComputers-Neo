@@ -1,11 +1,11 @@
 package li.cil.oc.api.internal;
 
-import cpw.mods.fml.relauncher.Side;
-import cpw.mods.fml.relauncher.SideOnly;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 import li.cil.oc.api.network.EnvironmentHost;
 import li.cil.oc.api.network.Environment;
 import net.minecraft.inventory.ISidedInventory;
-import net.minecraftforge.fluids.IFluidHandler;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 
 /**
  * This interface allows interaction with robots.
@@ -75,6 +75,6 @@ public interface Robot extends Agent, Environment, EnvironmentHost, Tiered, ISid
      * to know whether to resume animations or not, based on whether the robot
      * is currently powered on or not.
      */
-    @SideOnly(Side.CLIENT)
+    @SideOnly(Dist.CLIENT)
     boolean shouldAnimate();
 }

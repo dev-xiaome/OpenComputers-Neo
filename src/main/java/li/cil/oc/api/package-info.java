@@ -14,7 +14,7 @@
  * <br>
  * Note that for tile entities you implement yourself, you will not have to
  * provide a driver, as long as you implement the necessary interface:
- * {@link li.cil.oc.api.network.Environment} and call {@link li.cil.oc.api.Network#joinOrCreateNetwork(net.minecraft.tileentity.TileEntity)}
+ * {@link li.cil.oc.api.network.Environment} and call {@link li.cil.oc.api.Network#joinOrCreateNetwork(net.minecraft.tileentity.BlockEntity)}
  * in the first <tt>updateEntity()</tt> call. For items that should be installed
  * in a computer you will always have to provide a driver.
  * </dd>

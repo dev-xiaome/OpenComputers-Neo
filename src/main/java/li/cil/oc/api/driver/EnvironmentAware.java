@@ -1,7 +1,7 @@
 package li.cil.oc.api.driver;
 
 import li.cil.oc.api.network.Environment;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * This interface can be added to either item or block drivers.

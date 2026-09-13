@@ -7,11 +7,11 @@ import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.common.Tier
-import net.minecraft.block.Block
-import net.minecraft.item.Item
-import net.minecraft.item.ItemBlock
-import net.minecraft.item.ItemBucket
-import net.minecraft.item.ItemStack
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.item.Item
+import net.minecraft.world.item.BlockItem
+import net.minecraft.world.item.BucketItem
+import net.minecraft.world.item.ItemStack
 import net.minecraft.item.crafting.CraftingManager
 import net.minecraft.item.crafting.IRecipe
 import net.minecraft.item.crafting.ShapedRecipes

@@ -7,7 +7,7 @@ package li.cil.oc.api.driver;
  * <br>
  * This was previously to be implemented on the driver itself, but that has been
  * deprecated. Implement it in the environment returned from the block driver's
- * {@link SidedBlock#createEnvironment(net.minecraft.world.World, int, int, int, net.minecraftforge.common.util.ForgeDirection)}
+ * {@link SidedBlock#createEnvironment(net.minecraft.world.Level, int, int, int, net.minecraftforge.common.util.Direction)}
  * method instead.
  */
 public interface NamedBlock {

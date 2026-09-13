@@ -4,9 +4,9 @@ import li.cil.oc.api.network.Analyzable;
 import li.cil.oc.api.network.ComponentHost;
 import li.cil.oc.api.network.ManagedEnvironment;
 import li.cil.oc.api.util.StateAware;
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.inventory.IInventory;
-import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.CompoundTag;
 
 /**
  * Use this interface on environments provided by drivers for items that can
@@ -39,7 +39,7 @@ public interface RackMountable extends ManagedEnvironment, StateAware {
      *
      * @return the data to synchronize to the clients.
      */
-    NBTTagCompound getData();
+    CompoundTag getData();
 
     /**
      * The number of connectables exposed by the environment.
@@ -66,5 +66,5 @@ public interface RackMountable extends ManagedEnvironment, StateAware {
      * @param hitY   the relative y coordinate of the activation on the mountable.
      * @return whether the activation was handled (e.g. GUI opened).
      */
-    boolean onActivate(EntityPlayer player, float hitX, float hitY);
+    boolean onActivate(Player player, float hitX, float hitY);
 }

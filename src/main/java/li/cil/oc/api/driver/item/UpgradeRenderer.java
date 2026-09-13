@@ -2,7 +2,7 @@ package li.cil.oc.api.driver.item;
 
 import li.cil.oc.api.event.RobotRenderEvent;
 import li.cil.oc.api.internal.Robot;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.Set;
 

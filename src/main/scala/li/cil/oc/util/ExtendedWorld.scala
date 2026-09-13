@@ -1,12 +1,12 @@
 package li.cil.oc.util
 
 import li.cil.oc.api.network.EnvironmentHost
-import net.minecraft.block.Block
-import net.minecraft.entity.player.EntityPlayer
-import net.minecraft.tileentity.TileEntity
-import net.minecraft.world.IBlockAccess
-import net.minecraft.world.World
-import net.minecraftforge.common.util.ForgeDirection
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.world.level.BlockGetter
+import net.minecraft.world.level.Level
+import net.minecraft.core.Direction
 
 import scala.language.implicitConversions
 
@@ -14,7 +14,7 @@ object ExtendedWorld {
 
   implicit def extendedBlockAccess(world: IBlockAccess): ExtendedBlockAccess = new ExtendedBlockAccess(world)
 
-  implicit def extendedWorld(world: World): ExtendedWorld = new ExtendedWorld(world)
+  implicit def extendedWorld(world: Level): ExtendedWorld = new ExtendedWorld(world)
 
   class ExtendedBlockAccess(val world: IBlockAccess) {
     def getBlock(position: BlockPosition) = world.getBlock(position.x, position.y, position.z)
@@ -23,23 +23,23 @@ object ExtendedWorld {
 
     def getBlockMetadata(position: BlockPosition) = world.getBlockMetadata(position.x, position.y, position.z)
 
-    def getTileEntity(position: BlockPosition): TileEntity = world.getTileEntity(position.x, position.y, position.z)
+    def getTileEntity(position: BlockPosition): BlockEntity = world.getTileEntity(position.x, position.y, position.z)
 
-    def getTileEntity(host: EnvironmentHost): TileEntity = getTileEntity(BlockPosition(host))
+    def getTileEntity(host: EnvironmentHost): BlockEntity = getTileEntity(BlockPosition(host))
 
     def isAirBlock(position: BlockPosition) = world.isAirBlock(position.x, position.y, position.z)
 
     def getLightBrightnessForSkyBlocks(position: BlockPosition, minBrightness: Int) = world.getLightBrightnessForSkyBlocks(position.x, position.y, position.z, minBrightness)
   }
 
-  class ExtendedWorld(override val world: World) extends ExtendedBlockAccess(world) {
+  class ExtendedWorld(override val world: Level) extends ExtendedBlockAccess(world) {
     def blockExists(position: BlockPosition) = world.blockExists(position.x, position.y, position.z)
 
     def breakBlock(position: BlockPosition, drops: Boolean = true) = world.func_147480_a(position.x, position.y, position.z, drops)
 
     def destroyBlockInWorldPartially(entityId: Int, position: BlockPosition, progress: Int) = world.destroyBlockInWorldPartially(entityId, position.x, position.y, position.z, progress)
 
-    def extinguishFire(player: EntityPlayer, position: BlockPosition, side: ForgeDirection) = world.extinguishFire(player, position.x, position.y, position.z, side.ordinal)
+    def extinguishFire(player: Player, position: BlockPosition, side: Direction) = world.extinguishFire(player, position.x, position.y, position.z, side.ordinal)
 
     def getBlockHardness(position: BlockPosition) = getBlock(position).getBlockHardness(world, position.x, position.y, position.z)
 
@@ -48,11 +48,11 @@ object ExtendedWorld {
     def getBlockHarvestTool(position: BlockPosition) = getBlock(position).getHarvestTool(getBlockMetadata(position))
 
     // Passing `side` instead of `side.getOpposite` is *correct* here, because Minecraft.
-    def computeRedstoneSignal(position: BlockPosition, side: ForgeDirection) = math.max(world.isBlockProvidingPowerTo(position.offset(side), side), world.getIndirectPowerLevelTo(position.offset(side), side))
+    def computeRedstoneSignal(position: BlockPosition, side: Direction) = math.max(world.isBlockProvidingPowerTo(position.offset(side), side), world.getIndirectPowerLevelTo(position.offset(side), side))
 
-    def isBlockProvidingPowerTo(position: BlockPosition, side: ForgeDirection) = world.isBlockProvidingPowerTo(position.x, position.y, position.z, side.ordinal)
+    def isBlockProvidingPowerTo(position: BlockPosition, side: Direction) = world.isBlockProvidingPowerTo(position.x, position.y, position.z, side.ordinal)
 
-    def getIndirectPowerLevelTo(position: BlockPosition, side: ForgeDirection) = world.getIndirectPowerLevelTo(position.x, position.y, position.z, side.ordinal)
+    def getIndirectPowerLevelTo(position: BlockPosition, side: Direction) = world.getIndirectPowerLevelTo(position.x, position.y, position.z, side.ordinal)
 
     def markBlockForUpdate(position: BlockPosition) = world.markBlockForUpdate(position.x, position.y, position.z)
 
@@ -60,7 +60,7 @@ object ExtendedWorld {
 
     def notifyBlocksOfNeighborChange(position: BlockPosition, block: Block) = world.notifyBlocksOfNeighborChange(position.x, position.y, position.z, block)
 
-    def notifyBlocksOfNeighborChange(position: BlockPosition, block: Block, side: ForgeDirection) = world.notifyBlocksOfNeighborChange(position.x, position.y, position.z, block, side.ordinal)
+    def notifyBlocksOfNeighborChange(position: BlockPosition, block: Block, side: Direction) = world.notifyBlocksOfNeighborChange(position.x, position.y, position.z, block, side.ordinal)
 
     def playAuxSFX(id: Int, position: BlockPosition, data: Int) = world.playAuxSFX(id, position.x, position.y, position.z, data)
 
@@ -70,7 +70,7 @@ object ExtendedWorld {
 
     def setBlockToAir(position: BlockPosition) = world.setBlockToAir(position.x, position.y, position.z)
 
-    def isSideSolid(position: BlockPosition, side: ForgeDirection) = world.isSideSolid(position.x, position.y, position.z, side)
+    def isSideSolid(position: BlockPosition, side: Direction) = world.isSideSolid(position.x, position.y, position.z, side)
   }
 
 }

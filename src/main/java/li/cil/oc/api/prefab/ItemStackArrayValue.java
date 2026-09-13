@@ -3,10 +3,10 @@ package li.cil.oc.api.prefab;
 import li.cil.oc.api.machine.Arguments;
 import li.cil.oc.api.machine.Callback;
 import li.cil.oc.api.machine.Context;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTBase;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.Tag;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 
 import java.util.HashMap;
 import java.util.TreeMap;
@@ -16,8 +16,8 @@ public class ItemStackArrayValue extends AbstractValue {
 	private ItemStack[] array = null;
 	private int iteratorIndex;
 
-	private static final byte TAGLIST_ID = (new NBTTagList()).getId();
-	private static final byte COMPOUND_ID = (new NBTTagCompound()).getId();
+	private static final byte TAGLIST_ID = (new ListTag()).getId();
+	private static final byte COMPOUND_ID = (new CompoundTag()).getId();
 	private static final String ARRAY_KEY = "Array";
 	private static final String INDEX_KEY = "Index";
 
@@ -70,12 +70,12 @@ public class ItemStackArrayValue extends AbstractValue {
 	}
 
 	@Override
-	public void load(NBTTagCompound nbt) {
+	public void load(CompoundTag nbt) {
 		if (nbt.hasKey(ARRAY_KEY, TAGLIST_ID)){
-			NBTTagList tagList = nbt.getTagList(ARRAY_KEY,COMPOUND_ID);
+			ListTag tagList = nbt.getTagList(ARRAY_KEY,COMPOUND_ID);
 			this.array = new ItemStack[tagList.tagCount()];
 			for (int i = 0; i < tagList.tagCount(); ++i){
-				NBTTagCompound el = tagList.getCompoundTagAt(i);
+				CompoundTag el = tagList.getCompoundTagAt(i);
 				if (el.hasNoTags())
 					this.array[i] = null;//TODO 1.11 change to ItemStack.EMPTY?
 				else
@@ -88,15 +88,15 @@ public class ItemStackArrayValue extends AbstractValue {
 	}
 
 	@Override
-	public void save(NBTTagCompound nbt) {
+	public void save(CompoundTag nbt) {
 
-		NBTTagCompound nullnbt = new NBTTagCompound();
+		CompoundTag nullnbt = new CompoundTag();
 
 		if (this.array != null) {
-			NBTTagList nbttaglist = new NBTTagList();
+			ListTag nbttaglist = new ListTag();
 			for (ItemStack stack : this.array) {
 				if (stack != null) {
-					NBTTagCompound nbttagcompound = new NBTTagCompound();
+					CompoundTag nbttagcompound = new CompoundTag();
 					stack.writeToNBT(nbttagcompound);
 					nbttaglist.appendTag(nbttagcompound);
 				} else {

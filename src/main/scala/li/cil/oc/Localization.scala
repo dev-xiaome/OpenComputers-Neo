@@ -4,8 +4,8 @@ import cpw.mods.fml.common.event.FMLFingerprintViolationEvent
 import li.cil.oc.client.CommandHandler.SetClipboardCommand
 import net.minecraft.event.ClickEvent
 import net.minecraft.event.HoverEvent
-import net.minecraft.util.ChatComponentText
-import net.minecraft.util.ChatComponentTranslation
+import net.minecraft.network.chat.Component
+import net.minecraft.network.chat.Component
 import net.minecraft.util.StatCollector
 
 import scala.util.matching.Regex

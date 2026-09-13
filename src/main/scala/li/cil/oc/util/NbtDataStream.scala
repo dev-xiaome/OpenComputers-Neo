@@ -1,10 +1,10 @@
 package li.cil.oc.util
 
-import net.minecraft.nbt.NBTTagCompound
+import net.minecraft.nbt.CompoundTag
 
 object NbtDataStream {
-  def getShortArray(nbt: NBTTagCompound, key: String, array2d: Array[Array[Short]], w: Int, h: Int) : Boolean = {
-    if (!nbt.hasKey(key)) {
+  def getShortArray(nbt: CompoundTag, key: String, array2d: Array[Array[Short]], w: Int, h: Int) : Boolean = {
+    if (!nbt.contains(key)) {
       return false
     }
 
@@ -21,8 +21,8 @@ object NbtDataStream {
     true
   }
 
-  def getIntArrayLegacy(nbt: NBTTagCompound, key: String, array2d: Array[Array[Short]], w: Int, h: Int) : Boolean = {
-    if (!nbt.hasKey(key)) {
+  def getIntArrayLegacy(nbt: CompoundTag, key: String, array2d: Array[Array[Short]], w: Int, h: Int) : Boolean = {
+    if (!nbt.contains(key)) {
       return false
     }
     // legacy format
@@ -40,10 +40,10 @@ object NbtDataStream {
     true
   }
 
-  def setShortArray(nbt: NBTTagCompound, key: String, array: Array[Short]): Unit = {
+  def setShortArray(nbt: CompoundTag, key: String, array: Array[Short]): Unit = {
     val rawByteWriter = new java.io.ByteArrayOutputStream()
     val memWriter = new java.io.DataOutputStream(rawByteWriter)
     array.foreach(memWriter.writeShort(_))
-    nbt.setByteArray(key, rawByteWriter.toByteArray)
+    nbt.putByteArray(key, rawByteWriter.toByteArray)
   }
 }

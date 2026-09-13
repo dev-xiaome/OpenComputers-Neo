@@ -3,14 +3,14 @@ package li.cil.oc.util
 import java.nio.ByteBuffer
 
 import cpw.mods.fml.common.FMLCommonHandler
-import cpw.mods.fml.common.eventhandler.SubscribeEvent
+import net.neoforged.bus.api.SubscribeEvent
 import cpw.mods.fml.common.gameevent.TickEvent.ClientTickEvent
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import net.minecraft.client.Minecraft
 import net.minecraft.client.audio.PositionedSoundRecord
 import net.minecraft.client.audio.SoundCategory
-import net.minecraft.util.ResourceLocation
+import net.minecraft.resources.ResourceLocation
 import org.lwjgl.BufferUtils
 import org.lwjgl.openal.AL
 import org.lwjgl.openal.AL10

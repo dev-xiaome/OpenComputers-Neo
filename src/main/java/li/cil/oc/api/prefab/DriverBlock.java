@@ -1,9 +1,9 @@
 package li.cil.oc.api.prefab;
 
-import net.minecraft.block.Block;
-import net.minecraft.item.ItemBlock;
-import net.minecraft.item.ItemStack;
-import net.minecraft.world.World;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 import net.minecraftforge.oredict.OreDictionary;
 
 /**
@@ -31,7 +31,7 @@ public abstract class DriverBlock implements li.cil.oc.api.driver.Block {
     }
 
     @Override
-    public boolean worksWith(final World world, final int x, final int y, final int z) {
+    public boolean worksWith(final Level world, final int x, final int y, final int z) {
         return worksWith(world.getBlock(x, y, z), world.getBlockMetadata(x, y, z));
     }
 

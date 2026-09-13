@@ -3,10 +3,10 @@ package li.cil.oc.util
 import li.cil.oc.api.internal.MultiTank
 import li.cil.oc.api.machine.Arguments
 import net.minecraft.inventory.IInventory
-import net.minecraftforge.common.util.ForgeDirection
+import net.minecraft.core.Direction
 import net.minecraftforge.fluids.FluidContainerRegistry
 import net.minecraftforge.fluids.FluidTankInfo
-import net.minecraftforge.fluids.IFluidHandler
+import net.neoforged.neoforge.fluids.capability.IFluidHandler
 
 import scala.language.implicitConversions
 
@@ -44,7 +44,7 @@ object ExtendedArguments {
       tank
     }
 
-    def checkTankInfo(handler: IFluidHandler, side: ForgeDirection, n: Int) = {
+    def checkTankInfo(handler: IFluidHandler, side: Direction, n: Int) = {
       val tank = args.checkInteger(n) - 1
       val tankInfo = handler.getTankInfo(side)
       if (tankInfo == null || tank < 0 || tank >= tankInfo.length) {
@@ -53,47 +53,47 @@ object ExtendedArguments {
       tankInfo(tank)
     }
 
-    def optTankInfo(handler: IFluidHandler, side: ForgeDirection, n: Int, default: FluidTankInfo) = {
+    def optTankInfo(handler: IFluidHandler, side: Direction, n: Int, default: FluidTankInfo) = {
       if (!isDefined(n)) default
       else checkTankInfo(handler, side, n)
     }
 
-    def checkSideAny(index: Int) = checkSide(index, ForgeDirection.VALID_DIRECTIONS: _*)
+    def checkSideAny(index: Int) = checkSide(index, Direction.VALID_DIRECTIONS: _*)
 
-    def optSideAny(index: Int, default: ForgeDirection) =
+    def optSideAny(index: Int, default: Direction) =
       if (!isDefined(index)) default
       else checkSideAny(index)
 
-    def checkSideExcept(index: Int, invalid: ForgeDirection*) = checkSide(index, ForgeDirection.VALID_DIRECTIONS.filterNot(invalid.contains): _*)
+    def checkSideExcept(index: Int, invalid: Direction*) = checkSide(index, Direction.VALID_DIRECTIONS.filterNot(invalid.contains): _*)
 
-    def optSideExcept(index: Int, default: ForgeDirection, invalid: ForgeDirection*) =
+    def optSideExcept(index: Int, default: Direction, invalid: Direction*) =
       if (!isDefined(index)) default
       else checkSideExcept(index, invalid: _*)
 
-    def checkSideForAction(index: Int) = checkSide(index, ForgeDirection.SOUTH, ForgeDirection.UP, ForgeDirection.DOWN)
+    def checkSideForAction(index: Int) = checkSide(index, Direction.SOUTH, Direction.UP, Direction.DOWN)
 
-    def optSideForAction(index: Int, default: ForgeDirection) =
+    def optSideForAction(index: Int, default: Direction) =
       if (!isDefined(index)) default
       else checkSideForAction(index)
 
-    def checkSideForMovement(index: Int) = checkSide(index, ForgeDirection.SOUTH, ForgeDirection.NORTH, ForgeDirection.UP, ForgeDirection.DOWN)
+    def checkSideForMovement(index: Int) = checkSide(index, Direction.SOUTH, Direction.NORTH, Direction.UP, Direction.DOWN)
 
-    def optSideForMovement(index: Int, default: ForgeDirection) =
+    def optSideForMovement(index: Int, default: Direction) =
       if (!isDefined(index)) default
       else checkSideForMovement(index)
 
-    def checkSideForFace(index: Int, facing: ForgeDirection) = checkSideExcept(index, facing.getOpposite)
+    def checkSideForFace(index: Int, facing: Direction) = checkSideExcept(index, facing.getOpposite)
 
-    def optSideForFace(index: Int, default: ForgeDirection) =
+    def optSideForFace(index: Int, default: Direction) =
       if (!isDefined(index)) default
       else checkSideForAction(index)
 
-    private def checkSide(index: Int, allowed: ForgeDirection*) = {
+    private def checkSide(index: Int, allowed: Direction*) = {
       val side = args.checkInteger(index)
       if (side < 0 || side > 5) {
         throw new IllegalArgumentException("invalid side")
       }
-      val direction = ForgeDirection.getOrientation(side)
+      val direction = Direction.getOrientation(side)
       if (allowed.isEmpty || (allowed contains direction)) direction
       else throw new IllegalArgumentException("unsupported side")
     }

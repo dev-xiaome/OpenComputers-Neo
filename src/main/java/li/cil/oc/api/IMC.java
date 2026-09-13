@@ -1,10 +1,12 @@
 package li.cil.oc.api;
 
-import cpw.mods.fml.common.event.FMLInterModComms;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
-import net.minecraft.nbt.NBTTagString;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.item.ItemStack;
+import net.neoforged.fml.InterModComms;
 import org.apache.commons.lang3.tuple.Pair;
 
 /**
@@ -20,6 +22,24 @@ import org.apache.commons.lang3.tuple.Pair;
  * Feel free to copy these functions into your own code, just please don't
  * copy this class while keeping the package name, to avoid conflicts if this
  * class gets updated.
+ *
+ * <h2>移植说明（1.7.10 / Forge → 1.21.1 / NeoForge）</h2>
+ * <ul>
+ * <li>旧版 {@code cpw.mods.fml.common.event.FMLInterModComms.sendMessage(modId, key, value)}
+ * 改为 {@link InterModComms#sendTo(String, String, java.util.function.Supplier)}，负载同样只是普通
+ * Java 对象（{@code String} / {@code CompoundTag}）。</li>
+ * <li>发送目标 mod id 由 {@code "OpenComputers"} 改为本移植项目注册的 mod id
+ * {@value #MOD_ID}，否则 NeoForge 会因为目标 mod 未加载而直接丢弃消息。</li>
+ * <li>{@code ItemStack} 在 1.21.1 中不再有 {@code writeToNBT}，改为
+ * {@link ItemStack#saveOptional(net.minecraft.core.HolderLookup.Provider)}；IMC 阶段没有 Level
+ * 上下文，因此使用 {@link RegistryAccess#EMPTY}，其中依赖注册表的数据组件可能无法序列化，
+ * 该类情况会退化为写入一个空 compound（见 {@link #writeItemStack}）。</li>
+ * <li>本类只负责“发送”消息。1.21.1 中 NeoForge 不提供 {@code IMCEnqueuedEvent}，对应的
+ * 接收侧需要在 mod 的总线事件（{@code InterModProcessEvent} / FMLCommonSetupEvent 等）里
+ * 调用 {@link InterModComms#getMessages(String, java.util.function.Predicate)} 主动拉取；
+ * 由于本类的方法名与 NBT 结构保持不变，接收侧实现不受影响。</li>
+ * <li>所有公开常量名、方法名与参数列表均保持与 1.7.10 版本一致，以便对外 API 兼容。</li>
+ * </ul>
  */
 @SuppressWarnings("unused")
 public final class IMC {
@@ -40,7 +60,7 @@ public final class IMC {
      * @param callback the callback to register as a filtering method.
      */
     public static void registerAssemblerFilter(final String callback) {
-        FMLInterModComms.sendMessage(MOD_ID, "registerAssemblerFilter", callback);
+        InterModComms.sendTo(MOD_ID, "registerAssemblerFilter", () -> callback);
     }
 
     /**
@@ -57,9 +77,9 @@ public final class IMC {
      * // Valid or not.
      * new Object[]{Boolean}
      * // Valid or not, text for progess bar.
-     * new Object[]{Boolean, IChatComponent}
+     * new Object[]{Boolean, Component}
      * // Valid or not, text for progess bar, warnings for start button tooltip (one per line).
-     * new Object[]{Boolean, IChatComponent, IChatComponent[]}
+     * new Object[]{Boolean, Component, Component[]}
      * </pre>
      * Values in the array returned by <tt>assemble</tt> must be one of the following:
      * <pre>
@@ -101,59 +121,51 @@ public final class IMC {
      *                       for the third component slot. Up to nine.
      */
     public static void registerAssemblerTemplate(final String name, final String select, final String validate, final String assemble, final Class host, final int[] containerTiers, final int[] upgradeTiers, final Iterable<Pair<String, Integer>> componentSlots) {
-        final NBTTagCompound nbt = new NBTTagCompound();
+        final CompoundTag nbt = new CompoundTag();
         if (name != null) {
-            nbt.setString("name", name);
+            nbt.putString("name", name);
         }
-        nbt.setString("select", select);
-        nbt.setString("validate", validate);
-        nbt.setString("assemble", assemble);
+        // 旧版本等价于 setString；1.21.1 的 CompoundTag 不再接受 null 值，这里做防御性判空。
+        if (select != null) {
+            nbt.putString("select", select);
+        }
+        if (validate != null) {
+            nbt.putString("validate", validate);
+        }
+        if (assemble != null) {
+            nbt.putString("assemble", assemble);
+        }
         if (host != null) {
-            nbt.setString("hostClass", host.getName());
+            nbt.putString("hostClass", host.getName());
         }
 
-        final NBTTagList containersNbt = new NBTTagList();
-        if (containerTiers != null) {
-            for (int tier : containerTiers) {
-                final NBTTagCompound slotNbt = new NBTTagCompound();
-                slotNbt.setInteger("tier", tier);
-                containersNbt.appendTag(slotNbt);
-            }
-        }
-        if (containersNbt.tagCount() > 0) {
-            nbt.setTag("containerSlots", containersNbt);
+        if (containerTiers != null && containerTiers.length > 0) {
+            nbt.put("containerSlots", tiersToNbt(containerTiers));
         }
 
-        final NBTTagList upgradesNbt = new NBTTagList();
-        if (upgradeTiers != null) {
-            for (int tier : upgradeTiers) {
-                final NBTTagCompound slotNbt = new NBTTagCompound();
-                slotNbt.setInteger("tier", tier);
-                upgradesNbt.appendTag(slotNbt);
-            }
-        }
-        if (upgradesNbt.tagCount() > 0) {
-            nbt.setTag("upgradeSlots", upgradesNbt);
+        if (upgradeTiers != null && upgradeTiers.length > 0) {
+            nbt.put("upgradeSlots", tiersToNbt(upgradeTiers));
         }
 
-        final NBTTagList componentsNbt = new NBTTagList();
+        // 组件槽位：null 槽位写成空 compound 作为占位，顺序即槽位顺序。
         if (componentSlots != null) {
+            final ListTag componentsNbt = new ListTag();
             for (Pair<String, Integer> slot : componentSlots) {
                 if (slot == null) {
-                    componentsNbt.appendTag(new NBTTagCompound());
+                    componentsNbt.add(new CompoundTag());
                 } else {
-                    final NBTTagCompound slotNbt = new NBTTagCompound();
-                    slotNbt.setString("type", slot.getLeft());
-                    slotNbt.setInteger("tier", slot.getRight());
-                    componentsNbt.appendTag(slotNbt);
+                    final CompoundTag slotNbt = new CompoundTag();
+                    slotNbt.putString("type", slot.getLeft());
+                    slotNbt.putInt("tier", slot.getRight());
+                    componentsNbt.add(slotNbt);
                 }
             }
-        }
-        if (componentsNbt.tagCount() > 0) {
-            nbt.setTag("componentSlots", componentsNbt);
+            if (!componentsNbt.isEmpty()) {
+                nbt.put("componentSlots", componentsNbt);
+            }
         }
 
-        FMLInterModComms.sendMessage(MOD_ID, "registerAssemblerTemplate", nbt);
+        InterModComms.sendTo(MOD_ID, "registerAssemblerTemplate", () -> nbt);
     }
 
     /**
@@ -190,14 +202,18 @@ public final class IMC {
      *                    ingredients from an item.
      */
     public static void registerDisassemblerTemplate(final String name, final String select, final String disassemble) {
-        final NBTTagCompound nbt = new NBTTagCompound();
+        final CompoundTag nbt = new CompoundTag();
         if (name != null) {
-            nbt.setString("name", name);
+            nbt.putString("name", name);
         }
-        nbt.setString("select", select);
-        nbt.setString("disassemble", disassemble);
+        if (select != null) {
+            nbt.putString("select", select);
+        }
+        if (disassemble != null) {
+            nbt.putString("disassemble", disassemble);
+        }
 
-        FMLInterModComms.sendMessage(MOD_ID, "registerDisassemblerTemplate", nbt);
+        InterModComms.sendTo(MOD_ID, "registerDisassemblerTemplate", () -> nbt);
     }
 
     /**
@@ -221,7 +237,7 @@ public final class IMC {
      * @param callback the callback to register as a durability provider.
      */
     public static void registerToolDurabilityProvider(final String callback) {
-        FMLInterModComms.sendMessage(MOD_ID, "registerToolDurabilityProvider", callback);
+        InterModComms.sendTo(MOD_ID, "registerToolDurabilityProvider", () -> callback);
     }
 
     /**
@@ -236,7 +252,7 @@ public final class IMC {
      * <br>
      * Signature of callbacks must be:
      * <pre>
-     * boolean callback(EntityPlayer player, BlockPos pos, boolean changeDurability)
+     * boolean callback(Player player, BlockPos pos, boolean changeDurability)
      * </pre>
      * <br>
      * Callbacks must be declared as <tt>packagePath.className.methodName</tt>.
@@ -245,7 +261,7 @@ public final class IMC {
      * @param callback the callback to register as a wrench tool handler.
      */
     public static void registerWrenchTool(final String callback) {
-        FMLInterModComms.sendMessage(MOD_ID, "registerWrenchTool", callback);
+        InterModComms.sendTo(MOD_ID, "registerWrenchTool", () -> callback);
     }
 
     /**
@@ -268,7 +284,7 @@ public final class IMC {
      * @param callback the callback to register as a wrench tool tester.
      */
     public static void registerWrenchToolCheck(final String callback) {
-        FMLInterModComms.sendMessage(MOD_ID, "registerWrenchToolCheck", callback);
+        InterModComms.sendTo(MOD_ID, "registerWrenchToolCheck", () -> callback);
     }
 
     /**
@@ -294,11 +310,17 @@ public final class IMC {
      * @param charge    the callback to register for charging items.
      */
     public static void registerItemCharge(final String name, final String canCharge, final String charge) {
-        final NBTTagCompound nbt = new NBTTagCompound();
-        nbt.setString("name", name);
-        nbt.setString("canCharge", canCharge);
-        nbt.setString("charge", charge);
-        FMLInterModComms.sendMessage(MOD_ID, "registerItemCharge", nbt);
+        final CompoundTag nbt = new CompoundTag();
+        if (name != null) {
+            nbt.putString("name", name);
+        }
+        if (canCharge != null) {
+            nbt.putString("canCharge", canCharge);
+        }
+        if (charge != null) {
+            nbt.putString("charge", charge);
+        }
+        InterModComms.sendTo(MOD_ID, "registerItemCharge", () -> nbt);
     }
 
     /**
@@ -322,7 +344,7 @@ public final class IMC {
      * @param callback the callback to register as an ink provider.
      */
     public static void registerInkProvider(final String callback) {
-        FMLInterModComms.sendMessage(MOD_ID, "registerInkProvider", callback);
+        InterModComms.sendTo(MOD_ID, "registerInkProvider", () -> callback);
     }
 
     /**
@@ -335,7 +357,9 @@ public final class IMC {
      * @param peripheral the class of the peripheral to blacklist.
      */
     public static void blacklistPeripheral(final Class peripheral) {
-        FMLInterModComms.sendMessage(MOD_ID, "blacklistPeripheral", peripheral.getName());
+        if (peripheral != null) {
+            InterModComms.sendTo(MOD_ID, "blacklistPeripheral", () -> peripheral.getName());
+        }
     }
 
     /**
@@ -354,13 +378,15 @@ public final class IMC {
      * @param stack the item stack representing the blacklisted component.
      */
     public static void blacklistHost(final String name, final Class host, final ItemStack stack) {
-        final NBTTagCompound nbt = new NBTTagCompound();
-        nbt.setString("name", name);
-        nbt.setString("host", host.getName());
-        final NBTTagCompound stackNbt = new NBTTagCompound();
-        stack.writeToNBT(stackNbt);
-        nbt.setTag("item", stackNbt);
-        FMLInterModComms.sendMessage(MOD_ID, "blacklistHost", nbt);
+        final CompoundTag nbt = new CompoundTag();
+        if (name != null) {
+            nbt.putString("name", name);
+        }
+        if (host != null) {
+            nbt.putString("host", host.getName());
+        }
+        nbt.put("item", writeItemStack(stack));
+        InterModComms.sendTo(MOD_ID, "blacklistHost", () -> nbt);
     }
 
     /**
@@ -371,7 +397,7 @@ public final class IMC {
      * avoid auto-disabling power use.
      */
     public static void registerCustomPowerSystem() {
-        FMLInterModComms.sendMessage(MOD_ID, "registerCustomPowerSystem", "true");
+        InterModComms.sendTo(MOD_ID, "registerCustomPowerSystem", () -> "true");
     }
 
     /**
@@ -399,23 +425,71 @@ public final class IMC {
      * @param architectures the names of the architectures this entry applies to.
      */
     public static void registerProgramDiskLabel(final String programName, final String diskLabel, final String... architectures) {
-        final NBTTagCompound nbt = new NBTTagCompound();
-        nbt.setString("program", programName);
-        nbt.setString("label", diskLabel);
-        if (architectures != null && architectures.length > 0) {
-            final NBTTagList architecturesNbt = new NBTTagList();
-            for (final String architecture : architectures) {
-                architecturesNbt.appendTag(new NBTTagString(architecture));
-            }
-            nbt.setTag("architectures", architecturesNbt);
+        final CompoundTag nbt = new CompoundTag();
+        if (programName != null) {
+            nbt.putString("program", programName);
         }
-        FMLInterModComms.sendMessage(MOD_ID, "registerProgramDiskLabel", nbt);
+        if (diskLabel != null) {
+            nbt.putString("label", diskLabel);
+        }
+        if (architectures != null && architectures.length > 0) {
+            final ListTag architecturesNbt = new ListTag();
+            for (final String architecture : architectures) {
+                if (architecture != null) {
+                    architecturesNbt.add(StringTag.valueOf(architecture));
+                }
+            }
+            if (!architecturesNbt.isEmpty()) {
+                nbt.put("architectures", architecturesNbt);
+            }
+        }
+        InterModComms.sendTo(MOD_ID, "registerProgramDiskLabel", () -> nbt);
     }
 
     // ----------------------------------------------------------------------- //
 
-    private static final String MOD_ID = "OpenComputers";
+    /**
+     * 本移植项目实际注册的 mod id（原版为 {@code "OpenComputers"}）。
+     * <p>
+     * 保持公开可见，方便调用方在需要时区分消息目标；方法名与 NBT 结构仍与旧版一致。
+     */
+    public static final String MOD_ID = "open_computers_neo";
 
     private IMC() {
+    }
+
+    /**
+     * 把 tier 数组转换为 IMC 使用的 compound 列表，每项形如 {@code {tier: n}}。
+     */
+    private static ListTag tiersToNbt(final int[] tiers) {
+        final ListTag list = new ListTag();
+        for (final int tier : tiers) {
+            final CompoundTag slotNbt = new CompoundTag();
+            slotNbt.putInt("tier", tier);
+            list.add(slotNbt);
+        }
+        return list;
+    }
+
+    /**
+     * 序列化一个 {@link ItemStack} 供 {@code blacklistHost} 消息使用。
+     * <p>
+     * 1.7.10 使用 {@code ItemStack#writeToNBT}；1.21.1 改为
+     * {@link ItemStack#saveOptional(net.minecraft.core.HolderLookup.Provider)}。
+     * IMC 发送阶段通常没有 Level 上下文，这里退而使用 {@link RegistryAccess#EMPTY}；
+     * 若某些新建的注册表相关数据组件无法在该上下文中编码，或传入的堆栈为空，
+     * 则写入一个空 compound，接收侧应把空 compound 视为“未提供物品”。
+     */
+    private static Tag writeItemStack(final ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return new CompoundTag();
+        }
+        try {
+            final Tag saved = stack.saveOptional(RegistryAccess.EMPTY);
+            return saved == null ? new CompoundTag() : saved;
+        } catch (final RuntimeException e) {
+            // 空注册表上下文不足以编码该堆栈（例如含依赖注册表的数据组件）时安全降级。
+            return new CompoundTag();
+        }
     }
 }

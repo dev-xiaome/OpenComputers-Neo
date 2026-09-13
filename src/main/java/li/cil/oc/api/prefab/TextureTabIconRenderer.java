@@ -1,11 +1,11 @@
 package li.cil.oc.api.prefab;
 
-import cpw.mods.fml.relauncher.Side;
-import cpw.mods.fml.relauncher.SideOnly;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 import li.cil.oc.api.manual.TabIconRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.resources.ResourceLocation;
 
 /**
  * Simple implementation of a tab icon renderer using a full texture as its graphic.
@@ -19,7 +19,7 @@ public class TextureTabIconRenderer implements TabIconRenderer {
     }
 
     @Override
-    @SideOnly(Side.CLIENT)
+    @SideOnly(Dist.CLIENT)
     public void render() {
         Minecraft.getMinecraft().getTextureManager().bindTexture(location);
         final Tessellator t = Tessellator.instance;

@@ -1,7 +1,7 @@
 package li.cil.oc.util
 
-import net.minecraft.item.ItemStack
-import net.minecraft.nbt.NBTTagCompound
+import net.minecraft.world.item.ItemStack
+import net.minecraft.nbt.CompoundTag
 
 /**
   * @author asie, Vexatos
@@ -10,7 +10,7 @@ object ItemColorizer {
   /**
     * Return whether the specified armor ItemStack has a color.
     */
-  def hasColor(stack: ItemStack): Boolean = stack.hasTagCompound && stack.getTagCompound.hasKey("display") && stack.getTagCompound.getCompoundTag("display").hasKey("color")
+  def hasColor(stack: ItemStack): Boolean = stack.hasTagCompound && stack.getTagCompound.contains("display") && stack.getTagCompound.getCompound("display").contains("color")
 
   /**
     * Return the color for the specified armor ItemStack.
@@ -18,8 +18,8 @@ object ItemColorizer {
   def getColor(stack: ItemStack): Int = {
     val tag = stack.getTagCompound
     if (tag != null) {
-      val displayTag = tag.getCompoundTag("display")
-      if (displayTag == null) -1 else if (displayTag.hasKey("color")) displayTag.getInteger("color") else -1
+      val displayTag = tag.getCompound("display")
+      if (displayTag == null) -1 else if (displayTag.contains("color")) displayTag.getInteger("color") else -1
     }
     else -1
   }
@@ -27,21 +27,21 @@ object ItemColorizer {
   def removeColor(stack: ItemStack) {
     val tag = stack.getTagCompound
     if (tag != null) {
-      val displayTag = tag.getCompoundTag("display")
-      if (displayTag.hasKey("color")) displayTag.removeTag("color")
+      val displayTag = tag.getCompound("display")
+      if (displayTag.contains("color")) displayTag.remove("color")
     }
   }
 
   def setColor(stack: ItemStack, color: Int) {
     var tag = stack.getTagCompound
     if (tag == null) {
-      tag = new NBTTagCompound
-      stack.setTagCompound(tag)
+      tag = new CompoundTag
+      stack.put(tag)
     }
-    val displayTag = tag.getCompoundTag("display")
-    if (!tag.hasKey("display")) {
-      tag.setTag("display", displayTag)
+    val displayTag = tag.getCompound("display")
+    if (!tag.contains("display")) {
+      tag.put("display", displayTag)
     }
-    displayTag.setInteger("color", color)
+    displayTag.putInt("color", color)
   }
 }

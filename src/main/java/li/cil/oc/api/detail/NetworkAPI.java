@@ -5,8 +5,8 @@ import li.cil.oc.api.network.Node;
 import li.cil.oc.api.network.Packet;
 import li.cil.oc.api.network.Visibility;
 import li.cil.oc.api.network.WirelessEndpoint;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.tileentity.TileEntity;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 public interface NetworkAPI {
     /**
@@ -24,7 +24,7 @@ public interface NetworkAPI {
      *
      * @param tileEntity the tile entity to initialize.
      */
-    void joinOrCreateNetwork(TileEntity tileEntity);
+    void joinOrCreateNetwork(BlockEntity tileEntity);
 
     /**
      * Creates a new network with the specified node as its initial node.
@@ -120,7 +120,7 @@ public interface NetworkAPI {
      * <br>
      * Example use:
      * <pre>
-     * class YourThing extends TileEntity implements Environment {
+     * class YourThing extends BlockEntity implements Environment {
      *     private ComponentConnector node_ =
      *         api.Network.newNode(this, Visibility.Network).
      *             withComponent("your_thing").
@@ -172,5 +172,5 @@ public interface NetworkAPI {
      * @param nbt the tag to load the packet from.
      * @return the loaded packet.
      */
-    Packet newPacket(NBTTagCompound nbt);
+    Packet newPacket(CompoundTag nbt);
 }

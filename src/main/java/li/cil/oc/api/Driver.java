@@ -7,11 +7,11 @@ import li.cil.oc.api.driver.InventoryProvider;
 import li.cil.oc.api.driver.Item;
 import li.cil.oc.api.driver.SidedBlock;
 import li.cil.oc.api.network.EnvironmentHost;
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.inventory.IInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.world.World;
-import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.core.Direction;
 
 import java.util.Collection;
 import java.util.Set;
@@ -144,11 +144,11 @@ public final class Driver {
      * @param y     the Y coordinate of the block.
      * @param z     the Z coordinate of the block.
      * @return a driver for the block, or <tt>null</tt> if there is none.
-     * @deprecated Use {@link #driverFor(World, int, int, int, ForgeDirection)},
+     * @deprecated Use {@link #driverFor(Level, int, int, int, Direction)},
      * passing <tt>UNKNOWN</tt> if the side is to be ignored.
      */
     @Deprecated // TODO Remove in OC 1.7
-    public static Block driverFor(World world, int x, int y, int z) {
+    public static Block driverFor(Level world, int x, int y, int z) {
         if (API.driver != null)
             return API.driver.driverFor(world, x, y, z);
         return null;
@@ -169,7 +169,7 @@ public final class Driver {
      * @param z     the Z coordinate of the block.
      * @return a driver for the block, or <tt>null</tt> if there is none.
      */
-    public static SidedBlock driverFor(World world, int x, int y, int z, ForgeDirection side) {
+    public static SidedBlock driverFor(Level world, int x, int y, int z, Direction side) {
         if (API.driver != null)
             return API.driver.driverFor(world, x, y, z, side);
         return null;
@@ -259,7 +259,7 @@ public final class Driver {
      * @param player the player holding the item. May be <tt>null</tt>.
      * @return the inventory implementation interfacing the stack, or <tt>null</tt>.
      */
-    public static IInventory inventoryFor(ItemStack stack, EntityPlayer player) {
+    public static IInventory inventoryFor(ItemStack stack, Player player) {
         if (API.driver != null)
             return API.driver.inventoryFor(stack, player);
         return null;

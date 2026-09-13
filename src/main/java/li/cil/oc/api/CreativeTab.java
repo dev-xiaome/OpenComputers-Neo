@@ -1,6 +1,5 @@
 package li.cil.oc.api;
 
-import li.cil.oc.OpenComputersNeo;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
@@ -12,8 +11,11 @@ import net.neoforged.neoforge.registries.DeferredRegister;
  * Allows access to the creative tab used by OpenComputers.
  */
 public final class CreativeTab {
+    /** 与 li.cil.oc.OpenComputersNeo.MODID 保持一致（Java 侧不能引用 Scala 常量）。 */
+    public static final String MOD_ID = "open_computers_neo";
+
     public static final DeferredRegister<CreativeModeTab> REGISTRY =
-            DeferredRegister.create(Registries.CREATIVE_MODE_TAB, OpenComputersNeo.MODID);
+            DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MOD_ID);
 
     /**
      * The creative tab used by OpenComputers.

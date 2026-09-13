@@ -5,9 +5,9 @@ import li.cil.oc.api.manual.ImageProvider;
 import li.cil.oc.api.manual.ImageRenderer;
 import li.cil.oc.api.manual.PathProvider;
 import li.cil.oc.api.manual.TabIconRenderer;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
-import net.minecraft.world.World;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 
 /**
  * This API allows interfacing with the in-game manual of OpenComputers.
@@ -126,7 +126,7 @@ public class Manual {
      * @param z     the Z coordinate of the block.
      * @return the path to the page, <tt>null</tt> if none is known.
      */
-    public static String pathFor(World world, int x, int y, int z) {
+    public static String pathFor(Level world, int x, int y, int z) {
         if (API.manual != null)
             return API.manual.pathFor(world, x, y, z);
         return null;
@@ -154,7 +154,7 @@ public class Manual {
      *
      * @param player the player to open the manual for.
      */
-    public static void openFor(EntityPlayer player) {
+    public static void openFor(Player player) {
         if (API.manual != null)
             API.manual.openFor(player);
     }

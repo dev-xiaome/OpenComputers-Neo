@@ -12,10 +12,10 @@ package li.cil.oc.api.driver;
  * <br>
  * In some scenarios you may not want this to happen. Instead, only a select
  * list of methods should be shown for a block - for example, you may want to
- * suppress inventory functionality if your TileEntity implements IInventory.
+ * suppress inventory functionality if your BlockEntity implements IInventory.
  * <br>
  * To do so, implement this interface in the <em>environment</em> that you
- * return from your driver's {@link SidedBlock#createEnvironment(net.minecraft.world.World, int, int, int, net.minecraftforge.common.util.ForgeDirection)}
+ * return from your driver's {@link SidedBlock#createEnvironment(net.minecraft.world.Level, int, int, int, net.minecraftforge.common.util.Direction)}
  * method, and provide the names of the allowed methods from {@link #whitelistedMethods()}.
  * <br>
  * <em>Important</em>: if multiple drivers apply to a single block that each

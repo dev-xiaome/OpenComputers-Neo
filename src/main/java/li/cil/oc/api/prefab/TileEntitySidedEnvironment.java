@@ -3,9 +3,9 @@ package li.cil.oc.api.prefab;
 import li.cil.oc.api.Network;
 import li.cil.oc.api.network.Node;
 import li.cil.oc.api.network.SidedEnvironment;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.core.Direction;
 
 /**
  * TileEntities can implement the {@link li.cil.oc.api.network.SidedEnvironment}
@@ -18,7 +18,7 @@ import net.minecraftforge.common.util.ForgeDirection;
  * network as an index structure to find other nodes connected to them.
  */
 @SuppressWarnings("UnusedDeclaration")
-public abstract class TileEntitySidedEnvironment extends TileEntity implements SidedEnvironment {
+public abstract class TileEntitySidedEnvironment extends BlockEntity implements SidedEnvironment {
     // See constructor.
     protected Node[] nodes = new Node[6];
 
@@ -71,8 +71,8 @@ public abstract class TileEntitySidedEnvironment extends TileEntity implements S
     // exists for a side won't work on the client.
 
     @Override
-    public Node sidedNode(final ForgeDirection side) {
-        return side == ForgeDirection.UNKNOWN ? null : nodes[side.ordinal()];
+    public Node sidedNode(final Direction side) {
+        return side == Direction.UNKNOWN ? null : nodes[side.ordinal()];
     }
 
     // ----------------------------------------------------------------------- //
@@ -116,7 +116,7 @@ public abstract class TileEntitySidedEnvironment extends TileEntity implements S
     // ----------------------------------------------------------------------- //
 
     @Override
-    public void readFromNBT(final NBTTagCompound nbt) {
+    public void readFromNBT(final CompoundTag nbt) {
         super.readFromNBT(nbt);
         int index = 0;
         for (Node node : nodes) {
@@ -136,13 +136,13 @@ public abstract class TileEntitySidedEnvironment extends TileEntity implements S
     }
 
     @Override
-    public void writeToNBT(NBTTagCompound nbt) {
+    public void writeToNBT(CompoundTag nbt) {
         super.writeToNBT(nbt);
         int index = 0;
         for (Node node : nodes) {
             // See readFromNBT() regarding host check.
             if (node != null && node.host() == this) {
-                final NBTTagCompound nodeNbt = new NBTTagCompound();
+                final CompoundTag nodeNbt = new CompoundTag();
                 node.save(nodeNbt);
                 nbt.setTag("oc:node" + index, nodeNbt);
             }

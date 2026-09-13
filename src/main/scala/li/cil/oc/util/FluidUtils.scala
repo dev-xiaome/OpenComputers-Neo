@@ -2,20 +2,20 @@ package li.cil.oc.util
 
 import li.cil.oc.util.ExtendedBlock._
 import li.cil.oc.util.ExtendedWorld._
-import net.minecraft.block.Block
+import net.minecraft.world.level.block.Block
 import net.minecraft.block.BlockDynamicLiquid
 import net.minecraft.block.BlockLiquid
 import net.minecraft.block.BlockStaticLiquid
-import net.minecraft.init.Blocks
-import net.minecraftforge.common.util.ForgeDirection
-import net.minecraftforge.fluids.Fluid
+import net.minecraft.world.level.block.Blocks
+import net.minecraft.core.Direction
+import net.neoforged.neoforge.fluids.FluidStack
 import net.minecraftforge.fluids.FluidContainerRegistry
 import net.minecraftforge.fluids.FluidRegistry
-import net.minecraftforge.fluids.FluidStack
-import net.minecraftforge.fluids.FluidTank
+import net.neoforged.neoforge.fluids.FluidStack
+import net.neoforged.neoforge.fluids.capability.templates.FluidTank
 import net.minecraftforge.fluids.FluidTankInfo
-import net.minecraftforge.fluids.IFluidBlock
-import net.minecraftforge.fluids.IFluidHandler
+import net.neoforged.neoforge.fluids.IFluidBlock
+import net.neoforged.neoforge.fluids.capability.IFluidHandler
 
 object FluidUtils {
   /**
@@ -40,7 +40,7 @@ object FluidUtils {
    * <br>
    * This returns <tt>true</tt> if some fluid was transferred.
    */
-  def transferBetweenFluidHandlers(source: IFluidHandler, sourceSide: ForgeDirection, sink: IFluidHandler, sinkSide: ForgeDirection, limit: Int = FluidContainerRegistry.BUCKET_VOLUME, sourceTank: Int = -1) : Int = {
+  def transferBetweenFluidHandlers(source: IFluidHandler, sourceSide: Direction, sink: IFluidHandler, sinkSide: Direction, limit: Int = FluidContainerRegistry.BUCKET_VOLUME, sourceTank: Int = -1) : Int = {
     val ti = source.getTankInfo(sourceSide)
     val srcFluid = if (sourceTank < 0 || ti == null || ti.length <= sourceTank) null else ti(sourceTank).fluid.copy()
 
@@ -69,7 +69,7 @@ object FluidUtils {
    * This uses the <tt>fluidHandlerAt</tt> method, and therefore handles special
    * cases such as fluid blocks.
    */
-  def transferBetweenFluidHandlersAt(sourcePos: BlockPosition, sourceSide: ForgeDirection, sinkPos: BlockPosition, sinkSide: ForgeDirection, limit: Int = FluidContainerRegistry.BUCKET_VOLUME, sourceTank: Int = -1) =
+  def transferBetweenFluidHandlersAt(sourcePos: BlockPosition, sourceSide: Direction, sinkPos: BlockPosition, sinkSide: Direction, limit: Int = FluidContainerRegistry.BUCKET_VOLUME, sourceTank: Int = -1) =
     fluidHandlerAt(sourcePos).fold(0)(source =>
       fluidHandlerAt(sinkPos).fold(0)(sink =>
         transferBetweenFluidHandlers(source, sourceSide, sink, sinkSide, limit, sourceTank)))
@@ -86,17 +86,17 @@ object FluidUtils {
   // ----------------------------------------------------------------------- //
 
   private class GenericBlockWrapper(position: BlockPosition) extends IFluidHandler {
-    override def canDrain(from: ForgeDirection, fluid: Fluid): Boolean = currentWrapper.fold(false)(_.canDrain(from, fluid))
+    override def canDrain(from: Direction, fluid: Fluid): Boolean = currentWrapper.fold(false)(_.canDrain(from, fluid))
 
-    override def drain(from: ForgeDirection, resource: FluidStack, doDrain: Boolean): FluidStack = currentWrapper.fold(null: FluidStack)(_.drain(from, resource, doDrain))
+    override def drain(from: Direction, resource: FluidStack, doDrain: Boolean): FluidStack = currentWrapper.fold(null: FluidStack)(_.drain(from, resource, doDrain))
 
-    override def drain(from: ForgeDirection, maxDrain: Int, doDrain: Boolean): FluidStack = currentWrapper.fold(null: FluidStack)(_.drain(from, maxDrain, doDrain))
+    override def drain(from: Direction, maxDrain: Int, doDrain: Boolean): FluidStack = currentWrapper.fold(null: FluidStack)(_.drain(from, maxDrain, doDrain))
 
-    override def canFill(from: ForgeDirection, fluid: Fluid): Boolean = currentWrapper.fold(false)(_.canFill(from, fluid))
+    override def canFill(from: Direction, fluid: Fluid): Boolean = currentWrapper.fold(false)(_.canFill(from, fluid))
 
-    override def fill(from: ForgeDirection, resource: FluidStack, doFill: Boolean): Int = currentWrapper.fold(0)(_.fill(from, resource, doFill))
+    override def fill(from: Direction, resource: FluidStack, doFill: Boolean): Int = currentWrapper.fold(0)(_.fill(from, resource, doFill))
 
-    override def getTankInfo(from: ForgeDirection): Array[FluidTankInfo] = currentWrapper.fold(Array.empty[FluidTankInfo])(_.getTankInfo(from))
+    override def getTankInfo(from: Direction): Array[FluidTankInfo] = currentWrapper.fold(Array.empty[FluidTankInfo])(_.getTankInfo(from))
 
     def currentWrapper = if (position.world.get.blockExists(position)) position.world.get.getBlock(position) match {
       case block: IFluidBlock => Option(new FluidBlockWrapper(position, block))
@@ -113,7 +113,7 @@ object FluidUtils {
   private trait BlockWrapperBase extends IFluidHandler {
     protected def uncheckedDrain(doDrain: Boolean): FluidStack
 
-    override def drain(from: ForgeDirection, resource: FluidStack, doDrain: Boolean): FluidStack = {
+    override def drain(from: Direction, resource: FluidStack, doDrain: Boolean): FluidStack = {
       val drained = uncheckedDrain(false)
       if (drained != null && (resource == null || (drained.getFluid == resource.getFluid && drained.amount <= resource.amount))) {
         uncheckedDrain(doDrain)
@@ -121,7 +121,7 @@ object FluidUtils {
       else null
     }
 
-    override def drain(from: ForgeDirection, maxDrain: Int, doDrain: Boolean): FluidStack = {
+    override def drain(from: Direction, maxDrain: Int, doDrain: Boolean): FluidStack = {
       val drained = uncheckedDrain(false)
       if (drained != null && drained.amount <= maxDrain) {
         uncheckedDrain(doDrain)
@@ -129,17 +129,17 @@ object FluidUtils {
       else null
     }
 
-    override def canFill(from: ForgeDirection, fluid: Fluid): Boolean = false
+    override def canFill(from: Direction, fluid: Fluid): Boolean = false
 
-    override def fill(from: ForgeDirection, resource: FluidStack, doFill: Boolean): Int = 0
+    override def fill(from: Direction, resource: FluidStack, doFill: Boolean): Int = 0
   }
 
   private class FluidBlockWrapper(val position: BlockPosition, val block: IFluidBlock) extends BlockWrapperBase {
     final val AssumedCapacity = FluidContainerRegistry.BUCKET_VOLUME
 
-    override def canDrain(from: ForgeDirection, fluid: Fluid): Boolean = block.canDrain(position)
+    override def canDrain(from: Direction, fluid: Fluid): Boolean = block.canDrain(position)
 
-    override def getTankInfo(from: ForgeDirection): Array[FluidTankInfo] = Array(new FluidTankInfo(new FluidTank(block.getFluid, (block.getFilledPercentage(position) * AssumedCapacity).toInt, AssumedCapacity)))
+    override def getTankInfo(from: Direction): Array[FluidTankInfo] = Array(new FluidTankInfo(new FluidTank(block.getFluid, (block.getFilledPercentage(position) * AssumedCapacity).toInt, AssumedCapacity)))
 
     override protected def uncheckedDrain(doDrain: Boolean): FluidStack = block.drain(position, doDrain)
   }
@@ -147,9 +147,9 @@ object FluidUtils {
   private class LiquidBlockWrapper(val position: BlockPosition, val block: BlockLiquid) extends BlockWrapperBase {
     val fluid = lookupFluidForBlock(block)
 
-    override def canDrain(from: ForgeDirection, fluid: Fluid): Boolean = true
+    override def canDrain(from: Direction, fluid: Fluid): Boolean = true
 
-    override def getTankInfo(from: ForgeDirection): Array[FluidTankInfo] = Array(new FluidTankInfo(new FluidTank(fluid, FluidContainerRegistry.BUCKET_VOLUME, FluidContainerRegistry.BUCKET_VOLUME)))
+    override def getTankInfo(from: Direction): Array[FluidTankInfo] = Array(new FluidTankInfo(new FluidTank(fluid, FluidContainerRegistry.BUCKET_VOLUME, FluidContainerRegistry.BUCKET_VOLUME)))
 
     override protected def uncheckedDrain(doDrain: Boolean): FluidStack = {
       if (doDrain) {
@@ -160,15 +160,15 @@ object FluidUtils {
   }
 
   private class AirBlockWrapper(val position: BlockPosition, val block: Block) extends IFluidHandler {
-    override def canDrain(from: ForgeDirection, fluid: Fluid): Boolean = false
+    override def canDrain(from: Direction, fluid: Fluid): Boolean = false
 
-    override def drain(from: ForgeDirection, resource: FluidStack, doDrain: Boolean): FluidStack = null
+    override def drain(from: Direction, resource: FluidStack, doDrain: Boolean): FluidStack = null
 
-    override def drain(from: ForgeDirection, maxDrain: Int, doDrain: Boolean): FluidStack = null
+    override def drain(from: Direction, maxDrain: Int, doDrain: Boolean): FluidStack = null
 
-    override def canFill(from: ForgeDirection, fluid: Fluid): Boolean = fluid.canBePlacedInWorld
+    override def canFill(from: Direction, fluid: Fluid): Boolean = fluid.canBePlacedInWorld
 
-    override def fill(from: ForgeDirection, resource: FluidStack, doFill: Boolean): Int = {
+    override def fill(from: Direction, resource: FluidStack, doFill: Boolean): Int = {
       if (resource != null && resource.getFluid.canBePlacedInWorld && resource.getFluid.getBlock != null && resource.amount >= 1000) {
         if (doFill) {
           val world = position.world.get
@@ -183,7 +183,7 @@ object FluidUtils {
       else 0
     }
 
-    override def getTankInfo(from: ForgeDirection): Array[FluidTankInfo] = Array.empty
+    override def getTankInfo(from: Direction): Array[FluidTankInfo] = Array.empty
   }
 
 }

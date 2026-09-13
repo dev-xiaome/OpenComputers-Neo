@@ -1,7 +1,7 @@
 package li.cil.oc.api;
 
 import li.cil.oc.api.detail.ItemInfo;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.concurrent.Callable;
 

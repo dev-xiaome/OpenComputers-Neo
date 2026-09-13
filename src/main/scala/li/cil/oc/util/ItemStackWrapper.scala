@@ -1,30 +1,36 @@
 package li.cil.oc.util
 
+import net.minecraft.core.registries.BuiltInRegistries
+import net.minecraft.world.item.ItemStack
+
 import java.util.Objects
-
-import net.minecraft.item.Item
-import net.minecraft.item.ItemStack
-
 import scala.language.implicitConversions
 
+/**
+ * 物品栈的可比较包装（用于去重/排序）。
+ *
+ * 1.21.1 里物品不再用数字 ID 和 damage 值区分：改用注册表 ID + 数据组件比较。
+ */
 class ItemStackWrapper(val inner: ItemStack) extends Ordered[ItemStackWrapper] {
-  def id = if (inner.getItem != null) Item.getIdFromItem(inner.getItem) else 0
+  private def itemId: Int =
+    if (inner == null || inner.isEmpty) 0 else BuiltInRegistries.ITEM.getId(inner.getItem)
 
-  def damage = if (inner.getItem != null) inner.getItemDamage else 0
+  private def componentsKey: Int =
+    if (inner == null || inner.isEmpty) 0 else inner.getComponents.hashCode()
 
-  override def compare(that: ItemStackWrapper) = {
-    if (this.id == that.id) this.damage - that.damage
-    else this.id - that.id
+  override def compare(that: ItemStackWrapper): Int = {
+    val byId = itemId - that.itemId
+    if (byId != 0) byId else componentsKey - that.componentsKey
   }
 
-  override def hashCode() = Objects.hash(Int.box(id), Int.box(damage))
+  override def hashCode(): Int = Objects.hash(Int.box(itemId), Int.box(componentsKey))
 
-  override def equals(obj: scala.Any) = obj match {
+  override def equals(obj: scala.Any): Boolean = obj match {
     case that: ItemStackWrapper => compare(that) == 0
     case _ => false
   }
 
-  override def clone() = new ItemStackWrapper(inner)
+  override def clone(): AnyRef = new ItemStackWrapper(inner)
 
-  override def toString = inner.toString
+  override def toString: String = String.valueOf(inner)
 }

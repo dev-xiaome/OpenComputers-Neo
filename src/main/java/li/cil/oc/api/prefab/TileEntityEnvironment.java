@@ -5,8 +5,8 @@ import li.cil.oc.api.network.Environment;
 import li.cil.oc.api.network.Message;
 import li.cil.oc.api.network.Node;
 import li.cil.oc.api.network.Visibility;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.tileentity.TileEntity;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
  * TileEntities can implement the {@link li.cil.oc.api.network.Environment}
@@ -17,7 +17,7 @@ import net.minecraft.tileentity.TileEntity;
  * network as an index structure to find other nodes connected to them.
  */
 @SuppressWarnings("UnusedDeclaration")
-public abstract class TileEntityEnvironment extends TileEntity implements Environment {
+public abstract class TileEntityEnvironment extends BlockEntity implements Environment {
     /**
      * This must be set in subclasses to the node that is used to represent
      * this tile entity.
@@ -127,7 +127,7 @@ public abstract class TileEntityEnvironment extends TileEntity implements Enviro
     // ----------------------------------------------------------------------- //
 
     @Override
-    public void readFromNBT(final NBTTagCompound nbt) {
+    public void readFromNBT(final CompoundTag nbt) {
         super.readFromNBT(nbt);
         // The host check may be superfluous for you. It's just there to allow
         // some special cases, where getNode() returns some node managed by
@@ -143,11 +143,11 @@ public abstract class TileEntityEnvironment extends TileEntity implements Enviro
     }
 
     @Override
-    public void writeToNBT(final NBTTagCompound nbt) {
+    public void writeToNBT(final CompoundTag nbt) {
         super.writeToNBT(nbt);
         // See readFromNBT() regarding host check.
         if (node != null && node.host() == this) {
-            final NBTTagCompound nodeNbt = new NBTTagCompound();
+            final CompoundTag nodeNbt = new CompoundTag();
             node.save(nodeNbt);
             nbt.setTag("oc:node", nodeNbt);
         }

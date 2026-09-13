@@ -202,6 +202,8 @@ publishing {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8' // Use the UTF-8 charset for Java compilation
+    // 移植期间需要一次性看到尽可能多的错误
+    options.compilerArgs += ['-Xmaxerrs', '10000', '-Xlint:none']
 }
 
 // IDEA no longer automatically downloads sources/javadoc jars for dependencies, so we need to explicitly enable the behavior.

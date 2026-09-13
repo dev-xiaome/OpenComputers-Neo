@@ -1,46 +1,46 @@
 package li.cil.oc.util
 
-import net.minecraftforge.common.util.ForgeDirection
+import net.minecraft.core.Direction
 
 import scala.collection.mutable
 
 object RotationHelper {
   def fromYaw(yaw: Float) = {
     (yaw / 360 * 4).round & 3 match {
-      case 0 => ForgeDirection.SOUTH
-      case 1 => ForgeDirection.WEST
-      case 2 => ForgeDirection.NORTH
-      case 3 => ForgeDirection.EAST
+      case 0 => Direction.SOUTH
+      case 1 => Direction.WEST
+      case 2 => Direction.NORTH
+      case 3 => Direction.EAST
     }
   }
 
-  def toLocal(pitch: ForgeDirection, yaw: ForgeDirection, value: ForgeDirection) =
+  def toLocal(pitch: Direction, yaw: Direction, value: Direction) =
     translationFor(pitch, yaw)(value.ordinal)
 
-  def toGlobal(pitch: ForgeDirection, yaw: ForgeDirection, value: ForgeDirection) =
+  def toGlobal(pitch: Direction, yaw: Direction, value: Direction) =
     inverseTranslationFor(pitch, yaw)(value.ordinal)
 
-  def translationFor(pitch: ForgeDirection, yaw: ForgeDirection) =
+  def translationFor(pitch: Direction, yaw: Direction) =
     translationCache.synchronized(translationCache.
       getOrElseUpdate(pitch, mutable.Map.empty).
       getOrElseUpdate(yaw, translations(pitch.ordinal)(yaw.ordinal - 2)))
 
-  def inverseTranslationFor(pitch: ForgeDirection, yaw: ForgeDirection) =
+  def inverseTranslationFor(pitch: Direction, yaw: Direction) =
     inverseTranslationCache.synchronized(inverseTranslationCache.
       getOrElseUpdate(pitch, mutable.Map.empty).
       getOrElseUpdate(yaw, {
       val t = translationFor(pitch, yaw)
       t.indices.
-        map(ForgeDirection.getOrientation).
+        map(Direction.getOrientation).
         map(t.indexOf).
-        map(ForgeDirection.getOrientation).
+        map(Direction.getOrientation).
         toArray
     }))
 
   // ----------------------------------------------------------------------- //
 
-  private val translationCache = mutable.Map.empty[ForgeDirection, mutable.Map[ForgeDirection, Array[ForgeDirection]]]
-  private val inverseTranslationCache = mutable.Map.empty[ForgeDirection, mutable.Map[ForgeDirection, Array[ForgeDirection]]]
+  private val translationCache = mutable.Map.empty[Direction, mutable.Map[Direction, Array[Direction]]]
+  private val inverseTranslationCache = mutable.Map.empty[Direction, mutable.Map[Direction, Array[Direction]]]
 
   /**
    * Translates forge directions based on the block's pitch and yaw. The base
@@ -82,13 +82,13 @@ object RotationHelper {
 
   /** Shortcuts for forge directions to make the above more readable. */
   private object D {
-    val down = ForgeDirection.DOWN
-    val up = ForgeDirection.UP
-    val north = ForgeDirection.NORTH
-    val south = ForgeDirection.SOUTH
-    val west = ForgeDirection.WEST
-    val east = ForgeDirection.EAST
-    val unknown = ForgeDirection.UNKNOWN
+    val down = Direction.DOWN
+    val up = Direction.UP
+    val north = Direction.NORTH
+    val south = Direction.SOUTH
+    val west = Direction.WEST
+    val east = Direction.EAST
+    val unknown = Direction.UNKNOWN
   }
 
 }

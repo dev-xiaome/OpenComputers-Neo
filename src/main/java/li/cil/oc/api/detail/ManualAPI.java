@@ -5,9 +5,9 @@ import li.cil.oc.api.manual.ImageProvider;
 import li.cil.oc.api.manual.ImageRenderer;
 import li.cil.oc.api.manual.PathProvider;
 import li.cil.oc.api.manual.TabIconRenderer;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
-import net.minecraft.world.World;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 
 public interface ManualAPI {
     /**
@@ -84,7 +84,7 @@ public interface ManualAPI {
      * @param z     the Z coordinate of the block.
      * @return the path to the page, <tt>null</tt> if none is known.
      */
-    String pathFor(World world, int x, int y, int z);
+    String pathFor(Level world, int x, int y, int z);
 
     /**
      * Get the content of the documentation page at the specified location.
@@ -120,7 +120,7 @@ public interface ManualAPI {
      *
      * @param player the player to open the manual for.
      */
-    void openFor(EntityPlayer player);
+    void openFor(Player player);
 
     /**
      * Reset the history of the manual.

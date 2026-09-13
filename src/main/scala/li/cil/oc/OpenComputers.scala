@@ -19,7 +19,7 @@ object OpenComputers {
 
   final val Version = "1.0.0"
 
-  def log: Logger = OpenComputersNeo.LOGGER
+  def log: Logger = OpenComputersNeo.log
 
   /** 加载配置文件并初始化设置。 */
   def loadSettings(configFile: File): Unit = {

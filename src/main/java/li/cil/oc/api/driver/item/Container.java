@@ -1,7 +1,7 @@
 package li.cil.oc.api.driver.item;
 
 import li.cil.oc.api.driver.Item;
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 
 /**
  * May be implemented by drivers for robot upgrades that act as hotswap bays,

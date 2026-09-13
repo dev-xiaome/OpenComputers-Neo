@@ -1,7 +1,7 @@
 package li.cil.oc.api.event;
 
-import cpw.mods.fml.common.eventhandler.Cancelable;
-import cpw.mods.fml.common.eventhandler.Event;
+import net.neoforged.bus.api.ICancellableEvent;
+import net.neoforged.bus.api.Event;
 import li.cil.oc.api.network.EnvironmentHost;
 
 import java.util.HashMap;

@@ -1,9 +1,9 @@
 package li.cil.oc.api.network;
 
-import cpw.mods.fml.relauncher.Side;
-import cpw.mods.fml.relauncher.SideOnly;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraftforge.common.util.ForgeDirection;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.core.Direction;
 
 /**
  * This interface is like {@link net.minecraft.inventory.ISidedInventory} is to
@@ -12,7 +12,7 @@ import net.minecraftforge.common.util.ForgeDirection;
  * <br>
  * This interface is intended to be used on tile entities that are environments.
  * It is used to determine which neighbors a tile entity can connect to when
- * calling {@link li.cil.oc.api.Network#joinOrCreateNetwork(TileEntity)}. It is
+ * calling {@link li.cil.oc.api.Network#joinOrCreateNetwork(BlockEntity)}. It is
  * used by the keyboard to only interface with the side on which it is attached,
  * as well as the switch to offer a different node for each side.
  */
@@ -32,7 +32,7 @@ public interface SidedEnvironment {
      * @return the node for the specified side.
      * @see li.cil.oc.api.network.Environment#node
      */
-    Node sidedNode(ForgeDirection side);
+    Node sidedNode(Direction side);
 
     /**
      * Whether the environment provides a node to connect to on the specified
@@ -50,6 +50,6 @@ public interface SidedEnvironment {
      * @param side the side to check for.
      * @return whether the environment provides a node for the specified side.
      */
-    @SideOnly(Side.CLIENT)
-    boolean canConnect(ForgeDirection side);
+    @SideOnly(Dist.CLIENT)
+    boolean canConnect(Direction side);
 }

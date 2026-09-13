@@ -1,15 +1,15 @@
 package li.cil.oc.api.driver;
 
 import li.cil.oc.api.network.ManagedEnvironment;
-import net.minecraft.world.World;
-import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraft.world.level.Level;
+import net.minecraft.core.Direction;
 
 /**
  * Interface for side-aware block component drivers.
  * <br>
  * This driver type is used for components that are blocks, i.e. that can be
  * placed in the world, but cannot be modified to or don't want to have their
- * {@link net.minecraft.tileentity.TileEntity} implement one of the interfaces
+ * {@link net.minecraft.tileentity.BlockEntity} implement one of the interfaces
  * for environments ({@link li.cil.oc.api.network.Environment} or
  * {@link li.cil.oc.api.network.SidedEnvironment}).
  * <br>
@@ -45,7 +45,7 @@ public interface SidedBlock {
      * @param side  the side of the block to check.
      * @return <tt>true</tt> if the block is supported; <tt>false</tt> otherwise.
      */
-    boolean worksWith(World world, int x, int y, int z, ForgeDirection side);
+    boolean worksWith(Level world, int x, int y, int z, Direction side);
 
     /**
      * Create a new managed environment interfacing the specified block.
@@ -70,5 +70,5 @@ public interface SidedBlock {
      * @param side  the side of the block to check.
      * @return the environment for the block at that location.
      */
-    ManagedEnvironment createEnvironment(World world, int x, int y, int z, ForgeDirection side);
+    ManagedEnvironment createEnvironment(Level world, int x, int y, int z, Direction side);
 }

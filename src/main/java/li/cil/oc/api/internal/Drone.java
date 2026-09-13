@@ -1,7 +1,7 @@
 package li.cil.oc.api.internal;
 
 import li.cil.oc.api.network.EnvironmentHost;
-import net.minecraft.util.Vec3;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * This interface is implemented as a marker by drones.

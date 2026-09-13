@@ -1,8 +1,8 @@
 package li.cil.oc.api.event;
 
-import cpw.mods.fml.common.eventhandler.Cancelable;
+import net.neoforged.bus.api.ICancellableEvent;
 import li.cil.oc.api.internal.Agent;
-import net.minecraft.entity.Entity;
+import net.minecraft.world.entity.Entity;
 
 public class RobotAttackEntityEvent extends RobotEvent {
     /**

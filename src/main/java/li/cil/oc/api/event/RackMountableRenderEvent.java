@@ -1,16 +1,16 @@
 package li.cil.oc.api.event;
 
-import cpw.mods.fml.common.eventhandler.Cancelable;
-import cpw.mods.fml.common.eventhandler.Event;
+import net.neoforged.bus.api.ICancellableEvent;
+import net.neoforged.bus.api.Event;
 import li.cil.oc.api.component.RackMountable;
 import li.cil.oc.api.internal.Rack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderBlocks;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.util.IIcon;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.Direction;
 
 /**
  * Fired to allow rendering a custom overlay for {@link li.cil.oc.api.component.RackMountable}s.
@@ -36,9 +36,9 @@ public abstract class RackMountableRenderEvent extends Event {
      *
      * @see RackMountable#getData()
      */
-    public final NBTTagCompound data;
+    public final CompoundTag data;
 
-    public RackMountableRenderEvent(Rack rack, int mountable, NBTTagCompound data) {
+    public RackMountableRenderEvent(Rack rack, int mountable, CompoundTag data) {
         this.rack = rack;
         this.mountable = mountable;
         this.data = data;
@@ -59,7 +59,7 @@ public abstract class RackMountableRenderEvent extends Event {
         /**
          * The front-facing side, i.e. where the mountable is visible on the rack.
          */
-        public final ForgeDirection side;
+        public final Direction side;
 
         /**
          * The renderer used for rendering the block.
@@ -71,7 +71,7 @@ public abstract class RackMountableRenderEvent extends Event {
          */
         private IIcon frontTextureOverride;
 
-        public Block(final Rack rack, final int mountable, final NBTTagCompound data, final ForgeDirection side, final RenderBlocks renderer) {
+        public Block(final Rack rack, final int mountable, final CompoundTag data, final Direction side, final RenderBlocks renderer) {
             super(rack, mountable, data);
             this.side = side;
             this.renderer = renderer;
@@ -109,7 +109,7 @@ public abstract class RackMountableRenderEvent extends Event {
      * Use the {@link #renderOverlay(ResourceLocation)} to render a slice from a
      * texture in the vertical area occupied by the mountable.
      */
-    public static class TileEntity extends RackMountableRenderEvent {
+    public static class BlockEntity extends RackMountableRenderEvent {
         /**
          * The vertical low and high texture coordinates for the mountable's slot.
          * <br>
@@ -117,7 +117,7 @@ public abstract class RackMountableRenderEvent extends Event {
          */
         public final float v0, v1;
 
-        public TileEntity(final Rack rack, final int mountable, final NBTTagCompound data, final float v0, final float v1) {
+        public BlockEntity(final Rack rack, final int mountable, final CompoundTag data, final float v0, final float v1) {
             super(rack, mountable, data);
             this.v0 = v0;
             this.v1 = v1;

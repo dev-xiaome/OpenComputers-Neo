@@ -6,8 +6,8 @@ import li.cil.oc.api.network.Node;
 import li.cil.oc.api.network.Packet;
 import li.cil.oc.api.network.Visibility;
 import li.cil.oc.api.network.WirelessEndpoint;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.tileentity.TileEntity;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 /**
  * This class provides factories for networks and nodes.
@@ -43,7 +43,7 @@ public final class Network {
      *
      * @param tileEntity the tile entity to initialize.
      */
-    public static void joinOrCreateNetwork(final TileEntity tileEntity) {
+    public static void joinOrCreateNetwork(final BlockEntity tileEntity) {
         if (API.network != null)
             API.network.joinOrCreateNetwork(tileEntity);
     }
@@ -160,7 +160,7 @@ public final class Network {
      * <br>
      * Example use:
      * <pre>
-     * class YourThing extends TileEntity implements Environment {
+     * class YourThing extends BlockEntity implements Environment {
      *     private ComponentConnector node_ =
      *         api.Network.newNode(this, Visibility.Network).
      *             withComponent("your_thing").
@@ -220,7 +220,7 @@ public final class Network {
      * @param nbt the tag to load the packet from.
      * @return the loaded packet.
      */
-    public static Packet newPacket(final NBTTagCompound nbt) {
+    public static Packet newPacket(final CompoundTag nbt) {
         if (API.network != null)
             return API.network.newPacket(nbt);
         return null;

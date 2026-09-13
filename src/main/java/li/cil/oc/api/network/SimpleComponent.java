@@ -42,7 +42,7 @@ import java.lang.annotation.Target;
  * For example:
  * <pre>
  *     {@literal @}Optional.Interface(iface = "li.cil.oc.api.network.SimpleComponent", modid = "OpenComputers")
- *     public class TileEntityMyFancyThing extends TileEntity
+ *     public class TileEntityMyFancyThing extends BlockEntity
  *            implements SimpleComponent
  *     {
  *         {@literal @}Override
@@ -63,7 +63,7 @@ import java.lang.annotation.Target;
  *         {@literal @}Optional.Interface(iface = "li.cil.oc.api.network.SimpleComponent", modid = "OpenComputers"),
  *         {@literal @}Optional.Interface(iface = "li.cil.oc.api.network.ManagedPeripheral", modid = "OpenComputers")
  *     })
- *     public class TileEntityMyFancyThing extends TileEntity
+ *     public class TileEntityMyFancyThing extends BlockEntity
  *            implements SimpleComponent, ManagedPeripheral
  *     {
  *         {@literal @}Override

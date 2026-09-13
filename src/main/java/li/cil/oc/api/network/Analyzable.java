@@ -1,12 +1,12 @@
 package li.cil.oc.api.network;
 
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.world.entity.player.Player;
 
 /**
  * Allows defining a callback for when a block is right-clicked with an
  * analyzer.
  * <br>
- * This has to be implemented by a {@link net.minecraft.tileentity.TileEntity},
+ * This has to be implemented by a {@link net.minecraft.tileentity.BlockEntity},
  * else it will have no effect.
  */
 public interface Analyzable {
@@ -30,5 +30,5 @@ public interface Analyzable {
      * @return the nodes to display information for, usually an environment's
      * main node (i.e. <tt>this.node()</tt>).
      */
-    Node[] onAnalyze(EntityPlayer player, int side, float hitX, float hitY, float hitZ);
+    Node[] onAnalyze(Player player, int side, float hitX, float hitY, float hitZ);
 }

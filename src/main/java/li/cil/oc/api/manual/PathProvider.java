@@ -1,7 +1,7 @@
 package li.cil.oc.api.manual;
 
-import net.minecraft.item.ItemStack;
-import net.minecraft.world.World;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 
 /**
  * Allows providing paths for item stacks and blocks in the world.
@@ -41,5 +41,5 @@ public interface PathProvider {
      * @param z     the Z coordinate of the block.
      * @return the path to the page, <tt>null</tt> if none is known.
      */
-    String pathFor(World world, int x, int y, int z);
+    String pathFor(Level world, int x, int y, int z);
 }
