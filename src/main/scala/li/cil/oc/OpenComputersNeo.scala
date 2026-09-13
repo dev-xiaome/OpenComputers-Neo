@@ -25,11 +25,16 @@ class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
 
   DataComponents.REGISTRY.register(modBus)
   CreativeTab.register(modBus)
+  li.cil.oc.common.SoundEvents.REGISTRY.register(modBus)
 
   // 注册层：方块 / 物品 / 方块实体 / 菜单的 DeferredRegister 全部在这里挂上事件总线，
   // 同时接线创造模式标签页（BuildCreativeModeTabContentsEvent）与方块实体合法方块
   // （BlockEntityTypeAddBlocksEvent）。必须在 mod 构造期完成。
   Registry.init(modBus)
+
+  // 网络传输层：把 `opencomputers_neo:packet` 这个 payload 注册到 mod 事件总线，
+  // 并装配客户端/服务端两个分发器。必须在 mod 构造期调用一次。
+  li.cil.oc.common.PacketHandler.initialize(modBus)
 
   // 具体物品 / 方块的注册。两者目前是占位实现（对应原 `Items.init()` / `Blocks.init()`），
   // 等 `common/item`、`common/block` 移植完成后在 `Registry.Items` / `Registry.Blocks` 里补全。
