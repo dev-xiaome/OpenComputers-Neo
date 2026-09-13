@@ -1,5 +1,7 @@
 param(
-    [string]$Project = 'D:\Workspace\Mods\1.21.1\OpenComputers Neo'
+    [string]$Project = 'D:\Workspace\Mods\1.21.1\OpenComputers Neo',
+    [string]$Packages = '',
+    [string]$Log = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,6 +30,7 @@ $cp = ($jars -join ';')
 $props = Get-Content (Join-Path $Project 'gradle.properties')
 $line = $props | Where-Object { $_ -match '^scala_ported_packages=' }
 $globs = ($line -replace '^scala_ported_packages=', '') -split ','
+if ($Packages -ne '') { $globs = $Packages -split ',' }
 $src = Join-Path $Project 'src\main\scala'
 $files = New-Object System.Collections.Generic.List[string]
 foreach ($g in $globs) {
@@ -57,7 +60,7 @@ $scalaRef = (Get-ChildItem $cache -Recurse -File -Filter 'scala-reflect-2.13.14.
 $compilerCp = "$scalaJars;$scalaLib;$scalaRef"
 
 $scalaArgs = @('-d', $out, '-release', '21', '-encoding', 'UTF-8', '-nowarn') + ($files | ForEach-Object { $_.Substring($Project.Length + 1) })
-$log = Join-Path $env:TEMP 'oc-scalac-check.log'
+$log = if ($Log -ne '') { $Log } else { Join-Path $env:TEMP 'oc-scalac-check.log' }
 $argFile = Join-Path $env:TEMP 'oc-scalac-args.txt'
 [System.IO.File]::WriteAllLines($argFile, [string[]]$scalaArgs, (New-Object System.Text.UTF8Encoding($false)))
 Remove-Item $log -Force -ErrorAction SilentlyContinue

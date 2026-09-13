@@ -14,7 +14,10 @@
 | 批量重写脚本 | ✅ | `tools/port-rewrite.ps1`（import / 符号 / NBT 方法名）、`tools/scala213-migrate.ps1`、`tools/lang-to-json.ps1`、`tools/errors.ps1` |
 | 按包增量编译 | ✅ | `gradle.properties` 的 `scala_ported_packages` 控制编译范围，保证工程任何时刻可编译可启动 |
 | `li.cil.oc.api` | ✅ | Java API 层全部编译通过（0 错误） |
-| `li.cil.oc.util` | 🔄 | 移植完成，正在清最后约 25 个编译错误 |
+| `li.cil.oc.util` | ✅ | Scala 工具层全部编译通过（0 错误） |
+| 游戏内加载 | ✅ | `runClient` 可正常进入游戏；日志确认主类与配置初始化完成，生成 `config/opencomputers_neo.conf` |
+| 创造模式标签页 | ⚠️ | 已注册但**空**，游戏会隐藏空标签页 → 阶段 2 注册物品后才会显示 |
+| `li.cil.oc.common` | 🔄 | 阶段 2 进行中：先做注册层 + `common/item/traits` + `common/item/data` |
 | 物品 NBT 方案 | ✅ | 自定义数据组件 `opencomputers_neo:nbt`（`li.cil.oc.common.DataComponents`）+ `li.cil.oc.util.ItemNBT` + Scala 隐式类 |
 
 ## 关键设计决策
@@ -32,6 +35,13 @@
    原生 Lua（JNLua / `server/machine/luac`）暂不移植，`util/ExtendedLuaState.scala` 暂时排除编译。
 8. **其它模组集成**：仅保留 `integration/opencomputers`（OC 自身驱动）与 `integration/util`，
    第三方模组代理（AE2/IC2/BC/CC 等）整体移除，`Mods.scala` 改为 `ModList` 探测。
+9. **运行时依赖可见性（关键坑）**：ModDevGradle 会把依赖放到 JVM 的 *boot module path* 上，
+   FML 的类加载器读不到（`NoClassDefFoundError: scala.collection.immutable.List`）。
+   解决方式：`compileOnly` + `jarJar`（发布用）+ `build.gradle` 里给所有 `write*LegacyClasspath`
+   任务追加、并给 `runClient/runServer/runData/runGameTestServer` 的 VM 参数追加 `-cp <三个库>`（开发用）。
+10. **不要再用 `com.typesafe.config.impl` 自定义类**：会与 `typesafe.config` 模块形成 JPMS 拆分包，
+   导致 `ModuleLayerHandler` 解析失败。原 `OpenComputersConfigCommentManipulationHook` 已删除。
+11. **1.7.10 的 damage 子类型 → 1.21.1 独立物品/方块**：`Delegator`/`Delegate` 派发机制不再需要。
 
 ## 待办（按顺序）
 
