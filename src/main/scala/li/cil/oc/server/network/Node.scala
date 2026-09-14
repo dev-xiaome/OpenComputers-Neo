@@ -9,7 +9,6 @@ import li.cil.oc.api.network.{Node => ImmutableNode}
 import net.minecraft.nbt.CompoundTag
 
 import scala.jdk.CollectionConverters._
-import scala.jdk.CollectionConverters._
 
 trait Node extends ImmutableNode {
   def host: Environment
@@ -26,27 +25,30 @@ trait Node extends ImmutableNode {
   }
 
   def isNeighborOf(other: ImmutableNode) =
-    isInSameNetwork(other) && network.neighbors(this).exists(_ == other)
+    isInSameNetwork(other) && network.neighbors(this).asScala.exists(_ == other)
 
-  def reachableNodes: java.lang.Iterable[ImmutableNode] =
-    if (network == null) Iterable.empty[ImmutableNode].toSeq
-    else network.nodes(this)
+  // 返回类型收紧为 Scala 的 `Iterable`（它本身实现了 `java.lang.Iterable`，属于合法的
+  // 协变收窄）。注意本文件 import 了 `li.cil.oc.api.network._`，其中的 `Iterable`
+  // 会把 `scala.Iterable` 屏蔽掉，所以这里一律写全限定名。
+  override def reachableNodes: scala.collection.Iterable[ImmutableNode] =
+    if (network == null) scala.collection.Iterable.empty[ImmutableNode]
+    else network.nodes(this).asScala
 
-  def neighbors: java.lang.Iterable[ImmutableNode] =
-    if (network == null) Iterable.empty[ImmutableNode].toSeq
-    else network.neighbors(this)
+  override def neighbors: scala.collection.Iterable[ImmutableNode] =
+    if (network == null) scala.collection.Iterable.empty[ImmutableNode]
+    else network.neighbors(this).asScala
 
   // A node should be added to a network before it can connect to a node
   // but, sometimes other mods try to create nodes and connect them before
   // the network is ready. We don't desire those things to crash here.
   // With typical nodes we are talking about components here
   // which will be connected anyways when the network is created
-  def connect(node: ImmutableNode): Unit = if (network != null) network.connect(this, node)
+  override def connect(node: ImmutableNode): Unit = if (network != null) network.connect(this, node)
 
-  def disconnect(node: ImmutableNode) =
+  override def disconnect(node: ImmutableNode) =
     if (network != null && isInSameNetwork(node)) network.disconnect(this, node)
 
-  def remove() = if (network != null) network.remove(this)
+  override def remove() = if (network != null) network.remove(this)
 
   private def isInSameNetwork(other: ImmutableNode) = network != null && other != null && network == other.network
 

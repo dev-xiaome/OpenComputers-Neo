@@ -44,8 +44,9 @@ object ParticleProvider extends ScalaProvider("b48c4bbd-51bb-4915-9367-16cff3220
     override def getNameHint = "particles." + effectName
 
     override def update(): Unit = {
-      val world = player.getEntityWorld
-      if (world.isRemote && Settings.get.enableNanomachinePfx) {
+      // 1.21.1：`player.getEntityWorld` → `player.level()`；`World#isRemote` → `Level#isClientSide`。
+      val world = player.level()
+      if (world.isClientSide && Settings.get.enableNanomachinePfx) {
         PlayerUtils.spawnParticleAround(player, effectName, api.Nanomachines.getController(player).getInputCount(this) * 0.25)
       }
     }

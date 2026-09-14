@@ -119,7 +119,7 @@ trait ComponentInventory extends Environment with Inventory with inventory.Compo
 
   // ----------------------------------------------------------------------- //
 
-  override protected def initialize(): Unit = {
+  override def initialize(): Unit = {
     super.initialize()
     if (isClient) {
       connectComponents()
@@ -147,13 +147,13 @@ trait ComponentInventory extends Environment with Inventory with inventory.Compo
     }
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     connectComponents()
     super.writeToNBTForClient(nbt)
     save(nbt)
   }
 
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     load(nbt)
     connectComponents()

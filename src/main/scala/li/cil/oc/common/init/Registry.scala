@@ -11,7 +11,9 @@ import li.cil.oc.api.fs.FileSystem
 import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.core.registries.Registries
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.inventory.MenuType
+import net.minecraft.world.item.crafting.{Recipe, RecipeSerializer, RecipeType}
 import net.minecraft.world.item.{BlockItem, CreativeModeTab, Item, ItemStack}
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
@@ -75,6 +77,14 @@ object Registry extends ItemAPI {
   final val menus: DeferredRegister[MenuType[_]] =
     DeferredRegister.create(Registries.MENU, OpenComputersNeo.MODID)
 
+  /** 配方类型（`common/recipe` 里的自定义配方用；见 [[registerRecipeType]]）。 */
+  final val recipeTypes: DeferredRegister[RecipeType[_]] =
+    DeferredRegister.create(Registries.RECIPE_TYPE, OpenComputersNeo.MODID)
+
+  /** 配方序列化器：1.21.1 的配方 JSON 里 `type` 字段指向的就是它（见 [[registerRecipeSerializer]]）。 */
+  final val recipeSerializers: DeferredRegister[RecipeSerializer[_]] =
+    DeferredRegister.create(Registries.RECIPE_SERIALIZER, OpenComputersNeo.MODID)
+
   // ----------------------------------------------------------------------- //
   // 状态
   // ----------------------------------------------------------------------- //
@@ -130,6 +140,11 @@ object Registry extends ItemAPI {
     blocks.register(modBus)
     blockEntities.register(modBus)
     menus.register(modBus)
+    recipeTypes.register(modBus)
+    recipeSerializers.register(modBus)
+
+    // 菜单必须在 mod 构造期登记（注册表事件之前），不能等第一次打开 GUI 时才懒加载。
+    initMenus()
 
     modBus.addListener(EventPriority.NORMAL, false, classOf[BuildCreativeModeTabContentsEvent],
       new java.util.function.Consumer[BuildCreativeModeTabContentsEvent] {
@@ -314,11 +329,66 @@ object Registry extends ItemAPI {
   def bindBlockEntityBlock(blockName: String, blockEntityName: String): Unit =
     blockEntityBlocks.getOrElseUpdate(blockEntityName, mutable.Set.empty[String]) += blockName
 
-  /** 注册菜单类型。 */
+  /**
+   * 注册菜单类型。
+   *
+   * 1.7.10 没有 `MenuType`：容器由 `IGuiHandler` 直接 new，客户端靠 `guiId` 反射还原。
+   * 1.21.1 的客户端必须拿到一个已注册的 `MenuType` 才能重建容器，因此这里统一登记
+   * （`common/container/MenuTypes.scala` 里按容器类逐个调用本方法）。
+   */
   def registerMenu[T <: MenuType[_]](name: String, supplier: Supplier[T])
     : DeferredHolder[MenuType[_], MenuType[_]] = {
     val holder = menus.register(registryName(name), new Supplier[MenuType[_]] {
       override def get(): MenuType[_] = supplier.get()
+    })
+    holder
+  }
+
+  /**
+   * 登记 `common/container` 下全部 16 个容器的 `MenuType`。
+   *
+   * 委托给 [[li.cil.oc.common.container.MenuTypes]]（真正定义在 `common/container` 里，
+   * 因为 `MenuType` 的工厂必须能 new 出那些容器类）。本方法由 [[init]] 在 mod 构造期调用。
+   */
+  def initMenus(): Unit = li.cil.oc.common.container.MenuTypes.register()
+
+  // ----------------------------------------------------------------------- //
+  // 注册：配方（RecipeType / RecipeSerializer）
+  // ----------------------------------------------------------------------- //
+
+  /**
+   * 注册一个配方类型。
+   *
+   * 注意（1.21.1 的关键约束）：**合成台只按 `RecipeType.CRAFTING` 查配方**
+   * （`CraftingMenu` 里写死了 `RecipeManager#getRecipeFor(RecipeType.CRAFTING, ...)`），
+   * 所以 `common/recipe` 下的自定义配方都实现 `CraftingRecipe`，
+   * `getType()` 返回 `RecipeType.CRAFTING`；这里登记的类型只是「配方族」的标识，
+   * 供 `data/opencomputers_neo` 下 `recipe` 目录里 json 的编写者与后续工具使用。
+   *
+   * @param name 配方族名（会小写化），例如 `colorizer`
+   */
+  def registerRecipeType[T <: Recipe[_]](name: String)
+    : DeferredHolder[RecipeType[_], RecipeType[_]] = {
+    val holder = recipeTypes.register(registryName(name), new Supplier[RecipeType[_]] {
+      override def get(): RecipeType[_] =
+        RecipeType.simple(ResourceLocation.fromNamespaceAndPath(OpenComputersNeo.MODID, registryName(name)))
+    })
+    holder
+  }
+
+  /**
+   * 注册配方序列化器。
+   *
+   * 1.21.1 的配方 JSON 用 `"type": "<namespace>:<path>"` 选出反序列化器，
+   * 因此**自定义配方必须在这里登记**（配方类型仍可以是 `RecipeType.CRAFTING`）。
+   *
+   * @param name     注册名（会小写化），例如 `colorizer`
+   * @param supplier 序列化器工厂（注册表事件之后才会被调用）
+   */
+  def registerRecipeSerializer[T <: Recipe[_]](name: String, supplier: Supplier[RecipeSerializer[T]])
+    : DeferredHolder[RecipeSerializer[_], RecipeSerializer[_]] = {
+    val holder = recipeSerializers.register(registryName(name), new Supplier[RecipeSerializer[_]] {
+      override def get(): RecipeSerializer[_] = supplier.get()
     })
     holder
   }
@@ -796,6 +866,25 @@ object Registry extends ItemAPI {
       }
       descriptors += name -> info
       creativeOrder += name
+    }
+
+    /**
+     * 登记一个「由固定堆叠描述」的条目（公开版，等价于原 `Items.registerStack(stack, name)`）。
+     *
+     * 战利品软盘（[[li.cil.oc.common.Loot.createLootDisk]]）用它把 `loot.properties` 里
+     * 声明的每个磁盘登记成描述符，并追加到创造模式标签页。
+     *
+     * `name` 可能与 `initItems()` 里已登记的伪物品重名（例如 `openos` 既有普通软盘条目、
+     * 又有战利品磁盘条目）：这里先摘掉旧的出现位置，再登记新条目，
+     * 避免创造模式标签页里出现两份同名条目。
+     *
+     * @param name  描述符名（`api.Items.get(name)` / `createItemStack(name)` 用它查询）
+     * @param stack 模板堆叠；描述符每次返回它的副本
+     */
+    def registerStack(name: String, stack: ItemStack): Unit = {
+      if (stack == null || stack.isEmpty) return
+      creativeOrder -= name
+      registerStackItem(name, _ => stack.copy())
     }
   }
 

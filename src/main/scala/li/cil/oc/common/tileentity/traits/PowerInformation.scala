@@ -52,13 +52,13 @@ trait PowerInformation extends TileEntity {
     else false
   }
 
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     globalBuffer = nbt.getDouble("globalBuffer")
     globalBufferSize = nbt.getDouble("globalBufferSize")
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     lastSentRatio = if (globalBufferSize > 0) globalBuffer / globalBufferSize else 0
     nbt.putDouble("globalBuffer", globalBuffer)

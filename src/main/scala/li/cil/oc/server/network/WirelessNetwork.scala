@@ -1,39 +1,66 @@
 package li.cil.oc.server.network
 
-import net.neoforged.bus.api.SubscribeEvent
 import li.cil.oc.Settings
 import li.cil.oc.api.network.WirelessEndpoint
 import li.cil.oc.util.RTree
+import net.minecraft.core.BlockPos
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.world.level.chunk.LevelChunk
 import net.minecraft.world.phys.Vec3
+import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.neoforge.event.level.ChunkEvent
 import net.neoforged.neoforge.event.level.LevelEvent
 
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
+/**
+ * 无线网络（按维度维护一棵 R 树，用于按信号强度做范围查询与遮挡判定）。
+ *
+ * ==1.21.1 移植要点==
+ *  - `WorldEvent` → [[net.neoforged.neoforge.event.level.LevelEvent]]；
+ *    `e.world.isRemote` → `e.getLevel.isClientSide`。
+ *  - 1.21.1 没有数字维度 id，`provider.dimensionId` → `dimension().location()`，键类型改 [[ResourceLocation]]。
+ *  - `Chunk#chunkTileEntityMap` → `LevelChunk#getBlockEntities()`。
+ *  - 向量：`Vec3.createVectorHelper(x, y, z)` → `new Vec3(x, y, z)`；`xCoord/yCoord/zCoord` → `x/y/z`；
+ *    `subtract` / `crossProduct` / `normalize` 改为 [[Vec3]] 自带的 `subtract` / `cross` / `normalize`。
+ *  - `world.rand` → `world.random`；`world.blockExists(x, y, z)` → `world.isLoaded(BlockPos)`
+ *    （等价于原 `blockExists(x, y, z)`：区块已加载且该坐标的方块实体可用）。
+ *  - 方块硬度：`block.getBlockHardness(world, x, y, z)` →
+ *    `world.getBlockState(pos).getDestroySpeed(world, pos)`。
+ *  - `var hardness += ...` 之类的「对局部 var 做 `+=`」在 Scala 2.13 里成立，
+ *    但原写法把 `hardness` 写成了被闭包捕获的 var，这里改为显式累加赋值。
+ *
+ * ==已知缺口==
+ * TODO(common.EventHandler): 本对象上的 `@SubscribeEvent` 需要由 `common/EventHandler` 在
+ * `NeoForge.EVENT_BUS` 上注册才会生效；注册遗漏时只影响「世界/区块卸载时的兜底清理」。
+ */
 object WirelessNetwork {
-  val dimensions = mutable.Map.empty[Int, RTree[WirelessEndpoint]]
+  val dimensions = mutable.Map.empty[ResourceLocation, RTree[WirelessEndpoint]]
 
   @SubscribeEvent
-  def onWorldUnload(e: WorldEvent.Unload): Unit = {
-    if (!e.world.isRemote) {
-      dimensions.remove(e.world.provider.dimensionId)
+  def onWorldUnload(e: LevelEvent.Unload): Unit = {
+    if (!e.getLevel.isClientSide) {
+      dimensions.remove(dimension(e.getLevel))
     }
   }
 
   @SubscribeEvent
-  def onWorldLoad(e: WorldEvent.Load): Unit = {
-    if (!e.world.isRemote) {
-      dimensions.remove(e.world.provider.dimensionId)
+  def onWorldLoad(e: LevelEvent.Load): Unit = {
+    if (!e.getLevel.isClientSide) {
+      dimensions.remove(dimension(e.getLevel))
     }
   }
 
   // Safety clean up, in case some tile entities didn't properly leave the net.
   @SubscribeEvent
   def onChunkUnload(e: ChunkEvent.Unload): Unit = {
-    e.getChunk.chunkTileEntityMap.values.foreach {
-      case endpoint: WirelessEndpoint => remove(endpoint)
-      case _ =>
+    e.getChunk match {
+      case chunk: LevelChunk => chunk.getBlockEntities.values.asScala.foreach {
+        case endpoint: WirelessEndpoint => remove(endpoint)
+        case _ =>
+      }
+      case _ => // 非 LevelChunk（例如空区块）不含方块实体。
     }
   }
 
@@ -59,15 +86,27 @@ object WirelessNetwork {
     }
   }
 
-  def remove(endpoint: WirelessEndpoint, dimension: Int) = {
-    dimensions.get(dimension) match {
-      case Some(set) => set.remove(endpoint)
-      case _ => false
+  def remove(endpoint: WirelessEndpoint): Boolean = removeFrom(dimension(endpoint), endpoint)
+
+  /**
+   * 兼容 `api.detail.NetworkAPI#leaveWirelessNetwork(WirelessEndpoint, int)`（1.7.10 的数字维度 id）。
+   *
+   * 1.21.1 的维度没有数字 id，这里用 `minecraft:overworld` / `the_nether` / `the_end` 三个
+   * 已知 id 做一次回退映射，并额外提供 [[removeFrom]] 供内部按 [[ResourceLocation]] 精确删除。
+   *
+   * TODO(server.machine): 调用方全部换成按 `ResourceLocation` 之后，本方法可以删除。
+   */
+  def remove(endpoint: WirelessEndpoint, dimensionId: Int): Boolean = {
+    val legacy = dimensionId match {
+      case -1 => ResourceLocation.withDefaultNamespace("the_nether")
+      case 1 => ResourceLocation.withDefaultNamespace("the_end")
+      case _ => ResourceLocation.withDefaultNamespace("overworld")
     }
+    removeFrom(legacy, endpoint)
   }
 
-  def remove(endpoint: WirelessEndpoint) = {
-    dimensions.get(dimension(endpoint)) match {
+  private def removeFrom(dimension: ResourceLocation, endpoint: WirelessEndpoint): Boolean = {
+    dimensions.get(dimension) match {
       case Some(set) => set.remove(endpoint)
       case _ => false
     }
@@ -88,7 +127,13 @@ object WirelessNetwork {
     }
   }
 
-  private def dimension(endpoint: WirelessEndpoint) = endpoint.world.provider.dimensionId
+  private def dimension(endpoint: WirelessEndpoint): ResourceLocation = dimension(endpoint.world)
+
+  private def dimension(world: net.minecraft.world.level.LevelAccessor): ResourceLocation =
+    world match {
+      case level: net.minecraft.world.level.Level => level.dimension().location()
+      case _ => ResourceLocation.fromNamespaceAndPath("minecraft", "overworld")
+    }
 
   private def offset(endpoint: WirelessEndpoint, value: Double) =
     (endpoint.x + 0.5 + value, endpoint.y + 0.5 + value, endpoint.z + 0.5 + value)
@@ -114,40 +159,40 @@ object WirelessNetwork {
       // the message.
       val world = endpoint.world
 
-      val origin = Vec3.createVectorHelper(reference.x, reference.y, reference.z)
-      val target = Vec3.createVectorHelper(endpoint.x, endpoint.y, endpoint.z)
+      val origin = new Vec3(reference.x, reference.y, reference.z)
+      val target = new Vec3(endpoint.x, endpoint.y, endpoint.z)
 
       // Vector from reference endpoint (sender) to this one (receiver).
-      val delta = subtract(target, origin)
+      val delta = target.subtract(origin)
       val v = delta.normalize()
 
       // Get the vectors that are orthogonal to the direction vector.
-      val up = if (v.xCoord == 0 && v.zCoord == 0) {
-        assert(v.yCoord != 0)
-        Vec3.createVectorHelper(1, 0, 0)
+      val up = if (v.x == 0 && v.z == 0) {
+        assert(v.y != 0)
+        new Vec3(1, 0, 0)
       }
       else {
-        Vec3.createVectorHelper(0, 1, 0)
+        new Vec3(0, 1, 0)
       }
-      val side = crossProduct(v, up)
-      val top = crossProduct(v, side)
+      val side = v.cross(up)
+      val top = v.cross(side)
 
       // Accumulated obstructions and number of samples.
       var hardness = 0.0
       val samples = math.max(1, math.sqrt(gap).toInt)
 
       for (i <- 0 until samples) {
-        val rGap = world.rand.nextDouble() * gap
+        val rGap = world.random.nextDouble() * gap
         // Adding some jitter to avoid only tracking the perfect line between
         // two endpoints when they are diagonal to each other for example.
-        val rSide = world.rand.nextInt(3) - 1
-        val rTop = world.rand.nextInt(3) - 1
-        val x = (origin.xCoord + v.xCoord * rGap + side.xCoord * rSide + top.xCoord * rTop).toInt
-        val y = (origin.yCoord + v.yCoord * rGap + side.yCoord * rSide + top.yCoord * rTop).toInt
-        val z = (origin.zCoord + v.zCoord * rGap + side.zCoord * rSide + top.zCoord * rTop).toInt
-        if (world.blockExists(x, y, z)) Option(world.getBlock(x, y, z)) match {
-          case Some(block) => hardness += block.getBlockHardness(world, x, y, z)
-          case _ =>
+        val rSide = world.random.nextInt(3) - 1
+        val rTop = world.random.nextInt(3) - 1
+        val x = (origin.x + v.x * rGap + side.x * rSide + top.x * rTop).toInt
+        val y = (origin.y + v.y * rGap + side.y * rSide + top.y * rTop).toInt
+        val z = (origin.z + v.z * rGap + side.z * rSide + top.z * rTop).toInt
+        val pos = new BlockPos(x, y, z)
+        if (world.isLoaded(pos)) {
+          hardness = hardness + world.getBlockState(pos).getDestroySpeed(world, pos)
         }
       }
 
@@ -159,8 +204,4 @@ object WirelessNetwork {
     }
     else true
   }
-
-  private def subtract(v1: Vec3, v2: Vec3) = Vec3.createVectorHelper(v1.xCoord - v2.xCoord, v1.yCoord - v2.yCoord, v1.zCoord - v2.zCoord)
-
-  private def crossProduct(v1: Vec3, v2: Vec3) = Vec3.createVectorHelper(v1.yCoord * v2.zCoord - v1.zCoord * v2.yCoord, v1.zCoord * v2.xCoord - v1.xCoord * v2.zCoord, v1.xCoord * v2.yCoord - v1.yCoord * v2.xCoord)
 }

@@ -34,7 +34,7 @@ class DiskDriveMountable(val rack: api.internal.Rack, val slot: Int) extends pre
   // Stored for filling data packet when queried.
   var lastAccess = 0L
 
-  def filesystemNode = components(0) match {
+  def filesystemNode = componentEnvironments(0) match {
     case Some(environment) => Option(environment.node)
     case _ => None
   }
@@ -117,7 +117,7 @@ class DiskDriveMountable(val rack: api.internal.Rack, val slot: Int) extends pre
 
   override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     super.onItemAdded(slot, stack)
-    components(slot) match {
+    componentEnvironments(slot) match {
       case Some(environment) => environment.node match {
         case component: Component => component.setVisibility(Visibility.Network)
       }

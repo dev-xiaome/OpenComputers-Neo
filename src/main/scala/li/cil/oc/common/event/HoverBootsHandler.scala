@@ -1,26 +1,57 @@
 package li.cil.oc.common.event
 
-import net.neoforged.bus.api.SubscribeEvent
 import li.cil.oc.Settings
 import li.cil.oc.common.item.HoverBoots
+import li.cil.oc.util.PlayerUtils
+import net.minecraft.world.entity.EquipmentSlot
+import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.player.Player
-import net.minecraftforge.common.util.FakePlayer
-import net.minecraftforge.event.entity.living.LivingEvent.LivingJumpEvent
-import net.minecraftforge.event.entity.living.LivingEvent.LivingUpdateEvent
-import net.minecraftforge.event.entity.living.LivingFallEvent
+import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.common.NeoForge
+import net.neoforged.neoforge.common.util.FakePlayer
+import net.neoforged.neoforge.event.entity.living.LivingEvent.LivingJumpEvent
+import net.neoforged.neoforge.event.entity.living.LivingFallEvent
+import net.neoforged.neoforge.event.tick.PlayerTickEvent
 
+/**
+ * 悬浮靴：提供短距离飞行 / 跳跃 / 缓落，并抬高一步高度。
+ *
+ * 1.21.1 迁移要点：
+ *  - `LivingEvent.LivingUpdateEvent` 已移除，改用 `PlayerTickEvent.Pre`
+ *    （本处理器只关心玩家，二者语义一致）。
+ *  - `player.getEntityData` → [[li.cil.oc.util.PlayerUtils.persistedData]]。
+ *  - `player.isSneaking` → `player.isShiftKeyDown`；`capabilities.isCreativeMode` →
+ *    `player.getAbilities.instabuild`。
+ *  - `worldObj.getTotalWorldTime` → `level().getGameTime`；`motionX/Y/Z` →
+ *    `getDeltaMovement()` / `setDeltaMovement(...)`；`addVelocity` → `push`。
+ *  - `player.stepHeight = x` 在 1.21.1 不存在：一步高度改由
+ *    `Attributes.STEP_HEIGHT` 属性承载（默认 0.6），这里通过 `AttributeInstance#setBaseValue`
+ *    设置。
+ *  - 装备栏读取：`getEquipmentInSlot(1 to 4)` → `getItemBySlot(FEET/LEGS/CHEST/HEAD)`。
+ */
 object HoverBootsHandler {
-  @SubscribeEvent
-  def onLivingUpdate(e: LivingUpdateEvent): Unit = e.entity match {
+  /** 没有悬浮靴时的默认一步高度（1.21.1 玩家的 `Attributes.STEP_HEIGHT` 默认值）。 */
+  private val DefaultStepHeight = 0.6
+
+  /** 注册监听器；由主类（或 [[EventHandlers]]）调用一次。 */
+  def initialize(): Unit = {
+    NeoForge.EVENT_BUS.addListener((e: PlayerTickEvent.Pre) => onPlayerTick(e))
+    NeoForge.EVENT_BUS.addListener((e: LivingJumpEvent) => onLivingJump(e))
+    NeoForge.EVENT_BUS.addListener((e: LivingFallEvent) => onLivingFall(e))
+  }
+
+  def onPlayerTick(e: PlayerTickEvent.Pre): Unit = e.getEntity match {
     case player: Player if !player.isInstanceOf[FakePlayer] =>
-      val nbt = player.getEntityData
+      val nbt = PlayerUtils.persistedData(player)
       val hadHoverBoots = nbt.getBoolean(Settings.namespace + "hasHoverBoots")
-      val hasHoverBoots = !player.isSneaking && equippedArmor(player).exists(stack => stack.getItem match {
+      val hasHoverBoots = !player.isShiftKeyDown && equippedArmor(player).exists(stack => stack.getItem match {
         case boots: HoverBoots =>
           Settings.get.ignorePower || {
-            if (player.onGround && !player.capabilities.isCreativeMode && player.worldObj.getTotalWorldTime % Settings.get.tickFrequency == 0) {
-              val velocity = player.motionX * player.motionX + player.motionY * player.motionY + player.motionZ * player.motionZ
-              if (velocity > 0.015f) {
+            if (player.onGround() && !player.getAbilities.instabuild &&
+              player.level().getGameTime % Settings.get.tickFrequency == 0) {
+              val motion = player.getDeltaMovement
+              val velocity = motion.x * motion.x + motion.y * motion.y + motion.z * motion.z
+              if (velocity > 0.015) {
                 boots.charge(stack, -Settings.get.hoverBootMove, simulate = false)
               }
             }
@@ -30,48 +61,55 @@ object HoverBootsHandler {
       })
       if (hasHoverBoots != hadHoverBoots) {
         nbt.putBoolean(Settings.namespace + "hasHoverBoots", hasHoverBoots)
-        player.stepHeight = if (hasHoverBoots) 1f else 0.5f
+        val stepHeight = player.getAttribute(Attributes.STEP_HEIGHT)
+        if (stepHeight != null) {
+          stepHeight.setBaseValue(if (hasHoverBoots) 1.0 else DefaultStepHeight)
+        }
       }
-      if (hasHoverBoots && !player.onGround && player.fallDistance < 5 && player.motionY < 0) {
-        player.motionY *= 0.9f
+      if (hasHoverBoots && !player.onGround() && player.fallDistance < 5 && player.getDeltaMovement.y < 0) {
+        val motion = player.getDeltaMovement
+        player.setDeltaMovement(motion.x, motion.y * 0.9, motion.z)
       }
-    case _ => // Ignore.
+    case _ => // 忽略。
   }
 
-  @SubscribeEvent
-  def onLivingJump(e: LivingJumpEvent): Unit = e.entity match {
-    case player: Player if !player.isInstanceOf[FakePlayer] && !player.isSneaking =>
+  def onLivingJump(e: LivingJumpEvent): Unit = e.getEntity match {
+    case player: Player if !player.isInstanceOf[FakePlayer] && !player.isShiftKeyDown =>
       equippedArmor(player).collectFirst {
         case stack if stack.getItem.isInstanceOf[HoverBoots] =>
           val boots = stack.getItem.asInstanceOf[HoverBoots]
           val hoverJumpCost = -Settings.get.hoverBootJump
-          val isCreative = Settings.get.ignorePower || player.capabilities.isCreativeMode
+          val isCreative = Settings.get.ignorePower || player.getAbilities.instabuild
           if (isCreative || boots.charge(stack, hoverJumpCost, simulate = true) == 0) {
             if (!isCreative) boots.charge(stack, hoverJumpCost, simulate = false)
+            val motion = player.getDeltaMovement
             if (player.isSprinting)
-              player.addVelocity(player.motionX * 0.5, 0.4, player.motionZ * 0.5)
+              player.push(motion.x * 0.5, 0.4, motion.z * 0.5)
             else
-              player.addVelocity(0, 0.4, 0)
+              player.push(0, 0.4, 0)
           }
       }
-    case _ => // Ignore.
+    case _ => // 忽略。
   }
 
-  @SubscribeEvent
-  def onLivingFall(e: LivingFallEvent): Unit = if (e.distance > 3) e.entity match {
+  def onLivingFall(e: LivingFallEvent): Unit = if (e.getDistance > 3) e.getEntity match {
     case player: Player if !player.isInstanceOf[FakePlayer] =>
       equippedArmor(player).collectFirst {
         case stack if stack.getItem.isInstanceOf[HoverBoots] =>
           val boots = stack.getItem.asInstanceOf[HoverBoots]
           val hoverFallCost = -Settings.get.hoverBootAbsorb
-          val isCreative = Settings.get.ignorePower || player.capabilities.isCreativeMode
+          val isCreative = Settings.get.ignorePower || player.getAbilities.instabuild
           if (isCreative || boots.charge(stack, hoverFallCost, simulate = true) == 0) {
             if (!isCreative) boots.charge(stack, hoverFallCost, simulate = false)
-            e.distance *= 0.3f
+            e.setDistance(e.getDistance * 0.3f)
           }
       }
-    case _ => // Ignore.
+    case _ => // 忽略。
   }
 
-  private def equippedArmor(player: Player) = (1 to 4).map(player.getEquipmentInSlot).filter(_ != null)
+  /** 玩家身上四件护甲（靴 → 头盔），跳过空槽。 */
+  private def equippedArmor(player: Player): Seq[ItemStack] =
+    Seq(EquipmentSlot.FEET, EquipmentSlot.LEGS, EquipmentSlot.CHEST, EquipmentSlot.HEAD).
+      map(player.getItemBySlot).
+      filter(stack => stack != null && !stack.isEmpty)
 }

@@ -178,7 +178,7 @@ trait BundledRedstoneAware extends RedstoneAware {
     setBundledInput(side, null: Array[Int])
   }
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
 
     // 注意：`ListTag` 是 Java 集合，自带的 `toArray` 会遮蔽 `ExtendedListTag` 的隐式扩展
@@ -207,7 +207,7 @@ trait BundledRedstoneAware extends RedstoneAware {
     }
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
 
     nbt.setNewTagList(Settings.namespace + "rs.bundledInput", _bundledInput.map(rows => new IntArrayTag(rows)).toIndexedSeq)

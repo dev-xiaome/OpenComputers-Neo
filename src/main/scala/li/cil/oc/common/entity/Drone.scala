@@ -123,12 +123,12 @@ class Drone(val world: Level) extends Entity(world) with MachineHost with intern
     override def isUseableByPlayer(player: Player) = player.getDistanceSqToEntity(Drone.this) < 64
   }
   val tank = new MultiTank {
-    override def tankCount = components.components.count {
+    override def tankCount = components.componentEnvironments.count {
       case Some(tank: IFluidTank) => true
       case _ => false
     }
 
-    override def getFluidTank(index: Int): IFluidTank = components.components.collect {
+    override def getFluidTank(index: Int): IFluidTank = components.componentEnvironments.collect {
       case Some(tank: IFluidTank) => tank
     }.apply(index)
   }
@@ -224,7 +224,7 @@ class Drone(val world: Level) extends Entity(world) with MachineHost with intern
 
   override def internalComponents(): Iterable[ItemStack] = asJavaIterable(info.components)
 
-  override def componentSlot(address: String) = components.components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+  override def componentSlot(address: String) = components.componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   override def onMachineConnect(node: Node) {}
 

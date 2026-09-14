@@ -2,25 +2,33 @@ package li.cil.oc.common.container
 
 import li.cil.oc.common.Slot
 import li.cil.oc.common.tileentity
-import net.minecraft.world.entity.player.Inventory
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.entity.player.Inventory
 
+/**
+ * 交换机容器（原 1.7.10 `container.Switch`）。
+ *
+ * 1.21.1 迁移同 [[Relay]]：`Container` → `AbstractContainerMenu`（构造器多 `windowId`
+ * + [[MenuTypes]] 的 `MenuType`）；`getInteger` → `getInt`。
+ */
 // TODO Remove in 1.7
-class Switch(playerInventory: Inventory, switch: tileentity.Switch) extends Player(playerInventory, switch) {
+class Switch(windowId: Int, playerInventory: Inventory, switch: tileentity.Switch)
+  extends Player(windowId, MenuTypes.Switch.value(), playerInventory, switch) {
+
   addSlotToContainer(151, 15, Slot.CPU)
   addSlotToContainer(151, 34, Slot.Memory)
   addSlotToContainer(151, 53, Slot.HDD)
   addPlayerInventorySlots(8, 84)
 
-  def relayDelay = synchronizedData.getInteger("relayDelay")
+  def relayDelay: Int = synchronizedData.getInt("relayDelay")
 
-  def relayAmount = synchronizedData.getInteger("relayAmount")
+  def relayAmount: Int = synchronizedData.getInt("relayAmount")
 
-  def maxQueueSize = synchronizedData.getInteger("maxQueueSize")
+  def maxQueueSize: Int = synchronizedData.getInt("maxQueueSize")
 
-  def packetsPerCycleAvg = synchronizedData.getInteger("packetsPerCycleAvg")
+  def packetsPerCycleAvg: Int = synchronizedData.getInt("packetsPerCycleAvg")
 
-  def queueSize = synchronizedData.getInteger("queueSize")
+  def queueSize: Int = synchronizedData.getInt("queueSize")
 
   override protected def detectCustomDataChanges(nbt: CompoundTag): Unit = {
     synchronizedData.putInt("relayDelay", switch.relayDelay)

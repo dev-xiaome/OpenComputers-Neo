@@ -12,9 +12,9 @@ import li.cil.oc.common.component.traits.{TextBufferProxy, VideoRamDevice, Video
 
 class GpuTextBuffer(val owner: String, val id: Int, val data: li.cil.oc.util.TextBuffer) extends traits.TextBufferProxy {
 
-  // the gpu ram does not join nor is searchable to the network
-  // this field is required because the api TextBuffer is an Environment
-  override def node(): Node = {
+  // GPU 显存不加入网络、也不可被网络检索；这里必须实现只是因为
+  // api 的 TextBuffer 继承了 Environment。
+  override def node: Node = {
     throw new InvalidObjectException("GpuTextBuffers do not have nodes")
   }
 

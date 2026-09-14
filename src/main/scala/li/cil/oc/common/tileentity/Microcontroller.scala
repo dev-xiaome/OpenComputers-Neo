@@ -120,7 +120,7 @@ class Microcontroller(pos: BlockPos, state: BlockState)
   override def internalComponents(): java.lang.Iterable[ItemStack] = info.components.toIndexedSeq.asJava
 
   override def componentSlot(address: String): Int =
-    components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+    componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   // ----------------------------------------------------------------------- //
 

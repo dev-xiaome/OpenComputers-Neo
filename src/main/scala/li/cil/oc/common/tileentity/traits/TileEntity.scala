@@ -115,7 +115,7 @@ trait TileEntity { self: BlockEntity =>
   def tickClient(): Unit = {}
 
   /** 等价于原 `validate()`：方块实体加入世界时调用一次。 */
-  protected def initialize(): Unit = {}
+  def initialize(): Unit = {}
 
   /** 等价于原 `invalidate()` / `onChunkUnload()`：方块实体离开世界时调用（可能被调用两次，实现需幂等）。 */
   def dispose(): Unit = {}
@@ -125,16 +125,16 @@ trait TileEntity { self: BlockEntity =>
   // ----------------------------------------------------------------------- //
 
   /** 服务端侧读档（原 `readFromNBT` 的服务端分支）。 */
-  protected def readFromNBTForServer(nbt: CompoundTag): Unit = {}
+  def readFromNBTForServer(nbt: CompoundTag): Unit = {}
 
   /** 服务端侧存档。 */
-  protected def writeToNBTForServer(nbt: CompoundTag): Unit = {}
+  def writeToNBTForServer(nbt: CompoundTag): Unit = {}
 
   /** 客户端侧读取同步数据（原 `readFromNBTForClient`，服务端不会调用）。 */
-  protected def readFromNBTForClient(nbt: CompoundTag): Unit = {}
+  def readFromNBTForClient(nbt: CompoundTag): Unit = {}
 
   /** 客户端侧写出同步数据（用于 `getUpdateTag`）。 */
-  protected def writeToNBTForClient(nbt: CompoundTag): Unit = {}
+  def writeToNBTForClient(nbt: CompoundTag): Unit = {}
 
   // ----------------------------------------------------------------------- //
   // 便捷方法
@@ -152,11 +152,11 @@ trait TileEntity { self: BlockEntity =>
   }
 
   /** 通知周围方块（原 `world.notifyBlocksOfNeighborChange(x, y, z, block)`）。 */
-  protected def notifyNeighbors(): Unit =
+  def notifyNeighbors(): Unit =
     if (world != null) world.updateNeighborsAt(worldPosition, block)
 
   /** 通知客户端方块更新（原 `world.markBlockForUpdate(x, y, z)`）。 */
-  protected def markBlockForUpdate(): Unit =
+  def markBlockForUpdate(): Unit =
     if (world != null) world.sendBlockUpdated(worldPosition, getBlockState, getBlockState, Block.UPDATE_CLIENTS)
 
   /** 类型别名，方便子类覆写时引用（原代码里 `BlockEntityType` 由注册层保管）。 */

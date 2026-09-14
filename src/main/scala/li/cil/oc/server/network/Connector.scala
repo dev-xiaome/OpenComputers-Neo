@@ -112,7 +112,11 @@ trait Connector extends network.Connector with Node {
   override def onDisconnect(node: ImmutableNode): Unit = {
     super.onDisconnect(node)
     if (node == this) {
-      this.synchronized(distributor = None)
+      // 1.7.10 写法 `this.synchronized(distributor = None)` 在 2.13 下会因为
+      // 「赋值表达式作为 synchronized 的参数」被判成命名参数，这里显式写成块。
+      this.synchronized {
+        distributor = None
+      }
     }
   }
 

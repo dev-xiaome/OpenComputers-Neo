@@ -37,7 +37,8 @@ import scala.jdk.CollectionConverters._
  * `machine`、`node`、`isRunning` / `setRunning`、`hasErrored`、`canInteract`、
  * `internalComponents`、`installedComponents`、`hasRedstoneCard`、`hasAbstractBusCard`、
  * `componentSlot`（由具体方块实现）、`connectComponents` / `disconnectComponents`
- * （来自 [[ComponentInventory]]）、`components`、`setOutputEnabled` / `getOutput` /
+ * （来自 [[ComponentInventory]]，1.21.1 里由 `components` 更名为 `componentEnvironments`）、
+ * `setOutputEnabled` / `getOutput` /
  * `getBundledOutput` / `setRednetInput`（来自 [[BundledRedstoneAware]]）。
  *
  * ==降级清单==
@@ -122,11 +123,12 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
   /**
    * 已安装组件的环境列表。
    *
-   * 注意：1.21.1 的 `BlockEntity` 有一个同名的 `components()` 方法（返回 `DataComponentMap`），
-   * 它会遮蔽混合进来的 [[ComponentInventory#components]]，因此必须用 `super[...]` 显式限定。
+   * 注意：1.21.1 的 `BlockEntity` 有一个无参方法 `components()`（返回 `DataComponentMap`）。
+   * 组件环境数组已改名为 `componentEnvironments` 以避免同名冲突；
+   * 这里为保险起见仍用 `super[ComponentInventory]` 显式限定。
    */
   override def installedComponents: Iterable[ManagedEnvironment] =
-    super[ComponentInventory].components.collect { case Some(component) => component }.toIndexedSeq
+    super[ComponentInventory].componentEnvironments.collect { case Some(component) => component }.toIndexedSeq
 
   override def onMachineConnect(node: api.network.Node): Unit = this.onConnect(node)
 
@@ -230,7 +232,7 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
     }
   }
 
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     hasErrored = nbt.getBoolean("hasErrored")
     setRunning(nbt.getBoolean("isRunning"))
@@ -239,7 +241,7 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
     // TODO(client.Sound): 原实现在 `_isRunning` 为真时调用 `client.Sound.startLoop(...)`。
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putBoolean("hasErrored", machine != null && machine.lastError != null)
     nbt.putBoolean("isRunning", isRunning)

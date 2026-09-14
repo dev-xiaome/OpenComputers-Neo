@@ -155,7 +155,7 @@ trait RedstoneAware extends RotationAware {
     }
   }
 
-  override protected def initialize(): Unit = {
+  override def initialize(): Unit = {
     super.initialize()
     // 原实现在此判断 `!canUpdate` 时用 `EventHandler.scheduleServer` 延迟一 tick 采样输入。
     // TODO(common.EventHandler): `common.EventHandler` 未纳入编译范围（且 1.21.1 的 ticker
@@ -195,7 +195,7 @@ trait RedstoneAware extends RotationAware {
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
 
     val input = nbt.getIntArray(Settings.namespace + "rs.input")
@@ -204,20 +204,20 @@ trait RedstoneAware extends RotationAware {
     output.copyToArray(_output, 0, output.length min _output.length)
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
 
     nbt.putIntArray(Settings.namespace + "rs.input", _input)
     nbt.putIntArray(Settings.namespace + "rs.output", _output)
   }
 
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     _isOutputEnabled = nbt.getBoolean("isOutputEnabled")
     nbt.getIntArray("output").copyToArray(_output)
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putBoolean("isOutputEnabled", _isOutputEnabled)
     nbt.putIntArray("output", _output)

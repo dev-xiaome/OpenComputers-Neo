@@ -70,7 +70,7 @@ class Relay(pos: BlockPos, state: BlockState)
 
   var isLinkedEnabled = false
 
-  override var tunnel: String = "creative"
+  var tunnel: String = "creative"
 
   val componentNodes = Array.fill(6)(api.Network.newNode(this, Visibility.Network).
     withComponent("relay").

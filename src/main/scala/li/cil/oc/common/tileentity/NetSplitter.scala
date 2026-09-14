@@ -188,7 +188,7 @@ class NetSplitter(pos: BlockPos, state: BlockState)
   def setSideHelper(args: Arguments, value: Boolean): Array[AnyRef] = {
     val side = Direction.from3DDataValue(args.checkInteger(0))
     if (!Direction.values().contains(side))
-      return result(Unit, "invalid direction")
+      return result((), "invalid direction")
     result(setSide(side, value))
   }
 

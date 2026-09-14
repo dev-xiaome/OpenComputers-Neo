@@ -2,6 +2,7 @@ package li.cil.oc.common.tileentity.traits
 
 import li.cil.oc.Settings
 import li.cil.oc.api
+import li.cil.oc.api.network.Message
 import li.cil.oc.api.network.Node
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.entity.player.Player
@@ -78,22 +79,22 @@ trait TextBuffer extends Environment {
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     buffer.load(nbt)
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     buffer.save(nbt)
   }
 
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     buffer.load(nbt)
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     buffer.save(nbt)
   }
@@ -139,6 +140,16 @@ object TextBuffer {
     override def load(nbt: CompoundTag): Unit = {}
 
     override def save(nbt: CompoundTag): Unit = {}
+
+    // 网络事件（占位实现不参与网络，全部空实现） ----------------------------- //
+    // 说明：`api.internal.TextBuffer` 继承 `api.network.Environment`，
+    // 其中 `onConnect` / `onDisconnect` / `onMessage` 是抽象成员，必须实现。
+
+    override def onConnect(node: Node): Unit = {}
+
+    override def onDisconnect(node: Node): Unit = {}
+
+    override def onMessage(message: Message): Unit = {}
 
     // 能量 / 供电 ----------------------------------------------------------- //
 

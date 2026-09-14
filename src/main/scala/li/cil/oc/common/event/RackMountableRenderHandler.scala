@@ -1,22 +1,42 @@
 package li.cil.oc.common.event
 
-import net.neoforged.bus.api.SubscribeEvent
+import com.mojang.blaze3d.vertex.PoseStack
+import com.mojang.math.Axis
 import li.cil.oc.Constants
 import li.cil.oc.api
 import li.cil.oc.api.event.RackMountableRenderEvent
 import li.cil.oc.client.Textures
 import li.cil.oc.client.renderer.tileentity.RenderUtil
+import li.cil.oc.common.item.data.StackSerializer
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedWorld._
 import li.cil.oc.util.RenderState
-import net.minecraft.client.renderer.OpenGlHelper
-import net.minecraft.client.renderer.entity.RenderItem
-import net.minecraft.client.renderer.entity.RenderManager
-import net.minecraft.world.entity.item.ItemEntity
-import net.minecraft.world.item.ItemStack
-import net.minecraftforge.common.util.Constants.NBT
-import org.lwjgl.opengl.GL11
+import net.minecraft.client.Minecraft
+import net.minecraft.client.renderer.MultiBufferSource
+import net.minecraft.client.renderer.texture.OverlayTexture
+import net.minecraft.nbt.Tag
+import net.minecraft.world.item.ItemDisplayContext
+import net.neoforged.fml.loading.FMLEnvironment
+import net.neoforged.neoforge.common.NeoForge
 
+/**
+ * 机架挂载物的动态渲染：磁盘驱动器的盘片、服务器 / 终端服务器的指示灯。
+ *
+ * 1.21.1 迁移要点：
+ *  - `@SubscribeEvent` → 显式 `addListener`；本处理器只在物理客户端注册。
+ *  - 渲染不再有全局 `Tessellator` / `RenderManager`：覆盖层写进
+ *    `MultiBufferSource`（`RackMountableRenderEvent.BlockEntity#renderOverlay`），
+ *    盘片物品走 `ItemRenderer#renderStatic` + `PoseStack`。
+ *  - 事件本身不携带 `PoseStack` / `MultiBufferSource`（`li.cil.oc.api` 已冻结），
+ *    因此由 `client.renderer.tileentity.RackRenderer` 在 post 事件之前通过
+ *    [[setRenderContext]] 把当前渲染上下文交给本处理器。
+ *  - `ItemStack.loadItemStackFromNBT` → [[li.cil.oc.common.item.data.StackSerializer.loadItemStack]]。
+ *  - `NBT.TAG_STRING` → `Tag.TAG_STRING`。
+ *
+ * TODO(渲染): `client.renderer.tileentity.RackRenderer` 移植为 `BlockEntityRenderer` 时，
+ * 请务必在 post 事件前调用 `RackMountableRenderHandler.setRenderContext(...)`，
+ * 否则本处理器会跳过所有覆盖层绘制。
+ */
 object RackMountableRenderHandler {
   lazy val DiskDriveMountable = api.Items.get(Constants.ItemName.DiskDriveMountable)
 
@@ -29,91 +49,116 @@ object RackMountableRenderHandler {
 
   lazy val TerminalServer = api.Items.get(Constants.ItemName.TerminalServer)
 
-  @SubscribeEvent
+  /**
+   * 当前渲染上下文：`() => (PoseStack, MultiBufferSource)`。
+   *
+   * 字段类型用 `Function0`（而不是直接存 `PoseStack`）是为了让本类在**专用服务端**上
+   * 也不会因为字段类型引用客户端类而加载失败；本类本身只在客户端注册。
+   */
+  private var renderContext: () => (PoseStack, MultiBufferSource) = null
+
+  /** 由 `RackRenderer` 在 post 事件之前设置当前渲染上下文。 */
+  def setRenderContext(context: () => (PoseStack, MultiBufferSource)): Unit = renderContext = context
+
+  /** 清除渲染上下文（渲染结束后调用，避免持有已失效的缓冲区）。 */
+  def clearRenderContext(): Unit = renderContext = null
+
+  /** 注册监听器；由主类（或 [[EventHandlers]]）调用一次。 */
+  def initialize(): Unit = {
+    if (FMLEnvironment.dist.isClient) {
+      NeoForge.EVENT_BUS.addListener((e: RackMountableRenderEvent.BlockEntity) => onRackMountableRendering(e))
+      NeoForge.EVENT_BUS.addListener((e: RackMountableRenderEvent.Block) => onRackMountableRendering(e))
+    }
+  }
+
   def onRackMountableRendering(e: RackMountableRenderEvent.BlockEntity): Unit = {
+    if (renderContext == null) return
+    val (pose, buffer) = renderContext()
+    if (buffer == null) return
+
     if (e.data != null && DiskDriveMountable == api.Items.get(e.rack.getStackInSlot(e.mountable))) {
-      // Disk drive.
-
+      // 磁盘驱动器。
       if (e.data.contains("disk")) {
-        val stack = ItemStack.loadItemStackFromNBT(e.data.getCompound("disk"))
-        if (stack != null) {
-          GL11.glPushMatrix()
-          GL11.glScalef(1, -1, 1)
-          GL11.glTranslatef(10 / 16f, -(3.5f + e.mountable * 3f) / 16f, 1 / 16f)
-          GL11.glRotatef(90, -1, 0, 0)
+        val stack = StackSerializer.loadItemStack(e.data.getCompound("disk"))
+        if (stack != null && !stack.isEmpty) {
+          val level = e.rack.world()
+          pose.pushPose()
+          pose.scale(1, -1, 1)
+          pose.translate(10 / 16f, -(3.5f + e.mountable * 3f) / 16f, 1 / 16f)
+          pose.mulPose(Axis.XN.rotationDegrees(90))
 
-          val brightness = e.rack.world.getLightBrightnessForSkyBlocks(BlockPosition(e.rack).offset(e.rack.facing), 0)
-          OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, brightness % 65536, brightness / 65536)
+          // 1.21.1 的打包亮度布局与 1.7.10 一致：低 16 位方块光、高 16 位天空光。
+          val brightness = level.getLightBrightnessForSkyBlocks(BlockPosition(e.rack).offset(e.rack.facing), 0)
 
-          // This is very 'meh', but item frames do it like this, too!
-          val entity = new ItemEntity(e.rack.world, 0, 0, 0, stack)
-          entity.hoverStart = 0
-          RenderItem.renderInFrame = true
-          RenderManager.instance.renderEntityWithPosYaw(entity, 0, 0, 0, 0, 0)
-          RenderItem.renderInFrame = false
-          GL11.glPopMatrix()
+          // 原实现用一个临时 `EntityItem` + `RenderManager` 渲染盘片；
+          // 1.21.1 直接调用物品渲染器，语义相同。
+          Minecraft.getInstance.getItemRenderer.renderStatic(
+            stack, ItemDisplayContext.FIXED, brightness, OverlayTexture.NO_OVERLAY, pose, buffer, level, 0)
+          pose.popPose()
         }
       }
 
-      if (System.currentTimeMillis() - e.data.getLong("lastAccess") < 400 && e.rack.world.rand.nextDouble() > 0.1) {
+      if (System.currentTimeMillis() - e.data.getLong("lastAccess") < 400 &&
+        e.rack.world().getRandom.nextDouble() > 0.1) {
         RenderState.disableLighting()
         RenderState.makeItBlend()
 
-        e.renderOverlay(Textures.blockRackDiskDriveActivity)
+        e.renderOverlay(buffer, Textures.blockRackDiskDriveActivity)
 
         RenderState.enableLighting()
       }
     }
     else if (e.data != null && Servers.contains(api.Items.get(e.rack.getStackInSlot(e.mountable)))) {
-      // Server.
+      // 服务器。
       RenderState.disableLighting()
       RenderState.makeItBlend()
 
       if (e.data.getBoolean("isRunning")) {
-        e.renderOverlay(Textures.blockRackServerOn)
+        e.renderOverlay(buffer, Textures.blockRackServerOn)
       }
       if (e.data.getBoolean("hasErrored") && RenderUtil.shouldShowErrorLight(e.rack.hashCode * (e.mountable + 1))) {
-        e.renderOverlay(Textures.blockRackServerError)
+        e.renderOverlay(buffer, Textures.blockRackServerError)
       }
-      if (System.currentTimeMillis() - e.data.getLong("lastFileSystemAccess") < 400 && e.rack.world.rand.nextDouble() > 0.1) {
-        e.renderOverlay(Textures.blockRackServerActivity)
+      if (System.currentTimeMillis() - e.data.getLong("lastFileSystemAccess") < 400 &&
+        e.rack.world().getRandom.nextDouble() > 0.1) {
+        e.renderOverlay(buffer, Textures.blockRackServerActivity)
       }
-      if ((System.currentTimeMillis() - e.data.getLong("lastNetworkActivity") < 300 && System.currentTimeMillis() % 200 > 100) && e.data.getBoolean("isRunning")) {
-        e.renderOverlay(Textures.blockRackServerNetworkActivity)
+      if ((System.currentTimeMillis() - e.data.getLong("lastNetworkActivity") < 300 &&
+        System.currentTimeMillis() % 200 > 100) && e.data.getBoolean("isRunning")) {
+        e.renderOverlay(buffer, Textures.blockRackServerNetworkActivity)
       }
 
       RenderState.enableLighting()
     }
     else if (e.data != null && TerminalServer == api.Items.get(e.rack.getStackInSlot(e.mountable))) {
-      // Terminal server.
+      // 终端服务器。
       RenderState.disableLighting()
       RenderState.makeItBlend()
 
-      e.renderOverlay(Textures.blockRackTerminalServerOn)
-      val countConnected = e.data.getList("keys", NBT.TAG_STRING).size()
+      e.renderOverlay(buffer, Textures.blockRackTerminalServerOn)
+      val countConnected = e.data.getList("keys", Tag.TAG_STRING).size()
 
       if (countConnected > 0) {
         val u0 = 7 / 16f
         val u1 = u0 + (2 * countConnected - 1) / 16f
-        e.renderOverlay(Textures.blockRackTerminalServerPresence, u0, u1)
+        e.renderOverlay(buffer, Textures.blockRackTerminalServerPresence, u0, u1)
       }
 
       RenderState.enableLighting()
     }
   }
 
-  @SubscribeEvent
   def onRackMountableRendering(e: RackMountableRenderEvent.Block): Unit = {
     if (DiskDriveMountable == api.Items.get(e.rack.getStackInSlot(e.mountable))) {
-      // Disk drive.
+      // 磁盘驱动器。
       e.setFrontTextureOverride(Textures.Rack.diskDrive)
     }
     else if (Servers.contains(api.Items.get(e.rack.getStackInSlot(e.mountable)))) {
-      // Server.
+      // 服务器。
       e.setFrontTextureOverride(Textures.Rack.server)
     }
     else if (TerminalServer == api.Items.get(e.rack.getStackInSlot(e.mountable))) {
-      // Terminal server.
+      // 终端服务器。
       e.setFrontTextureOverride(Textures.Rack.terminal)
     }
   }

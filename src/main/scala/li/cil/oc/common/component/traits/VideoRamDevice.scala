@@ -2,8 +2,15 @@ package li.cil.oc.common.component.traits
 
 import li.cil.oc.common.component
 import net.minecraft.nbt.CompoundTag
+
 import scala.collection.mutable
 
+/**
+ * 一块「显存」（对应 1.7.10 的 `common.component.traits.VideoRamDevice`）。
+ *
+ * 负责按 `id` 管理 GPU 侧的 [[li.cil.oc.common.component.GpuTextBuffer]]，
+ * 与屏幕的 `RESERVED_SCREEN_INDEX`（0 号槽位保留给屏幕自身）保持约定。
+ */
 trait VideoRamDevice {
   private val internalBuffers = new mutable.HashMap[Int, component.GpuTextBuffer]
   val RESERVED_SCREEN_INDEX: Int = 0
@@ -12,9 +19,7 @@ trait VideoRamDevice {
 
   def onBufferRamDestroy(id: Int): Unit = {}
 
-  def bufferIndexes(): Array[Int] = internalBuffers.collect {
-    case (index: Int, _: Any) => index
-  }.toArray
+  def bufferIndexes(): Array[Int] = internalBuffers.keysIterator.toArray
 
   def addBuffer(ram: component.GpuTextBuffer): Boolean = {
     val preexists = internalBuffers.contains(ram.id)
@@ -43,17 +48,13 @@ trait VideoRamDevice {
     addBuffer(component.GpuTextBuffer.wrap(address, id, src))
   }
 
-  def getBuffer(id: Int): Option[component.GpuTextBuffer] = {
-    if (internalBuffers.contains(id))
-      Option(internalBuffers(id))
-    else
-      None
-  }
+  def getBuffer(id: Int): Option[component.GpuTextBuffer] =
+    internalBuffers.get(id)
 
   def nextAvailableBufferIndex: Int = {
     var index = RESERVED_SCREEN_INDEX + 1
     while (internalBuffers.contains(index)) {
-      index += 1;
+      index += 1
     }
     index
   }

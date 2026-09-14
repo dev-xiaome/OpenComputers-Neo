@@ -11,7 +11,6 @@ import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.FilteredEnvironment
 import li.cil.oc.api.network.ManagedPeripheral
-import li.cil.oc.server.driver.CompoundBlockEnvironment
 
 import scala.collection.immutable
 import scala.collection.mutable
@@ -20,21 +19,23 @@ object Callbacks {
   private val cache = mutable.Map.empty[Class[_], immutable.Map[String, Callback]]
 
   def apply(host: Any) = host match {
-    case multi: CompoundBlockEnvironment => dynamicAnalyze(host)
+    // TODO(server.driver): 上游此处匹配 `li.cil.oc.server.driver.CompoundBlockEnvironment`；
+    // 该类尚未进入编译集，所以这里先退化为对 `ManagedPeripheral` /
+    // `FilteredEnvironment` 的动态分析，复合方块环境等移植完成后补回分支。
     case peripheral: ManagedPeripheral => dynamicAnalyze(host)
     case filtered: FilteredEnvironment => dynamicAnalyze(host)
-    case _ => cache.getOrElseUpdate(host.getClass, dynamicAnalyze(host))
+    case _ => cache.synchronized(cache.getOrElseUpdate(host.getClass, dynamicAnalyze(host)))
   }
 
   // Clear the cache; used when world is unloaded, mostly to allow reacting to
   // stuff (aka configs) that may influence which @Callbacks are enabled.
-  def clear(): Unit = {
+  def clear(): Unit = cache.synchronized {
     cache.clear()
   }
 
-  def fromClass(environment: Class[_]) = staticAnalyze(environment)
+  def fromClass(environment: Class[_]) = staticAnalyze(environment).toMap
 
-  private def dynamicAnalyze(host: Any) = {
+  private def dynamicAnalyze(host: Any): immutable.Map[String, Callback] = {
     val whitelists = mutable.Buffer.empty[Set[String]]
     val callbacks = mutable.Map.empty[String, Callback]
 
@@ -72,14 +73,15 @@ object Callbacks {
     // First collect whitelist and priority information, then sort and
     // fetch callbacks.
     (host match {
-      case multi: CompoundBlockEnvironment => multi.environments.map(env => process(env._2))
+      // TODO(server.driver): 上游此处对 CompoundBlockEnvironment 展开其内部环境列表：
+      // `case multi: CompoundBlockEnvironment => multi.environments.map(env => process(env._2))`
       case single => Seq(process(single))
     }).sortBy(-_._1).map(_._2).foreach(_ ())
 
     callbacks.toMap
   }
 
-  private def staticAnalyze(seed: Class[_], shouldAdd: Option[String => Boolean] = None, optCallbacks: Option[mutable.Map[String, Callback]] = None) = {
+  private def staticAnalyze(seed: Class[_], shouldAdd: Option[String => Boolean] = None, optCallbacks: Option[mutable.Map[String, Callback]] = None): mutable.Map[String, Callback] = {
     val callbacks = optCallbacks.getOrElse(mutable.Map.empty[String, Callback])
     var c: Class[_] = seed
     while (c != null && c != classOf[Object]) {
@@ -123,7 +125,10 @@ object Callbacks {
     override def apply(instance: AnyRef, context: Context, args: Arguments) = callWrapper.call(instance, context, args)
   }
 
-  class PeripheralCallback(name: String) extends Callback(new PeripheralAnnotation(name)) {
+  // TODO(1.21.1): 上游是 Java 侧带 `@SuppressWarnings("ClassExplicitlyAnnotation")`
+  // 的 `PeripheralAnnotation` 类；本工程里被改成 Scala 动态代理（见同名的 `apply`）。
+  // 这里加 `@deprecated` 抑制 “object 没有参数列表” 的告警，语义与上游一致。
+  class PeripheralCallback(name: String) extends Callback((PeripheralAnnotation: @deprecated("", "")).apply(name)) {
     override def apply(instance: AnyRef, context: Context, args: Arguments) =
       instance match {
         case peripheral: ManagedPeripheral => peripheral.invoke(name, context, args)

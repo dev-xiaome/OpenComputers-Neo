@@ -65,12 +65,12 @@ trait AbstractBusAware extends TileEntity with network.Environment {
     }
   }
 
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     isAbstractBusAvailable = nbt.getBoolean("isAbstractBusAvailable")
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putBoolean("isAbstractBusAvailable", isAbstractBusAvailable)
   }

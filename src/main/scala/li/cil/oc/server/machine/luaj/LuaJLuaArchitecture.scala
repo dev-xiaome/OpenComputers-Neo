@@ -46,7 +46,8 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
   private[machine] def invoke(f: () => Array[AnyRef]): Varargs = try {
     f() match {
       case results: Array[_] =>
-        LuaValue.varargsOf(Array(LuaValue.TRUE) ++ results.map(toLuaValue))
+        // 显式引用 ScalaClosure.toLuaValue，避免只靠隐式导入。
+        LuaValue.varargsOf(Array(LuaValue.TRUE) ++ results.map(ScalaClosure.toLuaValue))
       case _ =>
         LuaValue.TRUE
     }
@@ -102,7 +103,8 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
     memory > 0
   }
 
-  private def memoryInBytes(components: java.lang.Iterable[ItemStack]) = components.foldLeft(0.0)((acc, stack) => acc + (Option(api.Driver.driverFor(stack)) match {
+  // Scala 2.13：`java.lang.Iterable` 不再有隐式转换，需要显式 asScala。
+  private def memoryInBytes(components: java.lang.Iterable[ItemStack]) = components.asScala.foldLeft(0.0)((acc, stack) => acc + (Option(api.Driver.driverFor(stack)) match {
     case Some(driver: Memory) => driver.amount(stack) * 1024
     case _ => 0
   })).toInt max 0 min Settings.get.maxTotalRam

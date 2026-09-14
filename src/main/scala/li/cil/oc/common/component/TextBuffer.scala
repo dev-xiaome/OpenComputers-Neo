@@ -2,13 +2,10 @@ package li.cil.oc.common.component
 
 import com.google.common.base.Strings
 import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 import li.cil.oc.Constants
+import li.cil.oc._
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
-import li.cil.oc.OpenComputers
-import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.driver.DeviceInfo
 import li.cil.oc.api.machine.Arguments
@@ -17,29 +14,34 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
-import li.cil.oc.client.renderer.TextBufferRenderCache
-import li.cil.oc.client.renderer.font.TextBufferRenderData
-import li.cil.oc.client.{ComponentTracker => ClientComponentTracker}
-import li.cil.oc.client.{PacketSender => ClientPacketSender}
 import li.cil.oc.common._
 import li.cil.oc.common.component.traits.VideoRamRasterizer
-import li.cil.oc.server.component.Keyboard
-import li.cil.oc.server.{ComponentTracker => ServerComponentTracker}
-import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.PackedColor
 import li.cil.oc.util.SideTracker
-import net.minecraft.client.Minecraft
 import net.minecraft.world.entity.player.Player
 import net.minecraft.nbt.CompoundTag
 import net.neoforged.neoforge.event.level.ChunkEvent
 import net.neoforged.neoforge.event.level.LevelEvent
 
 import scala.jdk.CollectionConverters._
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
+/**
+ * 屏幕 / 文本缓冲组件（对应 1.7.10 的 `common.component.TextBuffer`）。
+ *
+ * 1.21.1 迁移要点：
+ *  - 渲染层（[[li.cil.oc.client.renderer.*]]、`client.PacketSender`、
+ *    `client.ComponentTracker`）尚未移植，相关分支降级为占位，见各处的 `TODO(client):` 注释；
+ *    **数据与算法部分（缓冲读写、分辨率 / 视口、色彩深度、与 GPU 的 bitblt 协议）完整保留。**
+ *  - 网络发送原本走 `server.PacketSender` / `server.ComponentTracker`（尚未移植），
+ *    这里改用同包的 [[ServerPacketSender]] / [[ComponentTracker]] 占位实现，报文格式与旧版一致。
+ *  - `@SideOnly(Dist.CLIENT)` 全部移除（NeoForge 的 `RuntimeDistCleaner` 会对类级 `@OnlyIn` 抛异常）。
+ *  - `Level#isRemote` → `Level#isClientSide`；`getTotalWorldTime` → `getGameTime`。
+ *  - `CompoundTag#getInteger` → `getInt`；`ItemStack#hasTagCompound/getTagCompound` →
+ *    包对象提供的 `hasTag()/getTag()`（对应自定义数据组件）。
+ */
 class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with traits.TextBufferProxy with VideoRamRasterizer with DeviceInfo {
   override val node = api.Network.newNode(this, Visibility.Network).
     withComponent("screen").
@@ -113,7 +115,7 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
     DeviceAttribute.Width -> Array("1", "4", "8").apply(maxDepth.ordinal())
   )
 
-  override def getDeviceInfo: java.util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: java.util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -121,7 +123,7 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
 
   override def update(): Unit = {
     super.update()
-    if (isDisplaying && host.world.getTotalWorldTime % Settings.get.tickFrequency == 0) {
+    if (isDisplaying && host.world.getGameTime % Settings.get.tickFrequency == 0) {
       if (relativeLitArea < 0) {
         // The relative lit area is the number of pixels that are not blank
         // versus the number of pixels in the *current* resolution. This is
@@ -164,7 +166,8 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
       syncCooldown -= 1
       if (syncCooldown == 0) {
         syncCooldown = syncInterval
-        ClientPacketSender.sendTextBufferInit(proxy.nodeAddress)
+        // TODO(client): 原实现调用 `client.PacketSender.sendTextBufferInit(proxy.nodeAddress)`
+        // 向服务端轮询一次完整缓冲内容，客户端网络层尚未移植。
       }
     }
   }
@@ -196,12 +199,10 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
   @Callback(doc = """function():table -- The list of keyboards attached to the screen.""")
   def getKeyboards(context: Context, args: Arguments): Array[AnyRef] = {
     context.pause(0.25)
-    host match {
-      case screen: tileentity.Screen =>
-        Array(screen.screens.map(_.node).flatMap(_.neighbors.filter(_.host.isInstanceOf[Keyboard]).map(_.address)).toArray)
-      case _ =>
-        Array(node.neighbors.filter(_.host.isInstanceOf[Keyboard]).map(_.address).toArray)
-    }
+    // TODO(common.tileentity): 旧版对多方块屏幕会遍历 `tileentity.Screen#screens` 汇总
+    // 所有子屏幕邻居上的键盘。`common/tileentity` 由其它施工者负责、尚未编译进本包，
+    // 因此这里先只统计本节点可达的键盘（对单方块屏幕语义完全等价）。
+    Array(node.neighbors.asScala.filter(_.host.isInstanceOf[api.internal.Keyboard]).map(_.address).toArray)
   }
 
   @Callback(direct = true, doc = """function():boolean -- Returns whether the screen is in high precision mode (sub-pixel mouse event positions).""")
@@ -253,7 +254,9 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
 
   override def getMaximumHeight: Int = maxResolution._2
 
-  override def setAspectRatio(width: Double, height: Double): Unit = this.synchronized(aspectRatio = (width, height))
+  override def setAspectRatio(width: Double, height: Double): Unit = this.synchronized {
+    aspectRatio = (width, height)
+  }
 
   override def getAspectRatio: Double = aspectRatio._1 / aspectRatio._2
 
@@ -357,19 +360,14 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
     proxy.onBufferRawSetForeground(col, row, color)
   }
 
-  @SideOnly(Dist.CLIENT)
   override def renderText: Boolean = relativeLitArea != 0 && proxy.render()
 
-  @SideOnly(Dist.CLIENT)
   override def renderWidth: Int = TextBufferRenderCache.renderer.charRenderWidth * getViewportWidth
 
-  @SideOnly(Dist.CLIENT)
   override def renderHeight: Int = TextBufferRenderCache.renderer.charRenderHeight * getViewportHeight
 
-  @SideOnly(Dist.CLIENT)
   override def setRenderingEnabled(enabled: Boolean): Unit = isRendering = enabled
 
-  @SideOnly(Dist.CLIENT)
   override def isRenderingEnabled: Boolean = isRendering
 
   override def keyDown(character: Char, code: Int, player: Player): Unit =
@@ -402,14 +400,14 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
   override def onConnect(node: Node): Unit = {
     super.onConnect(node)
     if (node == this.node) {
-      ServerComponentTracker.add(host.world, node.address, this)
+      ComponentTracker.add(host.world, node.address, this)
     }
   }
 
   override def onDisconnect(node: Node): Unit = {
     super.onDisconnect(node)
     if (node == this.node) {
-      ServerComponentTracker.remove(host.world, this)
+      ComponentTracker.remove(host.world, this)
     }
   }
 
@@ -438,15 +436,15 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
       hasPower = nbt.getBoolean(Settings.namespace + "hasPower")
     }
     if (nbt.contains(Settings.namespace + "maxWidth") && nbt.contains(Settings.namespace + "maxHeight")) {
-      val maxWidth = nbt.getInteger(Settings.namespace + "maxWidth")
-      val maxHeight = nbt.getInteger(Settings.namespace + "maxHeight")
+      val maxWidth = nbt.getInt(Settings.namespace + "maxWidth")
+      val maxHeight = nbt.getInt(Settings.namespace + "maxHeight")
       maxResolution = (maxWidth, maxHeight)
     }
     precisionMode = nbt.getBoolean(Settings.namespace + "precise")
 
     if (nbt.contains(Settings.namespace + "viewportWidth")) {
-      val vpw = nbt.getInteger(Settings.namespace + "viewportWidth")
-      val vph = nbt.getInteger(Settings.namespace + "viewportHeight")
+      val vpw = nbt.getInt(Settings.namespace + "viewportWidth")
+      val vph = nbt.getInt(Settings.namespace + "viewportHeight")
       viewport = (vpw min data.width max 1, vph min data.height max 1)
     } else {
       viewport = data.size
@@ -456,22 +454,14 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
   // Null check for Waila (and other mods that may call this client side).
   override def save(nbt: CompoundTag): Unit = if (node != null) {
     super.save(nbt)
-    // Happy thread synchronization hack! Here's the problem: GPUs allow direct
-    // calls for modifying screens to give a more responsive experience. This
-    // causes the following problem: when saving, if the screen is saved first,
-    // then the executor runs in parallel and changes the screen *before* the
-    // server thread begins saving that computer, the saved computer will think
-    // it changed the screen, although the saved screen wasn't. To avoid that we
-    // wait for all computers the screen is connected to to finish their current
-    // execution and pausing them (which will make them resume in the next tick
-    // when their update() runs).
-    if (node.network != null) {
-      for (node <- node.network.nodes) node.host match {
-        case computer: tileentity.traits.Computer if !computer.machine.isPaused =>
-          computer.machine.pause(0.1)
-        case _ =>
-      }
-    }
+    // 线程同步 hack：GPU 允许直接调用修改屏幕以获得更灵敏的体验，这带来如下问题：
+    // 保存时若先保存屏幕，执行器线程可能在服务器线程开始保存计算机之前就修改了屏幕，
+    // 导致计算机误以为自己改动过屏幕、而实际保存的屏幕快照并不是。
+    // 旧版在这里会遍历同网络的所有计算机节点并暂停它们当前执行。
+    //
+    // TODO(server.machine): 原实现依赖 `tileentity.traits.Computer`（未移植）与
+    // `server.machine.Machine#pause`，等 `common/tileentity` 与 `server/machine` 就位后恢复：
+    // 遍历 `node.network` 上的计算机节点，对未暂停的调用 `machine.pause(0.1)`。
 
     SaveHandler.scheduleSave(host, nbt, node.address + "_buffer", data.save _)
     nbt.putBoolean(Settings.namespace + "isOn", isDisplaying)
@@ -487,33 +477,46 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
 object TextBuffer {
   var clientBuffers = mutable.ListBuffer.empty[TextBuffer]
 
+  /**
+   * 区块卸载时丢弃该区块内的客户端缓冲。
+   *
+   * 1.21.1 迁移要点：`ChunkEvent.Unload#getChunk` 返回 `ChunkAccess`（可能没有坐标），
+   * 因此改从 `getChunk#getPos` 取区块坐标；旧版的 `Chunk#isAtLocation(x, z)` 已移除。
+   */
   @SubscribeEvent
   def onChunkUnload(e: ChunkEvent.Unload): Unit = {
+    val level = e.getLevel
     val chunk = e.getChunk
+    val chunkX = chunk.getPos.x
+    val chunkZ = chunk.getPos.z
     clientBuffers = clientBuffers.filter(t => {
       val blockPos = BlockPosition(t.host)
-      val keep = t.host.world != e.world || !chunk.isAtLocation(blockPos.x >> 4, blockPos.z >> 4)
+      val keep = t.host.world != level || chunkX != (blockPos.x >> 4) || chunkZ != (blockPos.z >> 4)
       if (!keep) {
-        ClientComponentTracker.remove(t.host.world, t)
+        ComponentTracker.remove(t.host.world, t)
       }
       keep
     })
   }
 
   @SubscribeEvent
-  def onWorldUnload(e: WorldEvent.Unload): Unit = {
+  def onWorldUnload(e: LevelEvent.Unload): Unit = {
+    val level = e.getLevel
     clientBuffers = clientBuffers.filter(t => {
-      val keep = t.host.world != e.world
+      val keep = t.host.world != level
       if (!keep) {
-        ClientComponentTracker.remove(t.host.world, t)
+        ComponentTracker.remove(t.host.world, t)
       }
       keep
     })
+    ComponentTracker.clear(level)
   }
 
   def registerClientBuffer(t: TextBuffer): Unit = {
-    ClientPacketSender.sendTextBufferInit(t.proxy.nodeAddress)
-    ClientComponentTracker.add(t.host.world, t.proxy.nodeAddress, t)
+    // TODO(client): 原实现会向服务端请求一次完整初始化
+    // （`client.PacketSender.sendTextBufferInit(t.proxy.nodeAddress)`，尚未移植），
+    // 并把缓冲登记到 `client.ComponentTracker`。这里先只做本地登记。
+    ComponentTracker.add(t.host.world, t.proxy.nodeAddress, t)
     clientBuffers += t
   }
 
@@ -601,10 +604,15 @@ object TextBuffer {
   }
 
   class ClientProxy(val owner: TextBuffer) extends Proxy {
+    /**
+     * TODO(client): `client.renderer.font.TextBufferRenderData`（字形渲染数据）尚未移植，
+     * 这里降级为一个只保存「脏标记 + 单元数据」的占位实现；
+     * `TextBufferRenderCache.render` 目前是空实现，因此 `render()` 只回报「是否有变更」。
+     */
     val renderer = new TextBufferRenderData {
-      override def dirty = ClientProxy.this.dirty
+      override def dirty: Boolean = ClientProxy.this.dirty
 
-      override def dirty_=(value: Boolean) = ClientProxy.this.dirty = value
+      override def dirty_=(value: Boolean): Unit = ClientProxy.this.dirty = value
 
       override def data = owner.data
 
@@ -668,49 +676,57 @@ object TextBuffer {
     }
 
     override def keyDown(character: Char, code: Int, player: Player): Unit = {
-      debug(s"{type = keyDown, char = $character, code = $code}")
-      ClientPacketSender.sendKeyDown(nodeAddress, character, code)
+      debug(player, s"{type = keyDown, char = $character, code = $code}")
+      // TODO(client): 原实现发送 `client.PacketSender.sendKeyDown(nodeAddress, character, code)`。
     }
 
     override def keyUp(character: Char, code: Int, player: Player): Unit = {
-      debug(s"{type = keyUp, char = $character, code = $code}")
-      ClientPacketSender.sendKeyUp(nodeAddress, character, code)
+      debug(player, s"{type = keyUp, char = $character, code = $code}")
+      // TODO(client): 原实现发送 `client.PacketSender.sendKeyUp(nodeAddress, character, code)`。
     }
 
     override def clipboard(value: String, player: Player): Unit = {
-      debug(s"{type = clipboard}")
-      ClientPacketSender.sendClipboard(nodeAddress, value)
+      debug(player, s"{type = clipboard}")
+      // TODO(client): 原实现发送 `client.PacketSender.sendClipboard(nodeAddress, value)`。
     }
 
     override def mouseDown(x: Double, y: Double, button: Int, player: Player): Unit = {
-      debug(s"{type = mouseDown, x = $x, y = $y, button = $button}")
-      ClientPacketSender.sendMouseClick(nodeAddress, x, y, drag = false, button)
+      debug(player, s"{type = mouseDown, x = $x, y = $y, button = $button}")
+      // TODO(client): 原实现发送 `client.PacketSender.sendMouseClick(nodeAddress, x, y, drag = false, button)`。
     }
 
     override def mouseDrag(x: Double, y: Double, button: Int, player: Player): Unit = {
-      debug(s"{type = mouseDrag, x = $x, y = $y, button = $button}")
-      ClientPacketSender.sendMouseClick(nodeAddress, x, y, drag = true, button)
+      debug(player, s"{type = mouseDrag, x = $x, y = $y, button = $button}")
+      // TODO(client): 原实现发送 `client.PacketSender.sendMouseClick(nodeAddress, x, y, drag = true, button)`。
     }
 
     override def mouseUp(x: Double, y: Double, button: Int, player: Player): Unit = {
-      debug(s"{type = mouseUp, x = $x, y = $y, button = $button}")
-      ClientPacketSender.sendMouseUp(nodeAddress, x, y, button)
+      debug(player, s"{type = mouseUp, x = $x, y = $y, button = $button}")
+      // TODO(client): 原实现发送 `client.PacketSender.sendMouseUp(nodeAddress, x, y, button)`。
     }
 
     override def mouseScroll(x: Double, y: Double, delta: Int, player: Player): Unit = {
-      debug(s"{type = mouseScroll, x = $x, y = $y, delta = $delta}")
-      ClientPacketSender.sendMouseScroll(nodeAddress, x, y, delta)
+      debug(player, s"{type = mouseScroll, x = $x, y = $y, delta = $delta}")
+      // TODO(client): 原实现发送 `client.PacketSender.sendMouseScroll(nodeAddress, x, y, delta)`。
     }
 
     override def copyToAnalyzer(line: Int, player: Player): Unit = {
-      ClientPacketSender.sendCopyToAnalyzer(nodeAddress, line)
+      // TODO(client): 原实现发送 `client.PacketSender.sendCopyToAnalyzer(nodeAddress, line)`。
     }
 
     private lazy val Debugger = api.Items.get(Constants.ItemName.Debugger)
 
-    private def debug(message: String): Unit = {
-      if (Minecraft.getMinecraft != null && Minecraft.getMinecraft.thePlayer != null && api.Items.get(Minecraft.getMinecraft.thePlayer.getHeldItem) == Debugger) {
-        OpenComputers.log.info(s"[NETWORK DEBUGGER] Sending packet to node $nodeAddress: " + message)
+    /**
+     * 网络调试器（手持 Debugger 时把发往该节点的报文打印到日志）。
+     *
+     * 1.21.1 迁移要点：`Minecraft.getMinecraft` / `thePlayer` / `getHeldItem`
+     * 分别改为 `Minecraft.getInstance()` / `player` / `getMainHandItem`。
+     */
+    private def debug(player: Player, message: String): Unit = {
+      val minecraft = net.minecraft.client.Minecraft.getInstance
+      val localPlayer = if (minecraft != null) minecraft.player else null
+      if (localPlayer != null && api.Items.get(localPlayer.getMainHandItem) == Debugger) {
+        li.cil.oc.OpenComputers.log.info(s"[NETWORK DEBUGGER] Sending packet to node $nodeAddress: " + message)
       }
     }
   }
@@ -836,22 +852,22 @@ object TextBuffer {
     }
 
     override def copyToAnalyzer(line: Int, player: Player): Unit = {
-      val stack = player.getHeldItem
-      if (stack != null) {
-        if (!stack.hasTagCompound) {
-          stack.put(new CompoundTag())
+      val stack = player.getMainHandItem
+      if (stack != null && !stack.isEmpty) {
+        if (!stack.hasTag()) {
+          stack.setTag(new CompoundTag())
         }
-        stack.getTagCompound.remove(Settings.namespace + "clipboard")
+        stack.getTag().remove(Settings.namespace + "clipboard")
 
         if (line >= 0 && line < owner.getViewportHeight) {
           val text = owner.data.lineToString(line)
           if (!Strings.isNullOrEmpty(text)) {
-            stack.getTagCompound.putString(Settings.namespace + "clipboard", text)
+            stack.getTag().putString(Settings.namespace + "clipboard", text)
           }
         }
 
-        if (stack.getTagCompound.hasNoTags) {
-          stack.put(null)
+        if (stack.getTag().isEmpty) {
+          stack.setTag(null)
         }
       }
     }
@@ -871,19 +887,16 @@ object TextBuffer {
       }
       args += Int.box(data)
       if (Settings.get.inputUsername) {
-        args += player.getCommandSenderName
+        args += player.getName.getString
       }
 
       owner.node.sendToReachable("computer.checked_signal", args.toSeq: _*)
     }
 
     private def sendToKeyboards(name: String, values: AnyRef*): Unit = {
-      owner.host match {
-        case screen: tileentity.Screen =>
-          screen.screens.foreach(_.node.sendToNeighbors(name, values.toSeq: _*))
-        case _ =>
-          owner.node.sendToNeighbors(name, values.toSeq: _*)
-      }
+      // TODO(common.tileentity): 旧版对多方块屏幕会把输入转发给所有子屏幕的键盘
+      // （`tileentity.Screen#screens`），该包尚未编译进本包，先按单方块屏幕处理。
+      owner.node.sendToNeighbors(name, values.toSeq: _*)
     }
   }
 

@@ -39,11 +39,11 @@ trait Environment extends TileEntity with network.Environment with network.Envir
     if (canUpdate) isChangeScheduled = true
     else setChanged()
 
-  protected def isConnected: Boolean = node != null && node.address != null && node.network != null
+  def isConnected: Boolean = node != null && node.address != null && node.network != null
 
   // ----------------------------------------------------------------------- //
 
-  override protected def initialize(): Unit = {
+  override def initialize(): Unit = {
     super.initialize()
     if (isServer) {
       // 原实现：EventHandler.scheduleServer(this)，把入网推迟到下一个服务端 tick。
@@ -78,14 +78,14 @@ trait Environment extends TileEntity with network.Environment with network.Envir
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     if (node != null && node.host == this) {
       node.load(nbt.getCompound(Settings.namespace + "node"))
     }
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     if (node != null && node.host == this) {
       nbt.setNewCompoundTag(Settings.namespace + "node", node.save)

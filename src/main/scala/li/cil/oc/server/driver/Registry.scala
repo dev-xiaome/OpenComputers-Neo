@@ -12,12 +12,11 @@ import li.cil.oc.api.machine.Value
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.ManagedEnvironment
 import net.minecraft.world.entity.player.Player
-import net.minecraft.inventory.IInventory
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
 import net.minecraft.core.Direction
+import net.neoforged.neoforge.items.IItemHandler
 
-import scala.jdk.CollectionConverters._
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.math.ScalaNumber
@@ -104,11 +103,13 @@ private[oc] object Registry extends api.detail.DriverAPI {
 
   // TODO Remove in OC 1.7
   override def driverFor(world: Level, x: Int, y: Int, z: Int) = {
-    driverFor(world, x, y, z, Direction.UNKNOWN) match {
+    // 1.21.1 的 `Direction` 只有 6 个方向，没有 1.7.10 的 `UNKNOWN`。
+    // 「不关心朝向」的查询统一用 `null` 表示（见 `api.detail.DriverAPI#driverFor` 的文档）。
+    driverFor(world, x, y, z, null) match {
       case driver: api.driver.SidedBlock => new api.driver.Block {
-        override def worksWith(world: Level, x: Int, y: Int, z: Int): Boolean = driver.worksWith(world, x, y, z, Direction.UNKNOWN)
+        override def worksWith(world: Level, x: Int, y: Int, z: Int): Boolean = driver.worksWith(world, x, y, z, null)
 
-        override def createEnvironment(world: Level, x: Int, y: Int, z: Int): ManagedEnvironment = driver.createEnvironment(world, x, y, z, Direction.UNKNOWN)
+        override def createEnvironment(world: Level, x: Int, y: Int, z: Int): ManagedEnvironment = driver.createEnvironment(world, x, y, z, null)
       }
       case _ => null
     }
@@ -143,29 +144,33 @@ private[oc] object Registry extends api.detail.DriverAPI {
     }.orNull
   }
 
-  override def environmentsFor(stack: ItemStack): util.Set[Class[_]] = environmentProviders.map(_.getEnvironment(stack)).filter(_ != null).toSet[Class[_]]
+  override def environmentsFor(stack: ItemStack): util.Set[Class[_]] =
+    environmentProviders.map(_.getEnvironment(stack)).filter(_ != null).toSet[Class[_]].asJava
 
-  override def inventoryFor(stack: ItemStack, player: Player): IInventory = {
+  // 1.21.1：`IInventory` 已经不存在，`InventoryProvider` 返回 NeoForge 的 `IItemHandler`。
+  override def inventoryFor(stack: ItemStack, player: Player): IItemHandler = {
     inventoryProviders.find(provider => provider.worksWith(stack, player)).
       map(provider => provider.getInventory(stack, player)).
       orNull
   }
 
-  override def blockDrivers = blocks.toSeq
+  override def blockDrivers = blocks.toSeq.asJava
 
-  override def itemDrivers = items.toSeq
+  override def itemDrivers = items.toSeq.asJava
 
   def blacklistHost(stack: ItemStack, host: Class[_]): Unit = {
-    blacklist.find(_._1.isItemEqual(stack)) match {
+    // 1.21.1：`ItemStack#isItemEqual` 已移除，物品 + 数据组件一起比较。
+    blacklist.find((entry: (ItemStack, mutable.Set[Class[_]])) =>
+      entry._1 != null && ItemStack.isSameItemSameComponents(entry._1, stack)) match {
       case Some((_, hosts)) => hosts += host
-      case _ => blacklist.append((stack, mutable.Set(host)))
+      case _ => blacklist.append((stack, mutable.Set[Class[_]](host)))
     }
   }
 
   def convert(value: Array[AnyRef]) = if (value != null) value.map(arg => convertRecursively(arg, new util.IdentityHashMap())) else null
 
   def convertRecursively(value: Any, memo: util.IdentityHashMap[AnyRef, AnyRef], force: Boolean = false): AnyRef = {
-    val valueRef = value match {
+    val valueRef: AnyRef = value match {
       case number: ScalaNumber => number.underlying
       case reference: AnyRef => reference
       case null => null
@@ -198,7 +203,9 @@ private[oc] object Registry extends api.detail.DriverAPI {
       case arg: Array[Double] => arg
       case arg: Array[String] => arg
 
-      case arg: Value => arg
+      // 与 1.7.10 的 `case arg: Value => arg` 对应：`api.machine.Value` 是 Java 接口，
+      // Scala 侧模式匹配到它相当于 `arg: AnyRef`，要先收窄类型再返回，否则整体类型会被推成 `Product`。
+      case arg: Value => arg.asInstanceOf[AnyRef]
 
       case arg: Array[_] => convertList(arg, arg.zipWithIndex.iterator, memo)
       case arg: Product => convertList(arg, arg.productIterator.zipWithIndex, memo)
@@ -206,19 +213,20 @@ private[oc] object Registry extends api.detail.DriverAPI {
 
       case arg: Map[_, _] => convertMap(arg, arg, memo)
       case arg: mutable.Map[_, _] => convertMap(arg, arg.toMap, memo)
-      case arg: java.util.Map[_, _] => convertMap(arg, arg.toMap, memo)
+      case arg: java.util.Map[_, _] => convertMap(arg, javaMapAsScala(arg), memo)
 
       case arg: Iterable[_] => convertList(arg, arg.zipWithIndex.toIterator, memo)
-      case arg: java.lang.Iterable[_] => convertList(arg, arg.zipWithIndex.iterator, memo)
+      case arg: java.lang.Iterable[_] => convertList(arg, arg.asScala.zipWithIndex.iterator, memo)
 
       case arg =>
         val converted = new util.HashMap[AnyRef, AnyRef]()
-        memo += arg -> converted
+        // 1.21.1：`IdentityHashMap` 的 `+=` / `-=` 依赖 1.7.10 时代的隐式转换，改用显式 put/remove。
+        memo.put(arg, converted)
         converters.foreach(converter => try converter.convert(arg, converted) catch {
           case t: Throwable => OpenComputers.log.warn("Type converter threw an exception.", t)
         })
         if (converted.isEmpty) {
-          memo += arg -> arg.toString
+          memo.put(arg, arg.toString) // Update memoization map.
           arg.toString
         }
         else {
@@ -230,12 +238,12 @@ private[oc] object Registry extends api.detail.DriverAPI {
           // - convertRecursively(M) encounters A in the memoization map, uses M.
           //   That M is then 'wrong', as in not fully converted. Hence the clear
           //   plus copy action afterwards.
-          memo += converted -> converted // Makes convertMap re-use the map.
+          memo.put(converted, converted) // Makes convertMap re-use the map.
           convertRecursively(converted, memo, force = true)
-          memo -= converted
+          memo.remove(converted)
           if (converted.size == 1 && converted.containsKey("oc:flatten")) {
             val value = converted.get("oc:flatten")
-            memo += arg -> value // Update memoization map.
+            memo.put(arg, value) // Update memoization map.
             value
           }
           else {
@@ -247,7 +255,7 @@ private[oc] object Registry extends api.detail.DriverAPI {
 
   def convertList(obj: AnyRef, list: Iterator[(Any, Int)], memo: util.IdentityHashMap[AnyRef, AnyRef]) = {
     val converted = mutable.ArrayBuffer.empty[AnyRef]
-    memo += obj -> converted
+    memo.put(obj, converted)
     for ((value, index) <- list) {
       converted += convertRecursively(value, memo)
     }
@@ -255,13 +263,25 @@ private[oc] object Registry extends api.detail.DriverAPI {
   }
 
   def convertMap(obj: AnyRef, map: Map[_, _], memo: util.IdentityHashMap[AnyRef, AnyRef]) = {
-    val converted = memo.getOrElseUpdate(obj, mutable.Map.empty[AnyRef, AnyRef]) match {
+    // 1.21.1：`IdentityHashMap` 没有 `getOrElseUpdate`，这里手动 get/put。
+    val converted: mutable.Map[AnyRef, AnyRef] = memo.get(obj) match {
       case map: mutable.Map[AnyRef, AnyRef]@unchecked => map
-      case map: java.util.Map[AnyRef, AnyRef]@unchecked => mapAsScalaMap(map)
+      case map: java.util.Map[AnyRef, AnyRef]@unchecked => map.asScala
+      case _ =>
+        val fresh = mutable.Map.empty[AnyRef, AnyRef]
+        memo.put(obj, fresh)
+        fresh
     }
-    map.collect {
+    // 注意：这里用 `foreach` 而不是 `collect`。`map` 的声明类型是 `Map[_, _]`，
+    // `collect` 的偏函数需要编译器推导元素类型，在存在类型（existential）下会推不出来。
+    map.foreach {
       case (key: AnyRef, value: AnyRef) => converted += convertRecursively(key, memo) -> convertRecursively(value, memo)
+      case _ =>
     }
     memo.get(obj)
   }
+
+  /** `java.util.Map[_, _]` 转成 Scala 的不可变 `Map[AnyRef, AnyRef]`。 */
+  private def javaMapAsScala(map: java.util.Map[_, _]): Map[AnyRef, AnyRef] =
+    map.asInstanceOf[java.util.Map[AnyRef, AnyRef]].asScala.toMap
 }

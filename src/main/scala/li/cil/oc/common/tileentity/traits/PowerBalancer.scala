@@ -20,7 +20,7 @@ trait PowerBalancer extends PowerInformation with SidedEnvironment {
 
   var globalBuffer, globalBufferSize = 0.0
 
-  protected def isConnected: Boolean
+  def isConnected: Boolean
 
   override def tick(): Unit = {
     super.tick()

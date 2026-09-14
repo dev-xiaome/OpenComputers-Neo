@@ -2,8 +2,10 @@ package li.cil.oc.server.machine.luaj
 
 import li.cil.oc.OpenComputers
 import li.cil.oc.api.machine.Value
-import li.cil.oc.server.driver.Registry
 import li.cil.oc.server.machine.ArgumentsImpl
+// TODO(server.driver): 上游是 `li.cil.oc.server.driver.Registry`；该包尚未编译进来，
+// 这里显式导入 `server/machine/Registry.scala` 里的等价实现。
+import li.cil.oc.server.machine.Registry
 import li.cil.oc.util.ScalaClosure._
 import org.luaj.vm2.LuaValue
 import org.luaj.vm2.Varargs
@@ -17,6 +19,8 @@ class UserdataAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
     userdata.set("apply", (args: Varargs) => {
       val value = args.checkuserdata(1, classOf[Value]).asInstanceOf[Value]
       val params = toSimpleJavaObjects(args, 2)
+      // TODO(server.driver): 上游用 `li.cil.oc.server.driver.Registry.convert`，
+      // 该包尚未编译进来，这里用 server.machine 内的等价实现。
       owner.invoke(() => Registry.convert(Array(value.apply(machine, new ArgumentsImpl(params)))))
     })
 
@@ -45,10 +49,12 @@ class UserdataAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
 
     userdata.set("methods", (args: Varargs) => {
       val value = args.checkuserdata(1, classOf[Value])
-      LuaValue.tableOf(machine.methods(value).map(entry => {
+      // Scala 2.13：`machine.methods` 返回 java.util.Map，需要显式 asScala，
+      // 且 `++`/`flatten` 的组合要显式给元素类型。
+      LuaValue.tableOf(machine.methods(value).asScala.flatMap(entry => {
         val (name, annotation) = entry
         Seq(LuaValue.valueOf(name), LuaValue.valueOf(annotation.direct))
-      }).flatten.toArray)
+      }.toSeq).toArray)
     })
 
     userdata.set("invoke", (args: Varargs) => {
@@ -61,7 +67,9 @@ class UserdataAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
     userdata.set("doc", (args: Varargs) => {
       val value = args.checkuserdata(1, classOf[Value]).asInstanceOf[Value]
       val method = args.checkjstring(2)
-      owner.documentation(() => machine.methods(value)(method).doc)
+      // Scala 2.13：java.util.Map 没有 apply，改为显式 get。
+      val methods = machine.methods(value)
+      owner.documentation(() => Option(methods.get(method)).map(_.doc).orNull)
     })
 
     lua.set("userdata", userdata)

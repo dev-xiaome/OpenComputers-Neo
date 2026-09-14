@@ -86,7 +86,7 @@ class Adapter(pos: BlockPos, state: BlockState)
     (blocks collect {
       case Some((environment, _)) => environment.node
     }) ++
-      (components collect {
+      (componentEnvironments collect {
         case Some(environment) => environment.node
       })
   }

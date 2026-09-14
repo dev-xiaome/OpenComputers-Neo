@@ -156,7 +156,7 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
   override def componentCount = info.components.length
 
   override def getComponentInSlot(index: Int) =
-    if (index >= 0 && index < components.length) components(index).orNull else null
+    if (index >= 0 && index < componentEnvironments.length) componentEnvironments(index).orNull else null
 
   /**
    * 机器人使用的假玩家。
@@ -624,7 +624,7 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
   // ----------------------------------------------------------------------- //
 
   override def componentSlot(address: String) =
-    components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+    componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   /**
    * 是否安装了红石卡。
@@ -659,11 +659,11 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
         setInventorySlotContents(slot, null)
         if (stack != null && !stack.isEmpty) removed += stack
       }
-      if (components.nonEmpty) {
+      if (componentEnvironments.nonEmpty) {
         val copyComponentCount = math.min(getSlots, componentCount)
-        Array.copy(components, getSlots - copyComponentCount, components, realSize, copyComponentCount)
+        Array.copy(componentEnvironments, getSlots - copyComponentCount, componentEnvironments, realSize, copyComponentCount)
         for (slot <- math.max(0, getSlots - componentCount) until getSlots if slot < realSize || slot >= realSize + componentCount) {
-          components(slot) = None
+          componentEnvironments(slot) = None
         }
       }
       setSizeInventory(realSize + componentCount)
@@ -774,7 +774,7 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
     }
 
   /** 由 [[RobotProxy]] 的 `itemHandler(side)` 调用，等价于 1.7.10 的按面物品栏视图。 */
-  def itemHandler(side: Direction): net.neoforged.neoforge.items.IItemHandler =
+  override def itemHandler(side: Direction): net.neoforged.neoforge.items.IItemHandler =
     new Robot.SidedItemHandler(this, side)
 
   // ----------------------------------------------------------------------- //
@@ -788,14 +788,14 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
    * 因此这里只按 `IFluidHandler` 判定，不依赖具体实现类。
    */
   def tryGetTank(index: Int): Option[IFluidHandler] = {
-    val tanks = components.collect {
+    val tanks = componentEnvironments.collect {
       case Some(t: IFluidHandler) => t
     }
     if (index < 0 || index >= tanks.length) None
     else Option(tanks(index))
   }
 
-  def tankCount = components.count {
+  def tankCount = componentEnvironments.count {
     case Some(_: IFluidHandler) => true
     case _ => false
   }

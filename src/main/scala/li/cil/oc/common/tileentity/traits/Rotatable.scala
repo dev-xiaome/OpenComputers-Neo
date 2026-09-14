@@ -132,7 +132,7 @@ trait Rotatable extends RotationAware with internal.Rotatable {
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     if (nbt.contains(Settings.namespace + "pitch")) {
       pitch = Direction.from3DDataValue(nbt.getInt(Settings.namespace + "pitch"))
@@ -144,13 +144,13 @@ trait Rotatable extends RotationAware with internal.Rotatable {
     updateTranslation()
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.putInt(Settings.namespace + "pitch", pitch.ordinal)
     nbt.putInt(Settings.namespace + "yaw", yaw.ordinal)
   }
 
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     pitch = Direction.from3DDataValue(nbt.getInt("pitch"))
     yaw = Direction.from3DDataValue(nbt.getInt("yaw"))
@@ -158,7 +158,7 @@ trait Rotatable extends RotationAware with internal.Rotatable {
     updateTranslation()
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putInt("pitch", pitch.ordinal)
     nbt.putInt("yaw", yaw.ordinal)

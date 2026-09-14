@@ -34,7 +34,7 @@ trait Hub extends traits.Environment with SidedEnvironment {
 
   override def node: Node = null
 
-  override protected def isConnected = plugs.exists(plug =>
+  override def isConnected = plugs.exists(plug =>
     plug != null &&
       plug.node != null &&
       plug.node.address != null &&
@@ -114,7 +114,7 @@ trait Hub extends traits.Environment with SidedEnvironment {
     else false
   }
 
-  protected def relayPacket(sourceSide: Option[Direction], packet: Packet): Unit = {
+  def relayPacket(sourceSide: Option[Direction], packet: Packet): Unit = {
     for (side <- Direction.values()) {
       if (sourceSide.isEmpty || sourceSide.get != side) {
         val node = sidedNode(side)
@@ -125,7 +125,7 @@ trait Hub extends traits.Environment with SidedEnvironment {
     }
   }
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     // 注意：`ListTag` 是 Java 集合，它自带的 `toArray` 会遮蔽 `ExtendedListTag` 的隐式扩展
     //（`toArray[T: ClassTag]`），因此这里改用扩展提供的 `map` 把元素逐个取出来。
@@ -145,7 +145,7 @@ trait Hub extends traits.Environment with SidedEnvironment {
     }
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = queue.synchronized {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = queue.synchronized {
     super.writeToNBTForServer(nbt)
     // Side check for Waila (and other mods that may call this client side).
     if (isServer) {

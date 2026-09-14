@@ -10,11 +10,17 @@ import li.cil.oc.common.item.data.DroneData
 import li.cil.oc.common.item.data.MicrocontrollerData
 import li.cil.oc.common.item.data.RobotData
 import li.cil.oc.util.ItemUtils
-import net.minecraft.inventory.IInventory
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.items.IItemHandler
 
 import scala.jdk.CollectionConverters._
 
+/**
+ * 无人机装配模板（对应 1.7.10 的 `common.template.DroneTemplate`）。
+ *
+ * 1.21.1 迁移要点：物品栏参数 `IInventory` → `IItemHandler`（`getSizeInventory` → `getSlots`，
+ * 空槽位是 `ItemStack.EMPTY` 而非 `null`，统一走 [[Template.stackAt]]）。
+ */
 object DroneTemplate extends Template {
   override protected val suggestedComponents = Array(
     "BIOS" -> hasComponent(Constants.ItemName.EEPROM) _)
@@ -27,14 +33,14 @@ object DroneTemplate extends Template {
 
   def selectTierCreative(stack: ItemStack) = api.Items.get(stack) == api.Items.get(Constants.ItemName.DroneCaseCreative)
 
-  def validate(inventory: IInventory): Array[AnyRef] = validateComputer(inventory)
+  def validate(inventory: IItemHandler): Array[AnyRef] = validateComputer(inventory)
 
-  def assemble(inventory: IInventory) = {
-    val items = (0 until inventory.getSizeInventory).map(inventory.getStackInSlot)
+  def assemble(inventory: IItemHandler) = {
+    val items = (0 until inventory.getSlots).map(slot => stackAt(inventory, slot)).filter(_ != null)
     val data = new DroneData()
     data.tier = caseTier(inventory)
     data.name = RobotData.randomName
-    data.components = items.drop(1).filter(_ != null).toArray
+    data.components = items.drop(1).toArray
     data.storedEnergy = Settings.get.bufferDrone.toInt
     val stack = api.Items.get(Constants.ItemName.Drone).createItemStack(1)
     data.save(stack)
@@ -65,7 +71,7 @@ object DroneTemplate extends Template {
         Tier.Two,
         Tier.One
       ),
-      asJavaIterable(Iterable(
+      Iterable(
         (Slot.Card, Tier.Two),
         (Slot.Card, Tier.One),
         null,
@@ -73,7 +79,7 @@ object DroneTemplate extends Template {
         (Slot.Memory, Tier.One),
         null,
         (Slot.EEPROM, Tier.Any)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
     // Tier 2
     api.IMC.registerAssemblerTemplate(
@@ -88,7 +94,7 @@ object DroneTemplate extends Template {
         Tier.Two,
         Tier.One
       ),
-      asJavaIterable(Iterable(
+      Iterable(
         (Slot.Card, Tier.Two),
         (Slot.Card, Tier.Two),
         null,
@@ -96,7 +102,7 @@ object DroneTemplate extends Template {
         (Slot.Memory, Tier.One),
         (Slot.Memory, Tier.One),
         (Slot.EEPROM, Tier.Any)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
     // Creative
     api.IMC.registerAssemblerTemplate(
@@ -117,7 +123,7 @@ object DroneTemplate extends Template {
         Tier.Three,
         Tier.Three
       ),
-      asJavaIterable(Iterable(
+      Iterable(
         (Slot.Card, Tier.Three),
         (Slot.Card, Tier.Three),
         (Slot.Card, Tier.Three),
@@ -125,7 +131,7 @@ object DroneTemplate extends Template {
         (Slot.Memory, Tier.Three),
         (Slot.Memory, Tier.Three),
         (Slot.EEPROM, Tier.Any)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
     // Disassembler
     api.IMC.registerDisassemblerTemplate(
@@ -134,10 +140,10 @@ object DroneTemplate extends Template {
       "li.cil.oc.common.template.DroneTemplate.disassemble")
   }
 
-  override protected def maxComplexity(inventory: IInventory) =
+  override protected def maxComplexity(inventory: IItemHandler) =
     if (caseTier(inventory) == Tier.Two) 8
     else if (caseTier(inventory) == Tier.Four) 9001 // Creative
     else 5
 
-  override protected def caseTier(inventory: IInventory) = ItemUtils.caseTier(inventory.getStackInSlot(0))
+  override protected def caseTier(inventory: IItemHandler) = ItemUtils.caseTier(stackAt(inventory, 0))
 }

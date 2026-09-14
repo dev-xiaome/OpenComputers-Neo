@@ -17,7 +17,8 @@ class ComponentAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
       val exact = args.optboolean(2, false)
       val table = LuaValue.tableOf(0, components.size)
       def matches(name: String) = if (exact) name == filter.get else name.contains(filter.get)
-      for ((address, name) <- components) {
+      // Scala 2.13：`components` 是 java.util.Map，需要显式 asScala 才能 for 推导。
+      for ((address, name) <- components.asScala) {
         if (filter.isEmpty || matches(name)) {
           table.set(address, name)
         }
@@ -47,7 +48,8 @@ class ComponentAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
     component.set("methods", (args: Varargs) => {
       withComponent(args.checkjstring(1), component => {
         val table = LuaValue.tableOf()
-        for ((name, annotation) <- machine.methods(component.host)) {
+        // Scala 2.13：`machine.methods` 返回 java.util.Map，需要显式 asScala。
+        for ((name, annotation) <- machine.methods(component.host).asScala) {
           table.set(name, LuaValue.tableOf(Array(
             LuaValue.valueOf("direct"),
             LuaValue.valueOf(annotation.direct),
@@ -70,6 +72,7 @@ class ComponentAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
     component.set("doc", (args: Varargs) => {
       withComponent(args.checkjstring(1), component => {
         val method = args.checkjstring(2)
+        // Scala 2.13：java.util.Map 没有 apply，改为显式 get。
         val methods = machine.methods(component.host)
         owner.documentation(() => Option(methods.get(method)).map(_.doc).orNull)
       })
@@ -79,6 +82,8 @@ class ComponentAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
   }
 
   private def withComponent(address: String, f: (Component) => Varargs) = Option(node.network.node(address)) match {
+    // TODO(server.component): 上游用 `li.cil.oc.server.network.Component`，
+    // 尚未移植，这里改用 API 接口。
     case Some(component: Component) if component.canBeSeenFrom(node) || component == node =>
       f(component)
     case _ =>

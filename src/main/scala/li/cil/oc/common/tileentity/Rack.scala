@@ -289,7 +289,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float): Array[Node] = {
     slotAt(Direction.from3DDataValue(side), hitX, hitY, hitZ) match {
-      case Some(slot) => components(slot) match {
+      case Some(slot) => componentEnvironments(slot) match {
         case Some(analyzable: Analyzable) => analyzable.onAnalyze(player, side, hitX, hitY, hitZ)
         case _ => null
       }
@@ -300,7 +300,7 @@ class Rack(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
   // AbstractBusAware
 
-  override def installedComponents: Iterable[ManagedEnvironment] = components.collect {
+  override def installedComponents: Iterable[ManagedEnvironment] = componentEnvironments.collect {
     case Some(mountable: RackMountable with ComponentHost) =>
       mountable.getComponents.asScala.collect { case managed: ManagedEnvironment => managed }
   }.flatten.toIndexedSeq
@@ -319,9 +319,9 @@ class Rack(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
   // internal.Rack
 
-  override def indexOfMountable(mountable: RackMountable): Int = components.indexWhere(_.contains(mountable))
+  override def indexOfMountable(mountable: RackMountable): Int = componentEnvironments.indexWhere(_.contains(mountable))
 
-  override def getMountable(slot: Int): RackMountable = components(slot) match {
+  override def getMountable(slot: Int): RackMountable = componentEnvironments(slot) match {
     case Some(mountable: RackMountable) => mountable
     case _ => null
   }
@@ -339,7 +339,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   override def getCurrentState: util.EnumSet[api.util.StateAware.State] = {
     val result = util.EnumSet.noneOf(classOf[api.util.StateAware.State])
-    components.collect {
+    componentEnvironments.collect {
       case Some(mountable: RackMountable) => result.addAll(mountable.getCurrentState)
     }
     result
@@ -358,7 +358,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   override def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
     super.onRedstoneInputChanged(args)
-    components.collect {
+    componentEnvironments.collect {
       case Some(mountable: RackMountable) if mountable.node != null =>
         val toLocalArgs = RedstoneChangedEventArgs(toLocal(args.side), args.oldValue, args.newValue, args.color)
         mountable.node.sendToNeighbors("redstone.changed", toLocalArgs)
@@ -429,7 +429,7 @@ class Rack(pos: BlockPos, state: BlockState)
       lazy val connectors = Direction.values().map(sidedNode).collect {
         case connector: Connector => connector
       }
-      components.zipWithIndex.collect {
+      componentEnvironments.zipWithIndex.collect {
         case (Some(mountable: RackMountable), slot) =>
           if (hasChanged(slot)) {
             hasChanged(slot) = false

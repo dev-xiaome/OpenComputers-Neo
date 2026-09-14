@@ -1,96 +1,124 @@
 package li.cil.oc.common.event
 
-import java.util
+import java.util.UUID
 
-import net.neoforged.bus.api.SubscribeEvent
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.api.event.RobotMoveEvent
+import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.server.component.UpgradeChunkloader
-import li.cil.oc.util.BlockPosition
-import net.minecraft.world.level.ChunkPos
-import net.minecraft.world.level.Level
-import net.minecraftforge.common.ForgeChunkManager
-import net.minecraftforge.common.ForgeChunkManager.LoadingCallback
-import net.minecraftforge.common.ForgeChunkManager.Ticket
-import net.neoforged.neoforge.event.level.LevelEvent
+import net.minecraft.core.BlockPos
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.entity.Entity
+import net.minecraft.world.level.ChunkPos
+import net.neoforged.bus.api.IEventBus
+import net.neoforged.neoforge.common.NeoForge
+import net.neoforged.neoforge.common.world.chunk.RegisterTicketControllersEvent
+import net.neoforged.neoforge.common.world.chunk.TicketController
 
 import scala.jdk.CollectionConverters._
-import scala.collection.mutable
 
-object ChunkloaderUpgradeHandler extends LoadingCallback {
-  val restoredTickets = mutable.Map.empty[String, Ticket]
+/**
+ * 区块加载器升级：把宿主周围的 3x3 区块强制加载。
+ *
+ * 1.21.1 迁移要点（与 1.7.10 的 `ForgeChunkManager` 差异较大）：
+ *  - `ForgeChunkManager.requestTicket / releaseTicket / Ticket` 已整体移除，改为
+ *    `TicketController` + `RegisterTicketControllersEvent`：控制器在 mod 事件总线上注册一次，
+ *    之后用 `TicketController#forceChunk(level, owner, chunkX, chunkZ, add, ticking)`
+ *    增删 ticket。ticket 由 `ForcedChunksSavedData` 自动存档，不再需要手工读写
+ *    `Ticket#getModData` 里的 address/x/z，也不再需要「读档时认领 ticket」的逻辑。
+ *  - ticket 的「所有者」可以是方块坐标（`BlockPos`）或实体 `UUID`；
+ *    这里按宿主类型选择，并记录每个宿主上一次强制加载的区块集合，
+ *    以便宿主移动或关闭时把不再需要的区块卸掉。
+ *  - 原实现在 `LevelEvent.Save` 里回收「没人认领」的 ticket（`restoredTickets`）；
+ *    新 API 下这属于 `LoadingValidationCallback` 的职责。本文件暂未提供该回调
+ *    （回调在存档加载时执行，此时区块未加载、无法可靠判断宿主是否还在），
+ *    因此**宿主方块被直接删除时留下的 ticket 不会自动清理**——见降级清单。
+ */
+object ChunkloaderUpgradeHandler {
+  /**
+   * ticket 的所有者：`Left` 为方块坐标，`Right` 为实体 UUID。
+   * （1.21.1 的 `TicketController` 只有这两种所有者类型。）
+   */
+  private type Owner = Either[BlockPos, UUID]
 
-  override def ticketsLoaded(tickets: util.List[Ticket], world: Level): Unit = {
-    for (ticket <- tickets) {
-      val data = ticket.getModData
-      val address = data.getString("address")
-      restoredTickets += address -> ticket
-      if (data.contains("x") && data.contains("z")) {
-        val x = data.getInteger("x")
-        val z = data.getInteger("z")
-        OpenComputers.log.info(s"Restoring chunk loader ticket for upgrade at chunk ($x, $z) with address $address.")
+  /** ticket 控制器 id；同一 id 的 ticket 会被一起校验 / 保存。 */
+  private val controllerId = ResourceLocation.fromNamespaceAndPath(OpenComputersNeo.MODID, "chunkloader")
 
-        ForgeChunkManager.forceChunk(ticket, new ChunkCoordIntPair(x, z))
-      }
-    }
+  val controller = new TicketController(controllerId)
+
+  /** 每个宿主上一次强制加载的 `(所有者, 区块)` 集合，用于卸载不再需要的区块。 */
+  private val loadedChunks = new java.util.WeakHashMap[UpgradeChunkloader, Set[(Owner, Long)]]()
+
+  /**
+   * 注册区块加载控制器与事件监听器。
+   *
+   * 控制器必须注册在 **mod 事件总线** 上（`RegisterTicketControllersEvent` 是 mod 总线事件），
+   * 未注册的控制器其 ticket 会在读档时被丢弃，`forceChunk` 也会直接抛异常。
+   */
+  def initialize(modBus: IEventBus): Unit = {
+    modBus.addListener((e: RegisterTicketControllersEvent) => e.register(controller))
+    NeoForge.EVENT_BUS.addListener((e: RobotMoveEvent.Post) => onMove(e))
   }
 
-  @SubscribeEvent
-  def onWorldSave(e: WorldEvent.Save): Unit = {
-    // Any tickets that were not reassigned by the time the world gets saved
-    // again can be considered orphaned, so we release them.
-    // TODO figure out a better event *after* tile entities were restored
-    // but *before* the world is saved, because the tickets are saved first,
-    // so if the save is because the game is being quit the tickets aren't
-    // actually being cleared. This will *usually* not be a problem, but it
-    // has room for improvement.
-    restoredTickets.values.foreach(ticket => {
-      try{
-        val data = ticket.getModData
-        OpenComputers.log.warn(s"A chunk loader ticket has been orphaned! Address: ${data.getString("address")}, position: (${data.getInteger("x")}, ${data.getInteger("z")}). Removing...")
-        ForgeChunkManager.releaseTicket(ticket)
-      }
-      catch {
-        case _: Throwable => // Ignored.
-      }
-    })
-    restoredTickets.clear()
-  }
+  // 说明：机器人跨区块边界移动时可能需要先强制加载目标区块，否则移动会失败。
+  // 2014-06-21 的测试表明并不需要：读取移动方向上的方块本身就会加载对应区块。
 
-  // Note: it might be necessary to use pre move to force load the target chunk
-  // in case the robot moves across a chunk border into an otherwise unloaded
-  // chunk (I think it would just fail to move otherwise).
-  // Update 2014-06-21: did some testing, seems not to be necessary. My guess
-  // is that the access to the block in the direction the robot moves causes
-  // the chunk it might move into to get loaded.
-
-  @SubscribeEvent
   def onMove(e: RobotMoveEvent.Post): Unit = {
-    val machineNode = e.agent.machine.node
-    machineNode.reachableNodes.foreach(_.host match {
+    val machine = e.agent.machine
+    // TODO(server.machine): 机器层移植前 `machine` 可能为 null，这里做空值保护。
+    if (machine == null) return
+    machine.node.reachableNodes.asScala.foreach(_.host match {
       case loader: UpgradeChunkloader => updateLoadedChunk(loader)
       case _ =>
     })
   }
 
-  def updateLoadedChunk(loader: UpgradeChunkloader): Unit = {
-    val blockPos = BlockPosition(loader.host)
-    val centerChunk = new ChunkCoordIntPair(blockPos.x >> 4, blockPos.z >> 4)
-    val robotChunks = (for (x <- -1 to 1; z <- -1 to 1) yield new ChunkCoordIntPair(centerChunk.chunkXPos + x, centerChunk.chunkZPos + z)).toSet
+  def updateLoadedChunk(loader: UpgradeChunkloader): Unit = loader.host.world() match {
+    case level: ServerLevel =>
+      val owner = ownerOf(loader.host)
+      val center = BlockPos.containing(loader.host.xPosition(), loader.host.yPosition(), loader.host.zPosition())
+      val centerChunk = new ChunkPos(center.getX >> 4, center.getZ >> 4)
+      val robotChunks = (for (x <- -1 to 1; z <- -1 to 1) yield ChunkPos.asLong(centerChunk.x + x, centerChunk.z + z)).toSet
 
-    loader.ticket.foreach(ticket => {
-      ticket.getChunkList.collect {
-        case chunk: ChunkCoordIntPair if !robotChunks.contains(chunk) => ForgeChunkManager.unforceChunk(ticket, chunk)
+      val previous = Option(loadedChunks.get(loader)).getOrElse(Set.empty[(Owner, Long)])
+      this.synchronized {
+        // 卸掉离开 3x3 范围的区块（用记录下来的旧所有者，宿主移动后坐标可能已经变了）。
+        for ((oldOwner, chunk) <- previous if !robotChunks.contains(chunk)) {
+          force(level, oldOwner, chunk, add = false)
+        }
+        // 强制加载需要的区块。
+        for (chunk <- robotChunks) {
+          force(level, owner, chunk, add = true)
+        }
+        loadedChunks.put(loader, robotChunks.map(chunk => (owner, chunk)))
       }
+    case _ => // 客户端 / 非服务端世界，什么也不做。
+  }
 
-      for (chunk <- robotChunks) {
-        ForgeChunkManager.forceChunk(ticket, chunk)
-      }
+  /** 宿主的所有者：实体用 UUID（会移动），其余用当前方块坐标。 */
+  private def ownerOf(host: EnvironmentHost): Owner = host match {
+    case entity: Entity => Right(entity.getUUID)
+    case _ => Left(BlockPos.containing(host.xPosition(), host.yPosition(), host.zPosition()))
+  }
 
-      ticket.getModData.putString("address", loader.node.address)
-      ticket.getModData.putInt("x", centerChunk.chunkXPos)
-      ticket.getModData.putInt("z", centerChunk.chunkZPos)
-    })
+  private def force(level: ServerLevel, owner: Owner, chunk: Long, add: Boolean): Boolean = owner match {
+    case Left(pos) => controller.forceChunk(level, pos, ChunkPos.getX(chunk), ChunkPos.getZ(chunk), add, false)
+    case Right(uuid) => controller.forceChunk(level, uuid, ChunkPos.getX(chunk), ChunkPos.getZ(chunk), add, false)
+  }
+
+  /**
+   * 释放某个宿主强制加载的所有区块。
+   *
+   * 原实现在升级断开连接时释放 ticket；新 API 下由 [[li.cil.oc.server.component.UpgradeChunkloader]]
+   * 在 `onDisconnect` / 电力耗尽时调用本方法。
+   */
+  def releaseLoadedChunks(loader: UpgradeChunkloader): Unit = loader.host.world() match {
+    case level: ServerLevel => this.synchronized {
+      Option(loadedChunks.remove(loader)).foreach(_.foreach {
+        case (owner, chunk) => force(level, owner, chunk, add = false)
+      })
+    }
+    case _ =>
   }
 }

@@ -9,8 +9,7 @@ import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import net.neoforged.bus.api.EventPriority
-import net.neoforged.bus.api.SubscribeEvent
+
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.api.machine.MachineHost
@@ -18,39 +17,56 @@ import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.SafeThreadPool
 import li.cil.oc.util.ThreadPoolFactory
-import net.minecraft.nbt.NbtIo
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.world.{ChunkCoordIntPair, Level, ServerLevel}
-import net.minecraftforge.common.DimensionManager
+import net.minecraft.nbt.NbtIo
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.world.level.ChunkPos
+import net.minecraft.world.level.Level
+import net.minecraft.world.level.storage.LevelResource
+import net.neoforged.bus.api.EventPriority
+import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.level.LevelEvent
-import org.apache.commons.lang3.JavaVersion
-import org.apache.commons.lang3.SystemUtils
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 
 import scala.collection.mutable
 
-// Used by the native lua state to store kernel and stack data in auxiliary
-// files instead of directly in the tile entity data, avoiding potential
-// problems with the tile entity data becoming too large.
+/**
+ * 原生 Lua 状态用来把内核（kernel）与栈（stack）数据存到独立文件里，
+ * 而不是直接塞进方块实体的 NBT，避免方块实体数据过大。
+ *
+ * 1.21.1 迁移要点：
+ *  - `DimensionManager.getCurrentSaveRootDirectory` 已移除，改用
+ *    `MinecraftServer#getWorldPath(LevelResource.ROOT)`；服务端实例从
+ *    `ServerLifecycleHooks.getCurrentServer` 取（与存档目录同一来源）。
+ *  - 维度不再有数字 id：目录名与 NBT 里的 `dimension` 改为
+ *    `ResourceKey#location` 的字符串形式（`minecraft:overworld` → `minecraft_overworld`，
+ *    冒号在 Windows 文件名里非法，必须替换）。
+ *  - `ChunkCoordIntPair` → `ChunkPos`，`chunkXPos / chunkZPos` → `x / z`。
+ *  - `NBTTagCompound` 存取方法改写为 1.21.1 名字（`putInt / getInt / putString / ...`）。
+ *  - 原实现按 `SystemUtils.isJavaVersionAtLeast(JAVA_1_7)` 在 Java 6 回退实现之间切换；
+ *    本工程最低 Java 21，`visitJava16` 已删除，只保留 `Files.walkFileTree` 版本。
+ *  - 不再使用 `@SubscribeEvent`，改为 [[initialize]] 里显式注册（Scala object 的
+ *    注解在 NeoForge 下不可靠）。
+ *
+ * 说明：本文件**不涉及** `SavedData` / `DimensionDataStorage`——原实现就是把
+ * 辅助数据写进存档目录下的普通文件（`opencomputers_neo/state/<维度>/<区块>/<名字>`），
+ * 与 1.7.10 的 `ISaveHandler` / `WorldSavedData` 无关。
+ */
 object SaveHandler {
   private val uuidRegex = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
 
   private val TimeToHoldOntoOldSaves = 60 * 1000
 
-  // THIS IS A MASSIVE HACK OF THE UGLIEST KINDS.
-  // But it works, and the alternative would be to change the Persistable
-  // interface to pass along this state to *everything that gets saved ever*,
-  // which in 99% of the cases it doesn't need to know. So yes, this is fugly,
-  // but the "clean" solution would be no less fugly.
-  // Why is this even required? To avoid flushing file systems to disk and
-  // avoid persisting machine states when sending description packets to clients,
-  // which takes a lot of time and is completely unnecessary in those cases.
+  // 这是极其丑陋的一个 hack，但它能工作；否则就得把这份状态一路透传给所有会被保存的东西，
+  // 而其中 99% 根本不需要知道它。目的：在给客户端发描述包时跳过文件系统刷盘与机器状态持久化，
+  // 那些操作既慢又完全没有必要。
   var savingForClients = false
 
-  class SaveDataEntry(val data: Array[Byte], val pos: ChunkCoordIntPair, val name: String, val dimension: Int) extends Runnable {
+  class SaveDataEntry(val data: Array[Byte], val pos: ChunkPos, val name: String, val dimension: String) extends Runnable {
     override def run(): Unit = {
       val path = statePath
-      val dimPath = new io.File(path, dimension.toString)
-      val chunkPath = new io.File(dimPath, s"${this.pos.chunkXPos}.${this.pos.chunkZPos}")
+      val dimPath = new io.File(path, dimension)
+      val chunkPath = new io.File(dimPath, s"${this.pos.x}.${this.pos.z}")
       chunkDirs.add(chunkPath)
       if (!chunkPath.exists()) {
         chunkPath.mkdirs()
@@ -73,19 +89,32 @@ object SaveHandler {
   val chunkDirs = new ConcurrentLinkedDeque[io.File]()
   val saving = mutable.HashMap.empty[String, Future[_]]
 
-  def savePath = new io.File(DimensionManager.getCurrentSaveRootDirectory, Settings.savePath)
+  /**
+   * 存档根目录（`saves/<世界>`）。服务端未启动（例如关闭流程中）时退化为当前工作目录，
+   * 保证不会抛 NPE。
+   */
+  private def saveRoot: io.File = Option(ServerLifecycleHooks.getCurrentServer) match {
+    case Some(server) => server.getWorldPath(LevelResource.ROOT).toFile
+    case None => new io.File(".")
+  }
+
+  def savePath = new io.File(saveRoot, Settings.savePath)
 
   def statePath = new io.File(savePath, "state")
+
+  /** 维度的目录名 / NBT 表示：`ResourceKey#location` 的字符串，冒号替换为下划线。 */
+  private def dimensionName(level: Level): String =
+    Option(level.dimension()).map(_.location().toString.replace(':', '_')).getOrElse("unknown")
 
   def scheduleSave(host: MachineHost, nbt: CompoundTag, name: String, data: Array[Byte]): Unit = {
     scheduleSave(BlockPosition(host), nbt, name, data)
   }
 
-  def scheduleSave(host: MachineHost, nbt: CompoundTag, name: String, save: CompoundTag => Unit) {
+  def scheduleSave(host: MachineHost, nbt: CompoundTag, name: String, save: CompoundTag => Unit): Unit = {
     scheduleSave(host, nbt, name, writeNBT(save))
   }
 
-  def scheduleSave(host: EnvironmentHost, nbt: CompoundTag, name: String, save: CompoundTag => Unit) {
+  def scheduleSave(host: EnvironmentHost, nbt: CompoundTag, name: String, save: CompoundTag => Unit): Unit = {
     scheduleSave(BlockPosition(host), nbt, name, writeNBT(save))
   }
 
@@ -93,25 +122,32 @@ object SaveHandler {
     scheduleSave(BlockPosition(x, 0, z, world), nbt, name, data)
   }
 
-  def scheduleSave(world: Level, x: Double, z: Double, nbt: CompoundTag, name: String, save: CompoundTag => Unit) {
+  def scheduleSave(world: Level, x: Double, z: Double, nbt: CompoundTag, name: String, save: CompoundTag => Unit): Unit = {
     scheduleSave(world, x, z, nbt, name, writeNBT(save))
   }
 
   def scheduleSave(position: BlockPosition, nbt: CompoundTag, name: String, data: Array[Byte]): Unit = {
-    val world = position.world.get
-    
-    // Try to exclude wrapped/client-side worlds.
-    if (world.isInstanceOf[ServerLevel]) {
-      val dimension = world.provider.dimensionId
-      val chunk = new ChunkCoordIntPair(position.x >> 4, position.z >> 4)
+    position.world.foreach(world => scheduleSave(world, position, nbt, name, data))
+  }
 
-      // We have to save the dimension and chunk coordinates, because they are
-      // not available on load / may have changed if the computer was moved.
-      nbt.putInt("dimension", dimension)
-      nbt.putInt("chunkX", chunk.chunkXPos)
-      nbt.putInt("chunkZ", chunk.chunkZPos)
+  /**
+   * 把数据登记到后台线程池，并把维度 / 区块坐标写进 NBT。
+   *
+   * 必须记录维度与区块坐标：读档时拿不到位置（计算机可能已被搬走）。
+   */
+  private def scheduleSave(world: Level, position: BlockPosition, nbt: CompoundTag, name: String, data: Array[Byte]): Unit = {
+    // 尽量排除被包装的 / 客户端的世界：只有服务端世界才有存档目录。
+    world match {
+      case _: ServerLevel =>
+        val dimension = dimensionName(world)
+        val chunk = new ChunkPos(position.x >> 4, position.z >> 4)
 
-      scheduleSave(dimension, chunk, name, data)
+        nbt.putString("dimension", dimension)
+        nbt.putInt("chunkX", chunk.x)
+        nbt.putInt("chunkZ", chunk.z)
+
+        scheduleSave(dimension, chunk, name, data)
+      case _ =>
     }
   }
 
@@ -121,34 +157,34 @@ object SaveHandler {
     val baos = new ByteArrayOutputStream()
     val dos = new DataOutputStream(baos)
     NbtIo.write(tmpNbt, dos)
+    dos.flush()
     baos.toByteArray
   }
 
   def loadNBT(nbt: CompoundTag, name: String): CompoundTag = {
     val data = load(nbt, name)
-    if (data.length > 0) try {
-      val bais = new ByteArrayInputStream(data)
-      val dis = new DataInputStream(bais)
-      NbtIo.read(dis)
-    }
-    catch {
-      case t: Throwable =>
-        OpenComputers.log.warn("There was an error trying to restore a block's state from external data. This indicates that data was somehow corrupted.", t)
-        new CompoundTag()
+    if (data.length > 0) {
+      try {
+        val bais = new ByteArrayInputStream(data)
+        val dis = new DataInputStream(bais)
+        NbtIo.read(dis)
+      }
+      catch {
+        case t: Throwable =>
+          OpenComputers.log.warn("There was an error trying to restore a block's state from external data. This indicates that data was somehow corrupted.", t)
+          new CompoundTag()
+      }
     }
     else new CompoundTag()
   }
 
   def load(nbt: CompoundTag, name: String): Array[Byte] = {
-    // Since we have no world yet, we rely on the dimension we were saved in.
-    // Same goes for the chunk. This also works around issues with computers
-    // being moved (e.g. Redstone in Motion).
-    val dimension = nbt.getInteger("dimension")
-    val chunk = new ChunkCoordIntPair(nbt.getInteger("chunkX"), nbt.getInteger("chunkZ"))
+    // 此时还没有世界，只能依赖存档时记录的维度与区块；这同时也让被搬动过的计算机
+    // （例如 Redstone in Motion）能正确读回数据。
+    val dimension = nbt.getString("dimension")
+    val chunk = new ChunkPos(nbt.getInt("chunkX"), nbt.getInt("chunkZ"))
 
-    // Wait for the latest save task for the requested file to complete.
-    // This prevents the chance of loading an outdated version
-    // of this file.
+    // 等待同一个文件的上一次保存任务完成，避免读到旧版本。
     saving.get(name).foreach(f => try {
       f.get(120L, TimeUnit.SECONDS)
     } catch {
@@ -160,23 +196,20 @@ object SaveHandler {
     load(dimension, chunk, name)
   }
 
-  def scheduleSave(dimension: Int, chunk: ChunkCoordIntPair, name: String, data: Array[Byte]): Unit = {
+  def scheduleSave(dimension: String, chunk: ChunkPos, name: String, data: Array[Byte]): Unit = {
     if (chunk == null) throw new IllegalArgumentException("chunk is null")
     else {
-      // Disregarding whether or not there already was a
-      // save submitted for the requested file
-      // allows for better concurrency at the cost of
-      // doing more writing operations.
+      // 不检查是否已经有同一文件的保存任务，可以换来更好的并发，代价是多几次写操作。
       stateSaveHandler.withPool(_.submit(new SaveDataEntry(data, chunk, name, dimension))).foreach(saving.put(name, _))
     }
   }
 
-  def load(dimension: Int, chunk: ChunkCoordIntPair, name: String): Array[Byte] = {
+  def load(dimension: String, chunk: ChunkPos, name: String): Array[Byte] = {
     if (chunk == null) throw new IllegalArgumentException("chunk is null")
 
     val path = statePath
-    val dimPath = new io.File(path, dimension.toString)
-    val chunkPath = new io.File(dimPath, s"${chunk.chunkXPos}.${chunk.chunkZPos}")
+    val dimPath = new io.File(path, dimension)
+    val chunkPath = new io.File(dimPath, s"${chunk.x}.${chunk.z}")
     val file = new io.File(chunkPath, name)
     if (!file.exists()) return Array.empty[Byte]
     try {
@@ -202,13 +235,12 @@ object SaveHandler {
   }
 
   def cleanSaveData(): Unit = {
-    // Delete empty folders to keep the state folder clean.
+    // 删除空目录，保持 state 目录整洁。
     val emptyDirs = savePath.listFiles(new FileFilter {
       override def accept(file: File) = file.isDirectory &&
-        // Make sure we only consider file system folders (UUID).
+        // 只考虑文件系统目录（UUID 形式）。
         file.getName.matches(uuidRegex) &&
-        // We set the modified time in the save() method of unbuffered file
-        // systems, to avoid deleting in-use folders here.
+        // 未缓冲文件系统的 save() 会刷新修改时间，用它可以避免删掉正在使用的目录。
         System.currentTimeMillis() - file.lastModified() > TimeToHoldOntoOldSaves && {
         val list = file.list()
         list == null || list.isEmpty
@@ -219,30 +251,23 @@ object SaveHandler {
     }
   }
 
-  @SubscribeEvent(priority = EventPriority.HIGHEST)
-  def onWorldLoad(e: WorldEvent.Load): Unit = {
-    // Touch all externally saved data when loading, to avoid it getting
-    // deleted in the next save (because the now - save time will usually
-    // be larger than the time out after loading a world again).
-    if (SystemUtils.isJavaVersionAtLeast(JavaVersion.JAVA_1_7)) SaveHandlerJava17Functionality.visitJava17(statePath)
-    else visitJava16()
+  def onWorldLoad(e: LevelEvent.Load): Unit = {
+    // 世界加载时触摸所有外部保存的数据，避免它们在下一次保存时被删掉
+    //（“当前时间 - 保存时间”在重新载入世界后通常会超过超时阈值）。
+    // 本工程最低 Java 21，直接使用 Files.walkFileTree 版本。
+    if (statePath.isDirectory) SaveHandlerJava17Functionality.visitJava17(statePath)
   }
 
-  private def visitJava16(): Unit = {
-    // This may run into infinite loops if there are evil symlinks.
-    // But that's really not something I'm bothered by, it's a fallback.
-    def recurse(file: File): Unit = {
-      file.setLastModified(System.currentTimeMillis())
-      if (file.exists() && file.isDirectory && file.list() != null) file.listFiles().foreach(recurse)
-    }
-    recurse(statePath)
-  }
-
-  @SubscribeEvent(priority = EventPriority.LOWEST)
-  def onWorldSave(e: WorldEvent.Save): Unit = {
+  def onWorldSave(e: LevelEvent.Save): Unit = {
     stateSaveHandler.withPool(_.submit(new Runnable {
       override def run(): Unit = cleanSaveData()
     }))
+  }
+
+  /** 注册世界加载 / 保存监听；由主类在 mod 初始化时调用一次。 */
+  def initialize(): Unit = {
+    NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, (e: LevelEvent.Load) => onWorldLoad(e))
+    NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, (e: LevelEvent.Save) => onWorldSave(e))
   }
 }
 

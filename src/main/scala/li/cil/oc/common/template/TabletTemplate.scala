@@ -8,16 +8,22 @@ import li.cil.oc.common.Slot
 import li.cil.oc.common.Tier
 import li.cil.oc.common.item.data.TabletData
 import li.cil.oc.util.ItemUtils
-import net.minecraft.inventory.IInventory
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.items.IItemHandler
 
 import scala.jdk.CollectionConverters._
 
+/**
+ * 平板装配模板（对应 1.7.10 的 `common.template.TabletTemplate`）。
+ *
+ * 1.21.1 迁移要点：物品栏参数 `IInventory` → `IItemHandler`（`getSizeInventory` → `getSlots`，
+ * 空槽位是 `ItemStack.EMPTY` 而非 `null`，统一走 [[Template.stackAt]]）。
+ */
 object TabletTemplate extends Template {
   override protected val suggestedComponents = Array(
     "BIOS" -> hasComponent(Constants.ItemName.EEPROM) _,
     "Keyboard" -> hasComponent(Constants.BlockName.Keyboard) _,
-    "GraphicsCard" -> ((inventory: IInventory) => Array(
+    "GraphicsCard" -> ((inventory: IItemHandler) => Array(
       Constants.ItemName.APUCreative,
       Constants.ItemName.APUTier1,
       Constants.ItemName.APUTier2,
@@ -35,12 +41,12 @@ object TabletTemplate extends Template {
 
   def selectCreative(stack: ItemStack) = api.Items.get(stack) == api.Items.get(Constants.ItemName.TabletCaseCreative)
 
-  def validate(inventory: IInventory): Array[AnyRef] = validateComputer(inventory)
+  def validate(inventory: IItemHandler): Array[AnyRef] = validateComputer(inventory)
 
-  def assemble(inventory: IInventory): Array[AnyRef] = {
-    val items = (1 until inventory.getSizeInventory).map(slot => Option(inventory.getStackInSlot(slot)))
+  def assemble(inventory: IItemHandler): Array[AnyRef] = {
+    val items = (1 until inventory.getSlots).map(slot => Option(stackAt(inventory, slot)))
     val data = new TabletData()
-    data.tier = ItemUtils.caseTier(inventory.getStackInSlot(0))
+    data.tier = ItemUtils.caseTier(stackAt(inventory, 0))
     data.container = items.headOption.getOrElse(None)
     data.items = Array(Option(api.Items.get(Constants.BlockName.ScreenTier1).createItemStack(1))) ++ items.drop(if (data.tier == Tier.One) 0 else 1).filter(_.isDefined)
     data.energy = Settings.get.bufferTablet
@@ -76,7 +82,7 @@ object TabletTemplate extends Template {
         Tier.Two,
         Tier.One
       ),
-      asJavaIterable(Iterable(
+      Iterable(
         (Slot.Card, Tier.Two),
         (Slot.Card, Tier.Two),
         null,
@@ -85,7 +91,7 @@ object TabletTemplate extends Template {
         (Slot.Memory, Tier.Two),
         (Slot.EEPROM, Tier.Any),
         (Slot.HDD, Tier.Two)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
     // Tier 2
     api.IMC.registerAssemblerTemplate(
@@ -102,7 +108,7 @@ object TabletTemplate extends Template {
         Tier.Two,
         Tier.Two
       ),
-      asJavaIterable(Iterable(
+      Iterable(
         (Slot.Card, Tier.Three),
         (Slot.Card, Tier.Two),
         null,
@@ -111,7 +117,7 @@ object TabletTemplate extends Template {
         (Slot.Memory, Tier.Two),
         (Slot.EEPROM, Tier.Any),
         (Slot.HDD, Tier.Two)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
     // Creative
     api.IMC.registerAssemblerTemplate(
@@ -134,7 +140,7 @@ object TabletTemplate extends Template {
         Tier.Three,
         Tier.Three
       ),
-      asJavaIterable(Iterable(
+      Iterable(
         (Slot.Card, Tier.Three),
         (Slot.Card, Tier.Three),
         (Slot.Card, Tier.Three),
@@ -143,7 +149,7 @@ object TabletTemplate extends Template {
         (Slot.Memory, Tier.Three),
         (Slot.EEPROM, Tier.Any),
         (Slot.HDD, Tier.Three)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
     // Disassembler
     api.IMC.registerDisassemblerTemplate(
@@ -152,7 +158,7 @@ object TabletTemplate extends Template {
       "li.cil.oc.common.template.TabletTemplate.disassemble")
   }
 
-  override protected def maxComplexity(inventory: IInventory) = super.maxComplexity(inventory) / 2 + 5
+  override protected def maxComplexity(inventory: IItemHandler) = super.maxComplexity(inventory) / 2 + 5
 
-  override protected def caseTier(inventory: IInventory) = ItemUtils.caseTier(inventory.getStackInSlot(0))
+  override protected def caseTier(inventory: IItemHandler) = ItemUtils.caseTier(stackAt(inventory, 0))
 }

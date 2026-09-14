@@ -1,28 +1,21 @@
 package li.cil.oc.server.network
 
-import codechicken.lib.vec.Cuboid6
-import codechicken.multipart.JNormalOcclusion
-import codechicken.multipart.NormalOcclusionTest
-import codechicken.multipart.TFacePart
-import codechicken.multipart.TileMultipart
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.network
 import li.cil.oc.api.network._
 import li.cil.oc.api.network.{Node => ImmutableNode}
-import li.cil.oc.common.block.Cable
 import li.cil.oc.common.tileentity
-import li.cil.oc.integration.Mods
-import li.cil.oc.integration.fmp.CablePart
+import li.cil.oc.server.network.{ComponentConnector => MutableComponentConnector}
+import li.cil.oc.server.network.{Connector => MutableConnector}
 import li.cil.oc.server.network.{Node => MutableNode}
 import li.cil.oc.util.Color
 import li.cil.oc.util.SideTracker
+import net.minecraft.core.Direction
 import net.minecraft.nbt._
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.core.Direction
 
-import scala.jdk.CollectionConverters._
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -39,13 +32,13 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
 
   var globalBufferSize = 0.0
 
-  private val connectors = mutable.ArrayBuffer.empty[Connector]
+  private val connectors = mutable.ArrayBuffer.empty[MutableConnector]
 
   private lazy val wrapper = new Network.Wrapper(this)
 
   data.values.foreach(node => {
     node.data match {
-      case connector: Connector => addConnector(connector)
+      case connector: MutableConnector => addConnector(connector)
       case _ =>
     }
     node.data.network = wrapper
@@ -137,7 +130,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
     data.remove(node.address) match {
       case Some(entry) =>
         node match {
-          case connector: Connector => removeConnector(connector)
+          case connector: MutableConnector => removeConnector(connector)
           case _ =>
         }
         node.network = null
@@ -230,7 +223,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
       node.address = java.util.UUID.randomUUID().toString
     data += node.address -> newNode
     node match {
-      case connector: Connector => addConnector(connector)
+      case connector: MutableConnector => addConnector(connector)
       case _ =>
     }
     node.network = wrapper
@@ -325,7 +318,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
         globalBufferSize += otherNetworkAfterReaddress.globalBufferSize
         otherNetworkAfterReaddress.data.values.foreach(node => {
           node.data match {
-            case connector: Connector => connector.distributor = Some(wrapper)
+            case connector: MutableConnector => connector.distributor = Some(wrapper)
             case _ =>
           }
           node.data.network = wrapper
@@ -354,7 +347,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
       globalBufferSize = 0
       data ++= subGraphs.head
       for (node <- data.values) node.data match {
-        case connector: Connector => addConnector(connector)
+        case connector: MutableConnector => addConnector(connector)
         case _ =>
       }
       subGraphs.tail.foreach(new Network(_))
@@ -378,7 +371,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
 
   // ----------------------------------------------------------------------- //
 
-  def addConnector(connector: Connector): Unit = {
+  def addConnector(connector: MutableConnector): Unit = {
     if (connector.localBufferSize > 0) {
       assert(!connectors.contains(connector))
       connectors += connector
@@ -388,7 +381,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
     connector.distributor = Some(wrapper)
   }
 
-  def removeConnector(connector: Connector): Unit = {
+  def removeConnector(connector: MutableConnector): Unit = {
     if (connector.localBufferSize > 0) {
       assert(connectors.contains(connector))
       connectors -= connector
@@ -448,25 +441,25 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
 
 object Network extends api.detail.NetworkAPI {
   override def joinOrCreateNetwork(tileEntity: BlockEntity): Unit =
-    if (!tileEntity.isInvalid && !tileEntity.getWorldObj.isRemote) {
-      for (side <- Direction.VALID_DIRECTIONS) {
-        val (nx, ny, nz) = (
-          tileEntity.xCoord + side.offsetX,
-          tileEntity.yCoord + side.offsetY,
-          tileEntity.zCoord + side.offsetZ)
-        if (tileEntity.getWorldObj.blockExists(nx, ny, nz)) {
+    if (!tileEntity.isRemoved && tileEntity.getLevel != null && !tileEntity.getLevel.isClientSide) {
+      val level = tileEntity.getLevel
+      val origin = tileEntity.getBlockPos
+      for (side <- Direction.values()) {
+        val pos = origin.relative(side)
+        if (level.isLoaded(pos)) {
           val localNode = getNetworkNode(tileEntity, side)
-          val neighborTileEntity = tileEntity.getWorldObj.getTileEntity(nx, ny, nz)
+          val neighborTileEntity = level.getBlockEntity(pos)
           val neighborNode = getNetworkNode(neighborTileEntity, side.getOpposite)
           localNode match {
             case Some(node: MutableNode) =>
               neighborNode match {
                 case Some(neighbor: MutableNode) if neighbor != node && neighbor.network != null =>
                   val canConnectColor = canConnectBasedOnColor(tileEntity, neighborTileEntity)
-                  val canConnectFMP = !Mods.ForgeMultipart.isAvailable ||
-                    (canConnectFromSideFMP(tileEntity, side) && canConnectFromSideFMP(neighborTileEntity, side.getOpposite))
-                  val canConnectIM = canConnectFromSideIM(tileEntity, side) && canConnectFromSideIM(neighborTileEntity, side.getOpposite)
-                  if (canConnectColor && canConnectFMP && canConnectIM) neighbor.connect(node)
+                  // 1.7.10 这里还有 FMP（ForgeMultipart）与 Immibis 微方块的遮挡判定。
+                  // 两者都依赖 `codechicken.multipart.*` / 第三方 API，未移植到 1.21.1
+                  // （见 `common/block/Cable.scala` 的说明），因此对应判定整体删除，
+                  // 连线是否成立只看「驱动 + 颜色」。
+                  if (canConnectColor) neighbor.connect(node)
                   else node.disconnect(neighbor)
                 case _ =>
               }
@@ -485,66 +478,26 @@ object Network extends api.detail.NetworkAPI {
     case _ =>
   }
 
-  def getNetworkNode(tileEntity: BlockEntity, side: Direction) =
+  def getNetworkNode(tileEntity: BlockEntity, side: Direction): Option[ImmutableNode] =
     tileEntity match {
       case host: SidedEnvironment => Option(host.sidedNode(side))
       case host: Environment with SidedComponent =>
         if (host.canConnectNode(side)) Option(host.node)
         else None
       case host: Environment => Option(host.node)
-      case host if Mods.ForgeMultipart.isAvailable => getMultiPartNode(host)
       case _ => None
     }
 
-  private def getMultiPartNode(tileEntity: BlockEntity) =
-    tileEntity match {
-      case host: TileMultipart => host.partList.find(_.isInstanceOf[CablePart]) match {
-        case Some(part: CablePart) => Some(part.node)
-        case _ => None
-      }
-      case _ => None
-    }
-
-  private def cableColor(tileEntity: BlockEntity) =
+  private def cableColor(tileEntity: BlockEntity): Int =
     tileEntity match {
       case cable: tileentity.Cable => cable.color
-      case _ =>
-        if (Mods.ForgeMultipart.isAvailable) cableColorFMP(tileEntity)
-        else Color.LightGray
-    }
-
-  private def cableColorFMP(tileEntity: BlockEntity) =
-    tileEntity match {
-      case host: TileMultipart => (host.partList collect {
-        case cable: CablePart => cable.color
-      }).headOption.getOrElse(Color.LightGray)
       case _ => Color.LightGray
     }
 
-  private def canConnectBasedOnColor(te1: BlockEntity, te2: BlockEntity) = {
+  private def canConnectBasedOnColor(te1: BlockEntity, te2: BlockEntity): Boolean = {
     val (c1, c2) = (cableColor(te1), cableColor(te2))
     c1 == c2 || c1 == Color.LightGray || c2 == Color.LightGray
   }
-
-  private def canConnectFromSideFMP(tileEntity: BlockEntity, side: Direction) =
-    tileEntity match {
-      case host: TileMultipart =>
-        host.partList.forall {
-          case part: JNormalOcclusion if !part.isInstanceOf[CablePart] =>
-            val ownBounds = Iterable(new Cuboid6(Cable.cachedBounds(side.flag)))
-            val otherBounds = part.getOcclusionBoxes
-            NormalOcclusionTest(ownBounds, otherBounds)
-          case part: TFacePart => !part.solid(side.ordinal) || (part.getSlotMask & codechicken.multipart.PartMap.face(side.ordinal).mask) == 0
-          case _ => true
-        }
-      case _ => true
-    }
-
-  private def canConnectFromSideIM(tileEntity: BlockEntity, side: Direction) =
-    tileEntity match {
-      case im: tileentity.traits.ImmibisMicroblock => im.ImmibisMicroblocks_isSideOpen(side.ordinal)
-      case _ => true
-    }
 
   // ----------------------------------------------------------------------- //
 
@@ -591,19 +544,22 @@ object Network extends api.detail.NetworkAPI {
     val destination =
       if (nbt.contains("dest")) null
       else nbt.getString("dest")
-    val port = nbt.getInteger("port")
-    val ttl = nbt.getInteger("ttl")
-    val data = (for (i <- 0 until nbt.getInteger("dataLength")) yield {
+    // 1.21.1：`getInteger` → `getInt`，`hasKey` → `contains`，`getTag` → `get`。
+    val port = nbt.getInt("port")
+    val ttl = nbt.getInt("ttl")
+    val data = (for (i <- 0 until nbt.getInt("dataLength")) yield {
       if (nbt.contains("data" + i)) {
-        nbt.getTag("data" + i) match {
-          case boolean: ByteTag => Boolean.box(boolean.func_150290_f == 1)
-          case short: ShortTag => Short.box(short.func_150289_e)
-          case integer: IntTag => Int.box(integer.func_150287_d)
-          case long: LongTag => Long.box(long.func_150291_c)
-          case float: FloatTag => Float.box(float.func_150288_h)
-          case double: DoubleTag => Double.box(double.func_150286_g)
-          case string: StringTag => string.func_150285_a_(): AnyRef
-          case array: ByteArrayTag => array.func_150292_c
+        // 原实现读的是 1.7.10 混淆方法名 `func_15029x_`，1.21.1 统一为
+        // `NumericTag#getAsXxx` / `StringTag#getAsString` / `ByteArrayTag#getAsByteArray`。
+        nbt.get("data" + i) match {
+          case boolean: ByteTag => Boolean.box(boolean.getAsByte == 1)
+          case short: ShortTag => Short.box(short.getAsShort)
+          case integer: IntTag => Int.box(integer.getAsInt)
+          case long: LongTag => Long.box(long.getAsLong)
+          case float: FloatTag => Float.box(float.getAsFloat)
+          case double: DoubleTag => Double.box(double.getAsDouble)
+          case string: StringTag => string.getAsString: AnyRef
+          case array: ByteArrayTag => array.getAsByteArray
         }
       }
       else null
@@ -643,25 +599,28 @@ object Network extends api.detail.NetworkAPI {
     else null
   }
 
-  class ConnectorBuilder(val _host: Environment, val _reachability: Visibility, val _bufferSize: Double) extends api.detail.Builder.ConnectorBuilder {
-    def withComponent(name: String, visibility: Visibility) = new Network.ComponentConnectorBuilder(_host, _reachability, name, visibility, _bufferSize)
+  class ConnectorBuilder(val _host: Environment, val _reachability: Visibility, val bufferSize: Double) extends api.detail.Builder.ConnectorBuilder {
+    def withComponent(name: String, visibility: Visibility) = new Network.ComponentConnectorBuilder(_host, _reachability, name, visibility, bufferSize)
 
     def withComponent(name: String) = withComponent(name, _reachability)
 
-    def create() = if (isServer()) new Connector with NodeVarargPart {
+    def create() = if (isServer()) new MutableConnector with NodeVarargPart {
       val host = _host
       val reachability = _reachability
-      localBufferSize = _bufferSize
+      // 用 setter 而不是直接赋值 `localBufferSize = bufferSize`：
+      // 外层 builder 的同名字段 `bufferSize` 会让匿名类体里的标识符解析产生歧义，
+      // 显式走 `api.network.Connector#setLocalBufferSize` 更稳。
+      setLocalBufferSize(bufferSize)
     }
     else null
   }
 
-  class ComponentConnectorBuilder(val _host: Environment, val _reachability: Visibility, val _name: String, val _visibility: Visibility, val _bufferSize: Double) extends api.detail.Builder.ComponentConnectorBuilder {
-    def create() = if (isServer()) new ComponentConnector with NodeVarargPart {
+  class ComponentConnectorBuilder(val _host: Environment, val _reachability: Visibility, val _name: String, val _visibility: Visibility, val bufferSize: Double) extends api.detail.Builder.ComponentConnectorBuilder {
+    def create() = if (isServer()) new MutableComponentConnector with NodeVarargPart {
       val host = _host
       val reachability = _reachability
       val name = _name
-      localBufferSize = _bufferSize
+      setLocalBufferSize(bufferSize)
       setVisibility(_visibility)
     }
     else null
@@ -674,7 +633,7 @@ object Network extends api.detail.NetworkAPI {
 
     def remove() = {
       edges.foreach(edge => edge.other(this).edges -= edge)
-      searchGraphs(edges.map(_.other(this)))
+      searchGraphs(edges.map(_.other(this)).toSeq)
     }
 
     override def toString = s"$data [${edges.length}]"
@@ -812,9 +771,9 @@ object Network extends api.detail.NetworkAPI {
 
     def globalBufferSize_=(value: Double) = network.globalBufferSize = value
 
-    def addConnector(connector: Connector) = network.addConnector(connector)
+    def addConnector(connector: MutableConnector) = network.addConnector(connector)
 
-    def removeConnector(connector: Connector) = network.removeConnector(connector)
+    def removeConnector(connector: MutableConnector) = network.removeConnector(connector)
 
     def changeBuffer(delta: Double) = network.changeBuffer(delta)
   }

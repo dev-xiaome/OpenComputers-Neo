@@ -3,16 +3,29 @@ package li.cil.oc.common.component.traits
 import li.cil.oc.common.component
 import li.cil.oc.common.component.GpuTextBuffer
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.village.VillageDoorInfo
 
 import scala.collection.mutable
 
+/**
+ * 支持「显存位块传输」（bitblt）的设备（对应 1.7.10 的
+ * `common.component.traits.VideoRamRasterizer`）。
+ *
+ * 每个 owner（GPU 的节点地址）对应一组 [[VideoRamDevice]]，
+ * 屏幕侧的改动通过 [[onBufferRamInit]] / [[onBufferBitBlt]] / [[onBufferRamDestroy]]
+ * 三个回调同步给对端。
+ *
+ * 1.21.1 迁移要点：旧版有个多余的 `net.minecraft.village.VillageDoorInfo` import
+ * （原版遗留），这里删除。
+ */
 trait VideoRamRasterizer {
   class VirtualRamDevice(val owner: String) extends VideoRamDevice {}
+
   private val internalBuffers = new mutable.HashMap[String, VideoRamDevice]
 
   def onBufferRamInit(ram: component.GpuTextBuffer): Unit
+
   def onBufferBitBlt(col: Int, row: Int, w: Int, h: Int, ram: component.GpuTextBuffer, fromCol: Int, fromRow: Int): Unit
+
   def onBufferRamDestroy(ram: component.GpuTextBuffer): Unit
 
   def addBuffer(ram: GpuTextBuffer): Boolean = {
@@ -30,15 +43,13 @@ trait VideoRamRasterizer {
 
   def removeBuffer(owner: String, id: Int): Boolean = {
     internalBuffers.get(owner) match {
-      case Some(gpu: VideoRamDevice) => {
+      case Some(gpu: VideoRamDevice) =>
         gpu.getBuffer(id) match {
-          case Some(ram: component.GpuTextBuffer) => {
+          case Some(ram: component.GpuTextBuffer) =>
             onBufferRamDestroy(ram)
             gpu.removeBuffers(Array(id)) == 1
-          }
           case _ => false
         }
-      }
       case _ => false
     }
   }
@@ -46,14 +57,13 @@ trait VideoRamRasterizer {
   def removeAllBuffers(owner: String): Int = {
     var count = 0
     internalBuffers.get(owner) match {
-      case Some(gpu: VideoRamDevice) => {
+      case Some(gpu: VideoRamDevice) =>
         val ids = gpu.bufferIndexes()
         for (id <- ids) {
           if (removeBuffer(owner, id)) {
             count += 1
           }
         }
-      }
       case _ => Unit
     }
     count

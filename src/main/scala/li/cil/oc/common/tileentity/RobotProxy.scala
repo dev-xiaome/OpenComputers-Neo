@@ -164,7 +164,7 @@ class RobotProxy(pos: BlockPos, state: BlockState)
   def setName(context: Context, args: Arguments): Array[AnyRef] = {
     val oldName = robot.name
     val newName: String = args.checkString(0)
-    if (machine != null && machine.isRunning) return result(Unit, "is running")
+    if (machine != null && machine.isRunning) return result((), "is running")
     setName(newName)
     // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotNameChange(robot)。
     markBlockForUpdate()
@@ -225,10 +225,10 @@ class RobotProxy(pos: BlockPos, state: BlockState)
   }
 
   /** 原 `RobotProxy.save`：全部物品栏数据都在机器人本体上，因此直接转发。 */
-  def save(nbt: CompoundTag): Unit = robot.save(nbt)
+  override def save(nbt: CompoundTag): Unit = robot.save(nbt)
 
   /** 原 `RobotProxy.load`：全部物品栏数据都在机器人本体上，因此直接转发。 */
-  def load(nbt: CompoundTag): Unit = robot.load(nbt)
+  override def load(nbt: CompoundTag): Unit = robot.load(nbt)
 
   /** 仅客户端使用（原 `@SideOnly(Side.CLIENT)`，1.21.1 已删除该注解）。 */
   override def readFromNBTForClient(nbt: CompoundTag): Unit = robot.readFromNBTForClient(nbt)
@@ -289,20 +289,18 @@ class RobotProxy(pos: BlockPos, state: BlockState)
 
   override def isItemValid(slot: Int, stack: ItemStack): Boolean = robot.isItemValid(slot, stack)
 
-  def decrStackSize(slot: Int, amount: Int): ItemStack = robot.decrStackSize(slot, amount)
+  override def decrStackSize(slot: Int, amount: Int): ItemStack = robot.decrStackSize(slot, amount)
 
-  def setInventorySlotContents(slot: Int, stack: ItemStack): Unit = robot.setInventorySlotContents(slot, stack)
+  override def setInventorySlotContents(slot: Int, stack: ItemStack): Unit = robot.setInventorySlotContents(slot, stack)
 
-  def getInventoryStackLimit: Int = robot.getInventoryStackLimit
+  override def getInventoryStackLimit: Int = robot.getInventoryStackLimit
 
-  def getInventoryName: String = robot.getInventoryName
+  override def getInventoryName: String = robot.getInventoryName
 
-  def getSizeInventory: Int = robot.getSizeInventory
-
-  def dropSlot(slot: Int, count: Int, direction: Option[Direction]): Boolean =
+  override def dropSlot(slot: Int, count: Int, direction: Option[Direction]): Boolean =
     robot.dropSlot(slot, count, direction)
 
-  def dropAllSlots(): Unit = robot.dropAllSlots()
+  override def dropAllSlots(): Unit = robot.dropAllSlots()
 
   def isItemValidForSlot(slot: Int, stack: ItemStack): Boolean = robot.isItemValidForSlot(slot, stack)
 

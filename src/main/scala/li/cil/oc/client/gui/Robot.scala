@@ -23,7 +23,7 @@ import org.lwjgl.opengl.GL11
 import scala.jdk.CollectionConverters._
 
 class Robot(playerInventory: Inventory, val robot: tileentity.Robot) extends DynamicGuiContainer(new container.Robot(playerInventory, robot)) with traits.InputBuffer {
-  override protected val buffer = robot.components.collect {
+  override protected val buffer = robot.componentEnvironments.collect {
     case Some(buffer: api.internal.TextBuffer) => buffer
   }.headOption.orNull
 

@@ -1,18 +1,38 @@
 package li.cil.oc.common.container
 
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import li.cil.oc.api
-import li.cil.oc.client.gui.Icons
-import li.cil.oc.common
+import com.mojang.datafixers.util.Pair
+
+import li.cil.oc.{api, common}
 import li.cil.oc.common.tileentity
 import li.cil.oc.util.SideTracker
+import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.entity.player.Inventory
-import net.minecraft.inventory.IInventory
+import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.items.IItemHandler
 
-class Robot(playerInventory: Inventory, robot: tileentity.Robot) extends Player(playerInventory, robot) {
-  val hasScreen = robot.components.exists {
-    case Some(buffer: api.internal.TextBuffer) => true
+/**
+ * 机器人容器（原 1.7.10 `container.Robot`）。
+ *
+ * ==1.21.1 迁移要点==
+ *  - `Container` → `AbstractContainerMenu`（构造器多 `windowId` + [[MenuTypes]] 的 `MenuType`）；
+ *  - 物品栏后端 `IInventory` → [[net.neoforged.neoforge.items.IItemHandler]]；
+ *    `getSizeInventory` → `getSlots`；
+ *  - 组件环境数组在 1.21.1 里叫 `componentEnvironments`（原名 `components` 与
+ *    `TileEntity#components` 冲突，见 `common/inventory/ComponentInventory`）；
+ *  - **进度条改用 `DataSlot`**：1.7.10 覆写 `ICrafting#updateProgressBar(id, value)`（客户端）+
+ *    `sendProgressBarUpdate(id, value)`（服务端）；1.21.1 的服务端写值仍然走
+ *    [[Player.sendProgressBarUpdate]]，客户端则回调
+ *    [[net.minecraft.world.inventory.AbstractContainerMenu#setData]]，所以这里覆写 `setData`。
+ *    槽位 id 由 [[Player.addProgressBarSlot]] 动态分配（原来是写死的 0 / 1）；
+ *  - `func_111238_b()` → `isActive`；`getBackgroundIconIndex` → `getNoItemIcon`；
+ *    `getStack` 越界时返回 `ItemStack.EMPTY`（1.7.10 返回 `null`，1.21.1 的槽位协议不接受 `null`）；
+ *  - `@SideOnly(Dist.CLIENT)` 删除。
+ */
+class Robot(windowId: Int, playerInventory: Inventory, robot: tileentity.Robot)
+  extends Player(windowId, MenuTypes.Robot.value(), playerInventory, robot) {
+
+  val hasScreen = robot.componentEnvironments.exists {
+    case Some(_: api.internal.TextBuffer) => true
     case _ => false
   }
   private val withScreenHeight = 256
@@ -28,11 +48,11 @@ class Robot(playerInventory: Inventory, robot: tileentity.Robot) extends Player(
     val y = 156 + i * slotSize - deltaY
     for (j <- 0 to 3) {
       val x = 170 + j * slotSize
-      addSlotToContainer(new InventorySlot(this, otherInventory, inventorySlots.size, x, y))
+      addSlot(new InventorySlot(this, otherInventory, slots.size, x, y))
     }
   }
   for (i <- 16 until 64) {
-    addSlotToContainer(new InventorySlot(this, otherInventory, inventorySlots.size, -10000, -10000))
+    addSlot(new InventorySlot(this, otherInventory, slots.size, -10000, -10000))
   }
 
   addPlayerInventorySlots(6, 174 - deltaY)
@@ -46,50 +66,54 @@ class Robot(playerInventory: Inventory, robot: tileentity.Robot) extends Player(
 
   private var lastSentBufferSize = -1
 
-  @SideOnly(Dist.CLIENT)
-  override def updateProgressBar(id: Int, value: Int): Unit = {
-    super.updateProgressBar(id, value)
-    if (id == 0) {
+  /** 进度条 0：内部能量缓冲（原 `sendProgressBarUpdate(0, ...)`）。 */
+  private val bufferId = addProgressBarSlot()
+
+  /** 进度条 1：缓冲上限（原 `sendProgressBarUpdate(1, ...)`）。 */
+  private val bufferSizeId = addProgressBarSlot()
+
+  /** 原 `updateProgressBar`（只会在客户端被调用；1.21.1 的入口是 `setData`）。 */
+  override def setData(id: Int, value: Int): Unit = {
+    super.setData(id, value)
+    if (id == bufferId) {
       robot.globalBuffer = value * factor
     }
 
-    if (id == 1) {
+    if (id == bufferSizeId) {
       robot.globalBufferSize = value * factor
     }
   }
 
-  override def detectAndSendChanges(): Unit = {
-    super.detectAndSendChanges()
+  override def broadcastChanges(): Unit = {
+    super.broadcastChanges()
     if (SideTracker.isServer) {
       val currentBuffer = robot.globalBuffer.toInt / factor
       if (currentBuffer != lastSentBuffer) {
         lastSentBuffer = currentBuffer
-        sendProgressBarUpdate(0, lastSentBuffer)
+        sendProgressBarUpdate(bufferId, lastSentBuffer)
       }
 
       val currentBufferSize = robot.globalBufferSize.toInt / factor
       if (currentBufferSize != lastSentBufferSize) {
         lastSentBufferSize = currentBufferSize
-        sendProgressBarUpdate(1, lastSentBufferSize)
+        sendProgressBarUpdate(bufferSizeId, lastSentBufferSize)
       }
     }
   }
 
-  class InventorySlot(container: Player, inventory: IInventory, index: Int, x: Int, y: Int) extends StaticComponentSlot(container, inventory, index, x, y, common.Slot.Any, common.Tier.Any) {
-    def isValid = robot.isInventorySlot(getSlotIndex)
+  class InventorySlot(containerMenu: Player, inventory: IItemHandler, index: Int, x: Int, y: Int)
+    extends StaticComponentSlot(containerMenu, inventory, index, x, y, common.Slot.Any, common.Tier.Any) {
 
-    @SideOnly(Dist.CLIENT)
-    override def func_111238_b() = isValid && super.func_111238_b()
+    def isValid: Boolean = robot.isInventorySlot(getSlotIndex)
 
-    override def getBackgroundIconIndex = {
-      if (isValid) super.getBackgroundIconIndex
-      else Icons.get(common.Tier.None)
-    }
+    override def isActive: Boolean = isValid && super.isActive
 
-    override def getStack = {
-      if (isValid) super.getStack
-      else null
-    }
+    override def getNoItemIcon: Pair[ResourceLocation, ResourceLocation] =
+      if (isValid) super.getNoItemIcon
+      else SlotIcons.background(common.Tier.None)
+
+    override def getItem: ItemStack =
+      if (isValid) super.getItem
+      else ItemStack.EMPTY
   }
-
 }

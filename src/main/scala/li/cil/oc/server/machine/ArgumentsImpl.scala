@@ -4,17 +4,15 @@ import java.util
 
 import com.google.common.base.Charsets
 import li.cil.oc.api.machine.Arguments
-import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.NbtIo
-import net.minecraft.nbt.NBTSizeTracker
 import net.minecraft.nbt.CompoundTag
 
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
-  def iterator() = args.iterator
+  // Scala 2.13：Java 接口要求 `java.util.Iterator`，Scala 的 Iterator 需要显式转换。
+  def iterator(): util.Iterator[AnyRef] = args.iterator.asJava
 
   def count() = args.length
 
@@ -190,7 +188,9 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
     else checkByteArray(index)
   }
 
-  def checkTable(index: Int) = {
+  // Java 侧签名是原始类型 `Map checkTable(int)`，这里显式返回 `Any`，
+  // 让 Scala Map / mutable.Map / java.util.Map 都能原样返回。
+  def checkTable(index: Int): AnyRef = {
     checkIndex(index, "table")
     args(index) match {
       case value: java.util.Map[_, _] => value
@@ -202,22 +202,18 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
 
   def optTable(index: Int, default: util.Map[_, _]) = {
     if (!isDefined(index)) default
-    else checkTable(index)
+    else checkTable(index).asInstanceOf[util.Map[_, _]]
   }
 
   def checkItemStack(index: Int) = {
     val map = checkTable(index)
-    map.get("name") match {
+    tableGet(map, "name") match {
       case name: String =>
-        val damage = map.get("damage") match {
+        val damage = tableGet(map, "damage") match {
           case number: java.lang.Number => number.intValue
           case _ => 0
         }
-        val tag = map.get("tag") match {
-          case ba: Array[Byte] => toNbtTagCompound(ba)
-          case s: String => toNbtTagCompound(s.getBytes(Charsets.UTF_8))
-          case _ => None
-        }
+        val tag = ItemStacks.tagOf(tableGet(map, "tag"))
         makeStack(name, damage, tag)
       case _ => throw new IllegalArgumentException("invalid item stack")
     }
@@ -293,7 +289,7 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
   def isItemStack(index: Int) =
     isTable(index) && {
       val map = checkTable(index)
-      map.get("name") match {
+      tableGet(map, "name") match {
         case value: String => true
         case value: Array[Byte] => true
         case _ => false
@@ -304,6 +300,17 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
     case value: Array[Byte] => new String(value, Charsets.UTF_8)
     case value => value
   }.toArray
+
+  /**
+   * 统一的表格取值：`checkTable` 可能返回 `java.util.Map`、Scala 不可变 `Map`
+   * 或 `mutable.Map`（对应 Lua 表格的三种表示），这里收敛成一个查表函数。
+   */
+  private def tableGet(table: Any, key: Any): Any = table match {
+    case value: java.util.Map[_, _] => value.asInstanceOf[java.util.Map[Any, Any]].get(key)
+    case value: Map[_, _] => value.asInstanceOf[Map[Any, Any]].getOrElse(key, null)
+    case value: mutable.Map[_, _] => value.asInstanceOf[mutable.Map[Any, Any]].getOrElse(key, null)
+    case _ => null
+  }
 
   private def isDefined(index: Int) = index >= 0 && index < args.length && args(index) != null
 
@@ -336,15 +343,8 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
     case _ => value.getClass.getSimpleName
   }
 
-  private def makeStack(name: String, damage: Int, tag: Option[CompoundTag]) = {
-    Item.itemRegistry.getObject(name) match {
-      case item: Item =>
-        val stack = new ItemStack(item, 1, damage)
-        tag.foreach(stack.setTagCompound)
-        stack
-      case _ => throw new IllegalArgumentException("invalid item stack")
-    }
-  }
-
-  private def toNbtTagCompound(data: Array[Byte]) = Option(NbtIo.func_152457_a(data, NBTSizeTracker.field_152451_a))
+  private def makeStack(name: String, damage: Int, tag: Option[CompoundTag]) =
+    // TODO(1.21.1): 原实现用 `Item.itemRegistry.getObject(name)` + `ItemStack(item, 1, damage)`；
+    // 注册表与 damage 语义都变了，统一收敛到 ItemStacks。
+    ItemStacks.makeStack(name, damage, tag)
 }

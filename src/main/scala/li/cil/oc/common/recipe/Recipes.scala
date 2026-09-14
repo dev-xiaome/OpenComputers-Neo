@@ -1,486 +1,108 @@
 package li.cil.oc.common.recipe
 
-import java.io.File
-import java.io.FileReader
-
-import com.typesafe.config._
-import net.neoforged.fml.ModList
-import cpw.mods.fml.common.registry.GameRegistry
-import li.cil.oc._
-import li.cil.oc.common.Loot
-import li.cil.oc.common.block.SimpleBlock
-import li.cil.oc.common.init.Items
-import li.cil.oc.common.item.Delegator
-import li.cil.oc.common.item.data.PrintData
+import com.typesafe.config.Config
+import li.cil.oc.OpenComputers
 import li.cil.oc.common.item.traits.Delegate
-import li.cil.oc.common.item.traits.SimpleItem
-import li.cil.oc.integration.util.NEI
-import li.cil.oc.util.Color
+import net.minecraft.world.item.{Item, ItemStack}
 import net.minecraft.world.level.block.Block
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.BlockItem
-import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.util.RegistryNamespaced
-import net.minecraftforge.fluids.FluidRegistry
-import net.neoforged.neoforge.fluids.FluidStack
-import net.minecraftforge.oredict.OreDictionary
-import net.minecraftforge.oredict.RecipeSorter
-import net.minecraftforge.oredict.RecipeSorter.Category
-import org.apache.commons.io.FileUtils
 
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
+/**
+ * OC 自有配方的注册入口（对应 1.7.10 的 `common.recipe.Recipes`）。
+ *
+ * 1.21.1 迁移说明（重要）：
+ *  - 原实现在**运行期**解析 `user.recipes` / `default.recipes`（HOCON），再调用
+ *    `GameRegistry.addRecipe` 逐条注册配方。1.21.1 的配方全部改为**数据驱动 JSON**
+ *    （`data/opencomputers_neo/recipe/` 下的 json 文件），因此本文件里
+ *    `parseIngredient` / `parseFluidIngredient` / `findItem` / `findBlock` /
+ *    `getObjectWithoutFallback` / `tryGetType` / `tryGetId` / `validateBlockId` /
+ *    `validateItemId` / `hide` 以及 `init()` 里那一整套 HOCON 解析与
+ *    `OreDictionary` / `GameRegistry.addRecipe` 调用**已经全部删除**；
+ *  - 矿辞（OreDictionary）在 1.21.1 由物品/方块 tag 取代（`c:` 命名空间），
+ *    也不需要运行期注册；
+ *  - 保留下来的只有「注册入口」这一层 API 表面，供尚未移植/尚未改写的调用方继续编译
+ *    （例如 `common/Proxy.scala` 的 `tryRegisterNugget`）。它们现在只是占位实现。
+ *
+ * TODO(recipe): `.recipes` → JSON 的批量转换由另一项工作负责。转换完成后：
+ *  1. `list` / `oreDictEntries` / `recipeHandlers` / `registerRecipeHandler` /
+ *     `addBlock` / `addSubItem` / `addItem` / `addStack` / `addRecipe` 可整体删除；
+ *  2. `hadErrors` **必须保留**——`common/EventHandler.scala` 用它决定是否向玩家提示
+ *     「配方有误」，转换后请改为在数据包加载/校验失败时置位；
+ *  3. `common/Proxy.scala` 的 `tryRegisterNugget` 会跟着一起删掉。
+ */
 object Recipes {
+  /** 原「名称 → 输出堆叠」表；HOCON 解析删除后不再被消费。 */
   val list = mutable.LinkedHashMap.empty[ItemStack, String]
+
+  /** 原「矿辞名 → 代表堆叠」表；1.21.1 用 tag 取代矿辞，不再被消费。 */
   val oreDictEntries = mutable.LinkedHashMap.empty[String, ItemStack]
+
+  /** 是否有配方注册失败（用于给玩家提示，见 `EventHandler.playerLoggedIn`）。 */
   var hadErrors = false
+
+  /**
+   * 原「配方类型名 → 处理函数」表。
+   *
+   * 保留类型签名（第二个参数仍是 `(ItemStack, Config) => Unit`）是为了让尚未改写的
+   * `integration/opencomputers` 注册代码仍能编译；HOCON 解析已删除，因此这里注册进去的
+   * 处理函数不会再被调用。
+   */
   val recipeHandlers = mutable.LinkedHashMap.empty[String, (ItemStack, Config) => Unit]
 
+  // ----------------------------------------------------------------------- //
+  // 注册入口（占位）
+  // ----------------------------------------------------------------------- //
+
+  /** TODO(recipe): 原为 HOCON 配方处理器的注册点，随 HOCON 解析一起废弃。 */
   def registerRecipeHandler(name: String, recipe: (ItemStack, Config) => Unit): Unit = {
     recipeHandlers += name -> recipe
   }
 
-  def addBlock(instance: Block, name: String, oreDict: String*) = {
-    Items.registerBlock(instance, name)
-    addRecipe(new ItemStack(instance), name)
-    register(instance match {
-      case simple: SimpleBlock => simple.createItemStack()
-      case _ => new ItemStack(instance)
-    }, oreDict.toSeq: _*)
+  /** TODO(recipe): 1.21.1 的方块注册在 `common.init.Registry.Blocks`，配方走数据包 JSON。 */
+  def addBlock(instance: Block, name: String, oreDict: String*): Block = {
+    OpenComputers.log.debug(s"Recipes.addBlock('$name') is a no-op in 1.21.1; blocks are registered by Registry.Blocks and recipes are data-driven JSON.")
     instance
   }
 
-  def addSubItem[T <: Delegate](delegate: T, name: String, oreDict: String*) = {
-    Items.registerItem(delegate, name)
-    addRecipe(delegate.createItemStack(), name)
-    register(delegate.createItemStack(), oreDict.toSeq: _*)
+  /** TODO(recipe): 见 [[addBlock]]。 */
+  def addSubItem[T <: Delegate](delegate: T, name: String, oreDict: String*): T = {
+    OpenComputers.log.debug(s"Recipes.addSubItem('$name') is a no-op in 1.21.1; items are registered by Registry.Items and recipes are data-driven JSON.")
     delegate
   }
 
-  def addItem(instance: Item, name: String, oreDict: String*) = {
-    Items.registerItem(instance, name)
-    addRecipe(new ItemStack(instance), name)
-    register(instance match {
-      case simple: SimpleItem => simple.createItemStack()
-      case _ => new ItemStack(instance)
-    }, oreDict.toSeq: _*)
+  /** TODO(recipe): 见 [[addBlock]]。 */
+  def addItem(instance: Item, name: String, oreDict: String*): Item = {
+    OpenComputers.log.debug(s"Recipes.addItem('$name') is a no-op in 1.21.1; items are registered by Registry.Items and recipes are data-driven JSON.")
     instance
   }
 
-  def addStack(stack: ItemStack, name: String, oreDict: String*) = {
-    Items.registerStack(stack, name)
-    addRecipe(stack, name)
-    register(stack, oreDict.toSeq: _*)
+  /** TODO(recipe): 见 [[addBlock]]。 */
+  def addStack(stack: ItemStack, name: String, oreDict: String*): ItemStack = {
+    list += stack -> name
     stack
   }
 
+  /**
+   * 原「登记一个待解析配方的输出」入口。
+   *
+   * 1.21.1 不再有「先登记、后统一解析」这一步，保留它只为兼容调用方。
+   */
   def addRecipe(stack: ItemStack, name: String): Unit = {
     list += stack -> name
   }
 
-  private def register(item: ItemStack, names: String*): Unit = {
-    for (name <- names if name != null) {
-      oreDictEntries += name -> item
-    }
-  }
-
+  /**
+   * 原「统一注册全部配方」入口。
+   *
+   * TODO(recipe): 数据包 JSON 化之后这里不再需要做任何事；如果你看到这条日志，
+   * 说明还有代码指望 OC 在运行期注册配方，请把它改成 `data/opencomputers_neo/recipe/` 下的 JSON。
+   */
   def init(): Unit = {
-    RecipeSorter.register(Settings.namespace + "extshaped", classOf[ExtendedShapedOreRecipe], Category.SHAPED, "after:forge:shapedore")
-    RecipeSorter.register(Settings.namespace + "extshapeless", classOf[ExtendedShapelessOreRecipe], Category.SHAPELESS, "after:forge:shapelessore")
-    RecipeSorter.register(Settings.namespace + "colorizer", classOf[ColorizeRecipe], Category.SHAPELESS, "after:forge:shapelessore")
-    RecipeSorter.register(Settings.namespace + "decolorizer", classOf[DecolorizeRecipe], Category.SHAPELESS, "after:oc:colorizer")
-    RecipeSorter.register(Settings.namespace + "lootcycler", classOf[LootDiskCyclingRecipe], Category.SHAPELESS, "after:forge:shapelessore")
-
-    for ((name, stack) <- oreDictEntries) {
-      if (!OreDictionary.getOres(name).contains(stack)) {
-        OreDictionary.registerOre(name, stack)
-      }
-    }
-    oreDictEntries.clear()
-
-    try {
-      val recipeSets = Array("default", "hardmode", "gregtech", "peaceful")
-      val recipeDirectory = new File(Loader.instance.getConfigDir + File.separator + "OpenComputers")
-      val userRecipes = new File(recipeDirectory, "user.recipes")
-      userRecipes.getParentFile.mkdirs()
-      if (!userRecipes.exists()) {
-        FileUtils.copyURLToFile(getClass.getResource("/assets/opencomputers_neo/recipes/user.recipes"), userRecipes)
-      }
-      for (recipeSet <- recipeSets) {
-        FileUtils.copyURLToFile(getClass.getResource(s"/assets/opencomputers_neo/recipes/$recipeSet.recipes"), new File(recipeDirectory, s"$recipeSet.recipes"))
-      }
-      lazy val config: ConfigParseOptions = ConfigParseOptions.defaults.
-        setSyntax(ConfigSyntax.CONF).
-        setIncluder(new ConfigIncluder with ConfigIncluderFile {
-        var fallback: ConfigIncluder = _
-
-        override def withFallback(fallback: ConfigIncluder) = {
-          this.fallback = fallback
-          this
-        }
-
-        override def include(context: ConfigIncludeContext, what: String) = fallback.include(context, what)
-
-        override def includeFile(context: ConfigIncludeContext, what: File) = {
-          val in = if (what.isAbsolute) new FileReader(what) else new FileReader(new File(userRecipes.getParentFile, what.getPath))
-          val result = ConfigFactory.parseReader(in, config)
-          in.close()
-          result.root()
-        }
-      })
-      val recipes = ConfigFactory.parseFile(userRecipes, config)
-
-      // Register all known recipes.
-      for ((stack, name) <- list) {
-        if (recipes.hasPath(name)) {
-          val value = recipes.getValue(name)
-          value.valueType match {
-            case ConfigValueType.OBJECT =>
-              addRecipe(stack, recipes.getConfig(name), s"'$name'")
-            case ConfigValueType.BOOLEAN =>
-              // Explicitly disabled, keep in NEI if true.
-              if (!value.unwrapped.asInstanceOf[Boolean]) {
-                hide(stack)
-              }
-            case _ =>
-              OpenComputers.log.error(s"Failed adding recipe for '$name', you will not be able to craft this item. The error was: Invalid value for recipe.")
-              hadErrors = true
-          }
-        }
-        else {
-          OpenComputers.log.warn(s"No recipe for '$name', you will not be able to craft this item. To suppress this warning, disable the recipe (assign `false` to it).")
-          hadErrors = true
-        }
-      }
-
-      // Register all unknown recipes. Well. Loot disk recipes.
-      if (recipes.hasPath("lootDisks")) try {
-        val lootRecipes = recipes.getConfigList("lootDisks")
-        val lootStacks = Loot.globalDisks.map(_._1)
-        for (recipe <- lootRecipes) {
-          val name = recipe.getString("name")
-          lootStacks.find(s => s.getTagCompound.getString(Settings.namespace + "lootFactory") == name) match {
-            case Some(stack) => addRecipe(stack, recipe, s"loot disk '$name'")
-            case _ =>
-              OpenComputers.log.warn(s"Failed adding recipe for loot disk '$name': No such global loot disk.")
-              hadErrors = true
-          }
-        }
-      }
-      catch {
-        case t: Throwable =>
-          OpenComputers.log.warn("Failed parsing loot disk recipes.", t)
-          hadErrors = true
-      }
-
-      if (recipes.hasPath("generic")) try {
-        val genericRecipes = recipes.getConfigList("generic")
-        for (recipe <- genericRecipes) {
-          val result = recipe.getValue("result").unwrapped()
-          parseIngredient(result) match {
-            case stack: ItemStack => addRecipe(stack, recipe, s"'$result'")
-            case _ =>
-              OpenComputers.log.warn(s"Failed adding generic recipe for '$result': Invalid output (make sure it's not an OreDictionary name).")
-              hadErrors = true
-          }
-        }
-      }
-      catch {
-        case t: Throwable =>
-          OpenComputers.log.warn("Failed parsing generic recipes.", t)
-          hadErrors = true
-      }
-
-      // Recrafting operations.
-      val accessPoint = api.Items.get(Constants.BlockName.AccessPoint)
-      val cable = api.Items.get(Constants.BlockName.Cable)
-      val chamelium = api.Items.get(Constants.ItemName.Chamelium)
-      val chameliumBlock = api.Items.get(Constants.BlockName.ChameliumBlock)
-      val drone = api.Items.get(Constants.ItemName.Drone)
-      val eeprom = api.Items.get(Constants.ItemName.EEPROM)
-      val floppy = api.Items.get(Constants.ItemName.Floppy)
-      val hoverBoots = api.Items.get(Constants.ItemName.HoverBoots)
-      val lootDisk = api.Items.get(Constants.ItemName.LootDisk)
-      val mcu = api.Items.get(Constants.BlockName.Microcontroller)
-      val navigationUpgrade = api.Items.get(Constants.ItemName.NavigationUpgrade)
-      val print = api.Items.get(Constants.BlockName.Print)
-      val relay = api.Items.get(Constants.BlockName.Relay)
-      val robot = api.Items.get(Constants.BlockName.Robot)
-      val switch = api.Items.get(Constants.BlockName.Switch)
-      val tablet = api.Items.get(Constants.ItemName.Tablet)
-      val linkedCard = api.Items.get(Constants.ItemName.LinkedCard)
-
-      // Navigation upgrade recrafting.
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-        navigationUpgrade.createItemStack(1),
-        navigationUpgrade.createItemStack(1), new ItemStack(net.minecraft.init.Items.filled_map, 1, OreDictionary.WILDCARD_VALUE)))
-
-      // Floppy disk coloring.
-      for (dye <- Color.dyes) {
-        val result = floppy.createItemStack(1)
-        val tag = new CompoundTag()
-        tag.putInt(Settings.namespace + "color", Color.dyes.indexOf(dye))
-        result.put(tag)
-        GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(result, floppy.createItemStack(1), dye))
-      }
-
-      // Microcontroller recrafting.
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-        mcu.createItemStack(1),
-        mcu.createItemStack(1), eeprom.createItemStack(1)))
-
-      // Drone recrafting.
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-        drone.createItemStack(1),
-        drone.createItemStack(1), eeprom.createItemStack(1)))
-
-      // EEPROM copying via crafting.
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-        eeprom.createItemStack(2),
-        eeprom.createItemStack(1), eeprom.createItemStack(1)))
-
-      // Robot recrafting.
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-        robot.createItemStack(1),
-        robot.createItemStack(1), eeprom.createItemStack(1)))
-
-      // Tablet recrafting.
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-        tablet.createItemStack(1),
-        tablet.createItemStack(1), eeprom.createItemStack(1)))
-
-      // Chamelium block splitting.
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-        chamelium.createItemStack(9),
-        chameliumBlock.createItemStack(1)))
-
-      // Chamelium dying.
-      for ((dye, meta) <- Color.dyes.zipWithIndex) {
-        val result = chameliumBlock.createItemStack(1)
-        result.setDamageValue(meta)
-        val input = chameliumBlock.createItemStack(1)
-        input.setDamageValue(OreDictionary.WILDCARD_VALUE)
-        GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-          result,
-          input, dye))
-      }
-
-      // Print beaconification.
-      val beaconPrint = print.createItemStack(1)
-
-      {
-        val printData = new PrintData(beaconPrint)
-        printData.isBeaconBase = true
-        printData.save(beaconPrint)
-      }
-
-      for (block <- Array(
-        net.minecraft.init.Blocks.iron_block,
-        net.minecraft.init.Blocks.gold_block,
-        net.minecraft.init.Blocks.emerald_block,
-        net.minecraft.init.Blocks.diamond_block
-      )) {
-        GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-          beaconPrint,
-          print.createItemStack(1), new ItemStack(block)))
-      }
-
-      // Floppy disk formatting.
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(floppy.createItemStack(1), floppy.createItemStack(1)))
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(floppy.createItemStack(1), lootDisk.createItemStack(1)))
-
-      // Hard disk formatting.
-      val hdds = Array(
-        api.Items.get(Constants.ItemName.HDDTier1),
-        api.Items.get(Constants.ItemName.HDDTier2),
-        api.Items.get(Constants.ItemName.HDDTier3)
-      )
-      for (hdd <- hdds) {
-        GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(hdd.createItemStack(1), hdd.createItemStack(1)))
-      }
-
-      // EEPROM formatting.
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(eeprom.createItemStack(1), eeprom.createItemStack(1)))
-
-      // Print light value increments.
-      val lightPrint = print.createItemStack(1)
-
-      {
-        val printData = new PrintData(lightPrint)
-        printData.lightLevel = 1
-        printData.save(lightPrint)
-      }
-
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-        lightPrint,
-        print.createItemStack(1), new ItemStack(net.minecraft.init.Items.glowstone_dust)))
-
-      {
-        val printData = new PrintData(lightPrint)
-        printData.lightLevel = 4
-        printData.save(lightPrint)
-      }
-
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-        lightPrint,
-        print.createItemStack(1), new ItemStack(net.minecraft.init.Blocks.glowstone)))
-
-      // Switch/AccessPoint -> Relay conversion
-      GameRegistry.addShapelessRecipe(relay.createItemStack(1), accessPoint.createItemStack(1))
-      GameRegistry.addShapelessRecipe(relay.createItemStack(1), switch.createItemStack(1))
-
-      // Hover Boot dyeing
-      GameRegistry.addRecipe(new ColorizeRecipe(hoverBoots.item()))
-      GameRegistry.addRecipe(new DecolorizeRecipe(hoverBoots.item()))
-
-      // Cable dyeing
-      GameRegistry.addRecipe(new ColorizeRecipe(cable.block()))
-      GameRegistry.addRecipe(new DecolorizeRecipe(cable.block()))
-
-      // Loot disk cycling.
-      if (Settings.get.lootRecrafting) {
-        GameRegistry.addRecipe(new LootDiskCyclingRecipe())
-      }
-
-      // link card copying via crafting.
-      GameRegistry.addRecipe(new ExtendedShapelessOreRecipe(
-        linkedCard.createItemStack(2),
-        linkedCard.createItemStack(1), linkedCard.createItemStack(1)))
-
-    }
-    catch {
-      case e: Throwable => OpenComputers.log.error("Error parsing recipes, you may not be able to craft any items from this mod!", e)
-    }
-    list.clear()
+    OpenComputers.log.debug("Recipes.init() is a no-op in 1.21.1; OC recipes are data-driven JSON under data/opencomputers_neo/recipe/.")
   }
 
-  private def addRecipe(output: ItemStack, recipe: Config, name: String) = try {
-    val recipeType = tryGetType(recipe)
-    recipeHandlers.get(recipeType) match {
-      case Some(recipeHandler) => recipeHandler(output, recipe)
-      case _ =>
-        OpenComputers.log.error(s"Failed adding recipe for $name, you will not be able to craft this item. The error was: Invalid recipe type '$recipeType'.")
-        hadErrors = true
-    }
-  }
-  catch {
-    case e: RecipeException =>
-      OpenComputers.log.error(s"Failed adding recipe for $name, you will not be able to craft this item.", e)
-      hadErrors = true
-  }
-
-  def tryGetCount(recipe: Config) = if (recipe.hasPath("output")) recipe.getInt("output") else 1
-
-  def parseIngredient(entry: AnyRef): AnyRef = entry match {
-    case map: java.util.Map[AnyRef, AnyRef]@unchecked =>
-      if (map.contains("oreDict")) {
-        map.get("oreDict") match {
-          case value: String => value
-          case other => throw new RecipeException(s"Invalid name in recipe (not a string: $other).")
-        }
-      }
-      else if (map.contains("item")) {
-        map.get("item") match {
-          case name: String =>
-            findItem(name) match {
-              case Some(item: Item) => new ItemStack(item, 1, tryGetId(map))
-              case _ => throw new RecipeException(s"No item found with name '$name'.")
-            }
-          case id: Number => new ItemStack(validateItemId(id), 1, tryGetId(map))
-          case other => throw new RecipeException(s"Invalid item name in recipe (not a string: $other).")
-        }
-      }
-      else if (map.contains("block")) {
-        map.get("block") match {
-          case name: String =>
-            findBlock(name) match {
-              case Some(block: Block) => new ItemStack(block, 1, tryGetId(map))
-              case _ => throw new RecipeException(s"No block found with name '$name'.")
-            }
-          case id: Number => new ItemStack(validateBlockId(id), 1, tryGetId(map))
-          case other => throw new RecipeException(s"Invalid block name (not a string: $other).")
-        }
-      }
-      else throw new RecipeException("Invalid ingredient type (no oreDict, item or block entry).")
-    case name: String =>
-      if (name == null || name.trim.isEmpty) null
-      else if (OreDictionary.getOres(name) != null && !OreDictionary.getOres(name).isEmpty) name
-      else {
-        findItem(name) match {
-          case Some(item: Item) => new ItemStack(item, 1, 0)
-          case _ =>
-            findBlock(name) match {
-              case Some(block: Block) => new ItemStack(block, 1, 0)
-              case _ => throw new RecipeException(s"No ore dictionary entry, item or block found for ingredient with name '$name'.")
-            }
-        }
-      }
-    case other => throw new RecipeException(s"Invalid ingredient type (not a map or string): $other")
-  }
-
-  def parseFluidIngredient(entry: Config): Option[FluidStack] = {
-    val fluid = FluidRegistry.getFluid(entry.getString("name"))
-    val amount =
-      if (entry.hasPath("amount")) entry.getInt("amount")
-      else 1000
-    Option(new FluidStack(fluid, amount))
-  }
-
-  private def findItem(name: String) = getObjectWithoutFallback(Item.itemRegistry, name).orElse(Item.itemRegistry.find {
-    case item: Item => item.getUnlocalizedName == name || item.getUnlocalizedName == "item." + name
-    case _ => false
-  })
-
-  private def findBlock(name: String) = getObjectWithoutFallback(Block.blockRegistry, name).orElse(Block.blockRegistry.find {
-    case block: Block => block.getUnlocalizedName == name || block.getUnlocalizedName == "tile." + name
-    case _ => false
-  })
-
-  private def getObjectWithoutFallback(registry: RegistryNamespaced, key: String) =
-    if (registry.containsKey(key)) Option(registry.getObject(key))
-    else None
-
-  private def tryGetType(recipe: Config) = if (recipe.hasPath("type")) recipe.getString("type") else "shaped"
-
-  private def tryGetId(ingredient: java.util.Map[AnyRef, AnyRef]): Int =
-    if (ingredient.contains("subID")) ingredient.get("subID") match {
-      case id: Number => id.intValue
-      case "any" => OreDictionary.WILDCARD_VALUE
-      case id: String => Integer.valueOf(id)
-      case _ => 0
-    } else 0
-
-  private def validateBlockId(id: Number) = {
-    val index = id.intValue
-    val block = Block.getBlockById(index)
-    if (block == null) throw new RecipeException(s"Invalid block ID: $index")
-    block
-  }
-
-  private def validateItemId(id: Number) = {
-    val index = id.intValue
-    val item = Item.getItemById(index)
-    if (item == null) throw new RecipeException(s"Invalid item ID: $index")
-    item
-  }
-
-  private def hide(value: ItemStack): Unit = {
-    Delegator.subItem(value) match {
-      case Some(stack) => stack.showInItemList = false
-      case _ => value.getItem match {
-        case itemBlock: ItemBlock => itemBlock.field_150939_a match {
-          case simple: SimpleBlock =>
-            simple.setCreativeTab(null)
-            NEI.hide(simple)
-          case _ =>
-        }
-        case _ =>
-      }
-    }
-  }
-
+  /** 原配方解析异常；HOCON 解析删除后仅作为兼容类型保留。 */
   class RecipeException(message: String) extends RuntimeException(message)
 
 }
