@@ -3,6 +3,11 @@ package li.cil.oc.common.inventory
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.item.ItemStack
 
+// `getTag()` / `hasTag()` / `setTag()` 是补回 1.7.10 `ItemStack` NBT 访问的隐式扩展。
+// Scala 2.13 不会把 `li.cil.oc` 包对象里的隐式类暴露给子包（见 `util.ExtendedItemStack`
+// 的说明），因此这里必须显式引入。
+import li.cil.oc.util.ItemStackNBTExtensions._
+
 /**
  * 把物品栏的数据存放在「提供这个物品栏的物品堆叠」的 NBT 里
  * （对应 1.7.10 的 `common.inventory.ItemStackInventory`）。

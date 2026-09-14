@@ -113,12 +113,18 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
 
   // ----------------------------------------------------------------------- //
 
-  override def internalComponents(): lang.Iterable[ItemStack] = (0 until getSizeInventory).collect {
+  override def internalComponents(): lang.Iterable[ItemStack] = (0 until getSlots).collect {
     case slot if getStackInSlot(slot) != null && isComponentSlot(slot, getStackInSlot(slot)) => getStackInSlot(slot)
   }.asJava
 
+  /**
+   * 已安装组件的环境列表。
+   *
+   * 注意：1.21.1 的 `BlockEntity` 有一个同名的 `components()` 方法（返回 `DataComponentMap`），
+   * 它会遮蔽混合进来的 [[ComponentInventory#components]]，因此必须用 `super[...]` 显式限定。
+   */
   override def installedComponents: Iterable[ManagedEnvironment] =
-    components.collect { case Some(component) => component }.toIndexedSeq
+    super[ComponentInventory].components.collect { case Some(component) => component }.toIndexedSeq
 
   override def onMachineConnect(node: api.network.Node): Unit = this.onConnect(node)
 

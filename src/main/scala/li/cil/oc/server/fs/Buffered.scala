@@ -78,8 +78,9 @@ trait Buffered extends OutputStreamFileSystem {
                 do {
                   read = in.read(buffer)
                   if (read > 0) {
+                    // Scala 2.13 的 `ArrayOps#view` 不再接受区间参数，改用 `slice`。
                     if (read == buffer.length) stream.write(buffer)
-                    else stream.write(buffer.view(0, read).toArray)
+                    else stream.write(buffer.slice(0, read))
                   }
                 } while (read >= 0)
                 in.close()

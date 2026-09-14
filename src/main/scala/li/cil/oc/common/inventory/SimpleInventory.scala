@@ -46,6 +46,15 @@ trait SimpleInventory extends IItemHandler {
    */
   def markDirty(): Unit
 
-  /** 原 `decrStackSize`：从槽位取出物品，转发到 `IItemHandler#extractItem`。 */
-  def decrStackSize(slot: Int, amount: Int): ItemStack = extractItem(slot, amount, simulate = false)
+  /**
+   * 原 `decrStackSize`：从槽位取出物品，转发到 `IItemHandler#extractItem`。
+   *
+   * 1.7.10 的约定是「什么都没抽到返回 `null`」，而 `extractItem` 返回 `ItemStack.EMPTY`；
+   * 调用方（`DiskDrive#eject`、`Printer#update`、`Disassembler#tick` 等）普遍写的是
+   * `if (stack != null)`，因此这里必须把空堆叠统一还原成 `null`，否则语义会反过来。
+   */
+  def decrStackSize(slot: Int, amount: Int): ItemStack = {
+    val extracted = extractItem(slot, amount, false)
+    if (extracted == null || extracted.isEmpty) null else extracted
+  }
 }

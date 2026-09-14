@@ -9,7 +9,8 @@ import li.cil.oc.api
 import li.cil.oc.api.fs.Mode
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
-import net.minecraftforge.common.util.Constants.NBT
+// 1.21.1：原 `net.minecraftforge.common.util.Constants.NBT` 已移除，改用 `Tag.TAG_*` 常量。
+import net.minecraft.nbt.Tag
 
 import scala.collection.mutable
 
@@ -54,9 +55,12 @@ trait InputStreamFileSystem extends api.fs.FileSystem {
   // ----------------------------------------------------------------------- //
 
   override def load(nbt: CompoundTag): Unit = {
-    val handlesNbt = nbt.getList("input", NBT.TAG_COMPOUND)
-    (0 until handlesNbt.tagCount).map(handlesNbt.getCompoundTagAt).foreach(handleNbt => {
-      val handle = handleNbt.getInteger("handle")
+    // 1.21.1：`tagCount` / `getCompoundTagAt` → `size()` / `getCompound(i)`；
+    // `getInteger` → `getInt`。
+    val handlesNbt = nbt.getList("input", Tag.TAG_COMPOUND)
+    for (i <- 0 until handlesNbt.size()) {
+      val handleNbt = handlesNbt.getCompound(i)
+      val handle = handleNbt.getInt("handle")
       val path = handleNbt.getString("path")
       val position = handleNbt.getLong("position")
       openInputChannel(path) match {
@@ -66,7 +70,7 @@ trait InputStreamFileSystem extends api.fs.FileSystem {
           handles += handle -> fileHandle
         case _ => // The source file seems to have disappeared since last time.
       }
-    })
+    }
   }
 
   override def save(nbt: CompoundTag) = this.synchronized {

@@ -6,7 +6,8 @@ import java.io.FileNotFoundException
 import li.cil.oc.api.fs.Mode
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
-import net.minecraftforge.common.util.Constants.NBT
+// 1.21.1：原 `net.minecraftforge.common.util.Constants.NBT` 已移除，改用 `Tag.TAG_*` 常量。
+import net.minecraft.nbt.Tag
 
 import scala.collection.mutable
 
@@ -246,14 +247,17 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
 
     override def load(nbt: CompoundTag): Unit = {
       super.load(nbt)
-      val childrenNbt = nbt.getList("children", NBT.TAG_COMPOUND)
-      (0 until childrenNbt.tagCount).map(childrenNbt.getCompoundTagAt).foreach(childNbt => {
+      // 1.21.1：`getList(k, type)` 仍以 `Tag.TAG_COMPOUND` 传入；
+      // `tagCount` / `getCompoundTagAt` 分别改为 `size()` / `getCompound(i)`。
+      val childrenNbt = nbt.getList("children", Tag.TAG_COMPOUND)
+      for (i <- 0 until childrenNbt.size()) {
+        val childNbt = childrenNbt.getCompound(i)
         val child =
           if (childNbt.getBoolean("isDirectory")) new VirtualDirectory
           else new VirtualFile
         child.load(childNbt)
         children += childNbt.getString("name") -> child
-      })
+      }
     }
 
     override def save(nbt: CompoundTag): Unit = {
@@ -309,7 +313,8 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
         if (count == 0) -1
         else {
           val n = math.min(len, count)
-          file.data.view(position, file.data.length).copyToArray(b, off, n)
+          // Scala 2.13 的 `ArrayOps#view` 不再接受区间参数，改用 `Array.copy`。
+          Array.copy(file.data, position, b, off, n)
           position += n
           n
         }

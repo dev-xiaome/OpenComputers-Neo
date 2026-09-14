@@ -31,7 +31,7 @@ class ChameliumBlock(properties: BlockBehaviour.Properties = SimpleBlock.propert
   }
 
   override def tintColor(state: BlockState, level: BlockGetter, pos: BlockPos, tintIndex: Int): Int = {
-    val index = state.getValue(ChameliumBlock.Color)
+    val index = state.getValue(ChameliumBlock.Color).intValue()
     Color.byOreName(Color.dyes(index max 0 min (Color.dyes.length - 1)))
   }
 }
