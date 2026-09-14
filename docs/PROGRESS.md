@@ -1,12 +1,21 @@
 # 移植进度
 
-> **暂停点（快照提交 43cf8bb）**：`common/block` 与 `common/tileentity` 移植到一半，尚未完成。
-> 恢复时请先看本文件 + `git log --oneline`，然后：
-> 1. 把 `li/cil/oc/common/block/**`、`li/cil/oc/common/tileentity/**`、`li/cil/oc/common/inventory/**`
->    补进 `gradle.properties` 的 `scala_ported_packages`；
-> 2. 跑 `.\gradlew.bat build --console=plain` 清剩余编译错误；
-> 3. 跑 `.\tools\normalize-assets.ps1` 兜底资源大小写；
-> 4. `.\gradlew.bat runClient` 验证创造模式标签页里出现 OC 物品（物品层已完成，共 118 个条目）。
+> **当前状态（提交 `93801f1` 之后）**
+> - ✅ 编译通过并已接入编译集：`li.cil.oc.api`（Java 160 文件）、`util`、`common/{Tier,GuiType,Sound,Slot,Reflection,ToolDurabilityProviders,init,item}`、
+>   网络层、`server/fs`（12 文件）+ `server/component/FileSystem.scala`
+> - 🔄 施工中：`common/block`(41) + `common/tileentity`(63) + `common/inventory`(10)。完成后把
+>   `li/cil/oc/common/block/**,li/cil/oc/common/tileentity/**,li/cil/oc/common/inventory/**` 加进
+>   `gradle.properties` 的 `scala_ported_packages` 即可转绿。
+> - ⬜ 未开始：`common/{component,event,template,recipe,container,nanomachines,entity,command,launch}`、
+>   `common/Proxy.scala`、`common/EventHandler.scala`、`common/IMC.scala`、`common/Loot.scala`、`common/SaveHandler.scala`、
+>   `server/{machine,component,network,driver,agent,command}`、`client/**`
+> - ⚠️ 当前 `gradlew build` 是**红的**，唯一原因是 `Registry.Blocks.initBlocks()` 引用的 `common/block`/`common/tileentity`
+>   还不在编译集里（其余 164 个文件用 `tools/scalac-check.ps1` 已验证 0 错误）。
+> - ⚠️ 第三方能量 trait（`common/tileentity/traits/power/{AppliedEnergistics2,Factorization,Galacticraft,IndustrialCraft2*,Mekanism,RedstoneFlux,RotaryCraft}`）
+>   属于其它模组集成，等 `PowerAcceptor.scala` 收尾后应**删除**，只保留 `Common.scala`。
+
+> 恢复步骤：读本文件 → `git log --oneline` → 把已完成包补进 `gradle.properties` 的 `scala_ported_packages` →
+> `.\gradlew.bat build --console=plain` 清错 → `.\tools\normalize-assets.ps1` 兜底资源大小写 → `.\gradlew.bat runClient` 验证。
 
 > 目标：OpenComputers 1.8.10（MC 1.7.10 / Forge，Scala 2.11 + Java）
 > → OpenComputers Neo（MC 1.21.1 / NeoForge 21.1.244，Scala 2.13.14 + Java 21）
