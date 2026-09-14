@@ -154,6 +154,9 @@ object Registry extends ItemAPI {
   /** 注册过的战利品软盘 / EEPROM 堆叠，供创造模式标签页追加。 */
   private val registeredItems = mutable.ArrayBuffer.empty[ItemStack]
 
+  /** 延迟求值的「预配置堆叠」工厂，在创造模式标签页填充时才执行。 */
+  private val creativeStackFactories = mutable.ArrayBuffer.empty[() => ItemStack]
+
   private var initialized = false
 
   /** mod 事件总线引用（[[init]] 里保存），方块能力注册需要用它挂 [[RegisterCapabilitiesEvent]]。 */
@@ -552,6 +555,16 @@ object Registry extends ItemAPI {
     for (stack <- registeredItems if stack != null && !stack.isEmpty) {
       event.accept(stack, TabVisibility.PARENT_AND_SEARCH_TABS)
     }
+    // 预配置堆叠（无人机 / 微控制器 / 平板 / 满电悬浮靴）：必须**延迟到注册表事件之后**
+    // 才能求值，否则物品还没绑定就会抛 `unbound value`。
+    for (factory <- creativeStackFactories) {
+      val stack = try factory() catch {
+        case t: Throwable =>
+          li.cil.oc.OpenComputers.log.warn("Failed creating a preconfigured creative tab stack.", t)
+          null
+      }
+      if (stack != null && !stack.isEmpty) event.accept(stack, TabVisibility.PARENT_AND_SEARCH_TABS)
+    }
   }
 
   // ----------------------------------------------------------------------- //
@@ -663,7 +676,10 @@ object Registry extends ItemAPI {
         val holder = registerItem(name, new Supplier[T] {
           override def get(): T = supplier()
         })
-        holder.value() match {
+        // 注意：注册期（mod 构造期）**不能**读 `holder.value()`——注册表事件还没触发，
+        // 会抛 `NullPointerException: Trying to access unbound value`。
+        // 这里直接构造一次实例来判断是否需要在创造模式标签页里隐藏。
+        supplier() match {
           case delegate: item.traits.Delegate if !delegate.showInItemList =>
             hideBlockItemInCreativeTab(name)
           case _ =>
@@ -867,10 +883,10 @@ object Registry extends ItemAPI {
       // ------------------------------------------------------------------ //
 
       // 这些条目没有独立 `Item`，因此不注册描述符，只作为额外堆叠追加到标签页。
-      def addCreativeStack(factory: => ItemStack): Unit = {
-        val stack = factory
-        if (stack != null && !stack.isEmpty) registeredItems += stack
-      }
+      // 注意：这里必须**只登记工厂**，不能立即求值 —— `initItems()` 跑在 mod 构造期，
+      // 那时注册表事件还没触发，读 `holder.value()` 会抛 `unbound value`。
+      def addCreativeStack(factory: => ItemStack): Unit =
+        creativeStackFactories += (() => factory)
 
       addCreativeStack(item.Drone.createConfiguredDrone())
       addCreativeStack(item.Microcontroller.createConfiguredMicrocontroller())
