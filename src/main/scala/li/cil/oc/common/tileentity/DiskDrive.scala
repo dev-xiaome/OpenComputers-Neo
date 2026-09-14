@@ -71,7 +71,8 @@ class DiskDrive(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
   // Environment
 
-  val node: Node = api.Network.newNode(this, Visibility.Network).
+  // 原 1.7.10 未写类型标注，推断为 `Component`；保持不变。
+  val node = api.Network.newNode(this, Visibility.Network).
     withComponent("disk_drive").
     create()
 

@@ -50,7 +50,9 @@ class Printer(pos: BlockPos, state: BlockState)
   extends BlockEntityBase(BlockEntityBase.typeOf(state.getBlock), pos, state)
     with traits.Environment with traits.Inventory with traits.Rotatable with SidedEnvironment with traits.StateAware with DeviceInfo {
 
-  val node: Node = api.Network.newNode(this, Visibility.Network).
+  // 显式保留 1.7.10 的推断类型 `ComponentConnector`（`withComponent` + `withConnector` 的组合），
+  // 后面的 `node.changeBuffer` 需要 `Connector` 接口。
+  val node: ComponentConnector = api.Network.newNode(this, Visibility.Network).
     withComponent("printer3d").
     withConnector(Settings.get.bufferConverter).
     create()

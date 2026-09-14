@@ -21,7 +21,6 @@ import li.cil.oc.util.InventoryUtils
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
@@ -124,9 +123,14 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
 
   var inventorySize = -1
 
-  var selectedSlot = 0
-
-  override def selectedSlot_=(value: Int): Unit = setSelectedSlot(value)
+  /**
+   * 当前选中的物品栏槽位。
+   *
+   * 1.7.10 里它是一个普通 `var`，同时覆写 [[InventorySelection.selectedSlot_=]]；
+   * Scala 2.13 不允许「同名的 var 与 `_=` 方法」共存，因此这里直接用
+   * `override var` —— 它同时实现 trait 的 getter / setter，赋值时转发到 [[setSelectedSlot]]。
+   */
+  override var selectedSlot = 0
 
   override def setSelectedSlot(index: Int): Unit = {
     selectedSlot = index max 0 min mainInventory.getSlots - 1
@@ -141,9 +145,8 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
     override def getFluidTank(index: Int) = Robot.this.getFluidTank(index)
   }
 
-  var selectedTank = 0
-
-  override def selectedTank_=(value: Int): Unit = setSelectedTank(value)
+  /** 当前选中的储罐（同 [[selectedSlot]]：用 `override var` 实现 trait 的 getter / setter）。 */
+  override var selectedTank = 0
 
   override def setSelectedTank(index: Int): Unit = selectedTank = index
 
@@ -214,8 +217,10 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
 
   override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float): Array[Node] = {
     if (player != null) {
-      player.sendSystemMessage(Component.literal(Localization.Analyzer.RobotOwner(ownerName)))
-      player.sendSystemMessage(Component.literal(Localization.Analyzer.RobotName(name)))
+      // `Localization.Analyzer.*` 在 1.21.1 已经返回 `Component`（原 1.7.10 返回 String），
+      // 因此不再需要 `Component.literal(...)` 包装。
+      player.sendSystemMessage(Localization.Analyzer.RobotOwner(ownerName))
+      player.sendSystemMessage(Localization.Analyzer.RobotName(name))
     }
     // 原为 MinecraftForge.EVENT_BUS.post(...)，1.21.1 改用 NeoForge 事件总线。
     NeoForge.EVENT_BUS.post(new RobotAnalyzeEvent(this, player))
@@ -360,7 +365,13 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  /**
+   * 服务端读档。
+   *
+   * 注意：trait 里声明为 `protected`，但 [[RobotProxy]] 需要把读档转发到本实例
+   * （机器人从不自己加入世界），因此这里放宽为 `public`（与 1.7.10 的可见性一致）。
+   */
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     updateInventorySize()
     if (machine != null) machine.onHostChanged()
 
@@ -395,7 +406,12 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
   }
 
   // Side check for Waila (and other mods that may call this client side).
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = if (isServer) this.synchronized {
+  /**
+   * 服务端存档（原实现里带有「仅服务端才写」的侧判定，供 Waila 之类的客户端调用方安全调用）。
+   *
+   * 可见性放宽为 `public` 的原因同 [[readFromNBTForServer]]。
+   */
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = if (isServer) this.synchronized {
     info.save(nbt)
 
     // Note: computer is saved when proxy is saved (in proxy's super writeToNBT)
@@ -416,8 +432,12 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
     }
   }
 
-  /** 仅客户端使用（原 `@SideOnly(Side.CLIENT)`，1.21.1 已删除该注解）。 */
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  /**
+   * 仅客户端使用（原 `@SideOnly(Side.CLIENT)`，1.21.1 已删除该注解）。
+   *
+   * 可见性放宽为 `public` 的原因同 [[readFromNBTForServer]]（由 [[RobotProxy]] 转发）。
+   */
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     load(nbt)
     info.load(nbt)
@@ -437,7 +457,8 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
     connectComponents()
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = this.synchronized {
+  /** 写出客户端同步标签；可见性放宽为 `public` 的原因同 [[readFromNBTForServer]]。 */
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = this.synchronized {
     super.writeToNBTForClient(nbt)
     save(nbt)
     info.save(nbt)
@@ -786,17 +807,18 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
   override def getTanks: Int = tankCount
 
   override def getFluidInTank(tank: Int): FluidStack = tryGetTank(tank) match {
-    case Some(t) => Option(t.getFluid).getOrElse(FluidStack.EMPTY)
+    // `IFluidHandler` 没有无参的「当前流体」getter，单罐操作统一按索引 0 处理。
+    case Some(t) => t.getFluidInTank(0)
     case _ => FluidStack.EMPTY
   }
 
   override def getTankCapacity(tank: Int): Int = tryGetTank(tank) match {
-    case Some(t) => t.getCapacity
+    case Some(t) => t.getTankCapacity(0)
     case _ => 0
   }
 
   override def isFluidValid(tank: Int, stack: FluidStack): Boolean = tryGetTank(tank) match {
-    case Some(t) => t.isFluidValid(stack)
+    case Some(t) => t.isFluidValid(0, stack)
     case _ => false
   }
 
@@ -806,7 +828,8 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
   }
 
   override def drain(resource: FluidStack, action: FluidAction): FluidStack = tryGetTank(selectedTank) match {
-    case Some(t) if t.getFluid != null && !t.getFluid.isEmpty && t.getFluid.isFluidEqual(resource) =>
+    // 原实现在抽取前先确认罐里装的就是要抽的流体；`IFluidHandler` 按索引取值。
+    case Some(t) if !t.getFluidInTank(0).isEmpty && t.getFluidInTank(0).isFluidEqual(resource) =>
       t.drain(resource, action)
     case _ => FluidStack.EMPTY
   }

@@ -11,6 +11,7 @@ import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.util.{BlockPosition, ExtendedNBT, InventoryUtils, ItemUtils}
 import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.util.ItemStackNBTExtensions._
 import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.nbt.{CompoundTag, Tag}
 import net.minecraft.world.entity.player.Player

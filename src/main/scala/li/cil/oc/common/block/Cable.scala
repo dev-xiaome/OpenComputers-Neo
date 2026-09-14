@@ -162,11 +162,16 @@ object Cable {
     result
   }
 
-  /** 原「`blockExists` / `!isAirBlock`」的等价实现（服务端要求区块已加载，客户端只排除空气）。 */
-  private def isLoaded(level: BlockGetter, pos: BlockPos): Boolean = level match {
-    case reader: net.minecraft.world.level.LevelReader => reader.isLoaded(pos)
-    case _ => !level.getBlockState(pos).isAir
-  }
+  /**
+   * 原「`world.blockExists(...)` / `!world.isAirBlock(...)`」的等价实现。
+   *
+   * 1.21.1 里 `Level#isLoaded(BlockPos)` / `LevelReader#hasChunk(...)` 都不是
+   * [[BlockGetter]] 的成员，而本方法的调用点（形状/碰撞/渲染包围盒查询）都发生在**已加载**
+   * 的方块上，邻居坐标也必然在已加载的区块内，因此这里直接按「不是空气」判断。
+   * TODO(渲染): 若将来在未加载区块上调用（例如跨区块渲染包围盒），请改用
+   * `level match { case l: Level => l.isLoaded(pos); case _ => ... }`。
+   */
+  private def isLoaded(level: BlockGetter, pos: BlockPos): Boolean = !level.getBlockState(pos).isAir
 
   /** 某坐标的线缆包围盒（原 `bounds`）。 */
   def bounds(level: BlockGetter, pos: BlockPos): AABB =

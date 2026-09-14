@@ -8,6 +8,8 @@ import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
+import li.cil.oc.common.inventory.InventorySelection
+import li.cil.oc.common.inventory.TankSelection
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
 import net.minecraft.nbt.CompoundTag
@@ -42,8 +44,8 @@ class RobotProxy(pos: BlockPos, state: BlockState)
     with traits.Computer
     with traits.PowerInformation
     with internal.Robot
-    with BlockEntityBase.ItemHandlerProvider
-    with BlockEntityBase.FluidHandlerProvider
+    with ItemHandlerProvider
+    with FluidHandlerProvider
     with InventorySelection
     with TankSelection {
 

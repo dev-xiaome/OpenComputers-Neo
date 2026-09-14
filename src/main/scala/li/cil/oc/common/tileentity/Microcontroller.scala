@@ -2,14 +2,12 @@ package li.cil.oc.common.tileentity
 
 import java.util
 
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.driver.DeviceInfo
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.internal
 import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
@@ -19,27 +17,53 @@ import li.cil.oc.common.Tier
 import li.cil.oc.common.item.data.MicrocontrollerData
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.ExtendedNBT._
+import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.nbt.{CompoundTag, Tag}
 import net.minecraft.world.entity.player.Player
-import net.minecraft.inventory.ISidedInventory
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
-import net.minecraftforge.common.util.Constants.NBT
-import net.minecraft.core.Direction
+import net.minecraft.world.level.block.state.BlockState
 
 import scala.jdk.CollectionConverters._
 
-class Microcontroller extends traits.PowerAcceptor with traits.Hub with traits.Computer with ISidedInventory with internal.Microcontroller with DeviceInfo {
+/**
+ * 微控制器（原 1.7.10 `common.tileentity.Microcontroller`）：单方块计算机，
+ * 通过 [[traits.Hub]] 的六个「插座（plug）」节点在六个面上收发网络包。
+ *
+ * 纹理：下/上 = MicrocontrollerTop，北 = MicrocontrollerFront，南 = MicrocontrollerBack，
+ * 其它 = MicrocontrollerSide。
+ *
+ * 1.21.1 迁移要点：
+ *  - 构造函数改为 `(pos, state)`，方块实体类型由方块反查（见 [[BlockEntityBase.typeOf]]）。
+ *  - `ISidedInventory` 已移除：微控制器的物品栏就是 [[info]] 里的组件数组，
+ *    「外部不可插入 / 不可抽取」的语义改为覆写 `isItemValid` / `insertItem` / `extractItem`。
+ *  - `getSizeInventory` → `getSlots`。
+ *  - `updateEntity()` → [[li.cil.oc.common.tileentity.traits.TileEntity#tick]]；
+ *    `world.getTotalWorldTime` → `world.getGameTime`。
+ *  - `ForgeDirection.VALID_DIRECTIONS` → `Direction.values()`；
+ *    `ForgeDirection.getOrientation(i)` → `Direction.from3DDataValue(i)`。
+ *  - `asJavaIterable(...)` → `.asJava`；`NBT.TAG_COMPOUND` → [[net.minecraft.nbt.Tag.TAG_COMPOUND]]。
+ *  - `ListTag#toArray[T]` 在 1.21.1 会被 Java 的 `AbstractCollection#toArray` 抢走，
+ *    改用 [[li.cil.oc.util.ExtendedNBT]] 提供的 `map`（见 [[readFromNBTForServer]]）。
+ *  - `msg.data: _*` → `msg.data.toIndexedSeq: _*`（Scala 2.13 的数组到变参转换）。
+ *  - 删除 `@SideOnly`（NeoForge 会因此抛异常）。
+ */
+class Microcontroller(pos: BlockPos, state: BlockState)
+  extends BlockEntityBase(BlockEntityBase.typeOf(state.getBlock), pos, state)
+    with traits.PowerAcceptor with traits.Hub with traits.Computer with internal.Microcontroller with DeviceInfo {
+
   val info = new MicrocontrollerData()
 
-  override def node = null
+  override def node: Node = null
 
   val outputSides = Array.fill(6)(true)
 
-  val snooperNode = api.Network.newNode(this, Visibility.Network).
+  val snooperNode: ComponentConnector = api.Network.newNode(this, Visibility.Network).
     withComponent("microcontroller").
     withConnector(Settings.get.bufferMicrocontroller).
     create()
 
+  // 注意：`Array.fill(6)(expr)` 只求值一次，因此六项指向**同一个**节点对象；
+  // 这与 1.7.10 原实现一致，保持不变以免改变网络行为。
   val componentNodes = Array.fill(6)(api.Network.newNode(this, Visibility.Network).
     withComponent("microcontroller").
     create())
@@ -49,33 +73,35 @@ class Microcontroller extends traits.PowerAcceptor with traits.Hub with traits.C
     machine.setCostPerTick(Settings.get.microcontrollerCost)
   }
 
-  override def tier = info.tier
+  override def tier: Int = info.tier
 
-  override protected def runSound = None // Microcontrollers are silent.
+  override protected def runSound: Option[String] = None // Microcontrollers are silent.
 
   private final lazy val deviceInfo = Map(
     DeviceAttribute.Class -> DeviceClass.System,
     DeviceAttribute.Description -> "Microcontroller",
     DeviceAttribute.Vendor -> Constants.DeviceInfo.DefaultVendor,
     DeviceAttribute.Product -> "Cubicle",
-    DeviceAttribute.Capacity -> getSizeInventory.toString
+    DeviceAttribute.Capacity -> getSlots.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.7.10 的 `scala.collection.convert.WrapAsJava._` 提供隐式转换；
+  // 1.21.1（Scala 2.13）改为显式 `.asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
-  @SideOnly(Dist.CLIENT)
-  override def canConnect(side: Direction) = side != facing
+  // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解（只应由客户端渲染调用）。
+  override def canConnect(side: Direction): Boolean = side != facing
 
   override def sidedNode(side: Direction): Node = if (side != facing) super.sidedNode(side) else null
 
-  @SideOnly(Dist.CLIENT)
-  override protected def hasConnector(side: Direction) = side != facing
+  // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
+  override protected def hasConnector(side: Direction): Boolean = side != facing
 
-  override protected def connector(side: Direction) = Option(if (side != facing) snooperNode else null)
+  override protected def connector(side: Direction): Option[Connector] = Option(if (side != facing) snooperNode else null)
 
-  override def energyThroughput = Settings.get.caseRate(Tier.One)
+  override def energyThroughput: Double = Settings.get.caseRate(Tier.One)
 
   override def getWorld = world
 
@@ -83,7 +109,7 @@ class Microcontroller extends traits.PowerAcceptor with traits.Hub with traits.C
 
   override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float): Array[Node] = {
     super.onAnalyze(player, side, hitX, hitY, hitZ)
-    if (Direction.getOrientation(side) != facing)
+    if (Direction.from3DDataValue(side) != facing)
       Array(componentNodes(side))
     else
       Array(machine.node)
@@ -91,9 +117,10 @@ class Microcontroller extends traits.PowerAcceptor with traits.Hub with traits.C
 
   // ----------------------------------------------------------------------- //
 
-  override def internalComponents(): java.lang.Iterable[ItemStack] = asJavaIterable(info.components)
+  override def internalComponents(): java.lang.Iterable[ItemStack] = info.components.toIndexedSeq.asJava
 
-  override def componentSlot(address: String) = components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+  override def componentSlot(address: String): Int =
+    components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   // ----------------------------------------------------------------------- //
 
@@ -129,14 +156,14 @@ class Microcontroller extends traits.PowerAcceptor with traits.Hub with traits.C
 
   // ----------------------------------------------------------------------- //
 
-  override def canUpdate = isServer
+  override def canUpdate: Boolean = isServer
 
-  override def updateEntity(): Unit = {
-    super.updateEntity()
+  override def tick(): Unit = {
+    super.tick()
 
     // Pump energy into the internal network.
-    if (world.getTotalWorldTime % Settings.get.tickFrequency == 0) {
-      for (side <- Direction.VALID_DIRECTIONS if side != facing) {
+    if (isServer && world.getGameTime % Settings.get.tickFrequency == 0) {
+      for (side <- Direction.values() if side != facing) {
         sidedNode(side) match {
           case connector: Connector =>
             val demand = snooperNode.globalBufferSize - snooperNode.globalBuffer
@@ -165,10 +192,12 @@ class Microcontroller extends traits.PowerAcceptor with traits.Hub with traits.C
 
   override protected def onPlugConnect(plug: Plug, node: Node): Unit = {
     super.onPlugConnect(plug, node)
-    if (node == plug.node) {
-      api.Network.joinNewNetwork(machine.node)
-      machine.node.connect(snooperNode)
-      connectComponents()
+    if (machine != null) {
+      if (node == plug.node) {
+        api.Network.joinNewNetwork(machine.node)
+        machine.node.connect(snooperNode)
+        connectComponents()
+      }
     }
     if (plug.isPrimary)
       plug.node.connect(componentNodes(plug.side.ordinal()))
@@ -188,40 +217,48 @@ class Microcontroller extends traits.PowerAcceptor with traits.Hub with traits.C
 
   override protected def onPlugMessage(plug: Plug, message: Message): Unit = {
     if (message.name == "network.message" && message.source.network != snooperNode.network) {
-      snooperNode.sendToReachable(message.name, message.data.toSeq: _*)
+      snooperNode.sendToReachable(message.name, message.data.toIndexedSeq: _*)
     }
   }
 
   override def onMessage(message: Message): Unit = {
     if (message.name == "network.message" && message.source.network == snooperNode.network) {
-      for (side <- Direction.VALID_DIRECTIONS if outputSides(side.ordinal) && side != facing) {
-        sidedNode(side).sendToReachable(message.name, message.data.toSeq: _*)
+      for (side <- Direction.values() if outputSides(side.ordinal) && side != facing) {
+        val node = sidedNode(side)
+        if (node != null) {
+          node.sendToReachable(message.name, message.data.toIndexedSeq: _*)
+        }
       }
     }
   }
 
   // ----------------------------------------------------------------------- //
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     // Load info before inventory and such, to avoid initializing components
     // to empty inventory.
     info.load(nbt.getCompound(Settings.namespace + "info"))
-    nbt.getBooleanArray(Settings.namespace + "outputs")
-    nbt.getList(Settings.namespace + "componentNodes", NBT.TAG_COMPOUND).toArray[CompoundTag].
+    // 注意：1.7.10 原实现写的是 `nbt.getBooleanArray(Settings.namespace + "outputs")`，
+    // 返回值被丢弃（疑似笔误），导致 outputSides 读档后不会恢复。这里按显然的意图恢复赋值。
+    nbt.getBooleanArray(Settings.namespace + "outputs").copyToArray(outputSides)
+    nbt.getList(Settings.namespace + "componentNodes", Tag.TAG_COMPOUND).
+      map((tag: CompoundTag) => tag).
       zipWithIndex.foreach {
-      case (tag, index) => componentNodes(index).load(tag)
+      case (tag, index) => if (index < componentNodes.length) componentNodes(index).load(tag)
     }
     snooperNode.load(nbt.getCompound(Settings.namespace + "snooper"))
     super.readFromNBTForServer(nbt)
-    api.Network.joinNewNetwork(machine.node)
-    machine.node.connect(snooperNode)
+    if (machine != null) {
+      api.Network.joinNewNetwork(machine.node)
+      machine.node.connect(snooperNode)
+    }
   }
 
-  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.setNewCompoundTag(Settings.namespace + "info", info.save)
     nbt.setBooleanArray(Settings.namespace + "outputs", outputSides)
-    nbt.setNewTagList(Settings.namespace + "componentNodes", componentNodes.map {
+    nbt.setNewTagList(Settings.namespace + "componentNodes", componentNodes.toIndexedSeq.map {
       case node: Node =>
         val tag = new CompoundTag()
         node.save(tag)
@@ -233,52 +270,56 @@ class Microcontroller extends traits.PowerAcceptor with traits.Hub with traits.C
 
   // ----------------------------------------------------------------------- //
 
-  @SideOnly(Dist.CLIENT) override
-  def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
+  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
     info.load(nbt.getCompound("info"))
     super.readFromNBTForClient(nbt)
   }
 
-  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.setNewCompoundTag("info", info.save)
   }
 
-  override def items = info.components.map(Option(_))
+  // ----------------------------------------------------------------------- //
+  // 物品栏：微控制器的组件数组由 `info.components` 承载，外部不可插入 / 抽取。
+  // ----------------------------------------------------------------------- //
+
+  override def items: Array[Option[ItemStack]] =
+    info.components.map(stack => Option(stack).filter(s => s != null && !s.isEmpty))
 
   override def updateItems(slot: Int, stack: ItemStack): Unit = info.components(slot) = stack
 
-  override def getSizeInventory = info.components.length
+  override def getSlots: Int = info.components.length
 
-  override def isItemValidForSlot(slot: Int, stack: ItemStack) = false
+  override def getSlotLimit(slot: Int): Int = 1
 
-  // Nope.
-  override def setInventorySlotContents(slot: Int, stack: ItemStack) {}
-
-  // Nope.
-  override def decrStackSize(slot: Int, amount: Int) = null
+  override def isItemValid(slot: Int, stack: ItemStack): Boolean = false
 
   // Nope.
-  override def getStackInSlotOnClosing(slot: Int) = null
+  override def setInventorySlotContents(slot: Int, stack: ItemStack): Unit = {}
 
   // Nope.
-  override def getAccessibleSlotsFromSide(side: Int): Array[Int] = Array()
+  override def insertItem(slot: Int, stack: ItemStack, simulate: Boolean): ItemStack = stack
 
-  override def canExtractItem(slot: Int, stack: ItemStack, side: Int) = false
-
-  override def canInsertItem(slot: Int, stack: ItemStack, side: Int) = false
+  // Nope.
+  override def extractItem(slot: Int, amount: Int, simulate: Boolean): ItemStack = ItemStack.EMPTY
 
   // For hotswapping EEPROMs.
-  def changeEEPROM(newEeprom: ItemStack) = {
-    val oldEepromIndex = info.components.indexWhere(api.Items.get(_) == api.Items.get(Constants.ItemName.EEPROM))
+  def changeEEPROM(newEeprom: ItemStack): Option[ItemStack] = {
+    val eeprom = api.Items.get(Constants.ItemName.EEPROM)
+    val oldEepromIndex = info.components.indexWhere(stack => stack != null && api.Items.get(stack) == eeprom)
     if (oldEepromIndex >= 0) {
       val oldEeprom = info.components(oldEepromIndex)
       super.setInventorySlotContents(oldEepromIndex, newEeprom)
-      Some(oldEeprom)
+      Option(oldEeprom)
     }
     else {
-      assert(info.components(getSizeInventory - 1) == null)
-      super.setInventorySlotContents(getSizeInventory - 1, newEeprom)
+      val last = getSlots - 1
+      assert(last < 0 || info.components(last) == null || info.components(last).isEmpty)
+      if (last >= 0) {
+        super.setInventorySlotContents(last, newEeprom)
+      }
       None
     }
   }

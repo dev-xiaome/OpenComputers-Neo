@@ -93,7 +93,11 @@ class Raid(properties: BlockBehaviour.Properties = SimpleBlock.properties())
       data.label.foreach(tileEntity.label.setLabel)
       if (!data.filesystem.isEmpty) {
         tileEntity.tryCreateRaid(data.filesystem.getCompound("node").getString("address"))
-        tileEntity.filesystem.foreach(filesystem => filesystem.load(data.filesystem))
+        // 原：`tileEntity.filesystem.foreach(_.load(data.filesystem))`。
+        // TODO(server.component.FileSystem): 原实现加载的是 `server.component.FileSystem`
+        // 托管环境（同时恢复节点状态）；该组件未移植，这里退化为加载底层 `api.fs.FileSystem`
+        // 的内容（节点的恢复由 `tryCreateRaid` 用保存的地址完成）。
+        tileEntity.fileSystem.foreach(fileSystem => fileSystem.load(data.filesystem))
       }
     }
   }
@@ -104,7 +108,8 @@ class Raid(properties: BlockBehaviour.Properties = SimpleBlock.properties())
     if (tileEntity.items.exists(_.isDefined)) {
       val data = new RaidData()
       data.disks = tileEntity.items.map(_.orNull)
-      tileEntity.filesystem.foreach(filesystem => filesystem.save(data.filesystem))
+      // TODO(server.component.FileSystem): 同上，原来保存的是托管环境（含节点状态）。
+      tileEntity.fileSystem.foreach(fileSystem => fileSystem.save(data.filesystem))
       data.label = Option(tileEntity.label.getLabel)
       data.save(stack)
     }

@@ -1,22 +1,33 @@
 package li.cil.oc.common.command
 
-import net.minecraft.command.CommandBase
+import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import net.minecraft.commands.CommandSourceStack
-import net.minecraft.server.MinecraftServer
 
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
-abstract class SimpleCommand(val name: String) extends CommandBase {
-  protected var aliases = mutable.ListBuffer.empty[String]
+/**
+ * OpenComputers 命令基类（1.21.1 版）。
+ *
+ * 1.7.10 用的是 `net.minecraft.command.CommandBase` + `ICommand`；
+ * 1.21.1 改成 Brigadier（`com.mojang.brigadier`），命令树由
+ * [[LiteralArgumentBuilder]] 组装，根节点注册到 `CommandDispatcher`。
+ *
+ * 子类只需实现 [[build]]，在其中用 `builder.then(...)`、`builder.executes(...)`
+ * 挂上参数与执行体；别名会各自生成一个独立的根节点（Brigadier 没有内建别名机制）。
+ */
+abstract class SimpleCommand(val name: String) {
+  protected val aliases = mutable.ListBuffer.empty[String]
 
-  override def getCommandName = name
+  /** 子类在此挂上参数与执行体。 */
+  def build(builder: LiteralArgumentBuilder[CommandSourceStack]): Unit
 
-  override def getCommandAliases = aliases
+  /** 该命令的所有根名称：主名 + 别名。 */
+  def rootNames: Seq[String] = name +: aliases.toSeq
 
-  override def canCommandSenderUseCommand(source: ICommandSender) = super.canCommandSenderUseCommand(source) || (MinecraftServer.getServer != null && MinecraftServer.getServer.isSinglePlayer)
-
-  override def isUsernameIndex(command: Array[String], i: Int) = false
-
-  override def addTabCompletionOptions(source: ICommandSender, command: Array[String]) = List.empty[AnyRef]
+  /** 为每个根名称生成一个命令节点，供 `CommandDispatcher#register` 使用。 */
+  def builders: Seq[LiteralArgumentBuilder[CommandSourceStack]] = rootNames.map { root =>
+    val builder = LiteralArgumentBuilder.literal[CommandSourceStack](root)
+    build(builder)
+    builder
+  }
 }

@@ -17,8 +17,10 @@ import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.{BlockGetter, Level}
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.state.{BlockBehaviour, BlockState}
-import net.minecraft.world.phys.shapes.{CollisionContext, Shapes, VoxelShape}
+import net.minecraft.world.phys.AABB
+import net.minecraft.world.phys.shapes.{CollisionContext, VoxelShape}
 
+import scala.jdk.CollectionConverters._
 import scala.reflect.ClassTag
 
 /**
@@ -214,14 +216,15 @@ class Print(protected implicit val tileTag: ClassTag[tileentity.Print])
 
   override def onBlockPreDestroy(state: BlockState, level: Level, pos: BlockPos): Unit = {
     super.onBlockPreDestroy(state, level, pos)
-    // 原 `breakBlock`：发出红石信号的打印件被拆除时要通知邻居（尤其是它自己那一格）。
+    // 原 `breakBlock`：发出红石信号的打印件被拆除时要通知邻居（以及邻居自己的邻居）。
+    // 1.21.1 里 `world.notifyBlocksOfNeighborChange` 的等价物是
+    // `Level#updateNeighborsAt(pos, block)`（见 [[li.cil.oc.util.ExtendedWorld]]）。
     level.getBlockEntity(pos) match {
       case print: tileentity.Print if print.data.emitRedstone(print.state) =>
-        level.notifyNeighborsOfStateChange(pos, state.getBlock, null)
+        level.updateNeighborsAt(pos, state.getBlock)
         Direction.values().foreach(side => {
           val neighbor = pos.relative(side)
-          val neighborState = level.getBlockState(neighbor)
-          level.notifyNeighborsOfStateChange(neighbor, neighborState.getBlock, null)
+          level.updateNeighborsAt(neighbor, level.getBlockState(neighbor).getBlock)
         })
       case _ =>
     }

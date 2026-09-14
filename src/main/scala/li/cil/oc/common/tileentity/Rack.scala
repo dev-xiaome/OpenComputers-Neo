@@ -466,9 +466,17 @@ class Rack(pos: BlockPos, state: BlockState)
     super.readFromNBTForServer(nbt)
 
     isRelayEnabled = nbt.getBoolean(Settings.namespace + "isRelayEnabled")
-    nbt.getList(Settings.namespace + "nodeMapping", Tag.TAG_INT_ARRAY).map((buses: IntArrayTag) =>
-      buses.getAsIntArray.map(id => if (id < 0 || id >= Direction.values().length) None else Option(Direction.from3DDataValue(id)))).
-      copyToArray(nodeMapping)
+    // 1.21.1 的 `ListTag` 是 Java 列表，按下标逐个取（原 1.7.10 用 `.map(...)` + `copyToArray`）。
+    val buses = nbt.getList(Settings.namespace + "nodeMapping", Tag.TAG_INT_ARRAY)
+    for (slot <- 0 until math.min(nodeMapping.length, buses.size())) {
+      val ids = buses.getIntArray(slot)
+      for (connectable <- 0 until math.min(nodeMapping(slot).length, ids.length)) {
+        val id = ids(connectable)
+        nodeMapping(slot)(connectable) =
+          if (id < 0 || id >= Direction.values().length) None
+          else Option(Direction.from3DDataValue(id))
+      }
+    }
 
     // Kickstart initialization.
     _isOutputEnabled = hasRedstoneCard
@@ -487,9 +495,11 @@ class Rack(pos: BlockPos, state: BlockState)
   override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
 
-    val data = nbt.getList(Settings.namespace + "lastData", Tag.TAG_COMPOUND).
-      toArray[CompoundTag]
-    data.copyToArray(lastData)
+    // 1.21.1 的 `ListTag` 是 Java 列表，没有 Scala 的 `copyToArray`，按下标逐个取。
+    val data = nbt.getList(Settings.namespace + "lastData", Tag.TAG_COMPOUND)
+    for (slot <- 0 until math.min(lastData.length, data.size())) {
+      lastData(slot) = data.getCompound(slot)
+    }
     load(nbt.getCompound(Settings.namespace + "rackData"))
     connectComponents()
   }

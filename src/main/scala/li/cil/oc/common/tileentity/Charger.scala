@@ -2,35 +2,63 @@ package li.cil.oc.common.tileentity
 
 import java.util
 
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.Localization
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.Driver
 import li.cil.oc.api.driver.DeviceInfo
-import li.cil.oc.api.nanomachines.Controller
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.network._
+import li.cil.oc.api.nanomachines.Controller
 import li.cil.oc.common.Slot
-import li.cil.oc.common.entity.Drone
-import li.cil.oc.integration.util.ItemCharge
-import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedWorld._
+import net.minecraft.core.particles.ParticleTypes
+import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.phys.Vec3
-import net.minecraft.core.Direction
 
-import scala.jdk.CollectionConverters._
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
-class Charger extends traits.Environment with traits.PowerAcceptor with traits.RedstoneAware with traits.Rotatable with traits.ComponentInventory with Analyzable with traits.StateAware with DeviceInfo {
+/**
+ * 充电器（原 1.7.10 `common.tileentity.Charger`）：按红石信号强度决定充电速率，
+ * 给相邻机器人、玩家纳米机器、附近玩家的平板 / 可充电装备，以及自身槽位里的平板充电。
+ *
+ * 纹理：下/上 = ChargerTop，北 = ChargerFront，南 = ChargerBack，其它 = ChargerSide。
+ *
+ * 1.21.1 迁移要点：
+ *  - 构造函数改为 `(pos, state)`，方块实体类型由方块反查（见 [[BlockEntityBase.typeOf]]）。
+ *  - `updateEntity()` → [[li.cil.oc.common.tileentity.traits.TileEntity#tick]]；
+ *    `world.getWorldInfo.getWorldTotalTime` → `world.getGameTime`；
+ *    `world.rand` → `world.getRandom`。
+ *  - `world.spawnParticle("happyVillager", x, y, z, ...)` → `Level#addParticle` +
+ *    [[net.minecraft.core.particles.ParticleTypes]]；`Vec3#xCoord/yCoord/zCoord` → `x/y/z`。
+ *  - `AABB#expand(1, 1, 1)` → `AABB#inflate(1, 1, 1)`；
+ *    `world.getEntitiesWithinAABB(cls, aabb)` → `Level#getEntitiesOfClass`。
+ *  - `player.addChatMessage(...)` → `player.displayClientMessage(..., false)`。
+ *  - `player.inventory.mainInventory` → `player.getInventory.items`。
+ *  - `getSizeInventory` → `getSlots`、`getInventoryStackLimit` → `getSlotLimit`、
+ *    `isItemValidForSlot` → `isItemValid`；`stack.isEmpty` 取代 `stack == null`。
+ *  - 删除 `@SideOnly`（NeoForge 会因此抛异常）。
+ *
+ * 降级清单：
+ *  - `integration.util.ItemCharge` 未移植 → 改为直接查询
+ *    [[li.cil.oc.api.driver.item.Chargeable]] 物品驱动（见 [[chargeableDriver]]）。
+ *  - `common.entity.Drone` 未纳入编译范围（`common/entity` 包尚未移植完成）→
+ *    无人机充电暂时停用，见 [[updateConnectors]] 的 TODO。
+ *  - `ServerPacketSender.sendChargerState(this)` → [[markBlockForUpdate]] + TODO。
+ */
+class Charger(pos: BlockPos, state: BlockState)
+  extends BlockEntityBase(BlockEntityBase.typeOf(state.getBlock), pos, state)
+    with traits.Environment with traits.PowerAcceptor with traits.RedstoneAware with traits.Rotatable
+    with traits.ComponentInventory with Analyzable with traits.StateAware with DeviceInfo {
+
   val node = api.Network.newNode(this, Visibility.None).
     withConnector(Settings.get.bufferConverter).
     create()
@@ -51,18 +79,20 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
     DeviceAttribute.Product -> "PowerUpper"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.7.10 的 `scala.collection.convert.WrapAsJava._` 提供隐式转换；
+  // 1.21.1（Scala 2.13）改为显式 `.asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
-  @SideOnly(Dist.CLIENT)
-  override protected def hasConnector(side: Direction) = side != facing
+  // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解（只应由客户端渲染调用）。
+  override protected def hasConnector(side: Direction): Boolean = side != facing
 
-  override protected def connector(side: Direction) = Option(if (side != facing) node else null)
+  override protected def connector(side: Direction): Option[Connector] = Option(if (side != facing) node else null)
 
-  override def energyThroughput = Settings.get.chargerRate
+  override def energyThroughput: Double = Settings.get.chargerRate
 
-  override def getCurrentState = {
+  override def getCurrentState: util.EnumSet[api.util.StateAware.State] = {
     // TODO Refine to only report working if present robots/drones actually *need* power.
     if (connectors.nonEmpty) {
       if (hasPower) util.EnumSet.of(api.util.StateAware.State.IsWorking)
@@ -71,32 +101,54 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
     else util.EnumSet.noneOf(classOf[api.util.StateAware.State])
   }
 
-  override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float) = {
-    player.addChatMessage(Localization.Analyzer.ChargerSpeed(chargeSpeed))
+  override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float): Array[Node] = {
+    // 原 `player.addChatMessage(...)`；1.21.1 改用 `displayClientMessage`。
+    player.displayClientMessage(Localization.Analyzer.ChargerSpeed(chargeSpeed), false)
     null
   }
 
   // ----------------------------------------------------------------------- //
 
-  override def canUpdate = true
+  override def canUpdate: Boolean = true
+
+  // ----------------------------------------------------------------------- //
+  // 可充电物品。原实现走未移植的 `integration.util.ItemCharge`（IMC 注册的反射方法），
+  // 这里改为直接查询 `api.driver.item.Chargeable` 物品驱动，语义等价。
+  // ----------------------------------------------------------------------- //
+
+  private def chargeableDriver(stack: ItemStack): Option[api.driver.item.Chargeable] = {
+    if (stack == null || stack.isEmpty) None
+    else Option(api.Driver.driverFor(stack)).collect {
+      case chargeable: api.driver.item.Chargeable => chargeable
+    }
+  }
+
+  private def canCharge(stack: ItemStack): Boolean = chargeableDriver(stack).isDefined
+
+  private def chargeItem(stack: ItemStack, amount: Double): Double = chargeableDriver(stack) match {
+    case Some(chargeable) => chargeable.charge(stack, amount, false)
+    case _ => 0.0
+  }
+
+  // ----------------------------------------------------------------------- //
 
   private def chargeStack(stack: ItemStack, charge: Double): Unit = {
-    if (stack != null && charge > 0) {
+    if (stack != null && !stack.isEmpty && charge > 0) {
       val offered = charge + node.changeBuffer(-charge)
-      val surplus = ItemCharge.charge(stack, offered)
+      val surplus = chargeItem(stack, offered)
       node.changeBuffer(surplus)
     }
   }
 
-  override def updateEntity(): Unit = {
-    super.updateEntity()
+  override def tick(): Unit = {
+    super.tick()
 
     // Offset by hashcode to avoid all chargers ticking at the same time.
-    if ((world.getWorldInfo.getWorldTotalTime + math.abs(hashCode())) % 20 == 0) {
+    if ((world.getGameTime + math.abs(hashCode())) % 20 == 0) {
       updateConnectors()
     }
 
-    if (isServer && world.getWorldInfo.getWorldTotalTime % Settings.get.tickFrequency == 0) {
+    if (isServer && world.getGameTime % Settings.get.tickFrequency == 0) {
       var canCharge = Settings.get.ignorePower
 
       // Charging of external devices.
@@ -113,7 +165,7 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
         val charge = Settings.get.chargeRateTablet * chargeSpeed * Settings.get.tickFrequency
         canCharge ||= charge > 0 && node.globalBuffer >= charge * 0.5
         if (canCharge) {
-          (0 until getSizeInventory).map(getStackInSlot).foreach(chargeStack(_, charge))
+          (0 until getSlots).map(getStackInSlot).foreach(chargeStack(_, charge))
         }
       }
 
@@ -128,23 +180,26 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
 
       if (hasPower && !canCharge) {
         hasPower = false
-        ServerPacketSender.sendChargerState(this)
+        // TODO(server.PacketSender): 原为 ServerPacketSender.sendChargerState(this)。
+        markBlockForUpdate()
       }
       if (!hasPower && canCharge) {
         hasPower = true
-        ServerPacketSender.sendChargerState(this)
+        // TODO(server.PacketSender): 原为 ServerPacketSender.sendChargerState(this)。
+        markBlockForUpdate()
       }
     }
 
-    if (isClient && chargeSpeed > 0 && hasPower && world.getWorldInfo.getWorldTotalTime % 10 == 0) {
+    if (isClient && chargeSpeed > 0 && hasPower && world.getGameTime % 10 == 0) {
       connectors.foreach(connector => {
-        val position = connector.pos
-        val theta = world.rand.nextDouble * Math.PI
-        val phi = world.rand.nextDouble * Math.PI * 2
+        val connectorPos = connector.pos
+        val theta = world.getRandom.nextDouble() * Math.PI
+        val phi = world.getRandom.nextDouble() * Math.PI * 2
         val dx = 0.45 * Math.sin(theta) * Math.cos(phi)
         val dy = 0.45 * Math.sin(theta) * Math.sin(phi)
         val dz = 0.45 * Math.cos(theta)
-        world.spawnParticle("happyVillager", position.xCoord + dx, position.yCoord + dz, position.zCoord + dy, 0, 0, 0)
+        world.addParticle(ParticleTypes.HAPPY_VILLAGER,
+          connectorPos.x + dx, connectorPos.y + dz, connectorPos.z + dy, 0, 0, 0)
       })
     }
   }
@@ -158,28 +213,28 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
 
   // ----------------------------------------------------------------------- //
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     chargeSpeed = nbt.getDouble("chargeSpeed") max 0 min 1
     hasPower = nbt.getBoolean("hasPower")
     invertSignal = nbt.getBoolean("invertSignal")
   }
 
-  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.putDouble("chargeSpeed", chargeSpeed)
     nbt.putBoolean("hasPower", hasPower)
     nbt.putBoolean("invertSignal", invertSignal)
   }
 
-  @SideOnly(Dist.CLIENT)
-  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
+  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     chargeSpeed = nbt.getDouble("chargeSpeed")
     hasPower = nbt.getBoolean("hasPower")
   }
 
-  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putDouble("chargeSpeed", chargeSpeed)
     nbt.putBoolean("hasPower", hasPower)
@@ -193,11 +248,13 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
       case _ => false
     })
 
-  override def getSizeInventory = 1
+  override def getSlots: Int = 1
 
-  override def isItemValidForSlot(slot: Int, stack: ItemStack) = (slot, Option(Driver.driverFor(stack, getClass))) match {
+  override def getSlotLimit(slot: Int): Int = 1
+
+  override def isItemValid(slot: Int, stack: ItemStack): Boolean = (slot, Option(Driver.driverFor(stack, getClass))) match {
     case (0, Some(driver)) if driver.slot(stack) == Slot.Tablet => true
-    case _ => ItemCharge.canCharge(stack)
+    case _ => canCharge(stack)
   }
 
   // ----------------------------------------------------------------------- //
@@ -209,7 +266,9 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
     if (invertSignal) chargeSpeed = (15 - signal) / 15.0
     else chargeSpeed = signal / 15.0
     if (isServer) {
-      ServerPacketSender.sendChargerState(this)
+      // TODO(server.PacketSender): 原为 ServerPacketSender.sendChargerState(this)
+      // （把 chargeSpeed / hasPower 同步给客户端用于渲染）。
+      markBlockForUpdate()
     }
   }
 
@@ -219,7 +278,7 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
   }
 
   def updateConnectors(): Unit = {
-    val robots = Direction.VALID_DIRECTIONS.map(side => {
+    val robots = Direction.values().map(side => {
       val blockPos = BlockPosition(this).offset(side)
       if (world.blockExists(blockPos)) Option(world.getTileEntity(blockPos))
       else None
@@ -227,14 +286,16 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
       case Some(t: RobotProxy) => new RobotChargeable(t.robot)
     }
 
-    val bounds = BlockPosition(this).bounds.expand(1, 1, 1)
-    val drones = world.getEntitiesWithinAABB(classOf[Drone], bounds).collect {
-      case drone: Drone => new DroneChargeable(drone)
-    }
+    // TODO(common.entity.Drone): `common/entity/Drone.scala` 尚未纳入编译范围，无人机实体
+    // 暂时无法枚举。移植完成后恢复为：
+    //   val bounds = BlockPosition(this).bounds.inflate(1, 1, 1)
+    //   val drones = world.getEntitiesOfClass(classOf[Drone], bounds).asScala.collect {
+    //     case drone: Drone => new DroneChargeable(drone)
+    //   }
+    val drones = Array.empty[Chargeable]
 
-    val players = world.getEntitiesWithinAABB(classOf[Player], bounds).collect {
-      case player: Player => player
-    }
+    val bounds = BlockPosition(this).bounds.inflate(1, 1, 1)
+    val players = world.getEntitiesOfClass(classOf[Player], bounds).asScala
 
     val chargeablePlayers = players.collect {
       case player if api.Nanomachines.hasController(player) => new PlayerChargeable(player)
@@ -246,17 +307,17 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
     if (connectors.size != newConnectors.length || (connectors.nonEmpty && (connectors -- newConnectors).nonEmpty)) {
       connectors.clear()
       connectors ++= newConnectors
-      world.notifyBlocksOfNeighborChange(x, y, z, block)
+      notifyNeighbors()
     }
 
     // scan players for chargeable equipment
     equipment.clear()
     players.foreach {
-      player => player.inventory.mainInventory.foreach {
+      player => player.getInventory.items.asScala.foreach {
         stack: ItemStack =>
           if (Option(Driver.driverFor(stack, getClass)) match {
             case Some(driver) if driver.slot(stack) == Slot.Tablet => true
-            case _ => ItemCharge.canCharge(stack)
+            case _ => canCharge(stack)
           }) {
             equipment += stack
           }
@@ -290,19 +351,17 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
     override def hashCode(): Int = robot.hashCode()
   }
 
-  class DroneChargeable(val drone: Drone) extends ConnectorChargeable(drone.components.node.asInstanceOf[Connector]) {
-    override def pos: Vec3 = Vec3.createVectorHelper(drone.posX, drone.posY, drone.posZ)
-
-    override def equals(obj: scala.Any): Boolean = obj match {
-      case chargeable: DroneChargeable => chargeable.drone == drone
-      case _ => false
-    }
-
-    override def hashCode(): Int = drone.hashCode()
-  }
+  /**
+   * 无人机充电入口。
+   *
+   * TODO(common.entity.Drone): 原实现为
+   * `class DroneChargeable(val drone: Drone) extends ConnectorChargeable(drone.components.node.asInstanceOf[Connector])`。
+   * `common/entity` 包尚未纳入编译范围，因此这里不引用 `Drone`；
+   * 移植完成后把本类恢复，并在 [[updateConnectors]] 里重新枚举无人机实体。
+   */
 
   class PlayerChargeable(val player: Player) extends Chargeable {
-    override def pos: Vec3 = Vec3.createVectorHelper(player.posX, player.posY, player.posZ)
+    override def pos: Vec3 = new Vec3(player.getX, player.getY, player.getZ)
 
     override def changeBuffer(delta: Double): Double = {
       api.Nanomachines.getController(player) match {
@@ -318,5 +377,4 @@ class Charger extends traits.Environment with traits.PowerAcceptor with traits.R
 
     override def hashCode(): Int = player.hashCode()
   }
-
 }

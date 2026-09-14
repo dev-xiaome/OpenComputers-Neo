@@ -80,8 +80,8 @@ class Rack(properties: BlockBehaviour.Properties = SimpleBlock.properties())
     val facing = facingOf(level, pos)
     val directions = Direction.values()
     val boxes = (0 until directions.length).
-      collect { case i if directions(i) != facing => collisionBounds(i) }.
-      :+ collisionBounds.last
+      collect { case i if directions(i) != facing => collisionBounds(i) } :+
+      collisionBounds.last
     boxes.foldLeft(Shapes.empty())((acc, box) => Shapes.or(acc, shape(box)))
   }
 

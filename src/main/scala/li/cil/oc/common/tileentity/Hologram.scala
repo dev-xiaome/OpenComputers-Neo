@@ -21,6 +21,7 @@ import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.phys.AABB
 
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
 /**
  * 全息投影仪方块实体（原 1.7.10 `common.tileentity.Hologram`）。
@@ -78,7 +79,7 @@ class Hologram(pos: BlockPos, state: BlockState)
     DeviceAttribute.Width -> colors.length.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -465,7 +466,11 @@ class Hologram(pos: BlockPos, state: BlockState)
 
         val hadPower = hasPower
         val neededPower = Settings.get.hologramCost * litRatio * scale * Settings.get.tickFrequency
-        hasPower = node.tryChangeBuffer(-neededPower)
+        // `Node` 本身没有缓冲接口，能耗走 `Connector`（`withConnector()` 创建出来的节点即为连接器）。
+        hasPower = node match {
+          case connector: Connector => connector.tryChangeBuffer(-neededPower)
+          case _ => true
+        }
         if (hasPower != hadPower) {
           // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramPowerChange(this)。
           markDirtyAndUpdate()

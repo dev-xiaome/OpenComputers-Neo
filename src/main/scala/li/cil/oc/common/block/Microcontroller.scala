@@ -84,6 +84,9 @@ class Microcontroller(properties: BlockBehaviour.Properties = SimpleBlock.proper
   override def useBlock(state: BlockState, level: Level, pos: BlockPos, player: Player, hit: BlockHitResult): InteractionResult = {
     // 原：`Wrench.holdsApplicableWrench(player, BlockPosition(x, y, z))`
     val holdsWrench = false // TODO(integration.util.Wrench): 扳手集成移植后恢复判断
+    // 注意：物品未注册时 `api.Items.get` 返回 `null`，必须先判空再比较，否则 `null == null` 会误判。
+    val eeprom = api.Items.get(Constants.ItemName.EEPROM)
+    val isHoldingEeprom = eeprom != null && api.Items.get(player.getMainHandItem) == eeprom
     if (holdsWrench) {
       InteractionResult.PASS
     }
@@ -99,7 +102,7 @@ class Microcontroller(properties: BlockBehaviour.Properties = SimpleBlock.proper
       }
       InteractionResult.sidedSuccess(level.isClientSide)
     }
-    else if (api.Items.get(player.getMainHandItem) == api.Items.get(Constants.ItemName.EEPROM)) {
+    else if (isHoldingEeprom) {
       if (!level.isClientSide) {
         level.getBlockEntity(pos) match {
           case mcu: tileentity.Microcontroller =>

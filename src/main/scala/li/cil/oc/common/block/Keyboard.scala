@@ -128,7 +128,7 @@ class Keyboard(properties: BlockBehaviour.Properties = Keyboard.properties())
    * 以及墙上键盘下方的屏幕。
    */
   def adjacencyInfo(level: Level, position: BlockPosition): Option[(tileentity.Keyboard, Screen, BlockPos, Direction)] =
-    level.getBlockEntity(position) match {
+    level.getBlockEntity(position.toChunkCoordinates) match {
       case keyboard: tileentity.Keyboard =>
         def screenBlockAt(target: BlockPos): Option[Screen] =
           level.getBlockState(target).getBlock match {
