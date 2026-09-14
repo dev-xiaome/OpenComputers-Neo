@@ -28,8 +28,9 @@ import scala.language.reflectiveCalls
  *    本包可独立编译，这里做了最小改造（详见文件末尾 [[ComponentCallbacks]] / [[ComponentArguments]]，
  *    以及下面的结构化类型 [[Component.HostMachine]]）。
  *  - `CompoundTag#getInteger` → `CompoundTag#getInt`。
- *  - `Iterable` 相关：[[Node]] 已把 `neighbors` / `reachableNodes` 的返回类型收紧为
- *    Scala 的 `Iterable`，因此 `toSet` / `filterNot` 可直接使用，无需 `asScala`。
+ *  - `api.network.Network#nodes()` / `#neighbors()` 返回的是裸 `Iterable`
+ *    （Scala 2.13 的 `scala.collection.Iterable` 不继承 `java.lang.Iterable`），
+ *    本文件统一用 [[NodeCollections.toScala]] 转换。
  */
 trait Component extends network.Component with Node {
   val name: String
@@ -81,26 +82,37 @@ trait Component extends network.Component with Node {
     if (SideTracker.isServer) {
       if (network != null) _visibility match {
         case Visibility.Neighbors => value match {
-          case Visibility.Network => addTo(reachableNodes)
-          case Visibility.None => removeFrom(neighbors)
+          case Visibility.Network => addTo(visibleNodes)
+          case Visibility.None => removeFrom(directNeighbors)
           case _ =>
         }
         case Visibility.Network => value match {
           case Visibility.Neighbors =>
-            val neighborSet = neighbors.toSet
-            removeFrom(reachableNodes.filterNot(neighborSet.contains))
-          case Visibility.None => removeFrom(reachableNodes)
+            val neighborSet = directNeighbors.toSet
+            removeFrom(visibleNodes.filterNot(neighborSet.contains))
+          case Visibility.None => removeFrom(visibleNodes)
           case _ =>
         }
         case Visibility.None => value match {
-          case Visibility.Neighbors => addTo(neighbors)
-          case Visibility.Network => addTo(reachableNodes)
+          case Visibility.Neighbors => addTo(directNeighbors)
+          case Visibility.Network => addTo(visibleNodes)
           case _ =>
         }
       }
       _visibility = value
     }
   }
+
+  // `api.network.Network#nodes()` / `#neighbors()` 的声明类型是裸 `Iterable`，
+  // 而 Scala 2.13 的 `scala.collection.Iterable` 并不继承 `java.lang.Iterable`，
+  // 不能直接当 Scala 集合用；统一走 [[NodeCollections.toScala]]。
+  private def visibleNodes: scala.collection.Iterable[ImmutableNode] =
+    if (network == null) scala.collection.Iterable.empty
+    else NodeCollections.toScala(network.nodes(this)).filterNot(_ == this)
+
+  private def directNeighbors: scala.collection.Iterable[ImmutableNode] =
+    if (network == null) scala.collection.Iterable.empty
+    else NodeCollections.toScala(network.neighbors(this))
 
   override def canBeSeenFrom(other: ImmutableNode) = visibility match {
     case Visibility.None => false

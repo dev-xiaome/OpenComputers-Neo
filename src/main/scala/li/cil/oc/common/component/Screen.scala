@@ -12,7 +12,7 @@ import li.cil.oc.common.tileentity
  *
  * 1.21.1 迁移要点：
  *  - `ServerPacketSender.sendScreenTouchMode` 的入参由「方块实体」改为
- *    「维度 + 坐标」（见 [[ServerPacketSender]]，等 `server.PacketSender` 移植后回归）。
+ *    「维度 + 坐标」（见 [[ServerPacketSender]]；等 `server.PacketSender` 移植后回归旧签名）。
  */
 class Screen(val screen: tileentity.Screen) extends TextBuffer(screen) {
   @Callback(direct = true, doc = """function():boolean -- Whether touch mode is inverted (sneak-activate opens GUI, instead of normal activate).""")

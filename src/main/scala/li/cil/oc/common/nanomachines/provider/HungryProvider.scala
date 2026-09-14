@@ -21,25 +21,25 @@ import net.minecraft.world.entity.player.Player
 object HungryProvider extends ScalaProvider("d697c24a-014c-4773-a288-23084a59e9e8") {
   final val FillCount = 10 // 多造几个，提高被随机连接选中的概率。
 
-  /**
-   * 饥饿时的伤害来源。
-   *
-   * 1.21.1 的 `DamageSource` 需要从注册表解析 `Holder[DamageType]`，因此这里做成
-   * `lazy val`（首次被用到时才构造），并退化为原版静态注册表查询
-   * （见 [[DamageSourceWithRandomCause]]），不需要玩家世界。
-   */
-  final lazy val HungryDamage = DamageSourceWithRandomCause(null, "oc.nanomachinesHungry", 3).
-    setDamageBypassesArmor().
-    setDamageIsAbsolute()
-
   override def createScalaBehaviors(player: Player): Iterable[Behavior] = Iterable.fill(FillCount)(new HungryBehavior(player))
 
   override protected def readBehaviorFromNBT(player: Player, nbt: CompoundTag): Behavior = new HungryBehavior(player)
 
   class HungryBehavior(player: Player) extends AbstractBehavior(player) {
+    /**
+     * 饥饿时的伤害来源。
+     *
+     * 1.21.1 的 `DamageSource` 必须从注册表解析 `Holder[DamageType]`，
+     * 而注册表随世界走（伤害类型是同步到客户端的数据包对象），
+     * 因此这里按「行为所属玩家所在的世界」构造，而不是像旧版那样做成 object 级常量。
+     */
+    private lazy val hungryDamage = DamageSourceWithRandomCause(player.level(), "oc.nanomachinesHungry", 3).
+      setDamageBypassesArmor().
+      setDamageIsAbsolute()
+
     override def onDisable(reason: DisableReason): Unit = {
       if (reason == DisableReason.OutOfEnergy) {
-        player.hurt(HungryDamage, Settings.get.nanomachinesHungryDamage.toFloat)
+        player.hurt(hungryDamage, Settings.get.nanomachinesHungryDamage.toFloat)
         api.Nanomachines.getController(player).changeBuffer(Settings.get.nanomachinesHungryEnergyRestored)
       }
     }

@@ -66,7 +66,7 @@ abstract class Player(windowId: Int,
    * 转成 Scala 的 `IndexedSeq` 是为了让子类继续写 `inventorySlots(i)` /
    * `inventorySlots.indices` / `inventorySlots.size`，与 1.7.10 的写法保持一致。
    */
-  protected def inventorySlots: IndexedSeq[Slot] = slots.asScala.toIndexedSeq
+  protected[container] def inventorySlots: IndexedSeq[Slot] = slots.asScala.toIndexedSeq
 
   /**
    * 取槽位背后的物品栏对象。

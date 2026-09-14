@@ -8,7 +8,7 @@ import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.network.{Node => ImmutableNode}
 import net.minecraft.nbt.CompoundTag
 
-import scala.jdk.CollectionConverters._
+import scala.collection.mutable
 
 trait Node extends ImmutableNode {
   def host: Environment
@@ -25,18 +25,18 @@ trait Node extends ImmutableNode {
   }
 
   def isNeighborOf(other: ImmutableNode) =
-    isInSameNetwork(other) && network.neighbors(this).asScala.exists(_ == other)
+    isInSameNetwork(other) && NodeCollections.toScala(network.neighbors(this)).exists(_ == other)
 
-  // 返回类型收紧为 Scala 的 `Iterable`（它本身实现了 `java.lang.Iterable`，属于合法的
-  // 协变收窄）。注意本文件 import 了 `li.cil.oc.api.network._`，其中的 `Iterable`
-  // 会把 `scala.Iterable` 屏蔽掉，所以这里一律写全限定名。
-  override def reachableNodes: scala.collection.Iterable[ImmutableNode] =
-    if (network == null) scala.collection.Iterable.empty[ImmutableNode]
-    else network.nodes(this).asScala
+  // 保持 API 声明的返回类型不变（`api.network.Node#neighbors()` / `#reachableNodes()`
+  // 的签名是裸 `Iterable`）。本包内部要按 Scala 集合使用这两个值时，统一走
+  // [[NodeCollections.toScala]]（原因见该对象的注释）。
+  override def reachableNodes: java.lang.Iterable[ImmutableNode] =
+    if (network == null) java.util.Collections.emptyList[ImmutableNode]()
+    else NodeCollections.toJavaCollection(NodeCollections.toScala(network.nodes(this)))
 
-  override def neighbors: scala.collection.Iterable[ImmutableNode] =
-    if (network == null) scala.collection.Iterable.empty[ImmutableNode]
-    else network.neighbors(this).asScala
+  override def neighbors: java.lang.Iterable[ImmutableNode] =
+    if (network == null) java.util.Collections.emptyList[ImmutableNode]()
+    else NodeCollections.toJavaCollection(NodeCollections.toScala(network.neighbors(this)))
 
   // A node should be added to a network before it can connect to a node
   // but, sometimes other mods try to create nodes and connect them before
@@ -89,6 +89,37 @@ trait Node extends ImmutableNode {
   }
 
   override def toString = s"Node($address, $host)"
+}
+
+/**
+ * 网络查询结果的 Java/Scala 集合互转工具。
+ *
+ * 为什么不直接用 `scala.jdk.CollectionConverters` 的隐式转换：
+ *  - 本包同时导入了 `li.cil.oc.api.network._`，其中的 `Iterable`（Java 接口）会把
+ *    `scala.Iterable` 这个名字遮住，`.asScala` / `.asJava` 的隐式解析在这种环境下不稳定；
+ *  - Scala 2.13 的 `scala.collection.Iterable` **并不**继承 `java.lang.Iterable`，
+ *    所以两边不能直接互相赋值。
+ *
+ * 这两个方法只依赖 `iterator()` / `add`，因此网络层实际返回 Scala 集合或 Java 集合都能兼容。
+ *
+ * 注意：这个对象**不能**命名为 `Node`，否则会被 `api.network.Node`（以及本包的 `Node` trait）
+ * 遮住，调用点无法解析。
+ */
+private[network] object NodeCollections {
+  def toScala(nodes: java.lang.Iterable[ImmutableNode]): scala.collection.Iterable[ImmutableNode] = {
+    val buffer = mutable.ArrayBuffer.empty[ImmutableNode]
+    val it = nodes.iterator()
+    while (it.hasNext) {
+      buffer += it.next()
+    }
+    buffer
+  }
+
+  def toJavaCollection(nodes: scala.collection.Iterable[ImmutableNode]): java.util.Collection[ImmutableNode] = {
+    val list = new java.util.ArrayList[ImmutableNode]()
+    nodes.foreach(node => list.add(node))
+    list
+  }
 }
 
 // We have to mixin the vararg methods individually in the actual

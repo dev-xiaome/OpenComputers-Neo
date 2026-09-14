@@ -73,8 +73,8 @@ import scala.concurrent.Future
  *    `scheduleFMP` / `scheduleAE2Add` / `scheduleIC2Add` 一并删除（见 docs/PORTING.md）。
  *  - `common.asm.ClassTransformer` 随 ASM coremod 一起删除，相关告警不再发送。
  *
- * 成就（Achievement）相关的调用已删除，详见 [[li.cil.oc.common.Achievement]] 的删除说明
- * （1.21.1 用 advancement 取代 achievement，需要数据包 JSON + 触发器，另行处理）。
+ * 成就（Achievement）相关的调用已删除：1.21.1 用 advancement 取代 achievement，
+ * 需要数据包 JSON + 触发器，`common/Achievement.scala` 已整体删除（详见汇报与 docs/PROGRESS.md）。
  */
 object EventHandler {
   private val pendingServer = mutable.Buffer.empty[() => Unit]
@@ -91,7 +91,9 @@ object EventHandler {
 
   def onRobotStopped(robot: Robot): Unit = runningRobots -= robot
 
-  def addKeyboard(keyboard: Keyboard): Unit = keyboards += keyboard
+  // 注意：`keyboards` 是 Java 集合，Scala 2.13 的 `CollectionConverters` 只提供显式的
+  // `.asScala`（不像 1.7.10 的 `WrapAsScala` 那样隐式转换），因此增删与遍历都必须写 `.asScala`。
+  def addKeyboard(keyboard: Keyboard): Unit = keyboards.asScala += keyboard
 
   def scheduleClose(machine: Machine): Unit = machines += machine
 

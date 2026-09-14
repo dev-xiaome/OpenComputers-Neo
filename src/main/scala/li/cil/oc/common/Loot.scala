@@ -206,7 +206,7 @@ object Loot {
     }
   }
 
-  def createLootDisk(name: String, path: String, external: Boolean, color: Option[Int] = None) = {
+  def createLootDisk(name: String, path: String, external: Boolean, color: Option[Int] = None): ItemStack = {
     val callable = if (external) new Callable[FileSystem] {
       override def call(): FileSystem = api.FileSystem.asReadOnly(api.FileSystem.fromSaveDirectory("loot/" + path, 0, false))
     } else new Callable[FileSystem] {

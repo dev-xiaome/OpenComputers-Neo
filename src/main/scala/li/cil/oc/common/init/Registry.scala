@@ -12,9 +12,11 @@ import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.core.registries.Registries
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.resources.ResourceLocation
+import net.minecraft.world.entity.{EntityType, MobCategory}
 import net.minecraft.world.inventory.MenuType
 import net.minecraft.world.item.crafting.{Recipe, RecipeSerializer, RecipeType}
 import net.minecraft.world.item.{BlockItem, CreativeModeTab, Item, ItemStack}
+import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
 import net.minecraft.world.level.block.state.BlockState
@@ -85,6 +87,37 @@ object Registry extends ItemAPI {
   final val recipeSerializers: DeferredRegister[RecipeSerializer[_]] =
     DeferredRegister.create(Registries.RECIPE_SERIALIZER, OpenComputersNeo.MODID)
 
+  /**
+   * 实体类型注册器（无人机）。
+   *
+   * 1.7.10 用 `EntityRegistry.registerModEntity(...)`；1.21.1 改为
+   * `DeferredRegister<EntityType<?>>` + `EntityType.Builder`。
+   * 无人机尺寸沿用旧版的 12x6 像素（0.75 x 0.375 格）。
+   */
+  final val entityTypes: DeferredRegister[EntityType[_]] =
+    DeferredRegister.create(Registries.ENTITY_TYPE, OpenComputersNeo.MODID)
+
+  private var droneTypeHolder: DeferredHolder[EntityType[_], EntityType[_]] = null
+
+  /** 无人机实体类型；尚未注册完成时返回 `null`。 */
+  def droneType: EntityType[_] = if (droneTypeHolder == null) null else droneTypeHolder.value()
+
+  /** 注册无人机实体类型；由 [[init]] 调用（重复调用幂等）。 */
+  private def registerEntities(): Unit = {
+    if (droneTypeHolder != null) return
+    droneTypeHolder = entityTypes.register("drone", new Supplier[EntityType[_]] {
+      override def get(): EntityType[_] = EntityType.Builder.
+        of[li.cil.oc.common.entity.Drone](
+          (entityType: EntityType[li.cil.oc.common.entity.Drone], level: Level) =>
+            new li.cil.oc.common.entity.Drone(entityType, level),
+          MobCategory.MISC).
+        sized(12 / 16f, 6 / 16f).
+        clientTrackingRange(80).
+        updateInterval(1).
+        build("drone")
+    })
+  }
+
   // ----------------------------------------------------------------------- //
   // 状态
   // ----------------------------------------------------------------------- //
@@ -142,9 +175,13 @@ object Registry extends ItemAPI {
     menus.register(modBus)
     recipeTypes.register(modBus)
     recipeSerializers.register(modBus)
+    entityTypes.register(modBus)
 
     // 菜单必须在 mod 构造期登记（注册表事件之前），不能等第一次打开 GUI 时才懒加载。
     initMenus()
+
+    // 实体类型同样必须在 mod 构造期登记。
+    registerEntities()
 
     modBus.addListener(EventPriority.NORMAL, false, classOf[BuildCreativeModeTabContentsEvent],
       new java.util.function.Consumer[BuildCreativeModeTabContentsEvent] {

@@ -60,14 +60,9 @@ class CompoundBlockDriver(val sidedBlocks: Array[driver.SidedBlock], val blocks:
       val state = world.getBlockState(pos)
       if (!state.isAir) {
         // 1.21.1：`world.getBlock(x, y, z)` → `getBlockState(pos).getBlock`；
-        // `Item.getItemFromBlock(block)` → `block.asItem()` / `Block#getCloneItemStack`；
+        // `Item.getItemFromBlock(block)` → `new ItemStack(block)`（`Block` 即 `ItemLike`）；
         // `ItemStack#getUnlocalizedName` → `Item#getDescriptionId`（形如 `block.minecraft.xxx`）。
-        val stack = (try Option(state.getBlock.getCloneItemStack(world, pos, state)).getOrElse(ItemStack.EMPTY) catch {
-          case _: Throwable => ItemStack.EMPTY
-        }) match {
-          case s if s.isEmpty => new ItemStack(state.getBlock)
-          case s => s
-        }
+        val stack = new ItemStack(state.getBlock)
         if (!stack.isEmpty) {
           val name = stack.getItem.getDescriptionId
           if (!Strings.isNullOrEmpty(name)) {

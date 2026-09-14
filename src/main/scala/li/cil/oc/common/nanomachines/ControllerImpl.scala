@@ -18,6 +18,7 @@ import li.cil.oc.common.item.data.NanomachineData
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.InventoryUtils
+import li.cil.oc.util.PlayerUtils
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.resources.ResourceKey
 import net.minecraft.server.level.ServerPlayer

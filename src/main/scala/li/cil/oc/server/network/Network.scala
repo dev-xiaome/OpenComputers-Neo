@@ -158,23 +158,33 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
 
   def nodes: Iterable[ImmutableNode] = data.values.map(_.data)
 
-  def reachableNodes(reference: ImmutableNode): Iterable[ImmutableNode] = {
-    val referenceNeighbors = neighbors(reference).toSet
+  def reachableNodes(reference: ImmutableNode): scala.collection.Iterable[ImmutableNode] = {
+    // 与 `neighbors(reference)`（返回 `java.lang.Iterable`）区分开：
+    // 内部一律用 Scala 集合，避免在 `api.network._` 通配导入下 `Iterable` 名字歧义。
+    val referenceNeighbors = directNeighbors(reference)
     nodes.filter(node => node != reference && (node.reachability == Visibility.Network ||
       (node.reachability == Visibility.Neighbors && referenceNeighbors.contains(node))))
   }
 
-  def reachingNodes(reference: ImmutableNode): Iterable[ImmutableNode] = {
+  def reachingNodes(reference: ImmutableNode): scala.collection.Iterable[ImmutableNode] = {
     if (reference.reachability == Visibility.Network) nodes.filter(node => node != reference)
     else if (reference.reachability == Visibility.Neighbors) {
-      val referenceNeighbors = neighbors(reference).toSet
+      val referenceNeighbors = directNeighbors(reference)
       nodes.filter(node => node != reference && referenceNeighbors.contains(node))
-    } else Iterable.empty
+    } else scala.collection.Iterable.empty
   }
 
-  def neighbors(node: ImmutableNode): Iterable[ImmutableNode] = {
+  /** 内部使用的邻居查询（Scala 集合版）。 */
+  private def directNeighbors(node: ImmutableNode): Set[ImmutableNode] = {
     data.get(node.address) match {
-      case Some(n) if n.data == node => n.edges.map(_.other(n).data)
+      case Some(n) if n.data == node => n.edges.map(_.other(n).data).toSet
+      case _ => throw new IllegalArgumentException("Node must be in this network.")
+    }
+  }
+
+  def neighbors(node: ImmutableNode): java.lang.Iterable[ImmutableNode] = {
+    data.get(node.address) match {
+      case Some(n) if n.data == node => NodeCollections.toJavaCollection(n.edges.map(_.other(n).data))
       case _ => throw new IllegalArgumentException("Node must be in this network.")
     }
   }
@@ -194,7 +204,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
   def sendToNeighbors(source: ImmutableNode, name: String, args: AnyRef*) = {
     if (source.network != wrapper)
       throw new IllegalArgumentException("Source node must be in this network.")
-    send(source, neighbors(source).filter(_.reachability != Visibility.None), name, args.toSeq: _*)
+    send(source, directNeighbors(source).filter(_.reachability != Visibility.None), name, args.toSeq: _*)
   }
 
   def sendToReachable(source: ImmutableNode, name: String, args: AnyRef*) = {
@@ -241,7 +251,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
         case Visibility.None =>
           connects += ((addedNode, Iterable(addedNode)))
         case Visibility.Neighbors =>
-          connects += ((addedNode, Iterable(addedNode) ++ neighbors(addedNode)))
+          connects += ((addedNode, Iterable(addedNode) ++ NodeCollections.toScala(neighbors(addedNode))))
           reachingNodes(addedNode).foreach(node => connects += ((node, Iterable(addedNode))))
         case Visibility.Network =>
           // Explicitly send to the added node itself first.
@@ -745,11 +755,11 @@ object Network extends api.detail.NetworkAPI {
 
     def node(address: String) = network.node(address)
 
-    def nodes = network.nodes.asJava
+    def nodes = NodeCollections.toJavaCollection(network.nodes)
 
-    def nodes(reference: ImmutableNode) = network.reachableNodes(reference).asJava
+    def nodes(reference: ImmutableNode) = NodeCollections.toJavaCollection(network.reachableNodes(reference))
 
-    def neighbors(node: ImmutableNode) = network.neighbors(node).asJava
+    def neighbors(node: ImmutableNode) = NodeCollections.toJavaCollection(NodeCollections.toScala(network.neighbors(node)))
 
     def sendToAddress(source: ImmutableNode, target: String, name: String, data: AnyRef*) =
       network.sendToAddress(source, target, name, data.toSeq: _*)

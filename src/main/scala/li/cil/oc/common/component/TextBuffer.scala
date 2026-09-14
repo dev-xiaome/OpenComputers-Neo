@@ -501,15 +501,19 @@ object TextBuffer {
 
   @SubscribeEvent
   def onWorldUnload(e: LevelEvent.Unload): Unit = {
-    val level = e.getLevel
-    clientBuffers = clientBuffers.filter(t => {
-      val keep = t.host.world != level
-      if (!keep) {
-        ComponentTracker.remove(t.host.world, t)
-      }
-      keep
-    })
-    ComponentTracker.clear(level)
+    // 1.21.1：`LevelEvent#getLevel` 返回 `LevelAccessor`，缓存只按真正的 `Level` 建立。
+    e.getLevel match {
+      case level: net.minecraft.world.level.Level =>
+        clientBuffers = clientBuffers.filter(t => {
+          val keep = t.host.world != level
+          if (!keep) {
+            ComponentTracker.remove(t.host.world, t)
+          }
+          keep
+        })
+        ComponentTracker.clear(level)
+      case _ =>
+    }
   }
 
   def registerClientBuffer(t: TextBuffer): Unit = {

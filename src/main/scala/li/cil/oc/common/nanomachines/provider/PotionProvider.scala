@@ -97,7 +97,7 @@ object PotionProvider extends ScalaProvider("c29e4eec-5a46-479a-9b3d-ad0f06da784
       val key = holder.unwrapKey().orElse(null)
       if (key == null) false
       else {
-        val path = key.getPath
+        val path = key.location().getPath
         val id = BuiltInRegistries.MOB_EFFECT.getId(holder.value())
         entries.contains(path.replace("_", "")) ||
           entries.contains(key.toString) ||

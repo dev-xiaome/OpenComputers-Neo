@@ -8,7 +8,9 @@ import net.neoforged.fml.ModContainer
 import net.neoforged.fml.common.Mod
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent
+import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent
 import net.neoforged.fml.loading.FMLPaths
+import net.neoforged.neoforge.common.NeoForge
 import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 
@@ -18,6 +20,11 @@ import org.apache.logging.log4j.Logger
  * 原版是带 `@Mod` 注解的 Scala object，1.21.1 下改为**带构造参数的 Scala class**：
  * NeoForge 需要能反射实例化 mod 类，而 Scala object 的构造器不可用，
  * 因此这里用普通 class。
+ *
+ * 初始化顺序（与 1.7.10 的 `Proxy.preInit/init/postInit` 对应）：
+ *  1. 构造期：注册各类 `DeferredRegister`、网络 payload、创造模式标签页 → [[li.cil.oc.common.Proxy.preInit]]（注册表事件之前）；
+ *  2. `FMLCommonSetupEvent`：**先**加载 Settings，**再** [[li.cil.oc.common.Proxy.init]]（依赖配置值）+ 处理 IMC；
+ *  3. `FMLLoadCompleteEvent`：[[li.cil.oc.common.Proxy.postInit]]。
  */
 @Mod("opencomputers_neo")
 class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
@@ -36,17 +43,29 @@ class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
   // 并装配客户端/服务端两个分发器。必须在 mod 构造期调用一次。
   li.cil.oc.common.PacketHandler.initialize(modBus)
 
-  // 具体物品 / 方块的注册。两者目前是占位实现（对应原 `Items.init()` / `Blocks.init()`），
-  // 等 `common/item`、`common/block` 移植完成后在 `Registry.Items` / `Registry.Blocks` 里补全。
-  Registry.Items.init()
-  Registry.Blocks.init()
+  // 具体物品 / 方块 / API 对象接线（必须在注册表事件之前）。
+  private val proxy = new li.cil.oc.common.Proxy
+  proxy.preInit()
+
+  // 战利品磁盘需要世界加载事件来读取存档目录里的自定义磁盘。
+  NeoForge.EVENT_BUS.register(li.cil.oc.common.Loot)
 
   modBus.addListener(new java.util.function.Consumer[FMLCommonSetupEvent] {
     override def accept(event: FMLCommonSetupEvent): Unit = event.enqueueWork(new Runnable {
       override def run(): Unit = {
         val configFile = FMLPaths.CONFIGDIR.get().resolve("opencomputers_neo.conf").toFile
         OpenComputers.loadSettings(configFile)
+        // 配置加载完成后再做依赖配置值的初始化。
+        proxy.init()
+        // OC 自身的装配机/拆解机模板通过 IMC 注册，必须在各 mod 发完消息之后处理。
+        li.cil.oc.common.IMC.processMessages()
       }
+    })
+  })
+
+  modBus.addListener(new java.util.function.Consumer[FMLLoadCompleteEvent] {
+    override def accept(event: FMLLoadCompleteEvent): Unit = event.enqueueWork(new Runnable {
+      override def run(): Unit = proxy.postInit()
     })
   })
 

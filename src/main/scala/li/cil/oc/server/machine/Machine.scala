@@ -1142,5 +1142,7 @@ object Machine extends MachineAPI {
     def convert() = new Signal(name, Registry.convert(args))
   }
 
-  private[machine] val threadPool = ThreadPoolFactory.create("Computer", Settings.get.threads)
+  // 执行线程池。原为 `private val`；改为 `private[oc]` 以便后续由公共 tick 处理器
+  // （对应上游 `common/EventHandler`）统一调度关闭。
+  private[oc] val threadPool = ThreadPoolFactory.create("Computer", Settings.get.threads)
 }
