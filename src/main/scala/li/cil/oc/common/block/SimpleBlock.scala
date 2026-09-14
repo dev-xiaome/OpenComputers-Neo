@@ -325,27 +325,27 @@ class SimpleBlock(properties: BlockBehaviour.Properties = SimpleBlock.properties
   // 渲染 / 形状
   // ----------------------------------------------------------------------- //
 
-  override protected def getRenderShape(state: BlockState): RenderShape = renderShape
+  override def getRenderShape(state: BlockState): RenderShape = renderShape
 
-  override protected def getShape(state: BlockState, level: BlockGetter, pos: BlockPos, context: CollisionContext): VoxelShape =
+  override def getShape(state: BlockState, level: BlockGetter, pos: BlockPos, context: CollisionContext): VoxelShape =
     blockShape(state, level, pos, context)
 
-  override protected def getCollisionShape(state: BlockState, level: BlockGetter, pos: BlockPos, context: CollisionContext): VoxelShape =
+  override def getCollisionShape(state: BlockState, level: BlockGetter, pos: BlockPos, context: CollisionContext): VoxelShape =
     blockCollisionShape(state, level, pos, context)
 
-  override protected def skipRendering(state: BlockState, adjacentState: BlockState, side: Direction): Boolean =
+  override def skipRendering(state: BlockState, adjacentState: BlockState, side: Direction): Boolean =
     !shouldSideBeRendered(state, adjacentState, side)
 
   // ----------------------------------------------------------------------- //
   // 红石
   // ----------------------------------------------------------------------- //
 
-  override protected def isSignalSource(state: BlockState): Boolean = providesRedstoneSignal
+  override def isSignalSource(state: BlockState): Boolean = providesRedstoneSignal
 
-  override protected def getSignal(state: BlockState, level: BlockGetter, pos: BlockPos, direction: Direction): Int =
+  override def getSignal(state: BlockState, level: BlockGetter, pos: BlockPos, direction: Direction): Int =
     isProvidingWeakPower(state, level, pos, direction)
 
-  override protected def getDirectSignal(state: BlockState, level: BlockGetter, pos: BlockPos, direction: Direction): Int =
+  override def getDirectSignal(state: BlockState, level: BlockGetter, pos: BlockPos, direction: Direction): Int =
     isProvidingStrongPower(state, level, pos, direction)
 
   override def canConnectRedstone(state: BlockState, level: BlockGetter, pos: BlockPos, direction: Direction): Boolean =
@@ -355,10 +355,10 @@ class SimpleBlock(properties: BlockBehaviour.Properties = SimpleBlock.properties
   // 交互
   // ----------------------------------------------------------------------- //
 
-  override protected def useWithoutItem(state: BlockState, level: Level, pos: BlockPos, player: Player, hit: BlockHitResult): InteractionResult =
+  override def useWithoutItem(state: BlockState, level: Level, pos: BlockPos, player: Player, hit: BlockHitResult): InteractionResult =
     useBlock(state, level, pos, player, hit)
 
-  override protected def useItemOn(stack: ItemStack, state: BlockState, level: Level, pos: BlockPos, player: Player,
+  override def useItemOn(stack: ItemStack, state: BlockState, level: Level, pos: BlockPos, player: Player,
                                    hand: InteractionHand, hit: BlockHitResult): ItemInteractionResult =
     useItemOnBlock(stack, state, level, pos, player, hand, hit)
 
@@ -366,14 +366,14 @@ class SimpleBlock(properties: BlockBehaviour.Properties = SimpleBlock.properties
   // 邻居变化 / 放置 / 破坏
   // ----------------------------------------------------------------------- //
 
-  override protected def neighborChanged(state: BlockState, level: Level, pos: BlockPos, neighborBlock: Block,
+  override def neighborChanged(state: BlockState, level: Level, pos: BlockPos, neighborBlock: Block,
                                          neighborPos: BlockPos, movedByPiston: Boolean): Unit =
     onNeighborBlockChange(state, level, pos, neighborBlock)
 
   override def onNeighborChange(state: BlockState, level: LevelReader, pos: BlockPos, neighborPos: BlockPos): Unit =
     onNeighborChanged(state, level, pos, neighborPos)
 
-  override protected def onRemove(state: BlockState, level: Level, pos: BlockPos, newState: BlockState, movedByPiston: Boolean): Unit = {
+  override def onRemove(state: BlockState, level: Level, pos: BlockPos, newState: BlockState, movedByPiston: Boolean): Unit = {
     // 只有「换成了别的方块」才算被拆除；同一方块的 BlockState 变化（例如旋转）不算。
     if (state.getBlock ne newState.getBlock) {
       onBlockPreDestroy(state, level, pos)
@@ -387,7 +387,7 @@ class SimpleBlock(properties: BlockBehaviour.Properties = SimpleBlock.properties
     onBlockPlacedBy(state, level, pos, placer, stack)
   }
 
-  override protected def playerDestroy(level: Level, player: Player, pos: BlockPos, state: BlockState,
+  override def playerDestroy(level: Level, player: Player, pos: BlockPos, state: BlockState,
                                        blockEntity: BlockEntity, tool: ItemStack): Unit = {
     playerDestroyBlock(state, level, pos, player, blockEntity, tool)
     super.playerDestroy(level, player, pos, state, blockEntity, tool)
@@ -397,13 +397,13 @@ class SimpleBlock(properties: BlockBehaviour.Properties = SimpleBlock.properties
   // 比较器
   // ----------------------------------------------------------------------- //
 
-  override protected def hasAnalogOutputSignal(state: BlockState): Boolean = providesAnalogOutput
+  override def hasAnalogOutputSignal(state: BlockState): Boolean = providesAnalogOutput
 
-  override protected def getAnalogOutputSignal(state: BlockState, level: Level, pos: BlockPos): Int =
+  override def getAnalogOutputSignal(state: BlockState, level: Level, pos: BlockPos): Int =
     analogOutputSignal(state, level, pos)
 
   /** `BlockPlaceContext` 版的替换判定，直接沿用原版语义（保留覆写点给子类）。 */
-  override protected def canBeReplaced(state: BlockState, useContext: BlockPlaceContext): Boolean =
+  override def canBeReplaced(state: BlockState, useContext: BlockPlaceContext): Boolean =
     super.canBeReplaced(state, useContext)
 }
 

@@ -49,7 +49,7 @@ class Case(val tier: Int, properties: BlockBehaviour.Properties = SimpleBlock.pr
 
   // ----------------------------------------------------------------------- //
 
-  override protected def tooltipBody(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+  override def tooltipBody(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
     tooltip.addAll(Tooltip.get(getClass.getSimpleName, slots))
   }
 

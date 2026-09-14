@@ -54,7 +54,7 @@ class Hologram(val tier: Int, properties: BlockBehaviour.Properties = Hologram.p
 
   override def rarity(stack: ItemStack) = Rarity.byTier(tier)
 
-  override protected def tooltipBody(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+  override def tooltipBody(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
     tooltip.addAll(Tooltip.get(getClass.getSimpleName + tier))
   }
 

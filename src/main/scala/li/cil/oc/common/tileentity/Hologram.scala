@@ -515,7 +515,7 @@ class Hologram(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     // 1.7.10 在这里从 NBT 恢复 tier；1.21.1 的等级由方块决定，不能（也不需要）改写。
     super.readFromNBTForServer(nbt)
     // TODO(common.SaveHandler): 原实现把体素 / 调色板数据存在独立的
@@ -537,7 +537,7 @@ class Hologram(pos: BlockPos, state: BlockState)
     rotationSpeedZ = nbt.getFloat(Settings.namespace + "rotationSpeedZ")
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = this.synchronized {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = this.synchronized {
     super.writeToNBTForServer(nbt)
     // TODO(integration.util.Waila): 原实现在 `Waila.isSavingForTooltip` 时跳过体素数据，
     // `integration.util.Waila` 未纳入本次编译范围，这里恒写完整数据。
@@ -560,7 +560,7 @@ class Hologram(pos: BlockPos, state: BlockState)
   }
 
   /** 仅客户端使用（原 `@SideOnly(Side.CLIENT)`，1.21.1 已删除该注解）。 */
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     nbt.getIntArray("volume").copyToArray(volume)
     nbt.getIntArray("colors").map(convertColor).copyToArray(colors)
@@ -580,7 +580,7 @@ class Hologram(pos: BlockPos, state: BlockState)
     needsRendering = true
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     // 客户端读回时同样经过 convertColor，因此这里写存储序（0xBBGGRR），保持往返一致。
     nbt.putIntArray("volume", volume)

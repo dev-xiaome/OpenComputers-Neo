@@ -83,9 +83,9 @@ class Disassembler(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解（只应由客户端渲染调用）。
-  override protected def hasConnector(side: Direction): Boolean = side != Direction.UP
+  override def hasConnector(side: Direction): Boolean = side != Direction.UP
 
-  override protected def connector(side: Direction): Option[api.network.Connector] =
+  override def connector(side: Direction): Option[api.network.Connector] =
     Option(if (side != Direction.UP) node else null)
 
   override def energyThroughput: Double = Settings.get.disassemblerRate
@@ -163,7 +163,7 @@ class Disassembler(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     queue.clear()
     queue ++= nbt.getList(Settings.namespace + "queue", Tag.TAG_COMPOUND).
@@ -174,7 +174,7 @@ class Disassembler(pos: BlockPos, state: BlockState)
     isActive = queue.nonEmpty
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     // `queue` 是 ArrayBuffer，显式转换到 `Iterable[Tag]`（避免依赖隐式链）。
     nbt.setNewTagList(Settings.namespace + "queue", queue.toIndexedSeq.map(ExtendedNBT.toNbt))
@@ -183,12 +183,12 @@ class Disassembler(pos: BlockPos, state: BlockState)
   }
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     isActive = nbt.getBoolean("isActive")
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putBoolean("isActive", isActive)
   }

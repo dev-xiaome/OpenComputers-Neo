@@ -197,7 +197,7 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     // God, this is so ugly... will need to rework the robot architecture.
     // This is required for loading auxiliary data (kernel state), because the
@@ -220,7 +220,7 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
     _isAbstractBusAvailable = hasAbstractBusCard
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     if (machine != null) {
       // TODO(integration.util.Waila): 原实现在 `Waila.isSavingForTooltip` 时只写节点地址

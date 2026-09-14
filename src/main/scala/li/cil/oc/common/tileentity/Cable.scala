@@ -50,7 +50,7 @@ class Cable(pos: BlockPos, state: BlockState)
 
   override def consumesDye: Boolean = true
 
-  override protected def onColorChanged(): Unit = {
+  override def onColorChanged(): Unit = {
     super.onColorChanged()
     if (world != null && isServer) {
       // 颜色变了之后连接关系可能整体变化，重新入网让网络层重新连接邻居。

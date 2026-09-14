@@ -100,7 +100,7 @@ class NetSplitter(pos: BlockPos, state: BlockState)
 
   override def canUpdate: Boolean = false
 
-  override protected def initialize(): Unit = {
+  override def initialize(): Unit = {
     super.initialize()
     // 原实现：EventHandler.scheduleServer(this)（把「加入网络」推迟到下一个服务端 tick）。
     // TODO(common.EventHandler): `common.EventHandler` 未纳入编译范围；1.21.1 的
@@ -110,7 +110,7 @@ class NetSplitter(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
+  override def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
     super.onRedstoneInputChanged(args)
     val oldIsInverted = isInverted
     isInverted = args.newValue > 0
@@ -129,23 +129,23 @@ class NetSplitter(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     isInverted = nbt.getBoolean(Settings.namespace + "isInverted")
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.putBoolean(Settings.namespace + "isInverted", isInverted)
   }
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     isInverted = nbt.getBoolean(Settings.namespace + "isInverted")
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putBoolean(Settings.namespace + "isInverted", isInverted)
   }

@@ -47,13 +47,13 @@ class Microcontroller(properties: BlockBehaviour.Properties = SimpleBlock.proper
   extends RedstoneAware(properties) with traits.PowerAcceptor with traits.StateAware
     with traits.CustomDrops[tileentity.Microcontroller] {
 
-  override protected def tileTag: ClassTag[tileentity.Microcontroller] = classTag[tileentity.Microcontroller]
+  override def tileTag: ClassTag[tileentity.Microcontroller] = classTag[tileentity.Microcontroller]
 
   // ----------------------------------------------------------------------- //
   // 提示
   // ----------------------------------------------------------------------- //
 
-  override protected def tooltipTail(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+  override def tooltipTail(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
     super.tooltipTail(stack, player, tooltip, advanced)
     // 原：`if (KeyBindings.showExtendedTooltips)`（`li.cil.oc.client` 未移植，见 util.TooltipKeyBindings）
     if (TooltipKeyBindings.showExtendedTooltips) {
@@ -124,7 +124,7 @@ class Microcontroller(properties: BlockBehaviour.Properties = SimpleBlock.proper
   // 放置 / 掉落
   // ----------------------------------------------------------------------- //
 
-  override protected def doCustomInit(tileEntity: tileentity.Microcontroller, player: LivingEntity, stack: ItemStack): Unit = {
+  override def doCustomInit(tileEntity: tileentity.Microcontroller, player: LivingEntity, stack: ItemStack): Unit = {
     super.doCustomInit(tileEntity, player, stack)
     if (tileEntity.isServer) {
       tileEntity.info.load(stack)
@@ -132,7 +132,7 @@ class Microcontroller(properties: BlockBehaviour.Properties = SimpleBlock.proper
     }
   }
 
-  override protected def doCustomDrops(tileEntity: tileentity.Microcontroller, player: Player, willHarvest: Boolean): Unit = {
+  override def doCustomDrops(tileEntity: tileentity.Microcontroller, player: Player, willHarvest: Boolean): Unit = {
     super.doCustomDrops(tileEntity, player, willHarvest)
     tileEntity.saveComponents()
     tileEntity.info.storedEnergy = tileEntity.snooperNode.localBuffer.toInt

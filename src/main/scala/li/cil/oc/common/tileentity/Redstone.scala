@@ -56,19 +56,19 @@ class Redstone(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     instance.load(nbt.getCompound(Settings.namespace + "redstone"))
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.setNewCompoundTag(Settings.namespace + "redstone", instance.save)
   }
 
   // ----------------------------------------------------------------------- //
 
-  override protected def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
+  override def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
     super.onRedstoneInputChanged(args)
     if (node != null && node.network != null) {
       node.connect(dummyNode)

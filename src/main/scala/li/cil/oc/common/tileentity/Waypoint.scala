@@ -75,7 +75,7 @@ class Waypoint(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def initialize(): Unit = {
+  override def initialize(): Unit = {
     super.initialize()
     if (isServer) {
       Waypoint.add(this)
@@ -90,22 +90,22 @@ class Waypoint(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     label = nbt.getString(Settings.namespace + "label")
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.putString(Settings.namespace + "label", label)
   }
 
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     label = nbt.getString(Settings.namespace + "label")
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putString(Settings.namespace + "label", label)
   }

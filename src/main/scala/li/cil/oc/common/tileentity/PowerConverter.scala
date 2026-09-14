@@ -49,9 +49,9 @@ class PowerConverter(pos: BlockPos, state: BlockState)
   override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // 只应在客户端渲染时调用（原 `@SideOnly(Side.CLIENT)`，1.21.1 已删除该注解）。
-  override protected def hasConnector(side: Direction): Boolean = true
+  override def hasConnector(side: Direction): Boolean = true
 
-  override protected def connector(side: Direction): Option[Connector] = Option(node)
+  override def connector(side: Direction): Option[Connector] = Option(node)
 
   override def energyThroughput: Double = Settings.get.powerConverterRate
 

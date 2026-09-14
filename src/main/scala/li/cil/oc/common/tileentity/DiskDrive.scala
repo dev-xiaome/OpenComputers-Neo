@@ -128,7 +128,7 @@ class DiskDrive(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
   // ComponentInventory
 
-  override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
+  override def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     super.onItemAdded(slot, stack)
     components(slot) match {
       case Some(environment) => environment.node match {
@@ -145,7 +145,7 @@ class DiskDrive(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
+  override def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
     super.onItemRemoved(slot, stack)
     Sound.playDiskEject(this)
     if (isServer) {
@@ -160,14 +160,14 @@ class DiskDrive(pos: BlockPos, state: BlockState)
   override def canUpdate: Boolean = false
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解（该方法只在客户端读同步标签时调用）。
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     if (nbt.contains("disk")) {
       setInventorySlotContents(0, ItemStack.parseOptional(ExtendedNBT.fallbackRegistry, nbt.getCompound("disk")))
     }
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     items(0) match {
       case Some(stack) if stack != null && !stack.isEmpty =>

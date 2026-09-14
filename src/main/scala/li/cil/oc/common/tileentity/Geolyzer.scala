@@ -37,12 +37,12 @@ class Geolyzer(pos: BlockPos, state: BlockState)
 
   override def canUpdate: Boolean = false
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     geolyzer.load(nbt)
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     geolyzer.save(nbt)
   }

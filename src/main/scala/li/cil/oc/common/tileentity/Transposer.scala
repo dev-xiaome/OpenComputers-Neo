@@ -39,12 +39,12 @@ class Transposer(pos: BlockPos, state: BlockState)
 
   override def canUpdate: Boolean = false
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     transposer.load(nbt)
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     transposer.save(nbt)
   }

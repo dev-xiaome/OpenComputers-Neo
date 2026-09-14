@@ -94,7 +94,7 @@ class Print(pos: BlockPos, state: BlockState)
   private def scheduleReset(): Unit =
     world.scheduleTick(blockPos, block, buttonResetDelay)
 
-  override protected def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
+  override def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
     super.onRedstoneInputChanged(args)
     if (!data.emitRedstone && data.hasActiveState) {
       state = args.newValue > 0
@@ -106,21 +106,21 @@ class Print(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     data.load(nbt.getCompound("data"))
     state = nbt.getBoolean("state")
     updateBounds()
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.setNewCompoundTag("data", data.save)
     nbt.putBoolean("state", state)
   }
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解（客户端读同步标签时才会调用）。
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     data.load(nbt.getCompound("data"))
     state = nbt.getBoolean("state")
@@ -128,7 +128,7 @@ class Print(pos: BlockPos, state: BlockState)
     markBlockForUpdate()
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.setNewCompoundTag("data", data.save)
     nbt.putBoolean("state", state)
@@ -147,7 +147,7 @@ class Print(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def onRotationChanged(): Unit = {
+  override def onRotationChanged(): Unit = {
     super.onRotationChanged()
     updateBounds()
   }

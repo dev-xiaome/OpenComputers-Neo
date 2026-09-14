@@ -86,9 +86,9 @@ class Charger(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解（只应由客户端渲染调用）。
-  override protected def hasConnector(side: Direction): Boolean = side != facing
+  override def hasConnector(side: Direction): Boolean = side != facing
 
-  override protected def connector(side: Direction): Option[Connector] = Option(if (side != facing) node else null)
+  override def connector(side: Direction): Option[Connector] = Option(if (side != facing) node else null)
 
   override def energyThroughput: Double = Settings.get.chargerRate
 
@@ -213,14 +213,14 @@ class Charger(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     chargeSpeed = nbt.getDouble("chargeSpeed") max 0 min 1
     hasPower = nbt.getBoolean("hasPower")
     invertSignal = nbt.getBoolean("invertSignal")
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.putDouble("chargeSpeed", chargeSpeed)
     nbt.putBoolean("hasPower", hasPower)
@@ -228,13 +228,13 @@ class Charger(pos: BlockPos, state: BlockState)
   }
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     chargeSpeed = nbt.getDouble("chargeSpeed")
     hasPower = nbt.getBoolean("hasPower")
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putDouble("chargeSpeed", chargeSpeed)
     nbt.putBoolean("hasPower", hasPower)

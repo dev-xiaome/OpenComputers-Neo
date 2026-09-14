@@ -75,7 +75,7 @@ class Microcontroller(pos: BlockPos, state: BlockState)
 
   override def tier: Int = info.tier
 
-  override protected def runSound: Option[String] = None // Microcontrollers are silent.
+  override def runSound: Option[String] = None // Microcontrollers are silent.
 
   private final lazy val deviceInfo = Map(
     DeviceAttribute.Class -> DeviceClass.System,
@@ -97,9 +97,9 @@ class Microcontroller(pos: BlockPos, state: BlockState)
   override def sidedNode(side: Direction): Node = if (side != facing) super.sidedNode(side) else null
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
-  override protected def hasConnector(side: Direction): Boolean = side != facing
+  override def hasConnector(side: Direction): Boolean = side != facing
 
-  override protected def connector(side: Direction): Option[Connector] = Option(if (side != facing) snooperNode else null)
+  override def connector(side: Direction): Option[Connector] = Option(if (side != facing) snooperNode else null)
 
   override def energyThroughput: Double = Settings.get.caseRate(Tier.One)
 
@@ -177,7 +177,7 @@ class Microcontroller(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def connectItemNode(node: Node): Unit = {
+  override def connectItemNode(node: Node): Unit = {
     if (machine != null && machine.node != null && node != null) {
       api.Network.joinNewNetwork(machine.node)
       machine.node.connect(node)
@@ -186,11 +186,11 @@ class Microcontroller(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def createNode(plug: Plug): Node = api.Network.newNode(plug, Visibility.Network).
+  override def createNode(plug: Plug): Node = api.Network.newNode(plug, Visibility.Network).
     withConnector().
     create()
 
-  override protected def onPlugConnect(plug: Plug, node: Node): Unit = {
+  override def onPlugConnect(plug: Plug, node: Node): Unit = {
     super.onPlugConnect(plug, node)
     if (machine != null) {
       if (node == plug.node) {
@@ -205,7 +205,7 @@ class Microcontroller(pos: BlockPos, state: BlockState)
       componentNodes(plug.side.ordinal).remove()
   }
 
-  override protected def onPlugDisconnect(plug: Plug, node: Node): Unit = {
+  override def onPlugDisconnect(plug: Plug, node: Node): Unit = {
     super.onPlugDisconnect(plug, node)
     if (plug.isPrimary && node != plug.node)
       plug.node.connect(componentNodes(plug.side.ordinal()))
@@ -215,7 +215,7 @@ class Microcontroller(pos: BlockPos, state: BlockState)
       disconnectComponents()
   }
 
-  override protected def onPlugMessage(plug: Plug, message: Message): Unit = {
+  override def onPlugMessage(plug: Plug, message: Message): Unit = {
     if (message.name == "network.message" && message.source.network != snooperNode.network) {
       snooperNode.sendToReachable(message.name, message.data.toIndexedSeq: _*)
     }
@@ -234,7 +234,7 @@ class Microcontroller(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     // Load info before inventory and such, to avoid initializing components
     // to empty inventory.
     info.load(nbt.getCompound(Settings.namespace + "info"))
@@ -254,7 +254,7 @@ class Microcontroller(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.setNewCompoundTag(Settings.namespace + "info", info.save)
     nbt.setBooleanArray(Settings.namespace + "outputs", outputSides)
@@ -271,12 +271,12 @@ class Microcontroller(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     info.load(nbt.getCompound("info"))
     super.readFromNBTForClient(nbt)
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.setNewCompoundTag("info", info.save)
   }

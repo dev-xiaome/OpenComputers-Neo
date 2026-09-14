@@ -71,9 +71,9 @@ class Case(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
 
   // 原 `@SideOnly(Side.CLIENT)`，1.21.1 删除注解。
-  override protected def hasConnector(side: Direction): Boolean = side != facing
+  override def hasConnector(side: Direction): Boolean = side != facing
 
-  override protected def connector(side: Direction): Option[Connector] =
+  override def connector(side: Direction): Option[Connector] =
     Option(if (side != facing && machine != null) machine.node.asInstanceOf[Connector] else null)
 
   override def energyThroughput: Double = Settings.get.caseRate(tier)
@@ -103,21 +103,21 @@ class Case(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     // 1.7.10 在这里从 NBT 恢复 tier；1.21.1 的等级由方块决定，不能（也不需要）改写。
     color = Color.byTier(tier)
     super.readFromNBTForServer(nbt)
     isSizeInventoryReady = true
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     nbt.putByte(Settings.namespace + "tier", tier.toByte)
     super.writeToNBTForServer(nbt)
   }
 
   // ----------------------------------------------------------------------- //
 
-  override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
+  override def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     super.onItemAdded(slot, stack)
     if (isServer) {
       if (InventorySlots.computer(tier)(slot).slot == Slot.Floppy) {
@@ -126,7 +126,7 @@ class Case(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
+  override def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
     super.onItemRemoved(slot, stack)
     if (isServer) {
       val slotType = InventorySlots.computer(tier)(slot).slot

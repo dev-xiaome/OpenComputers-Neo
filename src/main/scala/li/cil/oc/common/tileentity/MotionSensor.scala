@@ -43,12 +43,12 @@ class MotionSensor(pos: BlockPos, state: BlockState)
     motionSensor.update()
   }
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     motionSensor.load(nbt)
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     motionSensor.save(nbt)
   }

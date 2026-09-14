@@ -37,7 +37,7 @@ class Redstone(properties: BlockBehaviour.Properties = SimpleBlock.properties())
 
   // ----------------------------------------------------------------------- //
 
-  override protected def tooltipTail(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+  override def tooltipTail(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
     super.tooltipTail(stack, player, tooltip, advanced)
     tooltip.addAll(Tooltip.get("RedstoneCard.ProjectRed"))
     tooltip.addAll(Tooltip.get("RedstoneCard.RedLogic"))

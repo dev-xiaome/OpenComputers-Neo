@@ -69,14 +69,14 @@ class Switch(pos: BlockPos, state: BlockState)
     super.tryEnqueuePacket(sourceSide, packet)
   }
 
-  override protected def relayPacket(sourceSide: Option[Direction], packet: Packet): Unit = {
+  override def relayPacket(sourceSide: Option[Direction], packet: Packet): Unit = {
     super.relayPacket(sourceSide, packet)
     onSwitchActivity()
   }
 
   // ----------------------------------------------------------------------- //
 
-  override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
+  override def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     super.onItemAdded(slot, stack)
     updateLimits(slot, stack)
   }
@@ -95,7 +95,7 @@ class Switch(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
+  override def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
     super.onItemRemoved(slot, stack)
     Option(Driver.driverFor(stack, getClass)) match {
       case Some(driver) if driver.slot(stack) == Slot.CPU => relayDelay = relayBaseDelay
@@ -125,7 +125,7 @@ class Switch(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     for (slot <- items.indices) items(slot) collect {
       case stack => updateLimits(slot, stack)

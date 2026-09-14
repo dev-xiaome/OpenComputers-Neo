@@ -43,13 +43,13 @@ import scala.reflect.{ClassTag, classTag}
 class Raid(properties: BlockBehaviour.Properties = SimpleBlock.properties())
   extends SimpleBlock(properties) with traits.GUI with traits.CustomDrops[tileentity.Raid] {
 
-  override protected def tileTag: ClassTag[tileentity.Raid] = classTag[tileentity.Raid]
+  override def tileTag: ClassTag[tileentity.Raid] = classTag[tileentity.Raid]
 
   // ----------------------------------------------------------------------- //
   // 提示
   // ----------------------------------------------------------------------- //
 
-  override protected def tooltipTail(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+  override def tooltipTail(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
     super.tooltipTail(stack, player, tooltip, advanced)
     // 原：`if (KeyBindings.showExtendedTooltips)`
     if (TooltipKeyBindings.showExtendedTooltips) {
@@ -83,7 +83,7 @@ class Raid(properties: BlockBehaviour.Properties = SimpleBlock.properties())
   // 放置 / 掉落
   // ----------------------------------------------------------------------- //
 
-  override protected def doCustomInit(tileEntity: tileentity.Raid, player: LivingEntity, stack: ItemStack): Unit = {
+  override def doCustomInit(tileEntity: tileentity.Raid, player: LivingEntity, stack: ItemStack): Unit = {
     super.doCustomInit(tileEntity, player, stack)
     if (tileEntity.isServer) {
       val data = new RaidData(stack)
@@ -102,7 +102,7 @@ class Raid(properties: BlockBehaviour.Properties = SimpleBlock.properties())
     }
   }
 
-  override protected def doCustomDrops(tileEntity: tileentity.Raid, player: Player, willHarvest: Boolean): Unit = {
+  override def doCustomDrops(tileEntity: tileentity.Raid, player: Player, willHarvest: Boolean): Unit = {
     super.doCustomDrops(tileEntity, player, willHarvest)
     val stack = createItemStack()
     if (tileEntity.items.exists(_.isDefined)) {

@@ -81,9 +81,9 @@ class Relay(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解（只应由客户端渲染调用）。
-  override protected def hasConnector(side: Direction): Boolean = true
+  override def hasConnector(side: Direction): Boolean = true
 
-  override protected def connector(side: Direction): Option[Connector] = sidedNode(side) match {
+  override def connector(side: Direction): Option[Connector] = sidedNode(side) match {
     case connector: Connector => Option(connector)
     case _ => None
   }
@@ -143,7 +143,7 @@ class Relay(pos: BlockPos, state: BlockState)
     super.tryEnqueuePacket(sourceSide, packet)
   }
 
-  override protected def relayPacket(sourceSide: Option[Direction], packet: Packet): Unit = {
+  override def relayPacket(sourceSide: Option[Direction], packet: Packet): Unit = {
     super.relayPacket(sourceSide, packet)
 
     val tryChangeBuffer: Double => Boolean = sourceSide match {
@@ -175,11 +175,11 @@ class Relay(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def createNode(plug: Plug): Node = api.Network.newNode(plug, Visibility.Network).
+  override def createNode(plug: Plug): Node = api.Network.newNode(plug, Visibility.Network).
     withConnector(math.round(Settings.get.bufferAccessPoint).toDouble).
     create()
 
-  override protected def onPlugConnect(plug: Plug, node: Node): Unit = {
+  override def onPlugConnect(plug: Plug, node: Node): Unit = {
     super.onPlugConnect(plug, node)
     if (node == plug.node) {
       api.Network.joinWirelessNetwork(this)
@@ -190,7 +190,7 @@ class Relay(pos: BlockPos, state: BlockState)
       componentNodes(plug.side.ordinal).remove()
   }
 
-  override protected def onPlugDisconnect(plug: Plug, node: Node): Unit = {
+  override def onPlugDisconnect(plug: Plug, node: Node): Unit = {
     super.onPlugDisconnect(plug, node)
     if (node == plug.node) {
       api.Network.leaveWirelessNetwork(this)
@@ -203,7 +203,7 @@ class Relay(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
+  override def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     super.onItemAdded(slot, stack)
     updateLimits(slot, stack)
   }
@@ -251,7 +251,7 @@ class Relay(pos: BlockPos, state: BlockState)
     nbt.getCompound(key)
   }
 
-  override protected def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
+  override def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
     super.onItemRemoved(slot, stack)
     Driver.driverFor(stack, getClass) match {
       case driver if driver.slot(stack) == Slot.CPU => relayDelay = relayBaseDelay
@@ -281,7 +281,7 @@ class Relay(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     for (slot <- items.indices) items(slot) collect {
       case stack => updateLimits(slot, stack)
@@ -300,7 +300,7 @@ class Relay(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.putDouble(Settings.namespace + "strength", strength)
     nbt.putBoolean(Settings.namespace + "isRepeater", isRepeater)

@@ -84,7 +84,7 @@ class Screen(val tier: Int, properties: BlockBehaviour.Properties = Screen.prope
 
   override def rarity(stack: ItemStack) = Rarity.byTier(tier)
 
-  override protected def tooltipBody(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+  override def tooltipBody(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
     val (w, h) = Settings.screenResolutionsByTier(tier)
     val depth = PackedColor.Depth.bits(Settings.screenDepthsByTier(tier))
     tooltip.addAll(Tooltip.get(getClass.getSimpleName, w, h, depth))

@@ -88,13 +88,13 @@ class Print(protected implicit val tileTag: ClassTag[tileentity.Print])
   // 提示
   // ----------------------------------------------------------------------- //
 
-  override protected def tooltipBody(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+  override def tooltipBody(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
     super.tooltipBody(stack, player, tooltip, advanced)
     val data = new PrintData(stack)
     data.tooltip.foreach(s => tooltip.addAll(s.linesIterator.toList.asJava))
   }
 
-  override protected def tooltipTail(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+  override def tooltipTail(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
     super.tooltipTail(stack, player, tooltip, advanced)
     val data = new PrintData(stack)
     if (data.isBeaconBase) {
@@ -196,14 +196,14 @@ class Print(protected implicit val tileTag: ClassTag[tileentity.Print])
   // 放置 / 掉落
   // ----------------------------------------------------------------------- //
 
-  override protected def doCustomInit(tile: tileentity.Print, player: LivingEntity, stack: ItemStack): Unit = {
+  override def doCustomInit(tile: tileentity.Print, player: LivingEntity, stack: ItemStack): Unit = {
     super.doCustomInit(tile, player, stack)
     tile.data.load(stack)
     // 原实现还调用了 `tileEntity.updateBounds()`（随 1.7.10 的 `getLightValue` 一起使用）；
     // 移植后的 Print 方块实体不再暴露该方法，形状改由 [[Print.boundsAt]] 每次现算。
   }
 
-  override protected def doCustomDrops(tile: tileentity.Print, player: Player, willHarvest: Boolean): Unit = {
+  override def doCustomDrops(tile: tileentity.Print, player: Player, willHarvest: Boolean): Unit = {
     super.doCustomDrops(tile, player, willHarvest)
     if (!player.isCreative) {
       InventoryUtils.spawnStackInWorld(tile.position, tile.data.createItemStack())

@@ -329,9 +329,9 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
 
   // The robot's machine is updated in a tick handler, to avoid delayed tile
   // entity creation when moving, which would screw over all the things...
-  override protected def updateComputer(): Unit = {}
+  override def updateComputer(): Unit = {}
 
-  override protected def onRunningChanged(): Unit = {
+  override def onRunningChanged(): Unit = {
     super.onRunningChanged()
     // TODO(common.EventHandler): 原为 EventHandler.onRobotStart / onRobotStopped(this)。
     // `common.EventHandler` 未纳入编译范围（1.21.1 的 ticker 由方块侧决定），暂不处理。
@@ -501,7 +501,7 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
+  override def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     if (isServer) {
       if (isToolSlot(slot)) {
         // TODO(server.agent): 原实现把工具的属性修饰符套用到机器人假玩家上。
@@ -523,7 +523,7 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
     else super.onItemAdded(slot, stack)
   }
 
-  override protected def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
+  override def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
     super.onItemRemoved(slot, stack)
     if (isServer) {
       if (isToolSlot(slot)) {
@@ -557,7 +557,7 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
     renderingErrored = false
   }
 
-  override protected def connectItemNode(node: Node): Unit = {
+  override def connectItemNode(node: Node): Unit = {
     super.connectItemNode(node)
     if (node != null) node.host match {
       case buffer: api.internal.TextBuffer =>

@@ -83,7 +83,7 @@ class Raid(pos: BlockPos, state: BlockState)
     case _ => false
   }
 
-  override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
+  override def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     super.onItemAdded(slot, stack)
     if (isServer) this.synchronized {
       // TODO(server.PacketSender): 原为 ServerPacketSender.sendRaidChange(this)
@@ -99,7 +99,7 @@ class Raid(pos: BlockPos, state: BlockState)
     items.map(_.isDefined).copyToArray(presence)
   }
 
-  override protected def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
+  override def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
     super.onItemRemoved(slot, stack)
     if (isServer) this.synchronized {
       // TODO(server.PacketSender): 原为 ServerPacketSender.sendRaidChange(this)。
@@ -172,7 +172,7 @@ class Raid(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     if (nbt.contains(Settings.namespace + "fs")) {
       val tag = nbt.getCompound(Settings.namespace + "fs")
@@ -182,21 +182,21 @@ class Raid(pos: BlockPos, state: BlockState)
     label.load(nbt)
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     fileSystemEnvironment.foreach(env => nbt.setNewCompoundTag(Settings.namespace + "fs", env.save))
     label.save(nbt)
   }
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     nbt.getBooleanArray("presence").
       copyToArray(presence)
     label.setLabel(nbt.getString("label"))
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.setBooleanArray("presence", presence)
     if (label.getLabel != null)

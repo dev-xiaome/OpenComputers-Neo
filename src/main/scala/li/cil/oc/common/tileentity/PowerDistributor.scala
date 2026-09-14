@@ -35,7 +35,7 @@ class PowerDistributor(pos: BlockPos, state: BlockState)
     withConnector(Settings.get.bufferDistributor).
     create())
 
-  override protected def isConnected: Boolean = nodes.exists(node => node.address != null && node.network != null)
+  override def isConnected: Boolean = nodes.exists(node => node.address != null && node.network != null)
 
   override def canUpdate: Boolean = isServer
 
@@ -48,7 +48,7 @@ class PowerDistributor(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     // 注意：1.21.1 的 `ListTag` 已经是 `AbstractCollection`，自带 `toArray` 成员，
     // 会遮蔽 `ExtendedNBT` 提供的扩展方法，因此这里按下标逐个读取。
@@ -58,7 +58,7 @@ class PowerDistributor(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     // Side check for Waila (and other mods that may call this client side).
     if (isServer) {

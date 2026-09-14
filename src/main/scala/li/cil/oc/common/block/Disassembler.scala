@@ -29,7 +29,7 @@ class Disassembler(properties: BlockBehaviour.Properties = SimpleBlock.propertie
 
   // ----------------------------------------------------------------------- //
 
-  override protected def tooltipBody(stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {
+  override def tooltipBody(stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {
     tooltip.addAll(Tooltip.get(getClass.getSimpleName, (Settings.get.disassemblerBreakChance * 100).toInt.toString))
   }
 

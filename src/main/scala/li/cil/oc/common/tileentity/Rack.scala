@@ -190,18 +190,18 @@ class Rack(pos: BlockPos, state: BlockState)
       true
   }
 
-  override protected def relayPacket(sourceSide: Option[Direction], packet: Packet): Unit = {
+  override def relayPacket(sourceSide: Option[Direction], packet: Packet): Unit = {
     if (isRelayEnabled)
       super.relayPacket(sourceSide, packet)
   }
 
-  override protected def onPlugConnect(plug: Plug, node: Node): Unit = {
+  override def onPlugConnect(plug: Plug, node: Node): Unit = {
     super.onPlugConnect(plug, node)
     connectComponents()
     reconnect(plug.side)
   }
 
-  protected override def createNode(plug: Plug): Node = api.Network.newNode(plug, Visibility.Network)
+  override def createNode(plug: Plug): Node = api.Network.newNode(plug, Visibility.Network)
     .withConnector(Settings.get.bufferDistributor)
     .create()
 
@@ -277,9 +277,9 @@ class Rack(pos: BlockPos, state: BlockState)
   // power.Common
 
   // 仅客户端调用；1.7.10 的 `@SideOnly(Side.CLIENT)` 已删除。
-  override protected def hasConnector(side: Direction): Boolean = side != facing
+  override def hasConnector(side: Direction): Boolean = side != facing
 
-  override protected def connector(side: Direction): Option[Connector] =
+  override def connector(side: Direction): Option[Connector] =
     Option(if (side != facing) sidedNode(side).asInstanceOf[Connector] else null)
 
   override def energyThroughput: Double = Settings.get.serverRackRate
@@ -348,7 +348,7 @@ class Rack(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
   // Rotatable
 
-  override protected def onRotationChanged(): Unit = {
+  override def onRotationChanged(): Unit = {
     super.onRotationChanged()
     checkRedstoneInputChanged()
   }
@@ -356,7 +356,7 @@ class Rack(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
   // RedstoneAware
 
-  override protected def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
+  override def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
     super.onRedstoneInputChanged(args)
     components.collect {
       case Some(mountable: RackMountable) if mountable.node != null =>
@@ -393,7 +393,7 @@ class Rack(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
   // ComponentInventory
 
-  override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
+  override def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     if (isServer) {
       for (connectable <- 0 until 4) {
         nodeMapping(slot)(connectable) = None
@@ -404,7 +404,7 @@ class Rack(pos: BlockPos, state: BlockState)
     super.onItemAdded(slot, stack)
   }
 
-  override protected def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
+  override def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
     if (isServer) {
       for (connectable <- 0 until 4) {
         nodeMapping(slot)(connectable) = None
@@ -414,7 +414,7 @@ class Rack(pos: BlockPos, state: BlockState)
     super.onItemRemoved(slot, stack)
   }
 
-  override protected def connectItemNode(node: Node): Unit = {
+  override def connectItemNode(node: Node): Unit = {
     // By default create a new network for mountables. They have to
     // be wired up manually (mapping is reset in onItemAdded).
     api.Network.joinNewNetwork(node)
@@ -462,7 +462,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
 
     isRelayEnabled = nbt.getBoolean(Settings.namespace + "isRelayEnabled")
@@ -483,7 +483,7 @@ class Rack(pos: BlockPos, state: BlockState)
     _isAbstractBusAvailable = hasAbstractBusCard
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
 
     nbt.putBoolean(Settings.namespace + "isRelayEnabled", isRelayEnabled)
@@ -492,7 +492,7 @@ class Rack(pos: BlockPos, state: BlockState)
   }
 
   /** 仅客户端使用（原 `@SideOnly(Side.CLIENT)`，1.21.1 已删除该注解）。 */
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
 
     // 1.21.1 的 `ListTag` 是 Java 列表，没有 Scala 的 `copyToArray`，按下标逐个取。
@@ -504,7 +504,7 @@ class Rack(pos: BlockPos, state: BlockState)
     connectComponents()
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
 
     val data = lastData.map(tag => if (tag == null) new CompoundTag() else tag)

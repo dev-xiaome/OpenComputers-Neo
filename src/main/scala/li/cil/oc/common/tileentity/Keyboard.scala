@@ -95,14 +95,14 @@ class Keyboard(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     if (isServer) {
       keyboard.load(nbt.getCompound(Settings.namespace + "keyboard"))
     }
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     if (isServer) {
       // `keyboard.save` 是接口（`Persistable`）上的抽象方法，不能直接当函数值传，这里显式包一层。

@@ -89,14 +89,14 @@ class Cable(protected implicit val tileTag: ClassTag[tileentity.Cable])
   // 放置 / 掉落
   // ----------------------------------------------------------------------- //
 
-  override protected def doCustomInit(tile: tileentity.Cable, player: LivingEntity, stack: ItemStack): Unit = {
+  override def doCustomInit(tile: tileentity.Cable, player: LivingEntity, stack: ItemStack): Unit = {
     super.doCustomInit(tile, player, stack)
     if (!tile.world.isClientSide) {
       tile.fromItemStack(stack)
     }
   }
 
-  override protected def doCustomDrops(tile: tileentity.Cable, player: Player, willHarvest: Boolean): Unit = {
+  override def doCustomDrops(tile: tileentity.Cable, player: Player, willHarvest: Boolean): Unit = {
     super.doCustomDrops(tile, player, willHarvest)
     if (!player.isCreative) {
       InventoryUtils.spawnStackInWorld(tile.position, tile.createItemStack())

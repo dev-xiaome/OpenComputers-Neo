@@ -72,9 +72,9 @@ class Assembler(pos: BlockPos, state: BlockState)
 
   override def sidedNode(side: Direction): Node = if (side != Direction.UP) node else null
 
-  override protected def hasConnector(side: Direction): Boolean = canConnect(side)
+  override def hasConnector(side: Direction): Boolean = canConnect(side)
 
-  override protected def connector(side: Direction): Option[Connector] = Option(if (side != Direction.UP) node else null)
+  override def connector(side: Direction): Option[Connector] = Option(if (side != Direction.UP) node else null)
 
   override def energyThroughput: Double = Settings.get.assemblerRate
 
@@ -160,7 +160,7 @@ class Assembler(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     if (nbt.contains(Settings.namespace + "output")) {
       output = Option(ItemStack.parseOptional(li.cil.oc.util.ExtendedNBT.fallbackRegistry, nbt.getCompound(Settings.namespace + "output")))
@@ -173,7 +173,7 @@ class Assembler(pos: BlockPos, state: BlockState)
     requiredEnergy = nbt.getDouble(Settings.namespace + "remaining")
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     output.foreach(stack => nbt.setNewCompoundTag(Settings.namespace + "output",
       (tag: CompoundTag) => stack.save(li.cil.oc.util.ExtendedNBT.fallbackRegistry, tag)))
@@ -182,12 +182,12 @@ class Assembler(pos: BlockPos, state: BlockState)
   }
 
   // 原 `@SideOnly(Side.CLIENT)`，1.21.1 删除注解。
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     requiredEnergy = nbt.getDouble("remaining")
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putDouble("remaining", requiredEnergy)
   }

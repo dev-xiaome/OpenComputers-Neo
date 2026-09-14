@@ -189,7 +189,7 @@ class RobotProxy(pos: BlockPos, state: BlockState)
     super.tick()
   }
 
-  override protected def initialize(): Unit = {
+  override def initialize(): Unit = {
     super.initialize()
     // 原 1.7.10 的 `validate()`：第一个代理负责让机器人本体也进入初始化流程。
     val firstProxy = robot.proxy == null || robot.proxy == this
@@ -213,13 +213,13 @@ class RobotProxy(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     robot.info.load(nbt)
     super.readFromNBTForServer(nbt)
     robot.readFromNBTForServer(nbt)
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     robot.writeToNBTForServer(nbt)
   }
@@ -231,9 +231,9 @@ class RobotProxy(pos: BlockPos, state: BlockState)
   def load(nbt: CompoundTag): Unit = robot.load(nbt)
 
   /** 仅客户端使用（原 `@SideOnly(Side.CLIENT)`，1.21.1 已删除该注解）。 */
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = robot.readFromNBTForClient(nbt)
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = robot.readFromNBTForClient(nbt)
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = robot.writeToNBTForClient(nbt)
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = robot.writeToNBTForClient(nbt)
 
   // ----------------------------------------------------------------------- //
 

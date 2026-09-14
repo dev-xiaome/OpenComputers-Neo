@@ -65,7 +65,7 @@ class RobotProxy(properties: BlockBehaviour.Properties = RobotProxy.properties()
    * `createBlockEntity` 复用实例；目前 `createBlockEntity` 不再读取它。
    */
   var moving = new ThreadLocal[Option[tileentity.Robot]] {
-    override protected def initialValue = None
+    override def initialValue = None
   }
 
   // ----------------------------------------------------------------------- //
@@ -103,16 +103,16 @@ class RobotProxy(properties: BlockBehaviour.Properties = RobotProxy.properties()
     Rarity.byTier(data.tier)
   }
 
-  override protected def tooltipHead(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+  override def tooltipHead(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
     super.tooltipHead(stack, player, tooltip, advanced)
     addLines(stack, tooltip)
   }
 
-  override protected def tooltipBody(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+  override def tooltipBody(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
     tooltip.addAll(Tooltip.get("Robot"))
   }
 
-  override protected def tooltipTail(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+  override def tooltipTail(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
     super.tooltipTail(stack, player, tooltip, advanced)
     // 原：`if (KeyBindings.showExtendedTooltips)`
     if (TooltipKeyBindings.showExtendedTooltips) {

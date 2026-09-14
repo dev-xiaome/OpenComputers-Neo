@@ -330,7 +330,7 @@ class Printer(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     amountMaterial = nbt.getInt(Settings.namespace + "amountMaterial")
     amountInk = nbt.getInt(Settings.namespace + "amountInk")
@@ -345,7 +345,7 @@ class Printer(pos: BlockPos, state: BlockState)
     requiredEnergy = nbt.getDouble(Settings.namespace + "remaining")
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.putInt(Settings.namespace + "amountMaterial", amountMaterial)
     nbt.putInt(Settings.namespace + "amountInk", amountInk)
@@ -359,13 +359,13 @@ class Printer(pos: BlockPos, state: BlockState)
   }
 
   // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     data.load(nbt.getCompound(Settings.namespace + "data"))
     requiredEnergy = nbt.getDouble("remaining")
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.setNewCompoundTag(Settings.namespace + "data", data.save)
     nbt.putDouble("remaining", requiredEnergy)

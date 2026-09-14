@@ -63,7 +63,7 @@ class Adapter(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def defaultState = true
+  override def defaultState = true
 
   override def setSideOpen(side: Direction, value: Boolean): Unit = {
     super.setSideOpen(side, value)
@@ -206,7 +206,7 @@ class Adapter(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
 
     val blocksNbt = nbt.getList(Settings.namespace + "adapter.blocks", Tag.TAG_COMPOUND)
@@ -221,7 +221,7 @@ class Adapter(pos: BlockPos, state: BlockState)
       }
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
 
     val blocksNbt = new ListTag()

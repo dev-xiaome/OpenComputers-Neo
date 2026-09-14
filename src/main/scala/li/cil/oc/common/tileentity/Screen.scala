@@ -327,14 +327,14 @@ class Screen(pos: BlockPos, state: BlockState)
     // `li.cil.oc.client.gui` 未纳入本次编译范围，GUI 关闭交由其自身会话失效处理。
   }
 
-  override protected def onColorChanged(): Unit = {
+  override def onColorChanged(): Unit = {
     super.onColorChanged()
     screens.clone().foreach(_.checkMultiBlock())
   }
 
   // ----------------------------------------------------------------------- //
 
-  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
     // 1.7.10 在这里从 NBT 恢复 tier；1.21.1 的等级由方块决定，不能（也不需要）改写。
     color = Color.byTier(tier)
     super.readFromNBTForServer(nbt)
@@ -342,7 +342,7 @@ class Screen(pos: BlockPos, state: BlockState)
     invertTouchMode = nbt.getBoolean(Settings.namespace + "invertTouchMode")
   }
 
-  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     nbt.putByte(Settings.namespace + "tier", tier.toByte)
     super.writeToNBTForServer(nbt)
     nbt.putBoolean(Settings.namespace + "hadRedstoneInput", hadRedstoneInput)
@@ -350,12 +350,12 @@ class Screen(pos: BlockPos, state: BlockState)
   }
 
   /** 仅客户端使用（原 `@SideOnly(Side.CLIENT)`，1.21.1 已删除该注解）。 */
-  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     invertTouchMode = nbt.getBoolean("invertTouchMode")
   }
 
-  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putBoolean("invertTouchMode", invertTouchMode)
   }
@@ -364,7 +364,7 @@ class Screen(pos: BlockPos, state: BlockState)
 
   override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float): Array[Node] = Array(origin.node)
 
-  override protected def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
+  override def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
     super.onRedstoneInputChanged(args)
     val hasRedstoneInput = screens.map(_.maxInput).max > 0
     if (hasRedstoneInput != hadRedstoneInput) {
@@ -375,7 +375,7 @@ class Screen(pos: BlockPos, state: BlockState)
     }
   }
 
-  override protected def onRotationChanged(): Unit = {
+  override def onRotationChanged(): Unit = {
     super.onRotationChanged()
     screens.clone().foreach(_.checkMultiBlock())
   }

@@ -25,7 +25,7 @@ class ChameliumBlock(properties: BlockBehaviour.Properties = SimpleBlock.propert
 
   override def hasBlockEntity: Boolean = false
 
-  override protected def createBlockStateDefinition(builder: StateDefinition.Builder[Block, BlockState]): Unit = {
+  override def createBlockStateDefinition(builder: StateDefinition.Builder[Block, BlockState]): Unit = {
     super.createBlockStateDefinition(builder)
     builder.add(ChameliumBlock.Color)
   }
