@@ -2,35 +2,60 @@ package li.cil.oc.common.block
 
 import java.util
 
-import li.cil.oc.client.KeyBindings
 import li.cil.oc.common.GuiType
 import li.cil.oc.common.item.data.RaidData
 import li.cil.oc.common.tileentity
+import li.cil.oc.util.TooltipKeyBindings
+import net.minecraft.core.BlockPos
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.world.level.block.state.{BlockBehaviour, BlockState}
 
-import scala.reflect.ClassTag
+import scala.reflect.{ClassTag, classTag}
 
-class Raid(protected implicit val tileTag: ClassTag[tileentity.Raid]) extends SimpleBlock with traits.GUI with traits.CustomDrops[tileentity.Raid] {
-  override protected def customTextures = Array(
-    None,
-    None,
-    Some("RaidSide"),
-    Some("RaidFront"),
-    Some("RaidSide"),
-    Some("RaidSide")
-  )
+/**
+ * RAID 阵列（原 1.7.10 `Raid`）。
+ *
+ * 1.21.1 迁移要点：
+ *  - 原构造参数 `(implicit val tileTag: ClassTag[tileentity.Raid])` 由 OC 注册层传入；
+ *    1.21.1 的注册层写 `new block.Raid()`，因此 ClassTag 改为在 [[tileTag]] 里直接物化。
+ *  - `hasComparatorInputOverride` / `getComparatorInputOverride` →
+ *    [[SimpleBlockHooks.providesAnalogOutput]] / [[SimpleBlockHooks.analogOutputSignal]]。
+ *  - `hasTileEntity` / `createTileEntity` → [[SimpleBlockHooks.createBlockEntity]]
+ *    （`hasBlockEntity` 默认 `true`）。
+ *  - 提示尾部原本在按住扩展提示键时列出内部磁盘，
+ *    `client.KeyBindings` 未移植 → 改用 [[TooltipKeyBindings]]（占位恒为 `false`）。
+ *  - `disk.getDisplayName` → `disk.getHoverName.getString`（1.21.1 的组件式名称）。
+ *  - `NBT#hasNoTags` → `CompoundTag#isEmpty`、`getCompoundTag` → `getCompound`。
+ *  - `dropBlockAsItem(world, x, y, z, stack)` → `Block.popResource`。
+ *  - `setInventorySlotContents` 保留：它的「先移除、再添加」通知顺序是
+ *    `onItemAdded` → `tryCreateRaid` 的关键（见 `common.inventory.Inventory`）。
+ *  - `getIcon` / `customTextures` / `registerBlockIcons` 删除，面纹理改由模型 JSON 指定。
+ *
+ * 纹理（原 `customTextures` 面序 DOWN, UP, NORTH, SOUTH, WEST, EAST）：
+ * 下 / 上 = 未指定（沿用 `GenericTop`），北 = `RaidSide`，南 = `RaidFront`，
+ * 西 / 东 = `RaidSide`。
+ */
+class Raid(properties: BlockBehaviour.Properties = SimpleBlock.properties())
+  extends SimpleBlock(properties) with traits.GUI with traits.CustomDrops[tileentity.Raid] {
+
+  override protected def tileTag: ClassTag[tileentity.Raid] = classTag[tileentity.Raid]
 
   // ----------------------------------------------------------------------- //
+  // 提示
+  // ----------------------------------------------------------------------- //
 
-  override protected def tooltipTail(metadata: Int, stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
-    super.tooltipTail(metadata, stack, player, tooltip, advanced)
-    if (KeyBindings.showExtendedTooltips) {
+  override protected def tooltipTail(stack: ItemStack, player: Player, tooltip: util.List[String], advanced: Boolean): Unit = {
+    super.tooltipTail(stack, player, tooltip, advanced)
+    // 原：`if (KeyBindings.showExtendedTooltips)`
+    if (TooltipKeyBindings.showExtendedTooltips) {
       val data = new RaidData(stack)
-      for (disk <- data.disks if disk != null) {
-        tooltip.add("- " + disk.getDisplayName)
+      for (disk <- data.disks if disk != null && !disk.isEmpty) {
+        tooltip.add("- " + disk.getHoverName.getString)
       }
     }
   }
@@ -39,31 +64,36 @@ class Raid(protected implicit val tileTag: ClassTag[tileentity.Raid]) extends Si
 
   override def guiType = GuiType.Raid
 
-  override def hasTileEntity(metadata: Int) = true
-
-  override def createTileEntity(world: Level, metadata: Int) = new tileentity.Raid()
+  override def createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity =
+    new tileentity.Raid(pos, state)
 
   // ----------------------------------------------------------------------- //
+  // 比较器
+  // ----------------------------------------------------------------------- //
 
-  override def hasComparatorInputOverride = true
+  override def providesAnalogOutput = true
 
-  override def getComparatorInputOverride(world: Level, x: Int, y: Int, z: Int, side: Int) =
-    world.getTileEntity(x, y, z) match {
+  override def analogOutputSignal(state: BlockState, level: Level, pos: BlockPos): Int =
+    level.getBlockEntity(pos) match {
       case raid: tileentity.Raid if raid.presence.forall(ok => ok) => 15
       case _ => 0
     }
 
+  // ----------------------------------------------------------------------- //
+  // 放置 / 掉落
+  // ----------------------------------------------------------------------- //
+
   override protected def doCustomInit(tileEntity: tileentity.Raid, player: LivingEntity, stack: ItemStack): Unit = {
     super.doCustomInit(tileEntity, player, stack)
-    if (!tileEntity.world.isRemote) {
+    if (tileEntity.isServer) {
       val data = new RaidData(stack)
-      for (i <- 0 until math.min(data.disks.length, tileEntity.getSizeInventory)) {
+      for (i <- 0 until math.min(data.disks.length, tileEntity.getSlots)) {
         tileEntity.setInventorySlotContents(i, data.disks(i))
       }
       data.label.foreach(tileEntity.label.setLabel)
-      if (!data.filesystem.hasNoTags) {
+      if (!data.filesystem.isEmpty) {
         tileEntity.tryCreateRaid(data.filesystem.getCompound("node").getString("address"))
-        tileEntity.filesystem.foreach(_.load(data.filesystem))
+        tileEntity.filesystem.foreach(filesystem => filesystem.load(data.filesystem))
       }
     }
   }
@@ -74,10 +104,11 @@ class Raid(protected implicit val tileTag: ClassTag[tileentity.Raid]) extends Si
     if (tileEntity.items.exists(_.isDefined)) {
       val data = new RaidData()
       data.disks = tileEntity.items.map(_.orNull)
-      tileEntity.filesystem.foreach(_.save(data.filesystem))
+      tileEntity.filesystem.foreach(filesystem => filesystem.save(data.filesystem))
       data.label = Option(tileEntity.label.getLabel)
       data.save(stack)
     }
-    dropBlockAsItem(tileEntity.world, tileEntity.x, tileEntity.y, tileEntity.z, stack)
+    // 原：`dropBlockAsItem(world, x, y, z, stack)`
+    Block.popResource(tileEntity.world, tileEntity.blockPos, stack)
   }
 }

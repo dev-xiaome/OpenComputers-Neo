@@ -73,7 +73,9 @@ trait BundledRedstoneAware extends RedstoneAware {
     val sideIndex = checkSide(side)
     val bundled = _bundledInput(sideIndex)
     val rednet = _rednetInput(sideIndex)
-    (bundled, rednet).zipped.map((a, b) => a max b max 0)
+    // 原实现用 `(bundled, rednet).zipped`；Scala 2.13 已移除 `zipped`（其返回类型也不再是
+    // `Array`），改用 `zip` 保持「逐颜色取二者最大值」这一语义。
+    bundled.zip(rednet).map { case (a, b) => a max b max 0 }
   }
 
   def getBundledInput(side: Direction, color: Int): Int = {
@@ -179,23 +181,25 @@ trait BundledRedstoneAware extends RedstoneAware {
   override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
 
-    nbt.getList(Settings.namespace + "rs.bundledInput", Tag.TAG_INT_ARRAY).toArray[IntArrayTag].
-      map(_.getAsIntArray).zipWithIndex.foreach {
+    // 注意：`ListTag` 是 Java 集合，自带的 `toArray` 会遮蔽 `ExtendedListTag` 的隐式扩展
+    //（`toArray[T: ClassTag]`），因此统一改用扩展提供的 `map` 取元素。
+    nbt.getList(Settings.namespace + "rs.bundledInput", Tag.TAG_INT_ARRAY).
+      map((tag: IntArrayTag) => tag.getAsIntArray).zipWithIndex.foreach {
       case (input, index) if index < _bundledInput.length =>
         val safeLength = input.length min _bundledInput(index).length
         input.copyToArray(_bundledInput(index), 0, safeLength)
       case _ =>
     }
-    nbt.getList(Settings.namespace + "rs.bundledOutput", Tag.TAG_INT_ARRAY).toArray[IntArrayTag].
-      map(_.getAsIntArray).zipWithIndex.foreach {
+    nbt.getList(Settings.namespace + "rs.bundledOutput", Tag.TAG_INT_ARRAY).
+      map((tag: IntArrayTag) => tag.getAsIntArray).zipWithIndex.foreach {
       case (input, index) if index < _bundledOutput.length =>
         val safeLength = input.length min _bundledOutput(index).length
         input.copyToArray(_bundledOutput(index), 0, safeLength)
       case _ =>
     }
 
-    nbt.getList(Settings.namespace + "rs.rednetInput", Tag.TAG_INT_ARRAY).toArray[IntArrayTag].
-      map(_.getAsIntArray).zipWithIndex.foreach {
+    nbt.getList(Settings.namespace + "rs.rednetInput", Tag.TAG_INT_ARRAY).
+      map((tag: IntArrayTag) => tag.getAsIntArray).zipWithIndex.foreach {
       case (input, index) if index < _rednetInput.length =>
         val safeLength = input.length min _rednetInput(index).length
         input.copyToArray(_rednetInput(index), 0, safeLength)

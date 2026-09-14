@@ -55,8 +55,14 @@ trait Inventory extends TileEntity with inventory.Inventory with ItemHandlerProv
 
   // ----------------------------------------------------------------------- //
 
-  def dropSlot(slot: Int, count: Int = getSlotLimit(slot), direction: Option[Direction] = None): Boolean =
-    InventoryUtils.dropSlot(position, this, slot, count, direction)
+  /**
+   * 把某个槽位的内容掉落到世界中（原 `dropSlot(slot, count, direction)`）。
+   *
+   * 1.7.10 的 `count` 默认值是全区统一的 `getInventoryStackLimit`；Scala 不允许默认参数引用
+   * 同一参数列表里在它之前的 `slot`，因此这里用 `-1` 表示「取该槽位的容量」，行为与旧默认值一致。
+   */
+  def dropSlot(slot: Int, count: Int = -1, direction: Option[Direction] = None): Boolean =
+    InventoryUtils.dropSlot(position, this, slot, if (count < 0) getSlotLimit(slot) else count, direction)
 
   def dropAllSlots(): Unit =
     InventoryUtils.dropAllSlots(position, this)

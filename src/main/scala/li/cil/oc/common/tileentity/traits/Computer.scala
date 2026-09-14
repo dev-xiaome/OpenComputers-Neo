@@ -114,7 +114,9 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
   // ----------------------------------------------------------------------- //
 
   override def internalComponents(): lang.Iterable[ItemStack] = (0 until getSlots).collect {
-    case slot if getStackInSlot(slot) != null && isComponentSlot(slot, getStackInSlot(slot)) => getStackInSlot(slot)
+    // 1.21.1 的 `getStackInSlot` 返回 `ItemStack.EMPTY` 而不是 `null`，因此空槽位必须用
+    // `isEmpty` 显式排除；否则空气堆叠也会被当成「内置组件」报给机器。
+    case slot if !getStackInSlot(slot).isEmpty && isComponentSlot(slot, getStackInSlot(slot)) => getStackInSlot(slot)
   }.asJava
 
   /**

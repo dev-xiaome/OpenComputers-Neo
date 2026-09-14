@@ -2,33 +2,65 @@ package li.cil.oc.common.tileentity
 
 import java.util
 
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import li.cil.oc._
+import li.cil.oc.Constants
+import li.cil.oc.Settings
+import li.cil.oc.api
+import li.cil.oc.api.driver.DeviceInfo
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
-import li.cil.oc.api.driver.DeviceInfo
 import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.Analyzable
 import li.cil.oc.api.network._
-import li.cil.oc.common.SaveHandler
-import li.cil.oc.integration.util.Waila
-import li.cil.oc.server.{PacketSender => ServerPacketSender}
-import net.minecraft.world.entity.player.Player
+import li.cil.oc.util.ExtendedNBT._
+import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.phys.AABB
-import net.minecraft.world.phys.Vec3
-import net.minecraft.core.Direction
 
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
-class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment with Analyzable with traits.Rotatable with DeviceInfo {
-  def this() = this(0)
+/**
+ * 全息投影仪方块实体（原 1.7.10 `common.tileentity.Hologram`）。
+ *
+ * 体素数据保存在 [[volume]] 里（低半区 = 颜色低位平面，高半区 = 颜色高位平面，
+ * 每个 int 的 32 位对应 32 层高度），渲染见
+ * `client.renderer.tileentity.HologramRenderer`。
+ *
+ * 纹理：全部侧面 = HologramSide，顶面 = HologramTop<等级>。
+ *
+ * ==1.21.1 迁移要点==
+ *  - 构造函数只有 `(pos, state)`；等级从方块实例反查（1.21.1 每个等级一个独立方块）。
+ *  - `updateEntity()` → [[traits.TileEntity#tick]]；`world.getTotalWorldTime` → `world.getGameTime`。
+ *  - `Vec3.createVectorHelper(...)` → [[Hologram.Offset]]（1.21.1 的 `Vec3` 不可变，
+ *    而原代码要原地改写偏移量，因此用一个暴露 `xCoord/yCoord/zCoord` 的可变结构替代）。
+ *  - 删除 `@SideOnly`（NeoForge 会因此抛异常）；客户端专用逻辑用注释标注。
+ *
+ * ==降级清单==
+ *  - `server.PacketSender`（`sendHologramClear` / `sendHologramArea` / `sendHologramValues`
+ *    / `sendHologramScale` / `sendHologramOffset` / `sendHologramColor` /
+ *    `sendHologramRotation` / `sendHologramRotationSpeed` / `sendHologramPowerChange`）：
+ *    网络层未移植，全部退化为 [[traits.TileEntity#markDirtyAndUpdate]]（存盘 + 方块更新）。
+ *  - `common.SaveHandler`（把体素数据存到独立文件）：未移植，改为直接写进主 NBT。
+ *  - `integration.util.Waila`：工具提示模组集成未移植，恒写完整数据。
+ */
+class Hologram(pos: BlockPos, state: BlockState)
+  extends BlockEntityBase(BlockEntityBase.typeOf(state.getBlock), pos, state)
+    with traits.Environment
+    with SidedEnvironment
+    with Analyzable
+    with traits.Rotatable
+    with DeviceInfo {
 
-  val node = api.Network.newNode(this, Visibility.Network).
+  /** 原 1.7.10 由 metadata 决定；1.21.1 从方块实例读取（0 = 创造模式等级）。 */
+  val tier: Int = state.getBlock match {
+    case b: li.cil.oc.common.block.Hologram => b.tier
+    case _ => 0
+  }
+
+  val node: Node = api.Network.newNode(this, Visibility.Network).
     withComponent("hologram").
     withConnector().
     create()
@@ -58,7 +90,7 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
   var scale = 1.0
 
   // Projection Y position offset - consider adding X,Z later perhaps
-  var translation = Vec3.createVectorHelper(0, 0, 0)
+  var translation = new Hologram.Offset(0, 0, 0)
 
   // Relative number of lit columns (for energy cost).
   var litRatio = -1.0
@@ -94,9 +126,9 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
   final val colorsByTier = Array(Array(0x00FF00), Array(0x0000FF, 0x00FF00, 0xFF0000)) // 0xBBGGRR for rendering convenience
 
   // This is a def and not a val for loading (where the tier comes from the nbt and is always 0 here).
-  def colors = colorsByTier(tier)
+  def colors: Array[Int] = colorsByTier(tier)
 
-  def getColor(x: Int, y: Int, z: Int) = {
+  def getColor(x: Int, y: Int, z: Int): Int = {
     val lbit = (volume(x + z * width) >>> y) & 1
     val hbit = (volume(x + z * width + width * width) >>> y) & 1
     lbit | (hbit << 1)
@@ -119,6 +151,8 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
     dirtyFromZ = math.min(dirtyFromZ, z)
     dirtyUntilZ = math.max(dirtyUntilZ, z + 1)
     litRatio = -1
+    // 客户端渲染层据此重编译 VBO（原实现由数据包触发，1.21.1 走同步标签）。
+    needsRendering = true
   }
 
   private def resetDirtyFlag(): Unit = {
@@ -131,20 +165,21 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
 
   // ----------------------------------------------------------------------- //
 
-  @SideOnly(Dist.CLIENT)
-  override def canConnect(side: Direction) = toLocal(side) == Direction.DOWN
+  // 仅客户端调用；1.7.10 的 `@SideOnly(Side.CLIENT)` 已删除。
+  override def canConnect(side: Direction): Boolean = toLocal(side) == Direction.DOWN
 
-  override def sidedNode(side: Direction) = if (toLocal(side) == Direction.DOWN) node else null
+  override def sidedNode(side: Direction): Node = if (toLocal(side) == Direction.DOWN) node else null
 
   // Override automatic analyzer implementation for sided environments.
-  override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float) = Array(node)
+  override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float): Array[Node] = Array(node)
 
   // ----------------------------------------------------------------------- //
 
   @Callback(doc = """function() -- Clears the hologram.""")
   def clear(context: Context, args: Arguments): Array[AnyRef] = this.synchronized {
     for (i <- volume.indices) volume(i) = 0
-    ServerPacketSender.sendHologramClear(this)
+    // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramClear(this)。
+    markDirtyAndUpdate()
     resetDirtyFlag()
     litRatio = 0
     null
@@ -234,7 +269,7 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
       case dz => dz.swap
     }
     val (sx, sz) = (if (tx > 0) -1 else 1, if (tz > 0) -1 else 1)
-    // Copy values to destination rectangle if there source is valid.
+    // Copy values to destination rectangle if the source is valid.
     for (nz <- dz0 to dz1 by sz) {
       nz - tz match {
         case oz if oz >= 0 && oz < width =>
@@ -244,18 +279,18 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
                 volume(nz * width + nx) = volume(oz * width + ox)
                 volume(nz * width + nx + width * width) = volume(oz * width + ox + width * width)
                 // previous, we set the volume area as dirty. but this is error prone
-                // in case the update sends the values - we only send the corners of the copied arae
+                // in case the update sends the values - we only send the corners of the copied area
                 // it is FAR better to mark each bit as dirty, and let the optimized update do what
                 // it was designed to do
                 setDirty(nx, nz)
-              case _ => /* Got no source column. */
+              case _ => // Got no source column.
             }
           }
-        case _ => /* Got no source row. */
+        case _ => // Got no source row.
       }
     }
 
-    // The reasoning here is: it'd take 18 ticks to do the whole are with fills,
+    // The reasoning here is: it'd take 18 ticks to do the whole area with fills,
     // so make this slightly more efficient (15 ticks - 0.75 seconds). Make it
     // 'free' if it's less than 0.25 seconds, i.e. for small copies.
     val area = (math.max(dx0, dx1) - math.min(dx0, dx1)) * (math.max(dz0, dz1) - math.min(dz0, dz1))
@@ -273,7 +308,8 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
   @Callback(doc = """function(value:number) -- Set the render scale. A larger scale consumes more energy.""")
   def setScale(context: Context, args: Arguments): Array[AnyRef] = {
     scale = math.max(0.333333, math.min(Settings.get.hologramMaxScaleByTier(tier), args.checkDouble(0)))
-    ServerPacketSender.sendHologramScale(this)
+    // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramScale(this)。
+    markDirtyAndUpdate()
     null
   }
 
@@ -294,7 +330,8 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
     translation.yCoord = ty
     translation.zCoord = tz
 
-    ServerPacketSender.sendHologramOffset(this)
+    // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramOffset(this)。
+    markDirtyAndUpdate()
     null
   }
 
@@ -320,7 +357,8 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
     // Change byte order here to allow passing stored color to OpenGL "as-is"
     // (as whole Int, i.e. 0xAABBGGRR, alpha is unused but present for alignment)
     colors(index - 1) = convertColor(value)
-    ServerPacketSender.sendHologramColor(this, index - 1, colors(index - 1))
+    // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramColor(this, index - 1, colors(index - 1))。
+    markDirtyAndUpdate()
     result(oldValue)
   }
 
@@ -336,7 +374,8 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
       rotationX = x.toFloat
       rotationY = y.toFloat
       rotationZ = z.toFloat
-      ServerPacketSender.sendHologramRotation(this)
+      // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramRotation(this)。
+      markDirtyAndUpdate()
 
       result(true)
     }
@@ -355,7 +394,8 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
       rotationSpeedX = x.toFloat
       rotationSpeedY = y.toFloat
       rotationSpeedZ = z.toFloat
-      ServerPacketSender.sendHologramRotationSpeed(this)
+      // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramRotationSpeed(this)。
+      markDirtyAndUpdate()
 
       result(true)
     }
@@ -385,16 +425,16 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
     value
   }
 
-  private def convertColor(color: Int) = {
+  private def convertColor(color: Int): Int = {
     ((color & 0x0000FF) << 16) | (color & 0x00FF00) | ((color & 0xFF0000) >>> 16)
   }
 
   // ----------------------------------------------------------------------- //
 
-  override def canUpdate = isServer
+  override def canUpdate: Boolean = isServer
 
-  override def updateEntity(): Unit = {
-    super.updateEntity()
+  override def tick(): Unit = {
+    super.tick()
     if (isServer) {
       if (dirty.nonEmpty) this.synchronized {
         val dirtySizeX = dirtyUntilX - dirtyFromX
@@ -409,13 +449,12 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
         // changes * (4 + 4 + 2) = dirtySizeX * dirtySizeZ * (4 + 4)
         // changes = dirtySizeX * dirtySizeZ * (4 + 4) / (4 + 4 + 2) = dirtySizeX * dirtySizeZ * 0.8
         // So if changes are larger than that, just send the full hologram.
-        if (dirty.size > dirtySizeX * dirtySizeZ * 0.8)
-          ServerPacketSender.sendHologramArea(this)
-        else
-          ServerPacketSender.sendHologramValues(this)
+        // TODO(server.PacketSender): 原为 sendHologramArea / sendHologramValues（按脏区大小二选一），
+        // 网络层移植后恢复；现在统一走方块更新 + 同步标签。
+        markDirtyAndUpdate()
         resetDirtyFlag()
       }
-      if (world.getTotalWorldTime % Settings.get.tickFrequency == 0) {
+      if (world != null && world.getGameTime % Settings.get.tickFrequency == 0) {
         if (litRatio < 0) this.synchronized {
           litRatio = 0
           for (i <- volume.indices) {
@@ -428,7 +467,8 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
         val neededPower = Settings.get.hologramCost * litRatio * scale * Settings.get.tickFrequency
         hasPower = node.tryChangeBuffer(-neededPower)
         if (hasPower != hadPower) {
-          ServerPacketSender.sendHologramPowerChange(this)
+          // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramPowerChange(this)。
+          markDirtyAndUpdate()
         }
       }
     }
@@ -436,34 +476,46 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
 
   // ----------------------------------------------------------------------- //
 
-  override def shouldRenderInPass(pass: Int) = pass == 1
+  /**
+   * 渲染器使用的最大渲染距离平方（原覆写 `TileEntity#getMaxRenderDistanceSquared`）。
+   *
+   * 1.21.1 的 `BlockEntity` 已移除该方法，容器改由 `BlockEntityRenderer` 决定；
+   * 这里保留为普通方法供 `client.renderer.tileentity.HologramRenderer` 使用。
+   */
+  def getMaxRenderDistanceSquared: Double =
+    scale / Settings.get.hologramMaxScaleByTier.max * Settings.get.hologramRenderDistance * Settings.get.hologramRenderDistance
 
-  override def getMaxRenderDistanceSquared = scale / Settings.get.hologramMaxScaleByTier.max * Settings.get.hologramRenderDistance * Settings.get.hologramRenderDistance
-
-  def getFadeStartDistanceSquared = scale / Settings.get.hologramMaxScaleByTier.max * Settings.get.hologramFadeStartDistance * Settings.get.hologramFadeStartDistance
+  def getFadeStartDistanceSquared: Double =
+    scale / Settings.get.hologramMaxScaleByTier.max * Settings.get.hologramFadeStartDistance * Settings.get.hologramFadeStartDistance
 
   private final val Sqrt2 = Math.sqrt(2)
-  override def getRenderBoundingBox = {
+
+  /**
+   * 渲染包围盒（原覆写 `TileEntity#getRenderBoundingBox`；1.21.1 已移至渲染器）。
+   */
+  def getRenderBoundingBox: AABB = {
     val cx = x + 0.5
     val cy = y + 0.5
     val cz = z + 0.5
     val sh = width / 16 * scale * Sqrt2 // overscale to take into account 45 degree rotation
     val sv = height / 16 * scale * Sqrt2
-    AABB.getBoundingBox(
+    new AABB(
       cx + (-0.5 + translation.xCoord) * sh,
       cy + translation.yCoord * sv,
       cz + (-0.5 + translation.zCoord) * sh,
       cx + (0.5 + translation.xCoord) * sh,
       cy + (1 + translation.yCoord) * sv,
-      cz + (0.5 + translation.xCoord) * sh)
+      cz + (0.5 + translation.zCoord) * sh)
   }
 
   // ----------------------------------------------------------------------- //
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
-    tier = nbt.getByte(Settings.namespace + "tier") max 0 min 1
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
+    // 1.7.10 在这里从 NBT 恢复 tier；1.21.1 的等级由方块决定，不能（也不需要）改写。
     super.readFromNBTForServer(nbt)
-    val tag = SaveHandler.loadNBT(nbt, node.address + "_data")
+    // TODO(common.SaveHandler): 原实现把体素 / 调色板数据存在独立的
+    // `<node address>_data` 文件里（`SaveHandler.loadNBT`），这里改为直接写在主 NBT 中。
+    val tag = nbt.getCompound(Settings.namespace + "hologramData")
     tag.getIntArray("volume").copyToArray(volume)
     tag.getIntArray("colors").map(convertColor).copyToArray(colors)
     scale = nbt.getDouble(Settings.namespace + "scale")
@@ -480,15 +532,14 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
     rotationSpeedZ = nbt.getFloat(Settings.namespace + "rotationSpeedZ")
   }
 
-  override def writeToNBTForServer(nbt: CompoundTag) = this.synchronized {
-    nbt.putByte(Settings.namespace + "tier", tier.toByte)
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = this.synchronized {
     super.writeToNBTForServer(nbt)
-    if (!Waila.isSavingForTooltip) {
-      SaveHandler.scheduleSave(world, x, z, nbt, node.address + "_data", tag => {
-        tag.putIntArray("volume", volume)
-        tag.putIntArray("colors", colors.map(convertColor))
-      })
-    }
+    // TODO(integration.util.Waila): 原实现在 `Waila.isSavingForTooltip` 时跳过体素数据，
+    // `integration.util.Waila` 未纳入本次编译范围，这里恒写完整数据。
+    nbt.setNewCompoundTag(Settings.namespace + "hologramData", tag => {
+      tag.putIntArray("volume", volume)
+      tag.putIntArray("colors", colors.map(convertColor))
+    })
     nbt.putDouble(Settings.namespace + "scale", scale)
     nbt.putDouble(Settings.namespace + "offsetX", translation.xCoord)
     nbt.putDouble(Settings.namespace + "offsetY", translation.yCoord)
@@ -503,11 +554,11 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
     nbt.putFloat(Settings.namespace + "rotationSpeedZ", rotationSpeedZ)
   }
 
-  @SideOnly(Dist.CLIENT)
-  override def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  /** 仅客户端使用（原 `@SideOnly(Side.CLIENT)`，1.21.1 已删除该注解）。 */
+  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     nbt.getIntArray("volume").copyToArray(volume)
-    nbt.getIntArray("colors").copyToArray(colors)
+    nbt.getIntArray("colors").map(convertColor).copyToArray(colors)
     scale = nbt.getDouble("scale")
     hasPower = nbt.getBoolean("hasPower")
     translation.xCoord = nbt.getDouble("offsetX")
@@ -521,10 +572,12 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
     rotationSpeedX = nbt.getFloat("rotationSpeedX")
     rotationSpeedY = nbt.getFloat("rotationSpeedY")
     rotationSpeedZ = nbt.getFloat("rotationSpeedZ")
+    needsRendering = true
   }
 
-  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
+    // 客户端读回时同样经过 convertColor，因此这里写存储序（0xBBGGRR），保持往返一致。
     nbt.putIntArray("volume", volume)
     nbt.putIntArray("colors", colors)
     nbt.putDouble("scale", scale)
@@ -541,4 +594,19 @@ class Hologram(var tier: Int) extends traits.Environment with SidedEnvironment w
     nbt.putFloat("rotationSpeedY", rotationSpeedY)
     nbt.putFloat("rotationSpeedZ", rotationSpeedZ)
   }
+}
+
+object Hologram {
+
+  /**
+   * 1.7.10 用 `Vec3` 充当可变的投影偏移量（`translation.xCoord = ...`）。
+   *
+   * 1.21.1 的 `net.minecraft.world.phys.Vec3` 是**不可变**的，因此这里用一个最小
+   * 可变替身，并保留原字段名 `xCoord` / `yCoord` / `zCoord`，让渲染层与 NBT 代码
+   * 的写法保持一致。
+   *
+   * TODO(client.renderer): `client.renderer.tileentity.HologramRenderer` 目前仍按
+   * `hologram.translation.xCoord` 取值，本类正是为它保留的接口。
+   */
+  class Offset(var xCoord: Double, var yCoord: Double, var zCoord: Double)
 }

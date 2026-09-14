@@ -2,22 +2,53 @@ package li.cil.oc.common.tileentity
 
 import java.util
 
-import cpw.mods.fml.relauncher.{Side, SideOnly}
+import li.cil.oc.Constants
+import li.cil.oc.Settings
+import li.cil.oc.api
 import li.cil.oc.api.driver.DeviceInfo
-import li.cil.oc.api.driver.DeviceInfo.{DeviceAttribute, DeviceClass}
-import li.cil.oc.api.machine.{Arguments, Callback, Context}
-import li.cil.oc.{Constants, Settings, api}
-import li.cil.oc.api.network.{Node, Visibility}
-import li.cil.oc.common.EventHandler
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
+import li.cil.oc.api.machine.Arguments
+import li.cil.oc.api.machine.Callback
+import li.cil.oc.api.machine.Context
+import li.cil.oc.api.network.Node
+import li.cil.oc.api.network.Visibility
 import li.cil.oc.common.tileentity.traits.RedstoneChangedEventArgs
-import li.cil.oc.server.{PacketSender => ServerPacketSender}
+import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.core.Direction
+import net.minecraft.sounds.{SoundEvents, SoundSource}
+import net.minecraft.world.level.block.state.BlockState
 
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
-class NetSplitter extends traits.Environment with traits.OpenSides with traits.RedstoneAware with api.network.SidedEnvironment with DeviceInfo {
+/**
+ * 网络分线器（原 1.7.10 `common.tileentity.NetSplitter`）：按面开启 / 关闭网络连接，
+ * 并可由红石信号整体反转各面的开关状态。
+ *
+ * 纹理：下/上 = NetSplitterTop，北 = NetSplitterFront，其它 = NetSplitterSide。
+ *
+ * 1.21.1 迁移要点：
+ *  - 构造函数改为 `(pos, state)`，方块实体类型由方块反推（见 [[BlockEntityBase.typeOf]]）。
+ *  - `ForgeDirection.VALID_DIRECTIONS` → `Direction.values()`；
+ *    `ForgeDirection.getOrientation(i)` → `Direction.from3DDataValue(i)`
+ *    （1.21.1 的实现对越界值做取模，不会抛异常）。
+ *  - `world.playSoundEffect` → `Level#playSound`（音效名 → 注册过的
+ *    [[net.minecraft.sounds.SoundEvents]]）；`world.rand` → `world.getRandom`。
+ *  - `world.notifyBlocksOfNeighborChange(x, y, z, block)` → [[li.cil.oc.common.tileentity.traits.TileEntity#notifyNeighbors]]；
+ *    `world.markBlockForUpdate(x, y, z)` → [[li.cil.oc.common.tileentity.traits.TileEntity#markBlockForUpdate]]。
+ *  - 删除 `@SideOnly`（NeoForge 会因此抛异常）；`canConnect` 本来就只在客户端调用。
+ *
+ * 降级：
+ *  - `common.EventHandler.scheduleServer(this)` 未移植，见 [[initialize]] 的 TODO；
+ *    [[li.cil.oc.common.tileentity.traits.Environment]] 已在 `initialize()` 里直接
+ *    `api.Network.joinOrCreateNetwork(this)`，语义等价。
+ *  - `ServerPacketSender.sendNetSplitterState(this)` → [[markBlockForUpdate]] + TODO。
+ */
+class NetSplitter(pos: BlockPos, state: BlockState)
+  extends BlockEntityBase(BlockEntityBase.typeOf(state.getBlock), pos, state)
+    with traits.Environment with traits.OpenSides with traits.RedstoneAware with api.network.SidedEnvironment with DeviceInfo {
+
   private lazy val deviceInfo: util.Map[String, String] = Map(
     DeviceAttribute.Class -> DeviceClass.Network,
     DeviceAttribute.Description -> "Ethernet controller",
@@ -25,7 +56,7 @@ class NetSplitter extends traits.Environment with traits.OpenSides with traits.R
     DeviceAttribute.Product -> "NetSplits",
     DeviceAttribute.Version -> "1.0",
     DeviceAttribute.Width -> "6"
-  )
+  ).asJava
 
   override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
@@ -37,7 +68,7 @@ class NetSplitter extends traits.Environment with traits.OpenSides with traits.R
 
   var isInverted = false
 
-  override def isSideOpen(side: Direction): Boolean =  if (isInverted) !super.isSideOpen(side) else super.isSideOpen(side)
+  override def isSideOpen(side: Direction): Boolean = if (isInverted) !super.isSideOpen(side) else super.isSideOpen(side)
 
   override def setSideOpen(side: Direction, value: Boolean): Unit = {
     val previous = isSideOpen(side)
@@ -46,12 +77,14 @@ class NetSplitter extends traits.Environment with traits.OpenSides with traits.R
       if (isServer) {
         node.remove()
         api.Network.joinOrCreateNetwork(this)
-        ServerPacketSender.sendNetSplitterState(this)
-        world.playSoundEffect(x + 0.5, y + 0.5, z + 0.5, "tile.piston.out", 0.5f, world.rand.nextFloat() * 0.25f + 0.7f)
-        world.notifyBlocksOfNeighborChange(x, y, z, block)
+        // TODO(server.PacketSender): 原为 ServerPacketSender.sendNetSplitterState(this)。
+        markBlockForUpdate()
+        world.playSound(null, x + 0.5, y + 0.5, z + 0.5, SoundEvents.PISTON_EXTEND, SoundSource.BLOCKS,
+          0.5f, world.getRandom.nextFloat() * 0.25f + 0.7f)
+        notifyNeighbors()
       }
       else {
-        world.markBlockForUpdate(x, y, z)
+        markBlockForUpdate()
       }
     }
   }
@@ -60,16 +93,19 @@ class NetSplitter extends traits.Environment with traits.OpenSides with traits.R
 
   override def sidedNode(side: Direction): Node = if (isSideOpen(side)) node else null
 
-  @SideOnly(Dist.CLIENT)
+  // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解（该方法只应由客户端渲染调用）。
   override def canConnect(side: Direction): Boolean = isSideOpen(side)
 
   // ----------------------------------------------------------------------- //
 
-  override def canUpdate = false
+  override def canUpdate: Boolean = false
 
   override protected def initialize(): Unit = {
     super.initialize()
-    EventHandler.scheduleServer(this)
+    // 原实现：EventHandler.scheduleServer(this)（把「加入网络」推迟到下一个服务端 tick）。
+    // TODO(common.EventHandler): `common.EventHandler` 未纳入编译范围；1.21.1 的
+    // `BlockEntity#onLoad()` 已经是「方块实体完整加入世界之后」的时机，
+    // 且 traits.Environment 已在这里调用 api.Network.joinOrCreateNetwork(this)，无需再调度。
   }
 
   // ----------------------------------------------------------------------- //
@@ -82,32 +118,34 @@ class NetSplitter extends traits.Environment with traits.OpenSides with traits.R
       if (isServer) {
         node.remove()
         api.Network.joinOrCreateNetwork(this)
-        ServerPacketSender.sendNetSplitterState(this)
-        world.playSoundEffect(x + 0.5, y + 0.5, z + 0.5, "tile.piston.in", 0.5f, world.rand.nextFloat() * 0.25f + 0.7f)
+        // TODO(server.PacketSender): 原为 ServerPacketSender.sendNetSplitterState(this)。
+        markBlockForUpdate()
+        world.playSound(null, x + 0.5, y + 0.5, z + 0.5, SoundEvents.PISTON_CONTRACT, SoundSource.BLOCKS,
+          0.5f, world.getRandom.nextFloat() * 0.25f + 0.7f)
       }
       else {
-        world.markBlockForUpdate(x, y, z)
+        markBlockForUpdate()
       }
     }
   }
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
     isInverted = nbt.getBoolean(Settings.namespace + "isInverted")
   }
 
-  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.putBoolean(Settings.namespace + "isInverted", isInverted)
   }
 
-  @SideOnly(Dist.CLIENT) override
-  def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
+  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     isInverted = nbt.getBoolean(Settings.namespace + "isInverted")
   }
 
-  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.putBoolean(Settings.namespace + "isInverted", isInverted)
   }
@@ -115,7 +153,7 @@ class NetSplitter extends traits.Environment with traits.OpenSides with traits.R
   // component api
   def currentStatus(): mutable.Map[Int, Boolean] = {
     val openSides = mutable.Map[Int, Boolean]()
-    for (side <- Direction.VALID_DIRECTIONS) {
+    for (side <- Direction.values()) {
       openSides += side.ordinal() -> isSideOpen(side)
     }
     openSides
@@ -131,7 +169,7 @@ class NetSplitter extends traits.Environment with traits.OpenSides with traits.R
   def setSides(context: Context, args: Arguments): Array[AnyRef] = {
     val settings = args.checkTable(0)
     val previous = currentStatus()
-    for (side <- Direction.VALID_DIRECTIONS) {
+    for (side <- Direction.values()) {
       val ordinal = side.ordinal()
       val value = if (settings.containsKey(ordinal)) {
         settings.get(ordinal) match {
@@ -148,8 +186,8 @@ class NetSplitter extends traits.Environment with traits.OpenSides with traits.R
   def getSides(context: Context, args: Arguments): Array[AnyRef] = result(currentStatus())
 
   def setSideHelper(args: Arguments, value: Boolean): Array[AnyRef] = {
-    val side = Direction.getOrientation(args.checkInteger(0))
-    if (!Direction.VALID_DIRECTIONS.contains(side))
+    val side = Direction.from3DDataValue(args.checkInteger(0))
+    if (!Direction.values().contains(side))
       return result(Unit, "invalid direction")
     result(setSide(side, value))
   }

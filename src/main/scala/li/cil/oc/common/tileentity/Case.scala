@@ -64,7 +64,9 @@ class Case(pos: BlockPos, state: BlockState)
     DeviceAttribute.Capacity -> getSlots.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.7.10 的 `scala.collection.convert.WrapAsJava._` 提供隐式转换；
+  // 1.21.1（Scala 2.13）改为显式 `.asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 

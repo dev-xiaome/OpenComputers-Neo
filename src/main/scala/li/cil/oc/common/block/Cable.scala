@@ -1,234 +1,220 @@
 package li.cil.oc.common.block
 
 import java.util
-import codechicken.lib.vec.Cuboid6
-import codechicken.multipart.JNormalOcclusion
-import codechicken.multipart.NormalOcclusionTest
-import codechicken.multipart.TFacePart
-import codechicken.multipart.TileMultipart
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import li.cil.oc.Settings
-import li.cil.oc.api.network.Environment
-import li.cil.oc.api.network.SidedComponent
-import li.cil.oc.api.network.SidedEnvironment
-import li.cil.oc.client.Textures
+
+import li.cil.oc.api.network.{Environment, SidedComponent, SidedEnvironment}
 import li.cil.oc.common.tileentity
-import li.cil.oc.integration.Mods
-import li.cil.oc.integration.fmp.CablePart
-import li.cil.oc.util.{Color, ItemColorizer}
-import net.minecraft.world.level.block.Block
-import net.minecraft.client.renderer.texture.IIconRegister
-import net.minecraft.entity.{Entity, LivingEntity}
+import li.cil.oc.util.{Color, InventoryUtils}
+import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.world.entity.{Entity, LivingEntity}
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
+import net.minecraft.world.level.{BlockGetter, Level}
+import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.world.level.block.state.{BlockBehaviour, BlockState}
 import net.minecraft.world.phys.AABB
-import net.minecraft.world.phys.HitResult
-import net.minecraft.world.level.BlockGetter
-import net.minecraft.world.level.Level
-import net.minecraft.core.Direction
 
 import scala.reflect.ClassTag
 
-class Cable(protected implicit val tileTag: ClassTag[tileentity.Cable]) extends SimpleBlock with traits.SpecialBlock with traits.CustomDrops[tileentity.Cable] {
-  setLightOpacity(0)
+/**
+ * 网络线缆（原 1.7.10 `Cable`）。
+ *
+ * 1.21.1 迁移要点：
+ *  - 形状：原 `doSetBlockBoundsBasedOnState` / `addCollisionBoxesToList` 用一组 12/16 见方的
+ *    「中心 + 六条接线臂」包围盒；1.21.1 统一走
+ *    [[SimpleBlockHooks.blockShape]] / [[SimpleBlockHooks.blockCollisionShape]]，这里把
+ *    [[Cable.bounds]]（各臂的并集）转成 `VoxelShape`；`setLightOpacity(0)` 由
+ *    构造属性 [[SimpleBlock.nonOccluding]] 的 `noOcclusion()` 表达；
+ *  - `shouldSideBeRendered` 恒为 `true`（线缆面永不剔除）→ 覆写同名钩子的**取反语义**
+ *    [[SimpleBlockHooks.shouldSideBeRendered]] 返回 `true`；
+ *  - `isSideSolid` 恒为 `false`：1.21.1 由「碰撞形状 + 面坚固判定」取代，不再覆写；
+ *  - 掉落：`CustomDrops` 保证按方块实体的颜色生成带颜色的物品（原 `dropBlockAsItem` →
+ *    [[InventoryUtils.spawnStackInWorld]]）；
+ *  - `getPickBlock`（潜行选取方块时取带颜色的物品）→ 1.21.1 的选取逻辑在客户端，
+ *    TODO(客户端): 原实现从方块实体 `createItemStack()` 取带颜色物品，1.21.1 需要在
+ *    客户端 `BlockEntityRenderer` / 交互层复刻，或改用物品数据组件保存颜色。
+ *  - `createTileEntity` → [[SimpleBlockHooks.createBlockEntity]]，构造为
+ *    `new tileentity.Cable(pos, state)`；
+ *  - 整套图标系统删除（原 `Textures.Cable.iconCap` 是线缆端帽贴图）。
+ *
+ * 纹理（原 `customTextures` 面序 DOWN, UP, NORTH, SOUTH, WEST, EAST）：
+ * 六面都是 `CablePart`（端帽贴图为 `CableCap`，需要线缆专用的烘焙模型/渲染器才能还原，
+ * TODO(客户端): `li.cil.oc.client` 移植后补上线缆模型；FMP / Immibis 微方块版本的面剔除
+ * 也依赖它）。
+ *
+ * ==FMP（ForgeMultipart）集成整块删除==
+ * 1.7.10 的 `Cable` 通过 `integration.fmp.CablePart` 支持「把线缆变成 FMP 微方块」，
+ * 因此 `Cable` 对象里带有 `canConnectFromSideFMP` / `hasMultiPartNode` / `cableColorFMP`
+ * 等分支，并实现 `JNormalOcclusion` / `TFacePart` / `TileMultipart` 的遮挡判定。
+ * `codechicken.multipart.*` 在 1.21.1 不存在（FMP 也从未移植到该版本），
+ * TODO(integration.fmp): 上述分支与方法整块删除；连接判定只看原版方块实体。
+ * 同理，原 `ImmibisMicroblocks_TransformableBlockMarker`（Immibis 微方块标记）与
+ * `canConnectFromSideIM`（`traits.ImmibisMicroblock` 的 `ImmibisMicroblocks_isSideOpen`）
+ * 也一并删除。
+ */
+class Cable(protected implicit val tileTag: ClassTag[tileentity.Cable])
+  extends SimpleBlock(Cable.properties()) with traits.SpecialBlock with traits.CustomDrops[tileentity.Cable] {
 
-  // For Immibis Microblock support.
-  val ImmibisMicroblocks_TransformableBlockMarker = null
-
-  // For FMP part coloring.
-  var colorMultiplierOverride: Option[Int] = None
-
-  override protected def customTextures = Array(
-    Some("CablePart"),
-    Some("CablePart"),
-    Some("CablePart"),
-    Some("CablePart"),
-    Some("CablePart"),
-    Some("CablePart")
-  )
-
-  @SideOnly(Dist.CLIENT)
-  override def registerBlockIcons(iconRegister: IIconRegister): Unit = {
-    super.registerBlockIcons(iconRegister)
-    Textures.Cable.iconCap = iconRegister.registerIcon(Settings.resourceDomain + ":CableCap")
-  }
-
-  override def colorMultiplier(world: IBlockAccess, x: Int, y: Int, z: Int) =
-    colorMultiplierOverride.getOrElse(super.colorMultiplier(world, x, y, z))
-
-  override def shouldSideBeRendered(world: IBlockAccess, x: Int, y: Int, z: Int, side: Direction) = true
-
-  override def isSideSolid(world: IBlockAccess, x: Int, y: Int, z: Int, side: Direction) = false
+  // 注：原 `colorMultiplierOverride`（FMP 部件染色用）与
+  // `ImmibisMicroblocks_TransformableBlockMarker` 随对应集成一起删除。
 
   // ----------------------------------------------------------------------- //
+  // 形状
+  // ----------------------------------------------------------------------- //
 
-  override def getPickBlock(target: HitResult, world: Level, x: Int, y: Int, z: Int) =
-    world.getTileEntity(x, y, z) match {
-      case t: tileentity.Cable => t.createItemStack()
-      case _ => null
+  override def shouldSideBeRendered(state: BlockState, adjacentState: BlockState, side: Direction): Boolean = true
+
+  override def blockShape(state: BlockState, level: BlockGetter, pos: BlockPos, context: net.minecraft.world.phys.shapes.CollisionContext): net.minecraft.world.phys.shapes.VoxelShape =
+    shape(Cable.bounds(level, pos))
+
+  // ----------------------------------------------------------------------- //
+  // 方块实体
+  // ----------------------------------------------------------------------- //
+
+  override def createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity =
+    new tileentity.Cable(pos, state)
+
+  // ----------------------------------------------------------------------- //
+  // 邻居变化
+  // ----------------------------------------------------------------------- //
+
+  override def onNeighborBlockChange(state: BlockState, level: Level, pos: BlockPos, neighborBlock: Block): Unit = {
+    // 原实现只做一次方块更新，让客户端重算线缆形状。
+    level.sendBlockUpdated(pos, state, state, Block.UPDATE_CLIENTS)
+    super.onNeighborBlockChange(state, level, pos, neighborBlock)
+  }
+
+  // ----------------------------------------------------------------------- //
+  // 放置 / 掉落
+  // ----------------------------------------------------------------------- //
+
+  override protected def doCustomInit(tile: tileentity.Cable, player: LivingEntity, stack: ItemStack): Unit = {
+    super.doCustomInit(tile, player, stack)
+    if (!tile.world.isClientSide) {
+      tile.fromItemStack(stack)
     }
-
-  // ----------------------------------------------------------------------- //
-
-  override def hasTileEntity(metadata: Int) = true
-
-  override def createTileEntity(world: Level, metadata: Int) = new tileentity.Cable()
-
-  // ----------------------------------------------------------------------- //
-
-  override def onNeighborBlockChange(world: Level, x: Int, y: Int, z: Int, block: Block): Unit = {
-    world.markBlockForUpdate(x, y, z)
-    super.onNeighborBlockChange(world, x, y, z, block)
   }
 
-  override protected def doSetBlockBoundsBasedOnState(world: IBlockAccess, x: Int, y: Int, z: Int): Unit = {
-    setBlockBounds(Cable.bounds(world, x, y, z))
-  }
-
-  override def addCollisionBoxesToList(world: Level, x: Int, y: Int, z: Int, entityBox: AABB, boxes: util.List[_], entity: Entity): Unit = {
-    Cable.parts(world, x, y, z, entityBox, boxes.asInstanceOf[util.List[AABB]])
-  }
-
-  override protected def doCustomInit(tileEntity: tileentity.Cable, player: LivingEntity, stack: ItemStack): Unit = {
-    super.doCustomInit(tileEntity, player, stack)
-    if (!tileEntity.world.isRemote) {
-      tileEntity.fromItemStack(stack)
-    }
-  }
-
-  override protected def doCustomDrops(tileEntity: tileentity.Cable, player: Player, willHarvest: Boolean): Unit = {
-    super.doCustomDrops(tileEntity, player, willHarvest)
-    if (!player.capabilities.isCreativeMode) {
-      dropBlockAsItem(tileEntity.world, tileEntity.x, tileEntity.y, tileEntity.z, tileEntity.createItemStack())
+  override protected def doCustomDrops(tile: tileentity.Cable, player: Player, willHarvest: Boolean): Unit = {
+    super.doCustomDrops(tile, player, willHarvest)
+    if (!player.isCreative) {
+      InventoryUtils.spawnStackInWorld(tile.position, tile.createItemStack())
     }
   }
 }
 
 object Cable {
+  /** 线缆是非完整方块，需要 `noOcclusion()`（等价于原 `setLightOpacity(0)`）。 */
+  def properties(): BlockBehaviour.Properties = SimpleBlock.nonOccluding()
+
   private final val MIN = 0.375
   private final val MAX = 1 - MIN
 
-  final val center: AABB = AABB.getBoundingBox(MIN, MIN, MIN, MAX, MAX, MAX)
+  /** 中心立方体（12/16 见方）。 */
+  val center: AABB = new AABB(MIN, MIN, MIN, MAX, MAX, MAX)
 
-  final val cachedParts: Array[AABB] = Array(
-    AABB.getBoundingBox( MIN, 0, MIN, MAX, MIN, MAX ), // Down
-    AABB.getBoundingBox( MIN, MAX, MIN, MAX, 1, MAX ), // Up
-    AABB.getBoundingBox( MIN, MIN, 0, MAX, MAX, MIN ), // North
-    AABB.getBoundingBox( MIN, MIN, MAX, MAX, MAX, 1 ), // South
-    AABB.getBoundingBox( 0, MIN, MIN, MIN, MAX, MAX ), // West
-    AABB.getBoundingBox( MAX, MIN, MIN, 1, MAX, MAX )) // East
+  /** 六条接线臂，下标与 `Direction#ordinal` 一致（DOWN, UP, NORTH, SOUTH, WEST, EAST）。 */
+  val cachedParts: Array[AABB] = Array(
+    new AABB(MIN, 0, MIN, MAX, MIN, MAX), // Down
+    new AABB(MIN, MAX, MIN, MAX, 1, MAX), // Up
+    new AABB(MIN, MIN, 0, MAX, MAX, MIN), // North
+    new AABB(MIN, MIN, MAX, MAX, MAX, 1), // South
+    new AABB(0, MIN, MIN, MIN, MAX, MAX), // West
+    new AABB(MAX, MIN, MIN, 1, MAX, MAX)) // East
 
-  val cachedBounds = {
+  /** 六个方向共 2^6 种组合，预先并成包围盒。 */
+  val cachedBounds: Array[AABB] = {
     // 6 directions = 6 bits = 11111111b >> 2 = 0xFF >> 2
     (0 to 0xFF >> 2).map(mask => {
-      val center = Cable.center.copy()
-
-      // Union all boxes together
-      Direction.VALID_DIRECTIONS.foldLeft(center)((bound, side) => {
-        if ((side.flag & mask) != 0) bound.func_111270_a(Cable.cachedParts(side.ordinal()))
-        else bound
-      })
+      Direction.values().foldLeft(center)((bound, side) =>
+        if ((1 << side.ordinal & mask) != 0) union(bound, cachedParts(side.ordinal))
+        else bound)
     }).toArray
   }
 
-  def neighbors(world: IBlockAccess, x: Int, y: Int, z: Int) = {
+  /** `AABB#minmax` 的替代：把两个包围盒并起来（1.21.1 不再提供 `func_111270_a`）。 */
+  private def union(a: AABB, b: AABB): AABB =
+    new AABB(
+      math.min(a.minX, b.minX), math.min(a.minY, b.minY), math.min(a.minZ, b.minZ),
+      math.max(a.maxX, b.maxX), math.max(a.maxY, b.maxY), math.max(a.maxZ, b.maxZ))
+
+  /**
+   * 计算某坐标的线缆连接掩码（原 `neighbors(world, x, y, z)`）。
+   *
+   * 1.21.1 里 `ForgeDirection#flag` 等价于 `1 << ordinal`，方向跳过空气与未加载的区块。
+   * FMP / Immibis 相关的判定已删除（见类注释）。
+   */
+  def neighbors(level: BlockGetter, pos: BlockPos): Int = {
     var result = 0
-    val tileEntity = world.getTileEntity(x, y, z)
-    for (side <- Direction.VALID_DIRECTIONS) {
-      val (tx, ty, tz) = (x + side.offsetX, y + side.offsetY, z + side.offsetZ)
-      if (world match {
-        case world: Level => world.blockExists(tx, ty, tz)
-        case _ => !world.isAirBlock(tx, ty, tz)
-      }) {
-        val neighborTileEntity = world.getTileEntity(tx, ty, tz)
+    val tileEntity = level.getBlockEntity(pos)
+    for (side <- Direction.values()) {
+      val neighborPos = pos.relative(side)
+      if (isLoaded(level, neighborPos)) {
+        val neighborTileEntity = level.getBlockEntity(neighborPos)
         val neighborHasNode = hasNetworkNode(neighborTileEntity, side.getOpposite)
         val canConnectColor = canConnectBasedOnColor(tileEntity, neighborTileEntity)
-        val canConnectFMP = !Mods.ForgeMultipart.isAvailable ||
-          (canConnectFromSideFMP(tileEntity, side) && canConnectFromSideFMP(neighborTileEntity, side.getOpposite))
-        val canConnectIM = canConnectFromSideIM(tileEntity, side) && canConnectFromSideIM(neighborTileEntity, side.getOpposite)
-        if (neighborHasNode && canConnectColor && canConnectFMP && canConnectIM) {
-          result |= side.flag
+        if (neighborHasNode && canConnectColor) {
+          result |= 1 << side.ordinal
         }
       }
     }
     result
   }
 
-  def bounds(world: IBlockAccess, x: Int, y: Int, z: Int) = Cable.cachedBounds(Cable.neighbors(world, x, y, z)).copy()
+  /** 原「`blockExists` / `!isAirBlock`」的等价实现（服务端要求区块已加载，客户端只排除空气）。 */
+  private def isLoaded(level: BlockGetter, pos: BlockPos): Boolean = level match {
+    case reader: net.minecraft.world.level.LevelReader => reader.isLoaded(pos)
+    case _ => !level.getBlockState(pos).isAir
+  }
 
-  def parts(world: IBlockAccess, x: Int, y: Int, z: Int, entityBox : AABB, boxes : util.List[AABB]) = {
-    val center = Cable.center.getOffsetBoundingBox(x, y, z)
-    if (entityBox.intersectsWith(center)) boxes.add(center)
+  /** 某坐标的线缆包围盒（原 `bounds`）。 */
+  def bounds(level: BlockGetter, pos: BlockPos): AABB =
+    cachedBounds(neighbors(level, pos))
 
-    val flag = Cable.neighbors(world, x, y, z)
-    for (side <- Direction.VALID_DIRECTIONS) {
-      if ((side.flag & flag) != 0) {
-        val part = Cable.cachedParts(side.ordinal()).getOffsetBoundingBox(x, y, z)
-        if (entityBox.intersectsWith(part)) boxes.add(part)
+  /** 某坐标的线缆组成部件（原 `parts`，供 `BlockEntity#getRenderBoundingBox` 等使用）。 */
+  def parts(level: BlockGetter, pos: BlockPos, entityBox: AABB, boxes: util.List[AABB]): Unit = {
+    val centerBox = center.move(pos.getX, pos.getY, pos.getZ)
+    if (entityBox.intersects(centerBox)) boxes.add(centerBox)
+
+    val flag = neighbors(level, pos)
+    for (side <- Direction.values()) {
+      if ((1 << side.ordinal & flag) != 0) {
+        val part = cachedParts(side.ordinal).move(pos.getX, pos.getY, pos.getZ)
+        if (entityBox.intersects(part)) boxes.add(part)
       }
     }
   }
 
-  private def hasNetworkNode(tileEntity: BlockEntity, side: Direction) =
+  /**
+   * 该方块实体是否提供网络节点（原 `hasNetworkNode`）。
+   *
+   * TODO(integration.fmp): 原末尾还有 `case host if Mods.ForgeMultipart.isAvailable =>
+   * hasMultiPartNode(tileEntity)` 分支，随 FMP 集成整块删除。
+   */
+  private def hasNetworkNode(tileEntity: BlockEntity, side: Direction): Boolean =
     tileEntity match {
-      case robot: tileentity.RobotProxy => false
+      // 机器人代理本身不当作线缆节点（避免机器人移动时误连）。
+      case _: tileentity.RobotProxy => false
       case host: SidedEnvironment =>
-        if (host.getWorldObj.isRemote) host.canConnect(side)
+        if (host.getLevel.isClientSide) host.canConnect(side)
         else host.sidedNode(side) != null
       case host: Environment with SidedComponent =>
         host.canConnectNode(side)
-      case host: Environment => true
-      case host if Mods.ForgeMultipart.isAvailable => hasMultiPartNode(tileEntity)
+      case _: Environment => true
       case _ => false
     }
 
-  private def hasMultiPartNode(tileEntity: BlockEntity) =
-    tileEntity match {
-      case host: TileMultipart => host.partList.exists(_.isInstanceOf[CablePart])
-      case _ => false
-    }
-
-  private def cableColor(tileEntity: BlockEntity) =
+  /** 线缆颜色（原 `cableColor`，FMP 部件分支已删除）。 */
+  private def cableColor(tileEntity: BlockEntity): Int =
     tileEntity match {
       case cable: tileentity.Cable => cable.color
-      case _ =>
-        if (Mods.ForgeMultipart.isAvailable) cableColorFMP(tileEntity)
-        else Color.LightGray
-    }
-
-  private def cableColorFMP(tileEntity: BlockEntity) =
-    tileEntity match {
-      case host: TileMultipart => (host.partList collect {
-        case cable: CablePart => cable.color
-      }).headOption.getOrElse(Color.LightGray)
       case _ => Color.LightGray
     }
 
-  private def canConnectBasedOnColor(te1: BlockEntity, te2: BlockEntity) = {
+  /** 只有颜色相同、或其中一方是未染色（浅灰）时才能相连。 */
+  private def canConnectBasedOnColor(te1: BlockEntity, te2: BlockEntity): Boolean = {
     val (c1, c2) = (cableColor(te1), cableColor(te2))
     c1 == c2 || c1 == Color.LightGray || c2 == Color.LightGray
   }
-
-  private def canConnectFromSideFMP(tileEntity: BlockEntity, side: Direction) =
-    tileEntity match {
-      case host: TileMultipart =>
-        host.partList.forall {
-          case part: JNormalOcclusion if !part.isInstanceOf[CablePart] =>
-            import scala.jdk.CollectionConverters._
-            val ownBounds = Iterable(new Cuboid6(cachedBounds(side.flag)))
-            val otherBounds = part.getOcclusionBoxes
-            NormalOcclusionTest(ownBounds, otherBounds)
-          case part: TFacePart => !part.solid(side.ordinal) || (part.getSlotMask & codechicken.multipart.PartMap.face(side.ordinal).mask) == 0
-          case _ => true
-        }
-      case _ => true
-    }
-
-  private def canConnectFromSideIM(tileEntity: BlockEntity, side: Direction) =
-    tileEntity match {
-      case im: tileentity.traits.ImmibisMicroblock => im.ImmibisMicroblocks_isSideOpen(side.ordinal)
-      case _ => true
-    }
 }

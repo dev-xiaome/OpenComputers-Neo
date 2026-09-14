@@ -27,7 +27,7 @@ import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.state.BlockState
 import net.neoforged.neoforge.common.NeoForge
-import net.neoforged.neoforge.fluids.{FluidStack, IFluidTank}
+import net.neoforged.neoforge.fluids.FluidStack
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
 
@@ -759,20 +759,27 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
   // ----------------------------------------------------------------------- //
   // 储罐（原 1.7.10 的 `IFluidHandler`，1.21.1 为 NeoForge 版 + `MultiTank`）
 
-  def tryGetTank(tank: Int): Option[IFluidTank] = {
+  /**
+   * 取第 `index` 个储罐。
+   *
+   * TODO(server.component): 1.7.10 里升级槽里的储罐组件是 `server.component.Tank`
+   * （实现 `IFluidHandler` 的单罐）。`server.component` 未纳入本次编译范围，
+   * 因此这里只按 `IFluidHandler` 判定，不依赖具体实现类。
+   */
+  def tryGetTank(index: Int): Option[IFluidHandler] = {
     val tanks = components.collect {
-      case Some(t: IFluidTank) => t
+      case Some(t: IFluidHandler) => t
     }
-    if (tank < 0 || tank >= tanks.length) None
-    else Option(tanks(tank))
+    if (index < 0 || index >= tanks.length) None
+    else Option(tanks(index))
   }
 
   def tankCount = components.count {
-    case Some(_: IFluidTank) => true
+    case Some(_: IFluidHandler) => true
     case _ => false
   }
 
-  def getFluidTank(tank: Int): IFluidTank = tryGetTank(tank).orNull
+  def getFluidTank(index: Int): IFluidHandler = tryGetTank(index).orNull
 
   // ----------------------------------------------------------------------- //
 

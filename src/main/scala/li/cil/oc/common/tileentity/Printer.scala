@@ -2,31 +2,55 @@ package li.cil.oc.common.tileentity
 
 import java.util
 
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.driver.DeviceInfo
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
 import li.cil.oc.common.item.data.PrintData
-import li.cil.oc.server.{PacketSender => ServerPacketSender}
+import li.cil.oc.util.ExtendedNBT
 import li.cil.oc.util.ExtendedNBT._
-import net.minecraft.inventory.ISidedInventory
-import net.minecraft.world.item.ItemStack
+import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.phys.AABB
-import net.minecraft.core.Direction
 
 import scala.jdk.CollectionConverters._
 
-class Printer extends traits.Environment with traits.Inventory with traits.Rotatable with SidedEnvironment with traits.StateAware with ISidedInventory with DeviceInfo {
-  val node = api.Network.newNode(this, Visibility.Network).
+/**
+ * 3D 打印机（原 1.7.10 `common.tileentity.Printer`）。
+ *
+ * 纹理：下/上 = PrinterTop，北 = PrinterFront，南 = PrinterBack，其它 = PrinterSide。
+ *
+ * 1.21.1 迁移要点：
+ *  - 构造函数改为 `(pos, state)`，方块实体类型由方块反查（见 [[BlockEntityBase.typeOf]]）。
+ *  - `ISidedInventory` 已移除：物品栏改为 `IItemHandler`（由 [[traits.Inventory]] 提供），
+ *    `getSizeInventory` → `getSlots`、`isItemValidForSlot` → `isItemValid`。
+ *    原来按面限制槽位的方法（[[getAccessibleSlotsFromSide]] / [[canInsertItem]] /
+ *    [[canExtractItem]]）保留为普通方法，供 `Registry` 注册按面的物品能力时使用。
+ *  - `updateEntity()` → [[li.cil.oc.common.tileentity.traits.TileEntity#tick]]（覆写时先 `super.tick()`）。
+ *  - `world.markBlockForUpdate(x, y, z)` → [[li.cil.oc.common.tileentity.traits.TileEntity#markBlockForUpdate]]。
+ *  - `AABB.getBoundingBox(...)` → `new AABB(...)`；
+ *    `presentStack.isItemEqual(out) && ItemStack.areItemStackTagsEqual(...)` →
+ *    `ItemStack.isSameItemSameComponents`（1.21.1 的物品组件同时涵盖旧版 damage + NBT）。
+ *  - `Item#hasContainerItem/getContainerItem` → `ItemStack#getCraftingRemainingItem`。
+ *  - `stack.stackSize` → `stack.getCount` / `stack.setCount`；
+ *    `nbt.getInteger` → `nbt.getInt`；`ItemStack.loadItemStackFromNBT` → `ItemStack.parseOptional`。
+ *  - 删除 `@SideOnly`（NeoForge 会因此抛异常）。
+ *
+ * 降级：原 `ServerPacketSender.sendPrinting(this, printing)` → [[markBlockForUpdate]] + TODO。
+ */
+class Printer(pos: BlockPos, state: BlockState)
+  extends BlockEntityBase(BlockEntityBase.typeOf(state.getBlock), pos, state)
+    with traits.Environment with traits.Inventory with traits.Rotatable with SidedEnvironment with traits.StateAware with DeviceInfo {
+
+  val node: Node = api.Network.newNode(this, Visibility.Network).
     withComponent("printer3d").
     withConnector(Settings.get.bufferConverter).
     create()
@@ -54,16 +78,18 @@ class Printer extends traits.Environment with traits.Inventory with traits.Rotat
     DeviceAttribute.Product -> "Omni-Materializer T6.1"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.7.10 的 `scala.collection.convert.WrapAsJava._` 提供隐式转换；
+  // 1.21.1（Scala 2.13）改为显式 `.asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
-  @SideOnly(Dist.CLIENT)
-  override def canConnect(side: Direction) = side != Direction.UP
+  // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解（该方法只应由客户端渲染调用）。
+  override def canConnect(side: Direction): Boolean = side != Direction.UP
 
-  override def sidedNode(side: Direction) = if (side != Direction.UP) node else null
+  override def sidedNode(side: Direction): Node = if (side != Direction.UP) node else null
 
-  override def getCurrentState = {
+  override def getCurrentState: util.EnumSet[api.util.StateAware.State] = {
     if (isPrinting) util.EnumSet.of(api.util.StateAware.State.IsWorking)
     else if (canPrint) util.EnumSet.of(api.util.StateAware.State.CanWork)
     else util.EnumSet.noneOf(classOf[api.util.StateAware.State])
@@ -71,13 +97,13 @@ class Printer extends traits.Environment with traits.Inventory with traits.Rotat
 
   // ----------------------------------------------------------------------- //
 
-  def canPrint = data.stateOff.nonEmpty && data.stateOff.size <= Settings.get.maxPrintComplexity && data.stateOn.size <= Settings.get.maxPrintComplexity
+  def canPrint: Boolean = data.stateOff.nonEmpty && data.stateOff.size <= Settings.get.maxPrintComplexity && data.stateOn.size <= Settings.get.maxPrintComplexity
 
-  def isPrinting = output.isDefined
+  def isPrinting: Boolean = output.isDefined
 
-  def progress = (1 - requiredEnergy / totalRequiredEnergy) * 100
+  def progress: Double = (1 - requiredEnergy / totalRequiredEnergy) * 100
 
-  def timeRemaining = (requiredEnergy / Settings.get.assemblerTickAmount / 20).toInt
+  def timeRemaining: Int = (requiredEnergy / Settings.get.assemblerTickAmount / 20).toInt
 
   // ----------------------------------------------------------------------- //
 
@@ -184,7 +210,8 @@ class Printer extends traits.Environment with traits.Inventory with traits.Rotat
     if (minZ == maxZ) throw new IllegalArgumentException("empty block")
 
     val list = if (state) data.stateOn else data.stateOff
-    list += new PrintData.Shape(AABB.getBoundingBox(
+    // 原 `AABB.getBoundingBox(...)`；1.21.1 直接用构造器。
+    list += new PrintData.Shape(new AABB(
       math.min(minX, maxX),
       math.min(minY, maxY),
       math.min(minZ, maxZ),
@@ -194,7 +221,7 @@ class Printer extends traits.Environment with traits.Inventory with traits.Rotat
       texture, tint)
     isActive = false // Needs committing.
 
-    world.markBlockForUpdate(x, y, z)
+    markBlockForUpdate()
 
     result(true)
   }
@@ -224,15 +251,15 @@ class Printer extends traits.Environment with traits.Inventory with traits.Rotat
 
   // ----------------------------------------------------------------------- //
 
-  override def canUpdate = isServer
+  override def canUpdate: Boolean = isServer
 
-  override def updateEntity(): Unit = {
-    super.updateEntity()
+  override def tick(): Unit = {
+    super.tick()
 
-    def canMergeOutput = {
+    def canMergeOutput: Boolean = {
       val presentStack = getStackInSlot(slotOutput)
       val outputStack = data.createItemStack()
-      presentStack == null || (presentStack.isItemEqual(outputStack) && ItemStack.areItemStackTagsEqual(presentStack, outputStack))
+      presentStack == null || presentStack.isEmpty || ItemStack.isSameItemSameComponents(presentStack, outputStack)
     }
 
     if (isActive && output.isEmpty && canMergeOutput) {
@@ -247,7 +274,8 @@ class Printer extends traits.Environment with traits.Inventory with traits.Rotat
             limit -= 1
             output = Option(data.createItemStack())
             if (limit < 1) isActive = false
-            ServerPacketSender.sendPrinting(this, printing = true)
+            // TODO(server.PacketSender): 原为 ServerPacketSender.sendPrinting(this, printing = true)。
+            markBlockForUpdate()
           }
         case _ =>
           isActive = false
@@ -260,12 +288,12 @@ class Printer extends traits.Environment with traits.Inventory with traits.Rotat
       val have = want + (if (Settings.get.ignorePower) 0 else node.changeBuffer(-want))
       requiredEnergy -= have
       if (requiredEnergy <= 0) {
-        val result = getStackInSlot(slotOutput)
-        if (result == null) {
+        val present = getStackInSlot(slotOutput)
+        if (present == null || present.isEmpty) {
           setInventorySlotContents(slotOutput, output.get)
         }
-        else if (result.stackSize < result.getMaxStackSize && canMergeOutput /* Should never fail, but just in case... */ ) {
-          result.stackSize += 1
+        else if (present.getCount < present.getMaxStackSize && canMergeOutput /* Should never fail, but just in case... */ ) {
+          present.grow(1)
           markDirty()
         }
         else {
@@ -274,63 +302,68 @@ class Printer extends traits.Environment with traits.Inventory with traits.Rotat
         requiredEnergy = 0
         output = None
       }
-      ServerPacketSender.sendPrinting(this, have > 0.5 && output.isDefined)
+      // TODO(server.PacketSender): 原为 ServerPacketSender.sendPrinting(this, have > 0.5 && output.isDefined)。
+      markBlockForUpdate()
     }
 
     val inputValue = PrintData.materialValue(getStackInSlot(slotMaterial))
     if (inputValue > 0 && maxAmountMaterial - amountMaterial >= inputValue) {
-      val material = decrStackSize(slotMaterial, 1)
-      if (material != null) {
+      val material = extractItem(slotMaterial, 1, false)
+      if (material != null && !material.isEmpty) {
         amountMaterial += inputValue
       }
     }
 
     val inkValue = PrintData.inkValue(getStackInSlot(slotInk))
     if (inkValue > 0 && maxAmountInk - amountInk >= inkValue) {
-      val material = decrStackSize(slotInk, 1)
-      if (material != null) {
+      val material = extractItem(slotInk, 1, false)
+      if (material != null && !material.isEmpty) {
         amountInk += inkValue
-        if (material.getItem.hasContainerItem(material)) {
-          setInventorySlotContents(slotInk, material.getItem.getContainerItem(material))
+        // 原 `Item#hasContainerItem/getContainerItem`；1.21.1 合并为 `ItemStack#getCraftingRemainingItem`。
+        val container = material.getCraftingRemainingItem
+        if (container != null && !container.isEmpty) {
+          setInventorySlotContents(slotInk, container)
         }
       }
     }
   }
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
-    amountMaterial = nbt.getInteger(Settings.namespace + "amountMaterial")
-    amountInk = nbt.getInteger(Settings.namespace + "amountInk")
+    amountMaterial = nbt.getInt(Settings.namespace + "amountMaterial")
+    amountInk = nbt.getInt(Settings.namespace + "amountInk")
     data.load(nbt.getCompound(Settings.namespace + "data"))
     isActive = nbt.getBoolean(Settings.namespace + "active")
-    limit = nbt.getInteger(Settings.namespace + "limit")
+    limit = nbt.getInt(Settings.namespace + "limit")
     if (nbt.contains(Settings.namespace + "output")) {
-      output = Option(ItemStack.loadItemStackFromNBT(nbt.getCompound(Settings.namespace + "output")))
+      output = Option(ItemStack.parseOptional(ExtendedNBT.fallbackRegistry, nbt.getCompound(Settings.namespace + "output"))).
+        filter(stack => stack != null && !stack.isEmpty)
     }
     totalRequiredEnergy = nbt.getDouble(Settings.namespace + "total")
     requiredEnergy = nbt.getDouble(Settings.namespace + "remaining")
   }
 
-  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     nbt.putInt(Settings.namespace + "amountMaterial", amountMaterial)
     nbt.putInt(Settings.namespace + "amountInk", amountInk)
     nbt.setNewCompoundTag(Settings.namespace + "data", data.save)
     nbt.putBoolean(Settings.namespace + "active", isActive)
     nbt.putInt(Settings.namespace + "limit", limit)
-    output.foreach(stack => nbt.setNewCompoundTag(Settings.namespace + "output", stack.writeToNBT))
+    output.foreach(stack => nbt.setNewCompoundTag(Settings.namespace + "output",
+      (tag: CompoundTag) => stack.save(ExtendedNBT.fallbackRegistry, tag)))
     nbt.putDouble(Settings.namespace + "total", totalRequiredEnergy)
     nbt.putDouble(Settings.namespace + "remaining", requiredEnergy)
   }
 
-  @SideOnly(Dist.CLIENT) override
-  def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  // 原 `@SideOnly(Side.CLIENT)`；1.21.1 删除注解。
+  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
     data.load(nbt.getCompound(Settings.namespace + "data"))
     requiredEnergy = nbt.getDouble("remaining")
   }
 
-  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
     nbt.setNewCompoundTag(Settings.namespace + "data", data.save)
     nbt.putDouble("remaining", requiredEnergy)
@@ -338,9 +371,11 @@ class Printer extends traits.Environment with traits.Inventory with traits.Rotat
 
   // ----------------------------------------------------------------------- //
 
-  override def getSizeInventory = 3
+  override def getSlots: Int = 3
 
-  override def isItemValidForSlot(slot: Int, stack: ItemStack) =
+  override def getSlotLimit(slot: Int): Int = 64
+
+  override def isItemValid(slot: Int, stack: ItemStack): Boolean =
     if (slot == slotMaterial)
       PrintData.materialValue(stack) > 0
     else if (slot == slotInk)
@@ -348,10 +383,15 @@ class Printer extends traits.Environment with traits.Inventory with traits.Rotat
     else false
 
   // ----------------------------------------------------------------------- //
+  // 旧 `ISidedInventory` 的按面访问限制。
+  //
+  // TODO(能力): 1.21.1 的面区分由 `Capabilities.ItemHandler.BLOCK` 的能力提供方按面返回不同的
+  // `IItemHandler` 实现来完成。下面三个方法保持原语义，供 `Registry` 注册能力时构造按面包装。
+  // ----------------------------------------------------------------------- //
 
-  override def getAccessibleSlotsFromSide(side: Int): Array[Int] = Array(slotMaterial, slotInk, slotOutput)
+  def getAccessibleSlotsFromSide(side: Int): Array[Int] = Array(slotMaterial, slotInk, slotOutput)
 
-  override def canExtractItem(slot: Int, stack: ItemStack, side: Int): Boolean = !isItemValidForSlot(slot, stack)
+  def canExtractItem(slot: Int, stack: ItemStack, side: Int): Boolean = !isItemValid(slot, stack)
 
-  override def canInsertItem(slot: Int, stack: ItemStack, side: Int): Boolean = slot != slotOutput
+  def canInsertItem(slot: Int, stack: ItemStack, side: Int): Boolean = slot != slotOutput
 }

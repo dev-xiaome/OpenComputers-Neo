@@ -2,9 +2,6 @@ package li.cil.oc.common.tileentity
 
 import java.util
 
-import cpw.mods.fml.common.Optional.Method
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.Driver
@@ -21,27 +18,53 @@ import li.cil.oc.api.network.Packet
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.common.Slot
 import li.cil.oc.common.tileentity.traits.RedstoneChangedEventArgs
-import li.cil.oc.integration.Mods
-import li.cil.oc.integration.opencomputers.DriverRedstoneCard
-import li.cil.oc.integration.stargatetech2.DriverAbstractBusCard
-import li.cil.oc.server.{PacketSender => ServerPacketSender}
-import li.cil.oc.util.ExtendedInventory._
 import li.cil.oc.util.ExtendedNBT._
+import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.nbt.{CompoundTag, IntArrayTag, Tag}
 import net.minecraft.world.entity.player.Player
-import net.minecraft.inventory.IInventory
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.nbt.IntArrayTag
-import net.minecraftforge.common.util.Constants.NBT
-import net.minecraft.core.Direction
+import net.minecraft.world.level.block.state.BlockState
 
 import scala.jdk.CollectionConverters._
-import scala.jdk.CollectionConverters._
 
-class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalancer with traits.ComponentInventory with traits.Rotatable with traits.BundledRedstoneAware with traits.AbstractBusAware with Analyzable with internal.Rack with traits.StateAware {
+/**
+ * 机架方块实体（原 1.7.10 `common.tileentity.Rack`）：4 个槽位，可安装服务器 / 交换机 /
+ * 磁盘驱动器等「机架可装载物」（[[RackMountable]]），并可作为组件总线在各面之间中继。
+ *
+ * 纹理：正面 = RackFront（4 个装载槽），其它 = RackSide。
+ *
+ * ==1.21.1 迁移要点==
+ *  - 构造函数只有 `(pos, state)`，方块实体类型由方块反查。
+ *  - `updateEntity()` → [[traits.TileEntity#tick]]（覆写时先调 `super.tick()`）。
+ *  - `getSizeInventory` → `getSlots`、`getInventoryStackLimit` → `getSlotLimit`、
+ *    `isItemValidForSlot` → `isItemValid`。
+ *  - `ForgeDirection` → `Direction`（没有 `UNKNOWN`：`nodeMapping` 的「无连接」用 `None` 表示，
+ *    序列化时写 `-1`；原来用于表示「未知」的旧序号 3 也一并按 `None` 处理）。
+ *  - `NBTTagIntArray#func_150302_c()` → `IntArrayTag#getAsIntArray`。
+ *  - 删除 `@SideOnly`（NeoForge 会因此抛异常）；客户端专用逻辑用注释标注。
+ *
+ * ==降级清单==
+ *  - `server.PacketSender`（`sendRackInventory` / `sendRackMountableData`）→ 方块更新 + 同步标签。
+ *  - `integration.opencomputers.DriverRedstoneCard` / `integration.stargatetech2.DriverAbstractBusCard`
+ *    → `hasRedstoneCard` / `hasAbstractBusCard` 恒为 `false`。
+ *  - `integration.Mods`（StargateTech2 抽象总线设备注册）→ 已整体移除。
+ */
+class Rack(pos: BlockPos, state: BlockState)
+  extends BlockEntityBase(BlockEntityBase.typeOf(state.getBlock), pos, state)
+    with traits.PowerAcceptor
+    with traits.Hub
+    with traits.PowerBalancer
+    with traits.ComponentInventory
+    with traits.Rotatable
+    with traits.BundledRedstoneAware
+    with traits.AbstractBusAware
+    with Analyzable
+    with internal.Rack
+    with traits.StateAware {
+
   var isRelayEnabled = false
-  val lastData = new Array[CompoundTag](getSizeInventory)
-  val hasChanged = Array.fill(getSizeInventory)(true)
+  val lastData = new Array[CompoundTag](getSlots)
+  val hasChanged = Array.fill(getSlots)(true)
 
   // Map node connections for each installed mountable. Each mountable may
   // have up to four outgoing connections, with the first one always being
@@ -50,12 +73,14 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
   // The other nodes are "secondary" connections and merely transfer network
   // messages.
   // mountable -> connectable -> side
-  val nodeMapping = Array.fill(getSizeInventory)(Array.fill[Option[Direction]](4)(None))
-  val snifferNodes = Array.fill(getSizeInventory)(Array.fill(3)(api.Network.newNode(this, Visibility.Neighbors).create()))
+  val nodeMapping = Array.fill(getSlots)(Array.fill[Option[Direction]](4)(None))
+  val snifferNodes = Array.fill(getSlots)(Array.fill(3)(api.Network.newNode(this, Visibility.Neighbors).create()))
 
   def connect(slot: Int, connectableIndex: Int, side: Option[Direction]): Unit = {
+    // 1.21.1 的 `Direction` 没有 `UNKNOWN`；旧代码里表示「无连接」的 SOUTH 序号也是
+    // `Direction.SOUTH`（+Z），因此两者都映射为 `None`。
     val newSide = side match {
-      case Some(direction) if direction != Direction.UNKNOWN && direction != Direction.SOUTH => Option(direction)
+      case Some(direction) if direction != Direction.SOUTH => Option(direction)
       case _ => None
     }
 
@@ -101,7 +126,7 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
   }
 
   private def reconnect(plugSide: Direction): Unit = {
-    for (slot <- 0 until getSizeInventory) {
+    for (slot <- 0 until getSlots) {
       val mapping = nodeMapping(slot)
       mapping(0) match {
         case Some(side) if toGlobal(side) == plugSide =>
@@ -136,7 +161,7 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
     // When a message arrives on a bus, also send it to all secondary nodes
     // connected to it. Only deliver it to that very node, if it's not the
     // sender, to avoid loops.
-    for (slot <- 0 until getSizeInventory) {
+    for (slot <- 0 until getSlots) {
       val mapping = nodeMapping(slot)
       for (connectableIndex <- 0 until 3) {
         mapping(connectableIndex + 1) match {
@@ -197,7 +222,7 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
   }
 
   private def relayIfMessageFromConnectable(message: Message, packet: Packet): Unit = {
-    for (slot <- 0 until getSizeInventory) {
+    for (slot <- 0 until getSlots) {
       val mountable = getMountable(slot)
       if (mountable != null) {
         val mapping = nodeMapping(slot)
@@ -207,7 +232,8 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
               if (connectableIndex < mountable.getConnectableCount) {
                 val connectable = mountable.getConnectableAt(connectableIndex)
                 if (connectable != null && connectable.node == message.source) {
-                  sidedNode(toGlobal(side)).sendToReachable("network.message", packet)
+                  val busNode = sidedNode(toGlobal(side))
+                  if (busNode != null) busNode.sendToReachable("network.message", packet)
                   relayToConnectablesOnSide(message, packet, side)
                   return
                 }
@@ -220,7 +246,7 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
   }
 
   private def relayToConnectablesOnSide(message: Message, packet: Packet, sourceSide: Direction): Unit = {
-    for (slot <- 0 until getSizeInventory) {
+    for (slot <- 0 until getSlots) {
       val mountable = getMountable(slot)
       if (mountable != null) {
         val mapping = nodeMapping(slot)
@@ -243,47 +269,50 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
   // ----------------------------------------------------------------------- //
   // SidedEnvironment
 
-  override def canConnect(side: Direction) = side != facing
+  override def canConnect(side: Direction): Boolean = side != facing
 
   override def sidedNode(side: Direction): Node = if (side != facing) super.sidedNode(side) else null
 
   // ----------------------------------------------------------------------- //
   // power.Common
 
-  @SideOnly(Dist.CLIENT)
-  override protected def hasConnector(side: Direction) = side != facing
+  // 仅客户端调用；1.7.10 的 `@SideOnly(Side.CLIENT)` 已删除。
+  override protected def hasConnector(side: Direction): Boolean = side != facing
 
-  override protected def connector(side: Direction) = Option(if (side != facing) sidedNode(side).asInstanceOf[Connector] else null)
+  override protected def connector(side: Direction): Option[Connector] =
+    Option(if (side != facing) sidedNode(side).asInstanceOf[Connector] else null)
 
-  override def energyThroughput = Settings.get.serverRackRate
+  override def energyThroughput: Double = Settings.get.serverRackRate
 
   // ----------------------------------------------------------------------- //
   // Analyzable
 
   override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float): Array[Node] = {
-    slotAt(Direction.getOrientation(side), hitX, hitY, hitZ) match {
+    slotAt(Direction.from3DDataValue(side), hitX, hitY, hitZ) match {
       case Some(slot) => components(slot) match {
         case Some(analyzable: Analyzable) => analyzable.onAnalyze(player, side, hitX, hitY, hitZ)
         case _ => null
       }
-      case _ => Array(sidedNode(Direction.getOrientation(side)))
+      case _ => Array(sidedNode(Direction.from3DDataValue(side)))
     }
   }
 
   // ----------------------------------------------------------------------- //
   // AbstractBusAware
 
-  override def installedComponents: Iterable[ManagedEnvironment] = asJavaIterable(components.collect {
-    case Some(mountable: RackMountable with ComponentHost) => iterableAsScalaIterable(mountable.getComponents).collect {
-      case managed: ManagedEnvironment => managed
-    }
-  }.flatten.toIterable)
+  override def installedComponents: Iterable[ManagedEnvironment] = components.collect {
+    case Some(mountable: RackMountable with ComponentHost) =>
+      mountable.getComponents.asScala.collect { case managed: ManagedEnvironment => managed }
+  }.flatten.toIndexedSeq
 
-  @Method(modid = Mods.IDs.StargateTech2)
-  override def getInterfaces(side: Int) = if (side != facing.ordinal) {
-    super.getInterfaces(side)
-  }
-  else null
+  /**
+   * 抽象总线接口查询。
+   *
+   * TODO(integration.stargatetech2): 原实现（带 `@Optional.Method(modid = StargateTech2)`）
+   * 在非正面时返回 `super.getInterfaces(side)`（由 JVM 注入的接口提供）。
+   * 1.21.1 已移除 ASM 注入与 StargateTech2 集成，这里保持「正面无接口」的语义并返回空数组。
+   */
+  override def getInterfaces(side: Int): Array[AnyRef] = Array.empty[AnyRef]
 
   override def getWorld = world
 
@@ -308,7 +337,7 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
   // ----------------------------------------------------------------------- //
   // StateAware
 
-  override def getCurrentState = {
+  override def getCurrentState: util.EnumSet[api.util.StateAware.State] = {
     val result = util.EnumSet.noneOf(classOf[api.util.StateAware.State])
     components.collect {
       case Some(mountable: RackMountable) => result.addAll(mountable.getCurrentState)
@@ -337,13 +366,13 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
   }
 
   // ----------------------------------------------------------------------- //
-  // IInventory
+  // IItemHandler（原 `IInventory` / `ISidedInventory`）
 
-  override def getSizeInventory = 4
+  override def getSlots: Int = 4
 
-  override def getInventoryStackLimit = 1
+  override def getSlotLimit(slot: Int): Int = 1
 
-  override def isItemValidForSlot(slot: Int, stack: ItemStack): Boolean = (slot, Option(Driver.driverFor(stack, getClass))) match {
+  override def isItemValid(slot: Int, stack: ItemStack): Boolean = (slot, Option(Driver.driverFor(stack, getClass))) match {
     case (_, Some(driver)) => driver.slot(stack) == Slot.RackMountable
     case _ => false
   }
@@ -353,10 +382,11 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
     if (isServer) {
       setOutputEnabled(hasRedstoneCard)
       isAbstractBusAvailable = hasAbstractBusCard
-      ServerPacketSender.sendRackInventory(this)
+      // TODO(server.PacketSender): 原为 ServerPacketSender.sendRackInventory(this)。
+      markBlockForUpdate()
     }
     else {
-      world.markBlockForUpdate(x, y, z)
+      markBlockForUpdate()
     }
   }
 
@@ -393,10 +423,10 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
   // ----------------------------------------------------------------------- //
   // BlockEntity
 
-  override def updateEntity(): Unit = {
-    super.updateEntity()
+  override def tick(): Unit = {
+    super.tick()
     if (isServer && isConnected) {
-      lazy val connectors = Direction.VALID_DIRECTIONS.map(sidedNode).collect {
+      lazy val connectors = Direction.values().map(sidedNode).collect {
         case connector: Connector => connector
       }
       components.zipWithIndex.collect {
@@ -404,8 +434,9 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
           if (hasChanged(slot)) {
             hasChanged(slot) = false
             lastData(slot) = mountable.getData
-            ServerPacketSender.sendRackMountableData(this, slot)
-            world.notifyBlocksOfNeighborChange(x, y, z, block)
+            // TODO(server.PacketSender): 原为 ServerPacketSender.sendRackMountableData(this, slot)。
+            markBlockForUpdate()
+            notifyNeighbors()
             // These are working state dependent, so recompute them.
             setOutputEnabled(hasRedstoneCard)
             isAbstractBusAvailable = hasAbstractBusCard
@@ -431,12 +462,12 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
 
   // ----------------------------------------------------------------------- //
 
-  override def readFromNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
 
     isRelayEnabled = nbt.getBoolean(Settings.namespace + "isRelayEnabled")
-    nbt.getList(Settings.namespace + "nodeMapping", NBT.TAG_INT_ARRAY).map((buses: IntArrayTag) =>
-      buses.func_150302_c().map(id => if (id < 0 || id == Direction.UNKNOWN.ordinal() || id == Direction.SOUTH.ordinal()) None else Option(Direction.getOrientation(id)))).
+    nbt.getList(Settings.namespace + "nodeMapping", Tag.TAG_INT_ARRAY).map((buses: IntArrayTag) =>
+      buses.getAsIntArray.map(id => if (id < 0 || id >= Direction.values().length) None else Option(Direction.from3DDataValue(id)))).
       copyToArray(nodeMapping)
 
     // Kickstart initialization.
@@ -444,57 +475,66 @@ class Rack extends traits.PowerAcceptor with traits.Hub with traits.PowerBalance
     _isAbstractBusAvailable = hasAbstractBusCard
   }
 
-  override def writeToNBTForServer(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
 
     nbt.putBoolean(Settings.namespace + "isRelayEnabled", isRelayEnabled)
     nbt.setNewTagList(Settings.namespace + "nodeMapping", nodeMapping.map(buses =>
-      toNbt(buses.map(side => side.map(_.ordinal()).getOrElse(-1)))))
+      new IntArrayTag(buses.map(side => side.map(_.ordinal()).getOrElse(-1)))).toIndexedSeq)
   }
 
-  @SideOnly(Dist.CLIENT) override
-  def readFromNBTForClient(nbt: CompoundTag): Unit = {
+  /** 仅客户端使用（原 `@SideOnly(Side.CLIENT)`，1.21.1 已删除该注解）。 */
+  override protected def readFromNBTForClient(nbt: CompoundTag): Unit = {
     super.readFromNBTForClient(nbt)
 
-    val data = nbt.getList(Settings.namespace + "lastData", NBT.TAG_COMPOUND).
+    val data = nbt.getList(Settings.namespace + "lastData", Tag.TAG_COMPOUND).
       toArray[CompoundTag]
     data.copyToArray(lastData)
     load(nbt.getCompound(Settings.namespace + "rackData"))
     connectComponents()
   }
 
-  override def writeToNBTForClient(nbt: CompoundTag): Unit = {
+  override protected def writeToNBTForClient(nbt: CompoundTag): Unit = {
     super.writeToNBTForClient(nbt)
 
     val data = lastData.map(tag => if (tag == null) new CompoundTag() else tag)
-    nbt.setNewTagList(Settings.namespace + "lastData", data)
-    nbt.setNewCompoundTag(Settings.namespace + "rackData", save)
+    nbt.setNewTagList(Settings.namespace + "lastData", data.toIndexedSeq)
+    nbt.setNewCompoundTag(Settings.namespace + "rackData", tag => save(tag))
   }
 
   // ----------------------------------------------------------------------- //
 
-  def slotAt(side: Direction, hitX: Float, hitY: Float, hitZ: Float) = {
+  def slotAt(side: Direction, hitX: Float, hitY: Float, hitZ: Float): Option[Int] = {
     if (side == facing) {
       val globalY = (hitY * 16).toInt // [0, 15]
       val l = 2
       val h = 14
-      val slot = ((15 - globalY) - l) * getSizeInventory / (h - l)
-      Some(math.max(0, math.min(getSizeInventory - 1, slot)))
+      val slot = ((15 - globalY) - l) * getSlots / (h - l)
+      Some(math.max(0, math.min(getSlots - 1, slot)))
     }
     else None
   }
 
-  def isWorking(mountable: RackMountable) = mountable.getCurrentState.contains(api.util.StateAware.State.IsWorking)
+  def isWorking(mountable: RackMountable): Boolean =
+    mountable.getCurrentState.contains(api.util.StateAware.State.IsWorking)
 
-  def hasAbstractBusCard = components.exists {
-    case Some(mountable: EnvironmentHost with RackMountable with IInventory) if isWorking(mountable) =>
-      mountable.exists(stack => DriverAbstractBusCard.worksWith(stack, mountable.getClass))
-    case _ => false
-  }
+  /**
+   * 机架内是否装有抽象总线卡。
+   *
+   * TODO(integration.stargatetech2): 原实现遍历机架装载物的物品栏，用
+   * `DriverAbstractBusCard.worksWith` 判定；该集成包未纳入本次编译范围，恒为 `false`。
+   */
+  def hasAbstractBusCard = false
 
-  def hasRedstoneCard = components.exists {
-    case Some(mountable: EnvironmentHost with RackMountable with IInventory) if isWorking(mountable) =>
-      mountable.exists(stack => DriverRedstoneCard.worksWith(stack, mountable.getClass))
-    case _ => false
-  }
+  /**
+   * 机架内是否装有红石卡。
+   *
+   * TODO(integration.opencomputers): 原实现遍历机架装载物的物品栏，用
+   * `DriverRedstoneCard.worksWith` 判定；该集成包未纳入本次编译范围，恒为 `false`，
+   * 因此机架目前不会向外界输出红石信号。
+   */
+  def hasRedstoneCard = false
+
+  /** 机架装载物的宿主（供 `EnvironmentHost` 使用）。 */
+  private def environmentHost: EnvironmentHost = this
 }

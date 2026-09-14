@@ -127,7 +127,10 @@ trait Hub extends traits.Environment with SidedEnvironment {
 
   override protected def readFromNBTForServer(nbt: CompoundTag): Unit = {
     super.readFromNBTForServer(nbt)
-    nbt.getList(Settings.namespace + "plugs", Tag.TAG_COMPOUND).toArray[CompoundTag].
+    // 注意：`ListTag` 是 Java 集合，它自带的 `toArray` 会遮蔽 `ExtendedListTag` 的隐式扩展
+    //（`toArray[T: ClassTag]`），因此这里改用扩展提供的 `map` 把元素逐个取出来。
+    nbt.getList(Settings.namespace + "plugs", Tag.TAG_COMPOUND).
+      map((tag: CompoundTag) => tag).
       zipWithIndex.foreach {
       case (tag, index) => plugs(index).node.load(tag)
     }
