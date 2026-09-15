@@ -547,6 +547,24 @@ object Registry extends ItemAPI {
   def addCreativeTabEntries(event: BuildCreativeModeTabContentsEvent): Unit = {
     if (event.getTab ne li.cil.oc.api.CreativeTab.instance()) return
     import net.minecraft.world.item.CreativeModeTab.TabVisibility
+
+    // 1.21.1 的 `CreativeModeTab.TabList` 按「物品 + 数据组件 + 数量」去重，
+    // 重复 `accept` 同一个堆叠会直接抛 `Itemstack ... already exists in the tab's list`
+    // （本层在打开创造模式物品栏时必崩）。这里自己先过滤一道：
+    //  - 无头软盘条目 `floppy` 与伪物品 `openos` 目前产出的堆叠完全相同
+    //    （`openos` 本该是带 OpenOS 文件系统的战利品软盘，见下面 `registerStackItem` 的 TODO）；
+    //  - `luaBios` 伪物品的工厂会生成 EEPROM 并登记进 `registeredItems`，
+    //    于是同一个堆叠会被 accept 两次。
+    val accepted = mutable.ArrayBuffer.empty[ItemStack]
+
+    /** 把堆叠加入标签页；与已加入的堆叠重复时跳过。 */
+    def accept(stack: ItemStack): Unit = {
+      if (stack == null || stack.isEmpty) return
+      if (accepted.exists(existing => ItemStack.matches(existing, stack))) return
+      accepted += stack
+      event.accept(stack, TabVisibility.PARENT_AND_SEARCH_TABS)
+    }
+
     for (name <- creativeOrder if !hiddenInCreativeTab.contains(name)) {
       val stack = createItemStack(name, 1)
       if (stack != null && !stack.isEmpty) {
@@ -555,13 +573,11 @@ object Registry extends ItemAPI {
           case delegate: li.cil.oc.common.item.traits.Delegate => delegate.showInItemList
           case _ => true
         }
-        if (visible) event.accept(stack, TabVisibility.PARENT_AND_SEARCH_TABS)
+        if (visible) accept(stack)
       }
     }
     // 战利品软盘 / EEPROM 之类的额外堆叠（原 `Items.init` 里的 `additionalItems`）。
-    for (stack <- registeredItems if stack != null && !stack.isEmpty) {
-      event.accept(stack, TabVisibility.PARENT_AND_SEARCH_TABS)
-    }
+    for (stack <- registeredItems) accept(stack)
     // 预配置堆叠（无人机 / 微控制器 / 平板 / 满电悬浮靴）：必须**延迟到注册表事件之后**
     // 才能求值，否则物品还没绑定就会抛 `unbound value`。
     for (factory <- creativeStackFactories) {
@@ -570,7 +586,7 @@ object Registry extends ItemAPI {
           li.cil.oc.OpenComputers.log.warn("Failed creating a preconfigured creative tab stack.", t)
           null
       }
-      if (stack != null && !stack.isEmpty) event.accept(stack, TabVisibility.PARENT_AND_SEARCH_TABS)
+      accept(stack)
     }
   }
 
@@ -597,6 +613,21 @@ object Registry extends ItemAPI {
   }
 
   override def registerEEPROM(name: String, code: Array[Byte], data: Array[Byte], readonly: Boolean): ItemStack = {
+    val stack = createEEPROMStack(name, code, data, readonly)
+    // 只有公开 API 调用才把堆叠追加到创造模式标签页（等价于原 `registeredItems += stack`）。
+    if (stack != null) registeredItems += stack
+    stack
+  }
+
+  /**
+   * 构造一个 EEPROM 堆叠，**不带任何副作用**。
+   *
+   * 与公开的 [[registerEEPROM]] 分开是有必要的：`luaBios` 这个伪物品的工厂每次
+   * [[createItemStack]] 都会被重新求值（创造模式标签页每次重建都会调用），
+   * 若它走 [[registerEEPROM]]，每求值一次就往 `registeredItems` 里塞一份副本，
+   * 既导致同一个堆叠被 accept 两次，也让 `registeredItems` 无限增长。
+   */
+  private def createEEPROMStack(name: String, code: Array[Byte], data: Array[Byte], readonly: Boolean): ItemStack = {
     val nbt = new CompoundTag()
     if (name != null) {
       nbt.putString(Settings.namespace + "label", name.trim.take(24))
@@ -613,10 +644,7 @@ object Registry extends ItemAPI {
     stackNbt.put(Settings.namespace + "data", nbt)
 
     val stack = createItemStack(li.cil.oc.Constants.ItemName.EEPROM, 1)
-    if (stack != null) {
-      setTag(stack, stackNbt)
-      registeredItems += stack
-    }
+    if (stack != null) setTag(stack, stackNbt)
     stack
   }
 
@@ -874,7 +902,9 @@ object Registry extends ItemAPI {
         val code = new Array[Byte](4 * 1024)
         val stream = getClass.getResourceAsStream(Settings.scriptPath + "bios.lua")
         val count = if (stream == null) 0 else try stream.read(code) finally stream.close()
-        val stack = registerEEPROM("EEPROM (Lua BIOS)", code.take(count), null, readonly = false)
+        // 注意：这里必须用**无副作用**的 `createEEPROMStack`（而不是公开的 `registerEEPROM`）：
+        // 本工厂每次重建标签页都会被调用，用 `registerEEPROM` 会不断往 `registeredItems` 里塞副本。
+        val stack = createEEPROMStack("EEPROM (Lua BIOS)", code.take(count), null, readonly = false)
         if (stack != null) stack.setCount(size)
         stack
       })

@@ -38,8 +38,19 @@ trait CPULike extends Delegate {
   override protected def tooltipData: Seq[Any] = Seq(Settings.get.cpuComponentSupport(cpuTier))
 
   override protected def tooltipExtended(stack: ItemStack, tooltip: util.List[String]): Unit = {
-    tooltip.addAll(Tooltip.get("CPU.Architecture",
-      api.Machine.getArchitectureName(CPULike.architectureOf(stack))))
+    // 不能把 null 传给 `Tooltip.get`：它内部会对每个参数做 `_.toString`，null 直接抛 NPE
+    // （打开创造模式物品栏、鼠标悬停到 CPU 上时即崩客户端）。
+    // 架构名很可能取不到：`api.Machine` 尚未接线（`server/machine` 未移植），
+    // `api.Machine.getArchitectureName` 会返回 null。这里按原版 `Machine.getArchitectureName`
+    // 的兜底语义退回类名，取不到架构时显示占位符。
+    val architecture = CPULike.architectureOf(stack)
+    val name =
+      if (architecture == null) "<unknown>"
+      else {
+        val resolved = api.Machine.getArchitectureName(architecture)
+        if (resolved != null) resolved else architecture.getSimpleName
+      }
+    tooltip.addAll(Tooltip.get("CPU.Architecture", name))
   }
 
   override def use(world: Level, player: Player, hand: InteractionHand): InteractionResultHolder[ItemStack] = {
