@@ -712,7 +712,21 @@ object Registry extends ItemAPI {
         // **也不能**提前 `supplier()` 构造物品实例（`Item` 构造器会写注册表，此时已冻结）。
         // 因此这里只登记工厂；「是否进创造模式标签页」留到填充标签页时再判断。
         registerItem(name, new Supplier[T] {
-          override def get(): T = supplier()
+          override def get(): T = {
+            val item = supplier()
+            // 1.7.10 的 `Items.registerItem(instance, id)` 对**非 Delegate** 的 `SimpleItem`
+            // 调用 `setUnlocalizedName("oc." + id)`（id 即 `Constants.ItemName.*` 的值），
+            // Delegate 子项则沿用「类名(+tier)」（见 `Delegate.unlocalizedName`）。
+            // 语言文件里的 `item.oc.eeprom.name` / `hoverBoots` / `wrench` 三个小写键来自前者，
+            // 其余 PascalCase 键来自后者 —— 这里必须按同一规则写入键名。
+            item match {
+              case simple: li.cil.oc.common.item.traits.SimpleItem
+                if !item.isInstanceOf[li.cil.oc.common.item.traits.Delegate] =>
+                simple.setUnlocalizedName(name)
+              case _ =>
+            }
+            item
+          }
         })
       }
 
@@ -776,7 +790,11 @@ object Registry extends ItemAPI {
 
       reg(ItemName.APUTier1, () => item.APU.tier(Tier.One))
       reg(ItemName.APUTier2, () => item.APU.tier(Tier.Two))
-      reg(ItemName.APUCreative, () => item.APU.tier(Tier.Four))
+      // 创造版 APU 用的是 `Tier.Three`（原版 `new item.APU(multi, Tier.Three)`）：
+      // 语言键 `item.oc.APU2.name`、`gpuTier = tier`（显卡分辨率表只有 3 个等级，
+      // 传 `Tier.Four` 会直接 `ArrayIndexOutOfBoundsException`），品质由 `APU.tier` 内部
+      // 按 `Tier.Four` 显示。这里**不能**传 `Tier.Four`。
+      reg(ItemName.APUCreative, () => item.APU.tier(Tier.Three))
 
       reg(ItemName.ChipTier1, () => item.Microchip.tier(Tier.One))
       reg(ItemName.ChipTier2, () => item.Microchip.tier(Tier.Two))
@@ -1009,11 +1027,26 @@ object Registry extends ItemAPI {
       /** 有方块实体的方块名（用于末尾统一注册 NeoForge 能力）。 */
       val entities = mutable.ArrayBuffer.empty[String]
 
+      /**
+       * 给方块写入 1.7.10 的注册名。
+       *
+       * 语言文件里的方块名键是 `tile.oc.<Constants.BlockName>.name`（从 1.7.10 的 `.lang`
+       * 机械转换而来，键名保持不变），而 1.21.1 的 `Block#getDescriptionId` 必须返回**完整键**，
+       * 因此这里把注册名交给 [[li.cil.oc.common.block.SimpleBlockHooks#ocBlockName]]。
+       */
+      def named[T <: Block](block: T, name: String): T = {
+        block match {
+          case hooks: li.cil.oc.common.block.SimpleBlockHooks => hooks.ocBlockName = name
+          case _ =>
+        }
+        block
+      }
+
       /** 注册方块 + 同名的方块实体类型 + 双向绑定。 */
       def blockWithEntity[T <: Block](name: String)(blockSupplier: => T)
                                      (factory: (BlockPos, BlockState) => BlockEntity): Unit = {
         registerBlock(name, new Supplier[T] {
-          override def get(): T = blockSupplier
+          override def get(): T = named(blockSupplier, name)
         })
         val entityName = key(name)
         registerBlockEntity(entityName, new BlockEntityType.BlockEntitySupplier[BlockEntity] {
@@ -1026,7 +1059,7 @@ object Registry extends ItemAPI {
       /** 注册没有方块实体的方块。 */
       def blockOnly[T <: Block](name: String)(supplier: => T): Unit =
         registerBlock(name, new Supplier[T] {
-          override def get(): T = supplier
+          override def get(): T = named(supplier, name)
         })
 
       // ------------------------------------------------------------------ //

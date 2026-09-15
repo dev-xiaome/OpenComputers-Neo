@@ -17,11 +17,13 @@ import li.cil.oc.api.prefab
 import li.cil.oc.util.SideTracker
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.world.effect.MobEffect
+import net.minecraft.world.effect.MobEffects
+import net.minecraft.world.level.ClipContext
 import net.minecraft.world.phys.AABB
+import net.minecraft.world.phys.HitResult
 import net.minecraft.world.phys.Vec3
+import net.minecraft.world.phys.shapes.CollisionContext
 
-import scala.jdk.CollectionConverters._
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
@@ -45,7 +47,7 @@ class MotionSensor(val host: EnvironmentHost) extends prefab.ManagedEnvironment 
     DeviceAttribute.Capacity -> radius.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -57,19 +59,18 @@ class MotionSensor(val host: EnvironmentHost) extends prefab.ManagedEnvironment 
 
   private def z = host.zPosition
 
-  private def isServer: Boolean = if (world != null) !world.isRemote else SideTracker.isServer
+  private def isServer: Boolean = if (world != null) !world.isClientSide else SideTracker.isServer
 
   override def canUpdate: Boolean = isServer
 
   override def update(): Unit = {
     super.update()
-    if (world.getTotalWorldTime % 10 == 0) {
+    if (world.getGameTime % 10 == 0) {
       // Get a list of all living entities we could possibly detect, using a rough
       // bounding box check, then refining it using the actual distance and an
       // actual visibility check.
-      val entities = world.getEntitiesWithinAABB(classOf[LivingEntity], sensorBounds)
-        .map(_.asInstanceOf[LivingEntity])
-        .filter(entity => entity.isEntityAlive && isInRange(entity) && isVisible(entity))
+      val entities = world.getEntitiesOfClass(classOf[LivingEntity], sensorBounds).asScala
+        .filter(entity => entity.isAlive && isInRange(entity) && isVisible(entity))
         .toSet
       // Get rid of all tracked entities that are no longer visible.
       trackedEntities.retain((key, _) => entities.contains(key))
@@ -78,7 +79,7 @@ class MotionSensor(val host: EnvironmentHost) extends prefab.ManagedEnvironment 
         trackedEntities.get(entity) match {
           case Some((prevX, prevY, prevZ)) =>
             // Known entity, check if it moved enough to trigger.
-            if (entity.getDistanceSq(prevX, prevY, prevZ) > sensitivity * sensitivity * 2) {
+            if (entity.distanceToSqr(prevX, prevY, prevZ) > sensitivity * sensitivity * 2) {
               sendSignal(entity)
             }
           case _ =>
@@ -86,41 +87,41 @@ class MotionSensor(val host: EnvironmentHost) extends prefab.ManagedEnvironment 
             sendSignal(entity)
         }
         // Update tracked position.
-        trackedEntities += entity ->(entity.posX, entity.posY, entity.posZ)
+        trackedEntities += entity ->(entity.getX, entity.getY, entity.getZ)
       }
     }
   }
 
-  private def sensorBounds = AABB.getBoundingBox(
+  private def sensorBounds = new AABB(
     x + 0.5 - radius, y + 0.5 - radius, z + 0.5 - radius,
     x + 0.5 + radius, y + 0.5 + radius, z + 0.5 + radius)
 
-  private def isInRange(entity: LivingEntity) = entity.getDistanceSq(x + 0.5, y + 0.5, z + 0.5) <= radius * radius
+  private def isInRange(entity: LivingEntity) = entity.distanceToSqr(x + 0.5, y + 0.5, z + 0.5) <= radius * radius
 
   private def isClearPath(target: Vec3): Boolean = {
-    val origin = Vec3.createVectorHelper(x, y, z)
+    val origin = new Vec3(x + 0.5, y + 0.5, z + 0.5)
     val path = origin.subtract(target).normalize()
-    val eye = origin.addVector(path.xCoord, path.yCoord, path.zCoord)
-    val blocker = world.rayTraceBlocks(eye, target)
-    blocker == null
+    val eye = origin.add(path.x, path.y, path.z)
+    val blocker = world.clip(new ClipContext(eye, target, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, CollisionContext.empty()))
+    blocker.getType == HitResult.Type.MISS
   }
 
   private def isVisible(entity: LivingEntity): Boolean =
-    entity.getActivePotionEffect(Potion.invisibility) == null &&
+    !entity.hasEffect(MobEffects.INVISIBILITY) &&
       // Note: it only working in lit conditions works and is neat, but this
       // is pseudo-infrared driven (it only works for *living* entities, after
       // all), so I think it makes more sense for it to work in the dark, too.
       /* entity.getBrightness(0) > 0.2 && */ {
-      val target = Vec3.createVectorHelper(entity.posX, entity.posY, entity.posZ)
-      isClearPath(target) || isClearPath(target.addVector(0, entity.getEyeHeight, 0))
+      val target = new Vec3(entity.getX, entity.getY, entity.getZ)
+      isClearPath(target) || isClearPath(new Vec3(target.x, entity.getEyeY, target.z))
     }
 
   private def sendSignal(entity: LivingEntity): Unit = {
     if (Settings.get.inputUsername) {
-      node.sendToReachable("computer.signal", "motion", Double.box(entity.posX - (x + 0.5)), Double.box(entity.posY - (y + 0.5)), Double.box(entity.posZ - (z + 0.5)), entity.getCommandSenderName)
+      node.sendToReachable("computer.signal", "motion", Double.box(entity.getX - (x + 0.5)), Double.box(entity.getY - (y + 0.5)), Double.box(entity.getZ - (z + 0.5)), entity.getName.getString)
     }
     else {
-      node.sendToReachable("computer.signal", "motion", Double.box(entity.posX - (x + 0.5)), Double.box(entity.posY - (y + 0.5)), Double.box(entity.posZ - (z + 0.5)))
+      node.sendToReachable("computer.signal", "motion", Double.box(entity.getX - (x + 0.5)), Double.box(entity.getY - (y + 0.5)), Double.box(entity.getZ - (z + 0.5)))
     }
   }
 

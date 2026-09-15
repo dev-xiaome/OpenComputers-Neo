@@ -38,12 +38,26 @@ import net.minecraft.world.item.{Item, ItemStack, TooltipFlag}
 trait SimpleItem extends Item {
 
   /**
+   * 由注册层写入的 unlocalized name（等价于 1.7.10 `Items.registerItem(instance, id)` 里的
+   * `setUnlocalizedName("oc." + id)`）；`null` 表示未写入，此时退回类名。
+   *
+   * 只有「非 [[Delegate]] 的 [[SimpleItem]]」会被写入：语言文件里
+   * `item.oc.eeprom.name` / `item.oc.hoverBoots.name` / `item.oc.wrench.name`
+   * 三个小写键就是旧版走这条路径产生的，其余物品（Delegate 子项）的键是「类名(+tier)」。
+   */
+  private var unlocalizedNameValue: String = null
+
+  /** 等价于 1.7.10 的 `setUnlocalizedName("oc." + id)`；由注册层在物品构造后调用一次。 */
+  private[oc] def setUnlocalizedName(value: String): Unit = unlocalizedNameValue = value
+
+  /**
    * 对应 1.7.10 的 unlocalized name。默认取类名（PascalCase，与语言文件一致），
-   * 分级物品覆写为 `类名 + tier`。
+   * 分级物品覆写为 `类名 + tier`；注册层写入过时优先用写入值。
    *
    * 注意：**在本 trait 的构造器里不要读取本成员**（子类的覆写在超类构造器执行时尚不可用）。
    */
-  def unlocalizedName: String = SimpleItem.unlocalizedNameOf(getClass)
+  def unlocalizedName: String =
+    if (unlocalizedNameValue != null) unlocalizedNameValue else SimpleItem.unlocalizedNameOf(getClass)
 
   /**
    * 物品等级（0 起，`Tier.None` 表示不分级）。
@@ -53,8 +67,15 @@ trait SimpleItem extends Item {
    */
   def tier: Int = li.cil.oc.common.Tier.None
 
-  /** 翻译键（不含 `.name` 后缀）。等价于原 `setUnlocalizedName("oc." + id)`。 */
-  override def getDescriptionId: String = "oc." + unlocalizedName
+  /**
+   * 翻译键。等价于原 `setUnlocalizedName("oc." + id)` 之后 MC 实际查询的那个键。
+   *
+   * 1.7.10 会拼成 `item.` + unlocalizedName + `.name`；1.21.1 的 `Item#getName` 则是
+   * `Component.translatable(this.getDescriptionId(stack))`，即**直接用本方法的返回值当完整键**。
+   * 因此这里必须把 `item.` 前缀与 `.name` 后缀一起拼上，
+   * 才能对上 `assets/opencomputers_neo/lang` 下既有的 `item.oc.<name>.name` 键。
+   */
+  override def getDescriptionId: String = "item.oc." + unlocalizedName + ".name"
 
   /** 等价于原 1.7.10 的 `new ItemStack(this, amount)`。 */
   def createItemStack(amount: Int = 1): ItemStack = new ItemStack(this, amount)

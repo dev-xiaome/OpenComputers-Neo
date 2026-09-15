@@ -21,7 +21,12 @@ class HardDiskDrive(props: Item.Properties, override val tier: Int)
   val platterCount: Int = Settings.get.hddPlatterCounts(tier)
 
   override def displayName(stack: ItemStack): Option[Component] = {
-    val localizedName = super.getName(stack).getString
+    // 不能写 `super.getName(stack)`：`traits.Delegate` 覆写了 `getName` 并回调 `displayName`，
+    // 而本类的线性化里 `super.getName` 解析到的正是那个 trait 实现，
+    // 于是 `getName` ↔ `displayName` 无限递归（StackOverflowError，悬停硬盘即崩客户端）。
+    // 这里直接用与基类 `Item#getName` 完全等价的实现：
+    // `Item#getName(ItemStack)` 就是 `Component.translatable(getDescriptionId(stack))`。
+    val localizedName = Component.translatable(getDescriptionId(stack)).getString
     Some(Component.literal(if (kiloBytes >= 1024) {
       localizedName + s" (${kiloBytes / 1024}MB)"
     }

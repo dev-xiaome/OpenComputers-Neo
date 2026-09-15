@@ -12,7 +12,7 @@ import net.minecraft.resources.ResourceLocation
  *    `TextureStitchEvent`，`IIcon` 也整体被 `TextureAtlasSprite` 取代，
  *    因此这里只保留「位置」，取精灵统一走
  *    [[li.cil.oc.client.renderer.tileentity.RenderUtil.sprite]]。
- *  - 贴图目录按资源迁移规则改为 `textures/block/**`（原 `textures/blocks/**`）
+ *  - 贴图目录按资源迁移规则改为 `textures/block`（原 `textures/blocks`）下的任意层级
  *    —— 见 `docs/PROGRESS.md` 的资源迁移记录；文件名一律小写。
  *  - 原 `init(TextureManager)` 负责把 GUI 贴图预绑定一遍（1.7.10 的 `bindTexture` 顺带
  *    把贴图加载进显存）。1.21.1 的 `TextureManager` 没有 `bindTexture`，

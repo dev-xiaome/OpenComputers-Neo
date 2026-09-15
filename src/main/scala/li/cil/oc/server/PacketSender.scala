@@ -13,8 +13,9 @@ import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.PackedColor
 import net.minecraft.world.entity.player.Player
 import net.minecraft.server.level.ServerPlayer
-import net.minecraft.inventory.Container
+import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.world.item.ItemStack
+import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.nbt.NbtIo
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.Level
@@ -25,6 +26,18 @@ import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 import scala.collection.mutable
 
 object PacketSender {
+  /**
+   * 把 OC 的方块实体 trait 还原成 `BlockEntity`。
+   *
+   * 1.7.10 里 `common.tileentity.traits.TileEntity` 直接继承原版 `TileEntity`，所以
+   * `trait` 静态类型就能当方块实体传给网络层。1.21.1 的 `BlockEntity` 必须带构造参数，
+   * trait 无法继承它，改成声明自类型 `self: BlockEntity`——但**自类型不会暴露给调用方**，
+   * 因此 `AbstractBusAware` / `Computer` / `RedstoneAware` 等静态类型在这里无法直接使用。
+   * 由于每个具体实现都必然是 `BlockEntity`（自类型保证），这里给出安全的隐式转换。
+   */
+  private implicit def traitTileEntityAsBlockEntity(t: common.tileentity.traits.TileEntity): BlockEntity =
+    t.asInstanceOf[BlockEntity]
+
   def sendAbstractBusState(t: AbstractBusAware): Unit = {
     val pb = new SimplePacketBuilder(PacketType.AbstractBusState)
 
@@ -106,11 +119,12 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendContainerUpdate(c: Container, nbt: CompoundTag, player: ServerPlayer): Unit = {
-    if (!nbt.hasNoTags) {
+  def sendContainerUpdate(c: AbstractContainerMenu, nbt: CompoundTag, player: ServerPlayer): Unit = {
+    // 1.21.1：`CompoundTag#hasNoTags` → `isEmpty`；`Container#windowId` → `AbstractContainerMenu#containerId`。
+    if (!nbt.isEmpty) {
       val pb = new SimplePacketBuilder(PacketType.ContainerUpdate)
 
-      pb.writeByte(c.windowId.toByte)
+      pb.writeByte(c.containerId.toByte)
       pb.writeNBT(nbt)
 
       pb.sendToPlayer(player)
@@ -139,10 +153,10 @@ object PacketSender {
       val lastHostTimeout = hostTimeouts.getIfPresent(name)
       if (lastHostTimeout == null || lastHostTimeout <= System.currentTimeMillis()) {
         val event = host match {
-          case t: net.minecraft.tileentity.BlockEntity => new FileSystemAccessEvent.Server(name, t, node)
+          case t: BlockEntity => new FileSystemAccessEvent.Server(name, t, node)
           case _ => new FileSystemAccessEvent.Server(name, host.world, host.xPosition, host.yPosition, host.zPosition, node)
         }
-        MinecraftForge.EVENT_BUS.post(event)
+        NeoForge.EVENT_BUS.post(event)
         if (!event.isCanceled) {
           hostTimeouts.put(name, System.currentTimeMillis() + diskActivityPacketDelay)
 
@@ -151,12 +165,12 @@ object PacketSender {
           pb.writeUTF(event.getSound)
           NbtIo.write(event.getData, pb)
           event.getTileEntity match {
-            case t: net.minecraft.tileentity.BlockEntity =>
+            case t: BlockEntity =>
               pb.writeBoolean(true)
               pb.writeTileEntity(t)
             case _ =>
               pb.writeBoolean(false)
-              pb.writeInt(event.getWorld.provider.dimensionId)
+              pb.writeDimension(event.getWorld)
               pb.writeDouble(event.getX)
               pb.writeDouble(event.getY)
               pb.writeDouble(event.getZ)
@@ -171,22 +185,26 @@ object PacketSender {
   def sendNetworkActivity(node: Node, host: EnvironmentHost) = {
 
     val event = host match {
-      case t: net.minecraft.tileentity.BlockEntity => new NetworkActivityEvent.Server(t, node)
+      case t: BlockEntity => new NetworkActivityEvent.Server(t, node)
       case _ => new NetworkActivityEvent.Server(host.world, host.xPosition, host.yPosition, host.zPosition, node)
     }
-    MinecraftForge.EVENT_BUS.post(event)
-    if (!event.isCanceled) {
+    NeoForge.EVENT_BUS.post(event)
+    // TODO(port): 1.7.10 的 `NetworkActivityEvent` 可取消（`event.isCanceled`）；
+    // 1.21.1 的 `li.cil.oc.api.event.NetworkActivityEvent` 没有实现 `ICancellableEvent`，
+    // API 里也没有 `setCanceled`，所以这里只能无条件发包。若之后恢复可取消语义，
+    // 需要给该事件补上 `ICancellableEvent`。
+    {
 
       val pb = new SimplePacketBuilder(PacketType.NetworkActivity)
 
       NbtIo.write(event.getData, pb)
       event.getTileEntity match {
-        case t: net.minecraft.tileentity.BlockEntity =>
+        case t: BlockEntity =>
           pb.writeBoolean(true)
           pb.writeTileEntity(t)
         case _ =>
           pb.writeBoolean(false)
-          pb.writeInt(event.getWorld.provider.dimensionId)
+          pb.writeDimension(event.getWorld)
           pb.writeDouble(event.getX)
           pb.writeDouble(event.getY)
           pb.writeDouble(event.getZ)

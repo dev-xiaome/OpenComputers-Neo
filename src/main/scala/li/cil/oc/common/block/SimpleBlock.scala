@@ -55,6 +55,16 @@ import net.minecraft.world.phys.shapes.{CollisionContext, Shapes, VoxelShape}
  */
 trait SimpleBlockHooks { self: Block =>
 
+  /**
+   * 1.7.10 的注册名（取值同 [[li.cil.oc.Constants.BlockName]]，例如 `diskDrive`、`case1`），
+   * 由注册层（[[li.cil.oc.common.init.Registry.Blocks]]）在方块构造后写入。
+   *
+   * 用途只有一个：拼出 `tile.oc.<name>.name` 这个翻译键（见 [[SimpleBlock#getDescriptionId]]）。
+   * 不能拿类名代替 —— `RobotProxy` 的键是 `tile.oc.robot.name`、
+   * `FakeEndstone` 是 `tile.oc.endstone.name`、分级方块是 `case1` / `hologram2` 这种带后缀的名字。
+   */
+  var ocBlockName: String = null
+
   /** 是否在物品列表中展示；1.21.1 里由创造模式标签页决定，保留字段兼容原代码。 */
   var showInItemList = true
 
@@ -311,6 +321,17 @@ class SimpleBlock(properties: BlockBehaviour.Properties = SimpleBlock.properties
   // ----------------------------------------------------------------------- //
 
   override def newBlockEntity(pos: BlockPos, state: BlockState): BlockEntity = createBlockEntity(pos, state)
+
+  /**
+   * 方块（及其 `BlockItem`）的翻译键。
+   *
+   * 1.21.1 的 `BlockItem#getDescriptionId` 就是 `getBlock().getDescriptionId()`，
+   * 而 `Block#getDescriptionId` 的返回值会被当作**完整**的翻译键使用；
+   * 1.7.10 的键形如 `tile.oc.<注册名>.name`，语言文件从旧版机械转换而来、键名保持不变，
+   * 因此这里要原样拼出这个键（`ocBlockName` 为 `null` 时退回默认键）。
+   */
+  override def getDescriptionId: String =
+    if (ocBlockName == null) super.getDescriptionId else "tile.oc." + ocBlockName + ".name"
 
   /**
    * 方块实体 tick 驱动（原 `TileEntity#updateEntity`）。
