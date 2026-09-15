@@ -1,28 +1,43 @@
 package li.cil.oc.server.command
 
+import com.mojang.brigadier.arguments.BoolArgumentType
+import com.mojang.brigadier.builder.LiteralArgumentBuilder
+import com.mojang.brigadier.builder.RequiredArgumentBuilder
 import li.cil.oc.Settings
 import li.cil.oc.common.command.SimpleCommand
-import net.minecraft.command.CommandBase
 import net.minecraft.commands.CommandSourceStack
+import net.minecraft.network.chat.Component
 
+/**
+ * `/oc_renderWirelessNetwork [<boolean>]`（别名 `/oc_wlan`）：开关无线网络的
+ * R 树调试渲染（原 `Settings.rTreeDebugRenderer`）。
+ *
+ * 与 1.7.10 版一致：不带参数时切换当前值；参数解析改用 Brigadier 的 [[BoolArgumentType]]。
+ */
 object WirelessRenderingCommand extends SimpleCommand("oc_renderWirelessNetwork") {
   aliases += "oc_wlan"
 
-  override def getCommandUsage(source: ICommandSender) = name + " <boolean>"
+  private final val RequiredPermissionLevel = 2
 
-  override def processCommand(source: ICommandSender, command: Array[String]): Unit = {
-    Settings.rTreeDebugRenderer =
-      if (command != null && command.length > 0)
-        CommandBase.parseBoolean(source, command(0))
-      else
-        !Settings.rTreeDebugRenderer
+  override def build(builder: LiteralArgumentBuilder[CommandSourceStack]): Unit = {
+    builder.requires(source => hasOpLevel(source, RequiredPermissionLevel))
+    builder.executes(context => {
+      toggle(context.getSource)
+      1
+    })
+    builder.then(
+      RequiredArgumentBuilder.argument[CommandSourceStack, java.lang.Boolean]("value", BoolArgumentType.bool())
+        .executes(context => {
+          set(context.getSource, BoolArgumentType.getBool(context, "value"))
+          1
+        }))
   }
 
-  // OP levels for reference:
-  // 1 - Ops can bypass spawn protection.
-  // 2 - Ops can use /clear, /difficulty, /effect, /gamemode, /gamerule, /give, /summon, /setblock and /tp, and can edit command blocks.
-  // 3 - Ops can use /ban, /deop, /kick, and /op.
-  // 4 - Ops can use /stop.
+  private def set(source: CommandSourceStack, value: Boolean): Unit = {
+    Settings.rTreeDebugRenderer = value
+    source.sendSystemMessage(Component.literal(
+      s"Wireless network rendering is now ${if (value) "enabled" else "disabled"}."))
+  }
 
-  override def getRequiredPermissionLevel = 2
+  private def toggle(source: CommandSourceStack): Unit = set(source, !Settings.rTreeDebugRenderer)
 }

@@ -6,10 +6,21 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.InventoryUtils
 import li.cil.oc.util.ResultWrapper.result
+import net.minecraft.world.item.ItemStack
 
+/**
+ * 组件的内部物品栏控制（对应 1.7.10 的 `traits.InventoryControl`）。
+ *
+ * 1.21.1 迁移要点：
+ *  - `IInventory#getSizeInventory` → `IItemHandler#getSlots`
+ *  - `stack.stackSize` → `stack.getCount` / `stack.setCount`
+ *  - `inventory.setInventorySlotContents` / `decrStackSize` → [[InventorySlots]] 的
+ *    `setStack` / `decrStackSize`（`IItemHandler` 只有插入/抽取语义）
+ *  - `inventory.getInventoryStackLimit` → `IItemHandler#getSlotLimit(slot)`
+ */
 trait InventoryControl extends InventoryAware {
   @Callback(doc = "function():number -- The size of this device's internal inventory.")
-  def inventorySize(context: Context, args: Arguments): Array[AnyRef] = result(inventory.getSizeInventory)
+  def inventorySize(context: Context, args: Arguments): Array[AnyRef] = result(inventory.getSlots)
 
   @Callback(doc = "function([slot:number]):number -- Get the currently selected slot; set the selected slot if specified.")
   def select(context: Context, args: Arguments): Array[AnyRef] = {
@@ -24,7 +35,7 @@ trait InventoryControl extends InventoryAware {
   def count(context: Context, args: Arguments): Array[AnyRef] = {
     val slot = optSlot(args, 0)
     result(stackInSlot(slot) match {
-      case Some(stack) => stack.stackSize
+      case Some(stack) => stack.getCount
       case _ => 0
     })
   }
@@ -33,8 +44,8 @@ trait InventoryControl extends InventoryAware {
   def space(context: Context, args: Arguments): Array[AnyRef] = {
     val slot = optSlot(args, 0)
     result(stackInSlot(slot) match {
-      case Some(stack) => math.min(inventory.getInventoryStackLimit, stack.getMaxStackSize) - stack.stackSize
-      case _ => inventory.getInventoryStackLimit
+      case Some(stack) => math.min(inventory.getSlotLimit(slot), stack.getMaxStackSize) - stack.getCount
+      case _ => inventory.getSlotLimit(slot)
     })
   }
 
@@ -58,29 +69,33 @@ trait InventoryControl extends InventoryAware {
     else result((stackInSlot(selectedSlot), stackInSlot(slot)) match {
       case (Some(from), Some(to)) =>
         if (InventoryUtils.haveSameItemType(from, to, checkNBT = true)) {
-          val space = math.min(inventory.getInventoryStackLimit, to.getMaxStackSize) - to.stackSize
-          val amount = math.min(count, math.min(space, from.stackSize))
+          val space = math.min(inventory.getSlotLimit(slot), to.getMaxStackSize) - to.getCount
+          val amount = math.min(count, math.min(space, from.getCount))
           if (amount > 0) {
-            from.stackSize -= amount
-            to.stackSize += amount
-            assert(from.stackSize >= 0)
-            if (from.stackSize == 0) {
-              inventory.setInventorySlotContents(selectedSlot, null)
+            val moved = InventorySlots.decrStackSize(inventory, selectedSlot, amount)
+            if (moved != null && !moved.isEmpty) {
+              InventoryUtils.insertIntoInventorySlot(moved, inventory, None, slot)
             }
-            inventory.markDirty()
             true
           }
           else false
         }
-        else if (count >= from.stackSize) {
-          inventory.setInventorySlotContents(slot, from)
-          inventory.setInventorySlotContents(selectedSlot, to)
+        else if (count >= from.getCount) {
+          // 整栈交换：先把两个槽位都取出来，再分别放回去。
+          val a = InventorySlots.decrStackSize(inventory, selectedSlot, from.getCount)
+          val b = InventorySlots.decrStackSize(inventory, slot, to.getCount)
+          InventorySlots.setStack(InventorySlots.wrap(inventory), slot, a)
+          InventorySlots.setStack(InventorySlots.wrap(inventory), selectedSlot, b)
           true
         }
         else false
       case (Some(from), None) =>
-        inventory.setInventorySlotContents(slot, inventory.decrStackSize(selectedSlot, count))
-        true
+        val moved = InventorySlots.decrStackSize(inventory, selectedSlot, count)
+        if (moved == null || moved.isEmpty) false
+        else {
+          InventorySlots.setStack(InventorySlots.wrap(inventory), slot, moved)
+          true
+        }
       case _ => false
     })
   }

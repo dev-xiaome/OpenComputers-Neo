@@ -1,36 +1,41 @@
 package li.cil.oc.server.command
 
+import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import li.cil.oc.api
 import li.cil.oc.common.command.SimpleCommand
 import li.cil.oc.common.nanomachines.ControllerImpl
 import net.minecraft.commands.CommandSourceStack
-import net.minecraft.command.WrongUsageException
-import net.minecraft.world.entity.player.Player
 import net.minecraft.network.chat.Component
 
+/**
+ * `/oc_debugNanomachines`（别名 `/oc_dn`）：给自己安装一个调试用的纳米机器控制器，
+ * 并把配置映射写入日志。
+ *
+ * 1.21.1 迁移要点：1.7.10 用 `ICommandSender` 模式匹配拿 `EntityPlayer`；
+ * 1.21.1 直接从 `CommandSourceStack#getPlayer` 取玩家（控制台时为 `null`），
+ * 非玩家执行时报 Brigadier 的 `CommandSyntaxException`。
+ */
 object DebugNanomachinesCommand extends SimpleCommand("oc_debugNanomachines") {
   aliases += "oc_dn"
 
-  override def getCommandUsage(source: ICommandSender): String = name
+  private final val RequiredPermissionLevel = 2
 
-  override def processCommand(source: ICommandSender, command: Array[String]): Unit = {
-    source match {
-      case player: Player =>
-        api.Nanomachines.installController(player) match {
-          case controller: ControllerImpl =>
-            controller.debug()
-            player.addChatMessage(new ChatComponentText("Debug configuration created, see log for mappings."))
-          case _ => // Someone did something.
-        }
-      case _ => throw new WrongUsageException("Can only be used by players.")
-    }
+  override def build(builder: LiteralArgumentBuilder[CommandSourceStack]): Unit = {
+    builder.requires(source => hasOpLevel(source, RequiredPermissionLevel))
+    builder.executes(context => {
+      val player = context.getSource.getPlayer
+      if (player == null) {
+        // 等价于 1.7.10 的 WrongUsageException；用 Brigadier 的标准异常让命令源看到红字提示。
+        throw com.mojang.brigadier.exceptions.CommandSyntaxException.invalidInput(
+          Component.literal("Can only be used by players."))
+      }
+      api.Nanomachines.installController(player) match {
+        case controller: ControllerImpl =>
+          controller.debug()
+          player.sendSystemMessage(Component.literal("Debug configuration created, see log for mappings."))
+        case _ => // Someone did something.
+      }
+      1
+    })
   }
-
-  // OP levels for reference:
-  // 1 - Ops can bypass spawn protection.
-  // 2 - Ops can use /clear, /difficulty, /effect, /gamemode, /gamerule, /give, /summon, /setblock and /tp, and can edit command blocks.
-  // 3 - Ops can use /ban, /deop, /kick, and /op.
-  // 4 - Ops can use /stop.
-
-  override def getRequiredPermissionLevel = 2
 }

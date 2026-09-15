@@ -549,7 +549,14 @@ object Registry extends ItemAPI {
     import net.minecraft.world.item.CreativeModeTab.TabVisibility
     for (name <- creativeOrder if !hiddenInCreativeTab.contains(name)) {
       val stack = createItemStack(name, 1)
-      if (stack != null && !stack.isEmpty) event.accept(stack, TabVisibility.PARENT_AND_SEARCH_TABS)
+      if (stack != null && !stack.isEmpty) {
+        // 标签页填充发生在注册表事件之后，此时才允许读物品实例上的 `showInItemList`。
+        val visible = stack.getItem match {
+          case delegate: li.cil.oc.common.item.traits.Delegate => delegate.showInItemList
+          case _ => true
+        }
+        if (visible) event.accept(stack, TabVisibility.PARENT_AND_SEARCH_TABS)
+      }
     }
     // 战利品软盘 / EEPROM 之类的额外堆叠（原 `Items.init` 里的 `additionalItems`）。
     for (stack <- registeredItems if stack != null && !stack.isEmpty) {
@@ -673,18 +680,12 @@ object Registry extends ItemAPI {
 
       /** 注册物品；物品用 [[li.cil.oc.common.item.traits.Delegate#showInItemList]] 控制是否进标签页。 */
       def reg[T <: Item](name: String, supplier: () => T): DeferredItem[T] = {
-        val holder = registerItem(name, new Supplier[T] {
+        // 注意：注册期（mod 构造期）**既不能**读 `holder.value()`（注册表事件还没触发），
+        // **也不能**提前 `supplier()` 构造物品实例（`Item` 构造器会写注册表，此时已冻结）。
+        // 因此这里只登记工厂；「是否进创造模式标签页」留到填充标签页时再判断。
+        registerItem(name, new Supplier[T] {
           override def get(): T = supplier()
         })
-        // 注意：注册期（mod 构造期）**不能**读 `holder.value()`——注册表事件还没触发，
-        // 会抛 `NullPointerException: Trying to access unbound value`。
-        // 这里直接构造一次实例来判断是否需要在创造模式标签页里隐藏。
-        supplier() match {
-          case delegate: item.traits.Delegate if !delegate.showInItemList =>
-            hideBlockItemInCreativeTab(name)
-          case _ =>
-        }
-        holder
       }
 
       def regInstance[T <: Item](name: String, instance: T): DeferredItem[T] = {
