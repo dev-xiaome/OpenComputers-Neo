@@ -383,9 +383,12 @@ trait Agent extends traits.WorldControl with traits.InventoryControl with traits
       side.getStepZ * range)
     val hit = world.clip(new ClipContext(origin, target, ClipContext.Block.OUTLINE, ClipContext.Fluid.NONE, player))
     closestEntity[Entity](side) match {
-      case Some(target: (LivingEntity | AbstractMinecart | entityPackage.Drone))
-        if hit.getType == HitResult.Type.MISS ||
-          new Vec3(player.getX, player.getY, player.getZ).distanceTo(hit.getLocation) > player.distanceTo(target) =>
+      // 1.21.1（Scala 2.13）：不支持 Scala 3 的联合类型 `A | B | C`，
+      // 改用类型守卫并列判断，语义与上游一致（只有这三类实体参与近战拾取）。
+      case Some(target)
+        if (target.isInstanceOf[LivingEntity] || target.isInstanceOf[AbstractMinecart] || target.isInstanceOf[entityPackage.Drone]) &&
+          (hit.getType == HitResult.Type.MISS ||
+            new Vec3(player.getX, player.getY, player.getZ).distanceTo(hit.getLocation) > player.distanceTo(target)) =>
         new EntityHitResult(target)
       case _ => hit
     }

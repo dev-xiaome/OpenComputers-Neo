@@ -45,7 +45,8 @@ class EEPROM extends prefab.ManagedEnvironment with DeviceInfo {
     DeviceAttribute.Size -> Settings.get.eepromSize.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：`deviceInfo` 是 Scala `Map`，而接口要求 `java.util.Map`，需显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 

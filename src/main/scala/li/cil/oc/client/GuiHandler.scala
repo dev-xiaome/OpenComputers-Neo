@@ -17,6 +17,7 @@ import net.minecraft.world.entity.player.{Inventory, Player}
 import net.minecraft.world.inventory.{AbstractContainerMenu, MenuType}
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
+import net.minecraft.world.level.block.entity.BlockEntity
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent
 
 /**
@@ -160,12 +161,22 @@ object GuiHandler extends CommonGuiHandler {
     if (address == null || address.isEmpty || key == null || key.isEmpty) return null
     component.TerminalServer.loaded.find(address) match {
       case Some(term) if term.rack != null =>
-        // 1.21.1 里 `api.internal.Rack` 仍是 1.7.10 风格（暴露 `world` / `xPosition` 等），
-        // 因此这段距离判断可以原样保留。
-        val rack = term.rack
-        def inRange: Boolean =
-          player.isAlive && rack.world != null && !rack.isInvalid &&
-            rack.getDistanceFrom(player.getX, player.getY, player.getZ) < term.range * term.range
+        // 1.21.1 里 `api.internal.Rack` 仍暴露 `world` / `xPosition` 等（`EnvironmentHost`），
+        // 但 `isInvalid` / `getDistanceFrom` 只存在于 `BlockEntity` 上，
+        // 因此这里自己算距离，并把「已移除」判断挪到 `BlockEntity` 分支里。
+        def inRange: Boolean = {
+          if (!player.isAlive) return false
+          val rack = term.rack
+          if (rack.world == null) return false
+          rack match {
+            case be: BlockEntity if be.isRemoved => return false
+            case _ =>
+          }
+          val dx = rack.xPosition - player.getX
+          val dy = rack.yPosition - player.getY
+          val dz = rack.zPosition - player.getZ
+          dx * dx + dy * dy + dz * dz < term.range * term.range
+        }
         if (inRange) {
           if (term.sidedKeys.contains(key)) {
             new gui.Screen(term.buffer, true, () => true, () => {

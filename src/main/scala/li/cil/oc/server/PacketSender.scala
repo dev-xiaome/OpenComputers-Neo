@@ -407,7 +407,7 @@ object PacketSender {
   def sendParticleEffect(position: BlockPosition, name: String, count: Int, velocity: Double, direction: Option[Direction] = None): Unit = if (count > 0) {
     val pb = new SimplePacketBuilder(PacketType.ParticleEffect)
 
-    pb.writeInt(position.world.get.provider.dimensionId)
+    pb.writeDimension(position.world.get)
     pb.writeInt(position.x)
     pb.writeInt(position.y)
     pb.writeInt(position.z)
@@ -463,9 +463,11 @@ object PacketSender {
   def sendRackInventory(t: tileentity.Rack): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RackInventory)
 
+    // 1.21.1：方块实体的物品栏统一走 NeoForge 的 `IItemHandler`，
+    // `getSizeInventory` → `getSlots`，`getStackInSlot` 语义不变。
     pb.writeTileEntity(t)
-    pb.writeInt(t.getSizeInventory)
-    for (slot <- 0 until t.getSizeInventory) {
+    pb.writeInt(t.getSlots)
+    for (slot <- 0 until t.getSlots) {
       pb.writeInt(slot)
       pb.writeItemStack(t.getStackInSlot(slot))
     }
@@ -498,8 +500,9 @@ object PacketSender {
     val pb = new SimplePacketBuilder(PacketType.RaidStateChange)
 
     pb.writeTileEntity(t)
-    for (slot <- 0 until t.getSizeInventory) {
-      pb.writeBoolean(t.getStackInSlot(slot) != null)
+    // 1.21.1 的空槽位是 `ItemStack.EMPTY`（不是 null），因此判空改用 `isEmpty`。
+    for (slot <- 0 until t.getSlots) {
+      pb.writeBoolean(!t.getStackInSlot(slot).isEmpty)
     }
 
     pb.sendToPlayersNearTileEntity(t)
@@ -510,7 +513,8 @@ object PacketSender {
 
     pb.writeTileEntity(t)
     pb.writeBoolean(t.isOutputEnabled)
-    for (d <- Direction.VALID_DIRECTIONS) {
+    // 1.21.1 的 `Direction` 没有 `VALID_DIRECTIONS`，用 `Direction.values()`。
+    for (d <- Direction.values()) {
       pb.writeByte(t.getOutput(d))
     }
 
@@ -530,7 +534,7 @@ object PacketSender {
     val pb = new SimplePacketBuilder(PacketType.RobotMove)
 
     // Custom pb.writeTileEntity() with fake coordinates (valid for the client).
-    pb.writeInt(t.proxy.world.provider.dimensionId)
+    pb.writeDimension(t.proxy.world)
     pb.writeInt(position.x)
     pb.writeInt(position.y)
     pb.writeInt(position.z)
@@ -794,7 +798,7 @@ object PacketSender {
     val pb = new SimplePacketBuilder(PacketType.Sound)
 
     val blockPos = BlockPosition(x, y, z)
-    pb.writeInt(world.provider.dimensionId)
+    pb.writeDimension(world)
     pb.writeInt(blockPos.x)
     pb.writeInt(blockPos.y)
     pb.writeInt(blockPos.z)
@@ -808,7 +812,7 @@ object PacketSender {
     val pb = new SimplePacketBuilder(PacketType.SoundPattern)
 
     val blockPos = BlockPosition(x, y, z)
-    pb.writeInt(world.provider.dimensionId)
+    pb.writeDimension(world)
     pb.writeInt(blockPos.x)
     pb.writeInt(blockPos.y)
     pb.writeInt(blockPos.z)

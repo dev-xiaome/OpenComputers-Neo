@@ -53,17 +53,27 @@ trait TileEntity { self: BlockEntity =>
   /** 所在世界；方块实体尚未加入世界时为 `null`。 */
   def world: Level = getLevel
 
-  def x: Int = worldPosition.getX
+  /**
+   * 当前位置。
+   *
+   * **必须**走公开的 `getBlockPos`，不能直接读 `BlockEntity#worldPosition`：
+   * Scala trait 的方法体编译进的是 trait 自己的接口/`$class`，那个类并不是
+   * `BlockEntity` 的子类，读 protected 字段会在运行时抛
+   * `IllegalAccessError: ... tried to access protected field ... worldPosition`。
+   */
+  private def selfPos: BlockPos = getBlockPos
 
-  def y: Int = worldPosition.getY
+  def x: Int = selfPos.getX
 
-  def z: Int = worldPosition.getZ
+  def y: Int = selfPos.getY
+
+  def z: Int = selfPos.getZ
 
   /** 当前位置（带世界引用），等价于原 `BlockPosition(x, y, z, world)`。 */
   def position: BlockPosition = BlockPosition(x, y, z, world)
 
   /** 当前 BlockPos。 */
-  def blockPos: BlockPos = worldPosition
+  def blockPos: BlockPos = selfPos
 
   /** 自身方块（原 `getBlockType`）。 */
   def block: Block = getBlockState.getBlock
@@ -91,7 +101,7 @@ trait TileEntity { self: BlockEntity =>
 
   /** 与世界中心的距离平方（原 `getDistanceFrom`）。 */
   def distanceSq(other: BlockEntity): Double =
-    if (other == null) Double.MaxValue else worldPosition.distSqr(other.getBlockPos)
+    if (other == null) Double.MaxValue else selfPos.distSqr(other.getBlockPos)
 
   // ----------------------------------------------------------------------- //
   // 生命周期钩子
@@ -106,8 +116,8 @@ trait TileEntity { self: BlockEntity =>
   def tick(): Unit = {
     // 原逻辑：定期强制光照更新，避免大机器阵列里客户端光照不刷新。
     if (Settings.get.periodicallyForceLightUpdate && world != null && world.getGameTime % 40 == 0 &&
-      getBlockState.getLightEmission(world, worldPosition) > 0) {
-      world.sendBlockUpdated(worldPosition, getBlockState, getBlockState, Block.UPDATE_CLIENTS)
+      getBlockState.getLightEmission(world, selfPos) > 0) {
+      world.sendBlockUpdated(selfPos, getBlockState, getBlockState, Block.UPDATE_CLIENTS)
     }
   }
 
@@ -147,17 +157,17 @@ trait TileEntity { self: BlockEntity =>
   def markDirtyAndUpdate(): Unit = {
     setChanged()
     if (world != null && !world.isClientSide) {
-      world.sendBlockUpdated(worldPosition, getBlockState, getBlockState, Block.UPDATE_CLIENTS)
+      world.sendBlockUpdated(selfPos, getBlockState, getBlockState, Block.UPDATE_CLIENTS)
     }
   }
 
   /** 通知周围方块（原 `world.notifyBlocksOfNeighborChange(x, y, z, block)`）。 */
   def notifyNeighbors(): Unit =
-    if (world != null) world.updateNeighborsAt(worldPosition, block)
+    if (world != null) world.updateNeighborsAt(selfPos, block)
 
   /** 通知客户端方块更新（原 `world.markBlockForUpdate(x, y, z)`）。 */
   def markBlockForUpdate(): Unit =
-    if (world != null) world.sendBlockUpdated(worldPosition, getBlockState, getBlockState, Block.UPDATE_CLIENTS)
+    if (world != null) world.sendBlockUpdated(selfPos, getBlockState, getBlockState, Block.UPDATE_CLIENTS)
 
   /** 类型别名，方便子类覆写时引用（原代码里 `BlockEntityType` 由注册层保管）。 */
   protected def blockEntityType: BlockEntityType[_] = getType

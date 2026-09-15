@@ -1,123 +1,158 @@
 package li.cil.oc.server.agent
 
 import li.cil.oc.api.internal
-import li.cil.oc.util.InventoryUtils
-import net.minecraft.world.level.block.Block
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.entity.player.Inventory
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.ListTag
-import li.cil.oc.util.ExtendedInventory._
+import li.cil.oc.util.{BlockPosition, InventoryUtils}
+import net.minecraft.world.item.{Item, ItemStack}
+import net.neoforged.neoforge.items.IItemHandler
 
-class Inventory(val agent: internal.Agent) extends Inventory(null) {
-  private def selectedItemStack = agent.mainInventory.getStackInSlot(agent.selectedSlot)
+/**
+ * 机器人 / 无人机的「玩家物品栏」视图。
+ *
+ * ==1.7.10 → 1.21.1==
+ *  - 1.7.10 里本类继承 `net.minecraft.entity.player.Inventory`，并被
+ *    `server.agent.Player` 通过反射塞进假玩家的 `inventory` 字段。
+ *    1.21.1 的 `Player#inventory` 是 **final 字段**（在构造期创建、不可替换），
+ *    因此本类改为独立的 [[net.neoforged.neoforge.items.IItemHandler]] 实现：
+ *    槽位 `[0, mainInventory.getSlots)` 映射到 `agent.mainInventory`，
+ *    紧随其后的槽位映射到 `agent.equipmentInventory`（工具槽等）。
+ *  - 1.7.10 用「负数槽位取反」(`~slot`) 编码装备槽的做法在 1.21.1 不再需要，
+ *    统一改为顺序编码，避免出现非法槽位索引。
+ *  - `IInventory` 的 `getSizeInventory/decrStackSize/setInventorySlotContents/...`
+ *    分别对应 `IItemHandler` 的 `getSlots/extractItem/insertItem/...`。
+ *
+ * TODO(port): 上游把本类当作假玩家真正的手持物品栏（`player.inventory`），
+ *  所以「使用物品 / 破坏方块时消耗物品」会直接作用在 agent 的物品栏上。
+ *  现在假玩家用的是原版 `Inventory`，agent 物品栏与其是两份数据；
+ *  1.21.1 由 [[Player.setInventoryPlayerItems]] / [[Player.detectInventoryPlayerChanges]]
+ *  做「拷贝进 / 拷贝出」同步来近似原来的语义（详见 `Player.scala` 顶部的降级清单）。
+ *
+ * TODO(port): 上游覆写的 `decrementAnimations` / `writeToNBT` / `readFromNBT` /
+ *  `armorItemInSlot` / `getTotalArmorValue` / `damageArmor` / `copyInventory` /
+ *  `func_146030_a` / `changeCurrentItem` / `clearInventory` / `func_70439a` 等
+ *  原版 `Inventory` 专有 API 在 1.21.1 已不存在（动画、护甲、NBT 由别处负责），
+ *  机器人也没有护甲槽，故整体删除。
+ *
+ * TODO(port): `canHarvestBlock` / `getStrVsBlock` 依赖 1.7.10 的
+ *  `Block#getMaterial` 与 `ItemStack#func_150998_b/func_150997_a`，
+ *  1.21.1 改为 `BlockState` + `ItemStack#getDestroySpeed(BlockState)`（工具属性由
+ *  `TieredItem` / 数据组件决定），本类不再提供这两个方法。
+ */
+class Inventory(val agent: internal.Agent) extends IItemHandler {
+  private def mainHandler: IItemHandler = agent.mainInventory
 
-  private def inventorySlots = (agent.selectedSlot until getSizeInventory) ++ (0 until agent.selectedSlot)
+  private def equipmentHandler: IItemHandler = agent.equipmentInventory
 
-  override def getCurrentItem = agent.equipmentInventory.getStackInSlot(0)
+  private def mainSlots: Int = if (mainHandler == null) 0 else mainHandler.getSlots
 
-  override def getFirstEmptyStack = {
-    if (selectedItemStack == null) agent.selectedSlot
-    else inventorySlots.find(getStackInSlot(_) == null).getOrElse(-1)
-  }
+  private def equipmentSlots: Int = if (equipmentHandler == null) 0 else equipmentHandler.getSlots
 
-  override def func_146030_a(p_146030_1_ : Item, p_146030_2_ : Int, p_146030_3_ : Boolean, p_146030_4_ : Boolean) = setCurrentItem(p_146030_1_, p_146030_2_, p_146030_3_, p_146030_4_)
+  /** 当前选中槽位的物品（对应 1.7.10 的 `selectedItemStack`）。 */
+  def selectedItemStack: ItemStack = Inventory.getSlot(mainHandler, agent.selectedSlot)
 
-  def setCurrentItem(item: Item, itemDamage: Int, checkDamage: Boolean, create: Boolean) {}
+  /** 工具槽物品（对应 1.7.10 的 `getCurrentItem`）。 */
+  def getCurrentItem: ItemStack =
+    if (equipmentSlots > 0) Inventory.getSlot(equipmentHandler, 0) else ItemStack.EMPTY
 
-  override def changeCurrentItem(direction: Int) {}
-
-  override def clearInventory(item: Item, itemDamage: Int) = 0
-
-  override def func_70439_a(item: Item, itemDamage: Int) {}
-
-  override def decrementAnimations(): Unit = {
-    for (slot <- 0 until getSizeInventory) {
-      Option(getStackInSlot(slot)) match {
-        case Some(stack) => try stack.updateAnimation(agent.world, if (!agent.world.isRemote) agent.player else null, slot, slot == 0) catch {
-          case ignored: NullPointerException => // Client side item updates that need a player instance...
-        }
-        case _ =>
-      }
+  /**
+   * 主物品栏的槽位顺序：从当前选中槽位开始绕一圈
+   * （对应 1.7.10 的 `inventorySlots`，插入物品时优先放进选中槽位）。
+   */
+  def inventorySlots: Seq[Int] =
+    if (mainSlots <= 0) Seq.empty
+    else {
+      val selected = math.max(0, math.min(agent.selectedSlot, mainSlots - 1))
+      (selected until mainSlots) ++ (0 until selected)
     }
-  }
 
-  override def consumeInventoryItem(item: Item): Boolean = {
-    for ((slot, stack) <- inventorySlots.map(slot => (slot, getStackInSlot(slot))) if stack != null && stack.getItem == item && stack.stackSize > 0) {
-      stack.stackSize -= 1
-      if (stack.stackSize <= 0) {
-        setInventorySlotContents(slot, null)
+  /** 主物品栏槽位数（对应 1.7.10 的 `getSizeInventory`）。 */
+  def getSizeInventory: Int = mainSlots
+
+  private def delegate(slot: Int): IItemHandler =
+    if (slot < mainSlots) mainHandler else equipmentHandler
+
+  private def localSlot(slot: Int): Int =
+    if (slot < mainSlots) slot else slot - mainSlots
+
+  // ----------------------------------------------------------------------- //
+  // IItemHandler
+  // ----------------------------------------------------------------------- //
+
+  override def getSlots: Int = mainSlots + equipmentSlots
+
+  override def getStackInSlot(slot: Int): ItemStack =
+    if (slot < 0 || slot >= getSlots) ItemStack.EMPTY
+    else Inventory.getSlot(delegate(slot), localSlot(slot))
+
+  override def insertItem(slot: Int, stack: ItemStack, simulate: Boolean): ItemStack =
+    if (stack == null || stack.isEmpty || slot < 0 || slot >= getSlots) stack
+    else delegate(slot).insertItem(localSlot(slot), stack, simulate)
+
+  override def extractItem(slot: Int, amount: Int, simulate: Boolean): ItemStack =
+    if (amount <= 0 || slot < 0 || slot >= getSlots) ItemStack.EMPTY
+    else delegate(slot).extractItem(localSlot(slot), amount, simulate)
+
+  override def getSlotLimit(slot: Int): Int =
+    if (slot < 0 || slot >= getSlots) 0 else delegate(slot).getSlotLimit(localSlot(slot))
+
+  override def isItemValid(slot: Int, stack: ItemStack): Boolean =
+    slot >= 0 && slot < getSlots && delegate(slot).isItemValid(localSlot(slot), stack)
+
+  // ----------------------------------------------------------------------- //
+  // 上游在原版 `Inventory` 上用到的辅助方法（1.21.1 无对应 API，这里自行实现）
+  // ----------------------------------------------------------------------- //
+
+  /** 对应 1.7.10 的 `consumeInventoryItem(item)`：从物品栏里吃掉一个同种物品。 */
+  def consumeInventoryItem(item: Item): Boolean = {
+    for (slot <- inventorySlots) {
+      val stack = Inventory.getSlot(mainHandler, slot)
+      if (!stack.isEmpty && stack.is(item)) {
+        val extracted = mainHandler.extractItem(slot, 1, false)
+        return extracted != null && !extracted.isEmpty
       }
-      return true
     }
     false
   }
 
-  override def addItemStackToInventory(stack: ItemStack) = {
-    val slots = this.indices.drop(agent.selectedSlot) ++ this.indices.take(agent.selectedSlot)
-    InventoryUtils.insertIntoInventory(stack, this, slots = Option(slots))
+  /** 对应 1.7.10 的 `hasItem(item)`。 */
+  def hasItem(item: Item): Boolean =
+    (0 until mainSlots).exists { slot =>
+      val stack = Inventory.getSlot(mainHandler, slot)
+      !stack.isEmpty && stack.is(item)
+    }
+
+  /** 对应 1.7.10 的 `hasItemStack(stack)`（比较物品 + 数据组件）。 */
+  def hasItemStack(stack: ItemStack): Boolean =
+    stack != null && !stack.isEmpty && (0 until mainSlots).exists { slot =>
+      val current = Inventory.getSlot(mainHandler, slot)
+      !current.isEmpty && ItemStack.isSameItemSameComponents(current, stack)
+    }
+
+  /** 对应 1.7.10 的 `addItemStackToInventory(stack)`：优先塞进当前选中槽位。 */
+  def addItemStackToInventory(stack: ItemStack): Boolean =
+    InventoryUtils.insertIntoInventory(stack, mainHandler, slots = Option(inventorySlots))
+
+  /** 对应 1.7.10 的 `dropAllItems()`。 */
+  def dropAllItems(): Unit = InventoryUtils.dropAllSlots(BlockPosition(agent), mainHandler)
+}
+
+object Inventory {
+  /** 读取 `IItemHandler` 的槽位，越界或 `null` 统一折算为 `ItemStack.EMPTY`。 */
+  def getSlot(handler: IItemHandler, slot: Int): ItemStack = {
+    if (handler == null || slot < 0 || slot >= handler.getSlots) return ItemStack.EMPTY
+    val stack = handler.getStackInSlot(slot)
+    if (stack == null) ItemStack.EMPTY else stack
   }
 
-  override def func_146025_b(block: Block) = canHarvestBlock(block)
-
-  def canHarvestBlock(block: Block): Boolean = {
-    block.getMaterial.isToolNotRequired || (getCurrentItem != null && getCurrentItem.func_150998_b(block))
+  /**
+   * 用 `stack` 覆盖 `IItemHandler` 的某个槽位。
+   *
+   * TODO(port): 1.21.1 的 `IItemHandler` 没有 1.7.10 `setInventorySlotContents` 那样的
+   *  「直接写槽位」语义，这里退化为「先抽出旧内容再插入新内容」。副作用是旧物品会被
+   *  直接丢弃而不是走正常的移除流程（不会触发 `onDestroyed` 之类的钩子）。
+   */
+  def setSlot(handler: IItemHandler, slot: Int, stack: ItemStack): Unit = {
+    if (handler == null || slot < 0 || slot >= handler.getSlots) return
+    handler.extractItem(slot, handler.getSlotLimit(slot), false)
+    if (stack != null && !stack.isEmpty) handler.insertItem(slot, stack, false)
   }
-
-  override def func_146023_a(block: Block) = getStrVsBlock(block)
-
-  def getStrVsBlock(block: Block) = Option(getCurrentItem).fold(1f)(_.func_150997_a(block))
-
-  override def writeToNBT(nbt: ListTag) = nbt
-
-  override def readFromNBT(nbt: ListTag) {}
-
-  override def armorItemInSlot(slot: Int) = null
-
-  override def getTotalArmorValue = 0
-
-  override def damageArmor(damage: Float) {}
-
-  override def dropAllItems() = {}
-
-  override def hasItem(item: Item) = (0 until getSizeInventory).map(getStackInSlot).filter(_ != null).exists(_.getItem == item)
-
-  override def hasItemStack(stack: ItemStack) = (0 until getSizeInventory).map(getStackInSlot).filter(_ != null).exists(_.isItemEqual(stack))
-
-  override def copyInventory(from: Inventory) {}
-
-  // IInventory
-
-  override def getSizeInventory = agent.mainInventory.getSizeInventory
-
-  override def getStackInSlot(slot: Int) =
-    if (slot < 0) agent.equipmentInventory.getStackInSlot(~slot)
-    else agent.mainInventory.getStackInSlot(slot)
-
-  override def decrStackSize(slot: Int, amount: Int) = {
-    if (slot < 0) agent.equipmentInventory.decrStackSize(~slot, amount)
-    else agent.mainInventory.decrStackSize(slot, amount)
-  }
-
-  override def getStackInSlotOnClosing(slot: Int) =
-    if (slot < 0) agent.equipmentInventory.getStackInSlotOnClosing(~slot)
-    else agent.mainInventory.getStackInSlotOnClosing(slot)
-
-  override def setInventorySlotContents(slot: Int, stack: ItemStack) = {
-    if (slot < 0) agent.equipmentInventory.setInventorySlotContents(~slot, stack)
-    else agent.mainInventory.setInventorySlotContents(slot, stack)
-  }
-
-  override def getInventoryName = agent.mainInventory.getInventoryName
-
-  override def getInventoryStackLimit = agent.mainInventory.getInventoryStackLimit
-
-  override def markDirty() = agent.mainInventory.markDirty()
-
-  override def isUseableByPlayer(player: Player) = agent.mainInventory.isUseableByPlayer(player)
-
-  override def isItemValidForSlot(slot: Int, stack: ItemStack) =
-    if (slot < 0) agent.equipmentInventory.isItemValidForSlot(~slot, stack)
-    else agent.mainInventory.isItemValidForSlot(slot, stack)
 }
