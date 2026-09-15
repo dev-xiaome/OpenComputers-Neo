@@ -30,6 +30,10 @@ import org.apache.logging.log4j.Logger
 class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
   OpenComputersNeo.log.info("Greetings, user! Booting OpenComputers Neo.")
 
+  // 配置必须**最先**加载：注册期（`RegisterEvent`）就会读 `Settings` 里的数值
+  // （例如全息投影亮度、软盘容量），晚于注册会抛 `Settings.get()` 为 null。
+  OpenComputers.loadSettings(FMLPaths.CONFIGDIR.get().resolve("opencomputers_neo.conf").toFile)
+
   DataComponents.REGISTRY.register(modBus)
   CreativeTab.register(modBus)
   li.cil.oc.common.SoundEvents.REGISTRY.register(modBus)
@@ -53,9 +57,7 @@ class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
   modBus.addListener(new java.util.function.Consumer[FMLCommonSetupEvent] {
     override def accept(event: FMLCommonSetupEvent): Unit = event.enqueueWork(new Runnable {
       override def run(): Unit = {
-        val configFile = FMLPaths.CONFIGDIR.get().resolve("opencomputers_neo.conf").toFile
-        OpenComputers.loadSettings(configFile)
-        // 配置加载完成后再做依赖配置值的初始化。
+        // 配置已在构造期加载；这里做依赖配置值的初始化。
         proxy.init()
         // OC 自身的装配机/拆解机模板通过 IMC 注册，必须在各 mod 发完消息之后处理。
         li.cil.oc.common.IMC.processMessages()

@@ -1,168 +1,154 @@
 package li.cil.oc.client
 
 import li.cil.oc.Settings
-import net.minecraft.client.renderer.texture.TextureManager
-import net.minecraft.util.IIcon
 import net.minecraft.resources.ResourceLocation
 
+/**
+ * 客户端贴图位置总表。
+ *
+ * ==与 1.7.10 版的区别==
+ *  - 原实现里除了一堆 `ResourceLocation` 还有大量 `IIcon` 字段（`iconOn` / `iconSideOn` …），
+ *    由 `TextureStitchEvent` 在贴图注册时填充。NeoForge 1.21.1 已经**没有**
+ *    `TextureStitchEvent`，`IIcon` 也整体被 `TextureAtlasSprite` 取代，
+ *    因此这里只保留「位置」，取精灵统一走
+ *    [[li.cil.oc.client.renderer.tileentity.RenderUtil.sprite]]。
+ *  - 贴图目录按资源迁移规则改为 `textures/block/**`（原 `textures/blocks/**`）
+ *    —— 见 `docs/PROGRESS.md` 的资源迁移记录；文件名一律小写。
+ *  - 原 `init(TextureManager)` 负责把 GUI 贴图预绑定一遍（1.7.10 的 `bindTexture` 顺带
+ *    把贴图加载进显存）。1.21.1 的 `TextureManager` 没有 `bindTexture`，
+ *    贴图由 GPU 管线按需绑定，这个预热步骤**整体删除**。
+ */
 object Textures {
-  val fontAntiAliased = new ResourceLocation(Settings.resourceDomain, "textures/font/chars.png")
-  val fontAliased = new ResourceLocation(Settings.resourceDomain, "textures/font/chars_aliased.png")
+  private def gui(name: String): ResourceLocation =
+    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/gui/" + name)
 
-  val guiBackground = new ResourceLocation(Settings.resourceDomain, "textures/gui/background.png")
-  val guiBar = new ResourceLocation(Settings.resourceDomain, "textures/gui/bar.png")
-  val guiBorders = new ResourceLocation(Settings.resourceDomain, "textures/gui/borders.png")
-  val guiButtonDriveMode = new ResourceLocation(Settings.resourceDomain, "textures/gui/button_drive_mode.png")
-  val guiButtonPower = new ResourceLocation(Settings.resourceDomain, "textures/gui/button_power.png")
-  val guiButtonRange = new ResourceLocation(Settings.resourceDomain, "textures/gui/button_range.png")
-  val guiButtonRun = new ResourceLocation(Settings.resourceDomain, "textures/gui/button_run.png")
-  val guiButtonScroll = new ResourceLocation(Settings.resourceDomain, "textures/gui/button_scroll.png")
-  val guiButtonSide = new ResourceLocation(Settings.resourceDomain, "textures/gui/button_side.png")
-  val guiButtonRelay = new ResourceLocation(Settings.resourceDomain, "textures/gui/button_switch.png")
-  val guiComputer = new ResourceLocation(Settings.resourceDomain, "textures/gui/computer.png")
-  val guiDatabase = new ResourceLocation(Settings.resourceDomain, "textures/gui/database.png")
-  val guiDatabase1 = new ResourceLocation(Settings.resourceDomain, "textures/gui/database1.png")
-  val guiDatabase2 = new ResourceLocation(Settings.resourceDomain, "textures/gui/database2.png")
-  val guiDisassembler = new ResourceLocation(Settings.resourceDomain, "textures/gui/disassembler.png")
-  val guiDrive = new ResourceLocation(Settings.resourceDomain, "textures/gui/drive.png")
-  val guiDrone = new ResourceLocation(Settings.resourceDomain, "textures/gui/drone.png")
-  val guiKeyboardMissing = new ResourceLocation(Settings.resourceDomain, "textures/gui/keyboard_missing.png")
-  val guiManual = new ResourceLocation(Settings.resourceDomain, "textures/gui/manual.png")
-  val guiManualHome = new ResourceLocation(Settings.resourceDomain, "textures/gui/manual_home.png")
-  val guiManualMissingItem = new ResourceLocation(Settings.resourceDomain, "textures/gui/manual_missing_item.png")
-  val guiManualTab = new ResourceLocation(Settings.resourceDomain, "textures/gui/manual_tab.png")
-  val guiPrinter = new ResourceLocation(Settings.resourceDomain, "textures/gui/printer.png")
-  val guiPrinterInk = new ResourceLocation(Settings.resourceDomain, "textures/gui/printer_ink.png")
-  val guiPrinterMaterial = new ResourceLocation(Settings.resourceDomain, "textures/gui/printer_material.png")
-  val guiPrinterProgress = new ResourceLocation(Settings.resourceDomain, "textures/gui/printer_progress.png")
-  val guiRack = new ResourceLocation(Settings.resourceDomain, "textures/gui/rack.png")
-  val guiRaid = new ResourceLocation(Settings.resourceDomain, "textures/gui/raid.png")
-  val guiRange = new ResourceLocation(Settings.resourceDomain, "textures/gui/range.png")
-  val guiRobot = new ResourceLocation(Settings.resourceDomain, "textures/gui/robot.png")
-  val guiRobotNoScreen = new ResourceLocation(Settings.resourceDomain, "textures/gui/robot_noscreen.png")
-  val guiRobotAssembler = new ResourceLocation(Settings.resourceDomain, "textures/gui/robot_assembler.png")
-  val guiRobotSelection = new ResourceLocation(Settings.resourceDomain, "textures/gui/robot_selection.png")
-  val guiServer = new ResourceLocation(Settings.resourceDomain, "textures/gui/server.png")
-  val guiSlot = new ResourceLocation(Settings.resourceDomain, "textures/gui/slot.png")
-  val guiUpgradeTab = new ResourceLocation(Settings.resourceDomain, "textures/gui/upgrade_tab.png")
-  val guiWaypoint = new ResourceLocation(Settings.resourceDomain, "textures/gui/waypoint.png")
+  private def font(name: String): ResourceLocation =
+    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/font/" + name)
 
-  val blockCaseFrontOn = new ResourceLocation(Settings.resourceDomain, "textures/blocks/CaseFrontOn.png")
-  val blockCaseFrontError = new ResourceLocation(Settings.resourceDomain, "textures/blocks/CaseFrontError.png")
-  val blockCaseFrontActivity = new ResourceLocation(Settings.resourceDomain, "textures/blocks/CaseFrontActivity.png")
-  val blockDiskDriveFrontActivity = new ResourceLocation(Settings.resourceDomain, "textures/blocks/DiskDriveFrontActivity.png")
-  val blockHologram = new ResourceLocation(Settings.resourceDomain, "textures/blocks/HologramEffect.png")
-  val blockMicrocontrollerFrontLight = new ResourceLocation(Settings.resourceDomain, "textures/blocks/MicrocontrollerFrontLight.png")
-  val blockMicrocontrollerFrontOn = new ResourceLocation(Settings.resourceDomain, "textures/blocks/MicrocontrollerFrontOn.png")
-  val blockMicrocontrollerFrontError = new ResourceLocation(Settings.resourceDomain, "textures/blocks/MicrocontrollerFrontError.png")
-  val blockRaidFrontError = new ResourceLocation(Settings.resourceDomain, "textures/blocks/RaidFrontError.png")
-  val blockRaidFrontActivity = new ResourceLocation(Settings.resourceDomain, "textures/blocks/RaidFrontActivity.png")
-  val blockRobot = new ResourceLocation(Settings.resourceDomain, "textures/blocks/robot.png")
-  val blockScreenUpIndicator = new ResourceLocation(Settings.resourceDomain, "textures/blocks/screen/up_indicator.png")
-  val blockRackDiskDriveActivity = new ResourceLocation(Settings.resourceDomain, "textures/blocks/DiskDriveMountableActivity.png")
-  val blockRackServerOn = new ResourceLocation(Settings.resourceDomain, "textures/blocks/ServerFrontOn.png")
-  val blockRackServerError = new ResourceLocation(Settings.resourceDomain, "textures/blocks/ServerFrontError.png")
-  val blockRackServerActivity = new ResourceLocation(Settings.resourceDomain, "textures/blocks/ServerFrontActivity.png")
-  val blockRackServerNetworkActivity = new ResourceLocation(Settings.resourceDomain, "textures/blocks/ServerFrontNetworkActivity.png")
-  val blockRackTerminalServerOn = new ResourceLocation(Settings.resourceDomain, "textures/blocks/TerminalServerFrontOn.png")
-  val blockRackTerminalServerPresence = new ResourceLocation(Settings.resourceDomain, "textures/blocks/TerminalServerFrontPresence.png")
+  private def block(name: String): ResourceLocation =
+    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/block/" + name)
 
-  val upgradeCrafting = new ResourceLocation(Settings.resourceDomain, "textures/model/UpgradeCrafting.png")
-  val upgradeGenerator = new ResourceLocation(Settings.resourceDomain, "textures/model/UpgradeGenerator.png")
-  val upgradeInventory = new ResourceLocation(Settings.resourceDomain, "textures/model/UpgradeInventory.png")
+  private def model(name: String): ResourceLocation =
+    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/model/" + name)
 
-  val overlayNanomachines = new ResourceLocation(Settings.resourceDomain, "textures/gui/nanomachines_power.png")
-  val overlayNanomachinesBar = new ResourceLocation(Settings.resourceDomain, "textures/gui/nanomachines_power_bar.png")
+  // ----------------------------------------------------------------------- //
+  // 字体
+  // ----------------------------------------------------------------------- //
 
-  object Adapter {
-    var iconOn: IIcon = _
+  val fontAntiAliased: ResourceLocation = font("chars.png")
+  val fontAliased: ResourceLocation = font("chars_aliased.png")
+
+  // ----------------------------------------------------------------------- //
+  // GUI
+  // ----------------------------------------------------------------------- //
+
+  val guiBackground: ResourceLocation = gui("background.png")
+  val guiBar: ResourceLocation = gui("bar.png")
+  val guiBorders: ResourceLocation = gui("borders.png")
+  val guiButtonDriveMode: ResourceLocation = gui("button_drive_mode.png")
+  val guiButtonPower: ResourceLocation = gui("button_power.png")
+  val guiButtonRange: ResourceLocation = gui("button_range.png")
+  val guiButtonRun: ResourceLocation = gui("button_run.png")
+  val guiButtonScroll: ResourceLocation = gui("button_scroll.png")
+  val guiButtonSide: ResourceLocation = gui("button_side.png")
+  val guiButtonRelay: ResourceLocation = gui("button_switch.png")
+  val guiComputer: ResourceLocation = gui("computer.png")
+  val guiDatabase: ResourceLocation = gui("database.png")
+  val guiDatabase1: ResourceLocation = gui("database1.png")
+  val guiDatabase2: ResourceLocation = gui("database2.png")
+  val guiDisassembler: ResourceLocation = gui("disassembler.png")
+  val guiDrive: ResourceLocation = gui("drive.png")
+  val guiDrone: ResourceLocation = gui("drone.png")
+  val guiKeyboardMissing: ResourceLocation = gui("keyboard_missing.png")
+  val guiManual: ResourceLocation = gui("manual.png")
+  val guiManualHome: ResourceLocation = gui("manual_home.png")
+  val guiManualMissingItem: ResourceLocation = gui("manual_missing_item.png")
+  val guiManualTab: ResourceLocation = gui("manual_tab.png")
+  val guiPrinter: ResourceLocation = gui("printer.png")
+  val guiPrinterInk: ResourceLocation = gui("printer_ink.png")
+  val guiPrinterMaterial: ResourceLocation = gui("printer_material.png")
+  val guiPrinterProgress: ResourceLocation = gui("printer_progress.png")
+  val guiRack: ResourceLocation = gui("rack.png")
+  val guiRaid: ResourceLocation = gui("raid.png")
+  val guiRange: ResourceLocation = gui("range.png")
+  val guiRobot: ResourceLocation = gui("robot.png")
+  val guiRobotNoScreen: ResourceLocation = gui("robot_noscreen.png")
+  val guiRobotAssembler: ResourceLocation = gui("robot_assembler.png")
+  val guiRobotSelection: ResourceLocation = gui("robot_selection.png")
+  val guiServer: ResourceLocation = gui("server.png")
+  val guiSlot: ResourceLocation = gui("slot.png")
+  val guiUpgradeTab: ResourceLocation = gui("upgrade_tab.png")
+  val guiWaypoint: ResourceLocation = gui("waypoint.png")
+
+  val overlayNanomachines: ResourceLocation = gui("nanomachines_power.png")
+  val overlayNanomachinesBar: ResourceLocation = gui("nanomachines_power_bar.png")
+
+  // ----------------------------------------------------------------------- //
+  // 方块 / 模型
+  //
+  // 下面这些原本是 `Textures.Xxx.iconYyy` 形式的 `IIcon` 字段（在方块实体渲染器里用），
+  // 现在统一挪进 [[Block]] / [[Model]] 子对象，只保留 `ResourceLocation`。
+  // ----------------------------------------------------------------------- //
+
+  object Block {
+    val AdapterOn: ResourceLocation = block("adapteron")
+    val CableCap: ResourceLocation = block("cablecap")
+    val ChargerFrontOn: ResourceLocation = block("chargerfronton")
+    val ChargerSideOn: ResourceLocation = block("chargersideon")
+    val DisassemblerSideOn: ResourceLocation = block("disassemblersideon")
+    val DisassemblerTopOn: ResourceLocation = block("disassemblertopon")
+    val GeolyzerTopOn: ResourceLocation = block("geolyzertopon")
+    val PowerDistributorSideOn: ResourceLocation = block("powerdistributorsideon")
+    val PowerDistributorTopOn: ResourceLocation = block("powerdistributortopon")
+    val AssemblerSideAssembling: ResourceLocation = block("assemblersideassembling")
+    val AssemblerSideOn: ResourceLocation = block("assemblersideon")
+    val AssemblerTopOn: ResourceLocation = block("assemblertopon")
+    val SwitchSideOn: ResourceLocation = block("switchsideon")
+    val NetSplitterOn: ResourceLocation = block("netsplitteron")
+    val TransposerOn: ResourceLocation = block("transposeron")
+
+    val CaseFrontOn: ResourceLocation = block("casefronton")
+    val CaseFrontError: ResourceLocation = block("casefronterror")
+    val CaseFrontActivity: ResourceLocation = block("casefrontactivity")
+    val DiskDriveFrontActivity: ResourceLocation = block("diskdrivefrontactivity")
+    val DiskDriveMountableActivity: ResourceLocation = block("diskdrivemountableactivity")
+    val HologramEffect: ResourceLocation = block("hologrameffect")
+    val MicrocontrollerFrontLight: ResourceLocation = block("microcontrollerfrontlight")
+    val MicrocontrollerFrontOn: ResourceLocation = block("microcontrollerfronton")
+    val MicrocontrollerFrontError: ResourceLocation = block("microcontrollerfronterror")
+    val RaidFrontError: ResourceLocation = block("raidfronterror")
+    val RaidFrontActivity: ResourceLocation = block("raidfrontactivity")
+    val Robot: ResourceLocation = block("robot")
+    val ScreenUpIndicator: ResourceLocation = block("screen/up_indicator")
+
+    val RackDiskDriveActivity: ResourceLocation = block("diskdrivemountableactivity")
+    val RackServerOn: ResourceLocation = block("serverfronton")
+    val RackServerError: ResourceLocation = block("serverfronterror")
+    val RackServerActivity: ResourceLocation = block("serverfrontactivity")
+    val RackServerNetworkActivity: ResourceLocation = block("serverfrontnetworkactivity")
+    val RackTerminalServerOn: ResourceLocation = block("terminalserverfronton")
+    val RackTerminalServerPresence: ResourceLocation = block("terminalserverfrontpresence")
+
+    /** 机架槽位（六个方向）的图标，索引与 `Direction#ordinal` 对齐。 */
+    val RackIcons: Array[ResourceLocation] = Array(
+      block("rackfront"), // DOWN（未使用，占位）
+      block("rackfront"), // UP（未使用，占位）
+      block("rackfront"), // NORTH
+      block("rackfront"), // SOUTH
+      block("rackfront"), // WEST
+      block("rackfront") // EAST
+    )
+    val RackDiskDrive: ResourceLocation = block("diskdrivemountable")
+    val RackServer: ResourceLocation = block("serverfront")
+    val RackTerminal: ResourceLocation = block("terminalserverfront")
   }
 
-  object Cable {
-    var iconCap: IIcon = _
+  object Model {
+    val UpgradeCrafting: ResourceLocation = model("upgradecrafting")
+    val UpgradeGenerator: ResourceLocation = model("upgradegenerator")
+    val UpgradeInventory: ResourceLocation = model("upgradeinventory")
   }
 
-  object Charger {
-    var iconFrontCharging: IIcon = _
-    var iconSideCharging: IIcon = _
-  }
-
-  object Disassembler {
-    var iconSideOn: IIcon = _
-    var iconTopOn: IIcon = _
-  }
-
-  object Geolyzer {
-    var iconTopOn: IIcon = _
-  }
-
-  object HoverBoots {
-    var lightOverlay: IIcon = _
-  }
-
-  object PowerDistributor {
-    var iconSideOn: IIcon = _
-    var iconTopOn: IIcon = _
-  }
-
-  object Rack {
-    val icons = Array.fill[IIcon](6)(null)
-    var diskDrive: IIcon = _
-    var server: IIcon = _
-    var terminal: IIcon = _
-  }
-
-  object Assembler {
-    var iconSideAssembling: IIcon = _
-    var iconSideOn: IIcon = _
-    var iconTopOn: IIcon = _
-  }
-
-  object Switch {
-    var iconSideActivity: IIcon = _
-  }
-
-  object NetSplitter {
-    var iconOn: IIcon = _
-  }
-
-  object Transposer {
-    var iconOn: IIcon = _
-  }
-
-  def init(tm: TextureManager): Unit = {
-    tm.bindTexture(fontAntiAliased)
-    tm.bindTexture(fontAliased)
-
-    tm.bindTexture(guiBackground)
-    tm.bindTexture(guiBar)
-    tm.bindTexture(guiBorders)
-    tm.bindTexture(guiButtonPower)
-    tm.bindTexture(guiButtonRange)
-    tm.bindTexture(guiButtonRun)
-    tm.bindTexture(guiButtonSide)
-    tm.bindTexture(guiComputer)
-    tm.bindTexture(guiDrone)
-    tm.bindTexture(guiKeyboardMissing)
-    tm.bindTexture(guiRaid)
-    tm.bindTexture(guiRange)
-    tm.bindTexture(guiRobot)
-    tm.bindTexture(guiRobotAssembler)
-    tm.bindTexture(guiRobotSelection)
-    tm.bindTexture(guiServer)
-    tm.bindTexture(guiSlot)
-
-    tm.bindTexture(blockCaseFrontOn)
-    tm.bindTexture(blockCaseFrontActivity)
-    tm.bindTexture(blockHologram)
-    tm.bindTexture(blockMicrocontrollerFrontLight)
-    tm.bindTexture(blockMicrocontrollerFrontOn)
-    tm.bindTexture(blockRackServerOn)
-    tm.bindTexture(blockRobot)
-    tm.bindTexture(blockScreenUpIndicator)
-
-    tm.bindTexture(upgradeCrafting)
-    tm.bindTexture(upgradeGenerator)
-    tm.bindTexture(upgradeInventory)
-  }
+  /** 悬浮靴子的光效贴图（原 `Textures.HoverBoots.lightOverlay`）。 */
+  val hoverBootsLightOverlay: ResourceLocation = gui("nanomachines_power.png")
 }

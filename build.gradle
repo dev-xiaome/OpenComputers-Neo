@@ -52,6 +52,10 @@ dependencies {
 configurations {
     ocRunLibs
 }
+
+// 尚未移植的 1.7.10 Java 源码（客户端字体解析器依赖 gnu.trove 与旧版 Minecraft API）。
+// 客户端阶段移植完成后请删掉这一行。
+sourceSets.main.java.exclude 'li/cil/oc/client/renderer/font/FontParserHex.java'
 dependencies {
     ocRunLibs "org.scala-lang:scala-library:${scala_version}"
     ocRunLibs "com.typesafe:config:${typesafe_config_version}"

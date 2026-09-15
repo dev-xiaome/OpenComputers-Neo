@@ -861,7 +861,9 @@ object Registry extends ItemAPI {
 
       reg(ItemName.Nanomachines, () => new item.Nanomachines(
         single().rarity(net.minecraft.world.item.Rarity.UNCOMMON)))
-      regInstance(ItemName.HoverBoots, new item.HoverBoots(item.HoverBoots.defaultProps()
+      // 注意：必须用 `reg`（惰性工厂）而不是 `regInstance` —— 后者会在注册期就把物品 `new` 出来，
+      // 而 1.21.1 的 `Item` 构造器会写注册表，此时注册表已冻结（`Registry is already frozen`）。
+      reg(ItemName.HoverBoots, () => new item.HoverBoots(item.HoverBoots.defaultProps()
         .rarity(net.minecraft.world.item.Rarity.UNCOMMON)))
 
       // ------------------------------------------------------------------ //
