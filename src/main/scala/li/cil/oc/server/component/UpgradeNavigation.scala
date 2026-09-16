@@ -28,6 +28,16 @@ import net.minecraft.core.Direction
 
 import scala.jdk.CollectionConverters._
 
+/**
+ * 导航升级（读取机器人在已绑定地图中的相对坐标、朝向与附近航点）。
+ *
+ * ==1.21.1 迁移要点==
+ *  - `MapItemSavedData#xCenter / zCenter` 改名为 `centerX / centerZ`。
+ *  - `TileEntity#getDistanceFrom(x, y, z)`（返回到方块中心的距离平方）已移除，
+ *    改用 `BlockPosition#toVec3` + `Vec3#distanceToSqr`。
+ *  - `Vec3#xCoord/yCoord/zCoord` → `x/y/z`。
+ *  - `deviceInfo` 是 Scala `Map`，`getDeviceInfo` 需要 `.asJava`。
+ */
 class UpgradeNavigation(val host: EnvironmentHost with Rotatable) extends prefab.ManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
     withComponent("navigation", Visibility.Neighbors).
@@ -44,7 +54,7 @@ class UpgradeNavigation(val host: EnvironmentHost with Rotatable) extends prefab
     DeviceAttribute.Capacity -> data.getSize(host.world).toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -52,8 +62,8 @@ class UpgradeNavigation(val host: EnvironmentHost with Rotatable) extends prefab
   def getPosition(context: Context, args: Arguments): Array[AnyRef] = {
     val info = data.mapData(host.world)
     val size = data.getSize(host.world)
-    val relativeX = host.xPosition - info.xCenter
-    val relativeZ = host.zPosition - info.zCenter
+    val relativeX = host.xPosition - info.centerX
+    val relativeZ = host.zPosition - info.centerZ
 
     if (math.abs(relativeX) <= size / 2 && math.abs(relativeZ) <= size / 2)
       result(relativeX, host.yPosition, relativeZ)
@@ -77,11 +87,11 @@ class UpgradeNavigation(val host: EnvironmentHost with Rotatable) extends prefab
     val positionVec = position.toVec3
     val rangeSq = range * range
     val waypoints = Waypoints.findWaypoints(position, range).
-      filter(waypoint => waypoint.getDistanceFrom(positionVec.xCoord, positionVec.yCoord, positionVec.zCoord) <= rangeSq)
+      filter(waypoint => waypoint.position.toVec3.distanceToSqr(positionVec) <= rangeSq)
     result(waypoints.map(waypoint => {
       val delta = positionVec.subtract(waypoint.position.offset(waypoint.facing).toVec3)
       Map(
-        "position" -> Array(delta.xCoord, delta.yCoord, delta.zCoord),
+        "position" -> Array(delta.x, delta.y, delta.z),
         "redstone" -> waypoint.maxInput,
         "label" -> waypoint.label,
         "address" -> waypoint.node.address()
@@ -95,9 +105,9 @@ class UpgradeNavigation(val host: EnvironmentHost with Rotatable) extends prefab
       case machine: api.machine.Machine => (machine.host, message.data) match {
         case (tablet: internal.Tablet, Array(nbt: CompoundTag, stack: ItemStack, player: Player, blockPos: BlockPosition, side: Direction, hitX: java.lang.Float, hitY: java.lang.Float, hitZ: java.lang.Float)) =>
           val info = data.mapData(host.world)
-          nbt.putInt("posX", blockPos.x - info.xCenter)
+          nbt.putInt("posX", blockPos.x - info.centerX)
           nbt.putInt("posY", blockPos.y)
-          nbt.putInt("posZ", blockPos.z - info.zCenter)
+          nbt.putInt("posZ", blockPos.z - info.centerZ)
         case _ => // Ignore.
       }
       case _ => // Ignore.

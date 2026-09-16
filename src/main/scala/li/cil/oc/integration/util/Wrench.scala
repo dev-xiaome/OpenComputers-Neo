@@ -19,9 +19,17 @@ object Wrench {
 
   def isWrench(stack: ItemStack): Boolean = stack != null && checks.exists(IMC.tryInvokeStatic(_, stack)(false))
 
-  def holdsApplicableWrench(player: Player, position: BlockPosition): Boolean =
-    player.getHeldItem != null && usages.exists(IMC.tryInvokeStatic(_, player, Int.box(position.x), Int.box(position.y), Int.box(position.z), Boolean.box(false))(false))
+  // 1.21.1：`Player#getHeldItem` 拆成了 `getMainHandItem` / `getOffhandItem`，扳手只看主手。
+  def holdsApplicableWrench(player: Player, position: BlockPosition): Boolean = {
+    val held = player.getMainHandItem
+    held != null && !held.isEmpty &&
+      usages.exists(IMC.tryInvokeStatic(_, player, Int.box(position.x), Int.box(position.y), Int.box(position.z), Boolean.box(false))(false))
+  }
 
-  def wrenchUsed(player: Player, position: BlockPosition): Unit =
-    if (player.getHeldItem != null) usages.foreach(IMC.tryInvokeStaticVoid(_, player, Int.box(position.x), Int.box(position.y), Int.box(position.z), Boolean.box(true)))
+  def wrenchUsed(player: Player, position: BlockPosition): Unit = {
+    val held = player.getMainHandItem
+    if (held != null && !held.isEmpty) {
+      usages.foreach(IMC.tryInvokeStaticVoid(_, player, Int.box(position.x), Int.box(position.y), Int.box(position.z), Boolean.box(true)))
+    }
+  }
 }

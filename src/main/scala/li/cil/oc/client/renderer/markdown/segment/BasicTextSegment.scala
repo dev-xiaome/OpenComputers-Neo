@@ -1,14 +1,20 @@
 package li.cil.oc.client.renderer.markdown.segment
 
 import li.cil.oc.client.renderer.markdown.{Document, MarkupFormat}
-import net.minecraft.client.gui.FontRenderer
+import net.minecraft.client.gui.Font
 
+/**
+ * 纯文本片段的公共实现：负责按宽度折行、计算换行缩进与片段宽度。
+ *
+ * 与 1.7.10 版的差别只有字体类型：
+ * `FontRenderer#getStringWidth` → `Font#width`、`FONT_HEIGHT` → `lineHeight`。
+ */
 trait BasicTextSegment extends Segment {
   protected final val breaks = Set(' ', '.', ',', ':', ';', '!', '?', '_', '=', '-', '+', '*', '/', '\\')
   protected final val lists = Set("- ", "* ")
   protected lazy val rootPrefix = root.asInstanceOf[TextSegment].text.take(2)
 
-  override def nextX(indent: Int, maxWidth: Int, renderer: FontRenderer): Int = {
+  override def nextX(indent: Int, maxWidth: Int, renderer: Font): Int = {
     if (isLast) return 0
     var currentX = indent
     var chars = text
@@ -23,7 +29,7 @@ trait BasicTextSegment extends Segment {
     currentX + stringWidth(chars, renderer)
   }
 
-  override def nextY(indent: Int, maxWidth: Int, renderer: FontRenderer): Int = {
+  override def nextY(indent: Int, maxWidth: Int, renderer: Font): Int = {
     var lines = 0
     var chars = text
     if (ignoreLeadingWhitespace && indent == 0) chars = chars.dropWhile(_.isWhitespace)
@@ -46,11 +52,11 @@ trait BasicTextSegment extends Segment {
 
   protected def ignoreLeadingWhitespace: Boolean = true
 
-  protected def lineHeight(renderer: FontRenderer): Int = Document.lineHeight(renderer)
+  protected def lineHeight(renderer: Font): Int = Document.lineHeight(renderer)
 
-  protected def stringWidth(s: String, renderer: FontRenderer): Int
+  protected def stringWidth(s: String, renderer: Font): Int
 
-  protected def maxChars(s: String, maxWidth: Int, maxLineWidth: Int, renderer: FontRenderer): Int = {
+  protected def maxChars(s: String, maxWidth: Int, maxLineWidth: Int, renderer: Font): Int = {
     var pos = -1
     var lastBreak = -1
     val fullWidth = stringWidth(s, renderer)
@@ -63,20 +69,21 @@ trait BasicTextSegment extends Segment {
         val canFitInLine = fullWidth <= maxLineWidth
         val matchesFullLine = fullWidth == maxLineWidth
         if (lastBreak >= 0) {
-          return lastBreak + 1 // Can do a soft split.
+          return lastBreak + 1 // 可以在断点处软换行。
         }
         if (mayUseFullLine && matchesFullLine) {
-          return s.length // Special case for exact match.
+          return s.length // 正好占满整行。
         }
         if (canFitInLine && !mayUseFullLine) {
-          return 0 // Wrap line, use next line.
+          return 0 // 整段挪到下一行。
         }
-        return pos - 1 // Gotta split hard.
+        return pos - 1 // 只能硬切。
       }
       if (pos < s.length && breaks.contains(s.charAt(pos))) lastBreak = pos
     }
     pos
   }
 
-  protected def computeWrapIndent(renderer: FontRenderer) = if (lists.contains(rootPrefix)) renderer.getStringWidth(rootPrefix) else 0
+  protected def computeWrapIndent(renderer: Font): Int =
+    if (lists.contains(rootPrefix)) renderer.width(rootPrefix) else 0
 }

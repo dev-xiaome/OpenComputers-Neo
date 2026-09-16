@@ -75,6 +75,9 @@ class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
     override def accept(event: FMLClientSetupEvent): Unit = event.enqueueWork(new Runnable {
       override def run(): Unit = {
         // 客户端初始化（方块实体渲染器、菜单、按键绑定等）将在后续阶段接入。
+        // 临时启动自检：仅当游戏目录存在 `oc-selfcheck.on` 时启用（见 BootSelfCheck，
+        // 调试完成后连同该文件一起删除）。
+        li.cil.oc.common.init.BootSelfCheck.register()
       }
     })
   })

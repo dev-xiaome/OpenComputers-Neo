@@ -33,7 +33,8 @@ class UpgradeSolarGenerator(val host: EnvironmentHost) extends prefab.ManagedEnv
     DeviceAttribute.Product -> "Enligh10"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -52,11 +53,23 @@ class UpgradeSolarGenerator(val host: EnvironmentHost) extends prefab.ManagedEnv
     }
   }
 
+  /**
+   * 太阳是否可见（可以发电）。
+   *
+   * 1.21.1 迁移要点：
+   *  - `Level#isDaytime` → `Level#isDay()`
+   *  - `Level#provider.hasNoSky` → `Level#dimensionType().hasSkyLight()`
+   *  - `Level#canBlockSeeTheSky(x, y, z)` → `LevelReader#canSeeSkyFromBelowWater(BlockPos)`
+   *  - `getWorldChunkManager.getBiomeGenAt(x, z).isInstanceOf[BiomeGenDesert]` →
+   *    `getBiome(pos).is(Biomes.DESERT)`（1.21.1 的生物群系是注册表项，只能按 `ResourceKey` 判定）
+   */
   private def isSunVisible = {
     val blockPos = BlockPosition(host).offset(Direction.UP)
-    host.world.isDaytime &&
-      (!host.world.provider.hasNoSky) &&
-      host.world.canBlockSeeTheSky(blockPos.x, blockPos.y, blockPos.z) &&
-      (host.world.getWorldChunkManager.getBiomeGenAt(blockPos.x, blockPos.z).isInstanceOf[BiomeGenDesert] || (!host.world.isRaining && !host.world.isThundering))
+    val pos = blockPos.toChunkCoordinates
+    val world = host.world
+    world.isDay &&
+      world.dimensionType().hasSkyLight &&
+      world.canSeeSkyFromBelowWater(pos) &&
+      (world.getBiome(pos).is(Biomes.DESERT) || (!world.isRaining && !world.isThundering))
   }
 }

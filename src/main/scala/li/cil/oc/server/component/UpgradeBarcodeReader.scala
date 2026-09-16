@@ -16,8 +16,6 @@ import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.core.Direction
-import net.minecraft.server.level.ServerLevel
-import net.minecraft.core.Direction
 
 import scala.jdk.CollectionConverters._
 
@@ -34,16 +32,19 @@ class UpgradeBarcodeReader(val host: EnvironmentHost) extends prefab.ManagedEnvi
     DeviceAttribute.Product -> "Readerizer Deluxe"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   override def onMessage(message: Message): Unit = {
     super.onMessage(message)
     if (message.name == "tablet.use") message.source.host match {
       case machine: api.machine.Machine => (machine.host, message.data) match {
         case (tablet: internal.Tablet, Array(nbt: CompoundTag, stack: ItemStack, player: Player, blockPos: BlockPosition, side: Direction, hitX: java.lang.Float, hitY: java.lang.Float, hitZ: java.lang.Float)) =>
-          host.world.getTileEntity(blockPos) match {
+          // 1.21.1：`World#getTileEntity` → `World#getBlockEntity`（`ExtendedWorld` 里两者都提供）。
+          // 另外 `Direction#ordinal()` 变成 `ordinal`。
+          host.world.getBlockEntity(blockPos) match {
             case analyzable: Analyzable =>
-              processNodes(analyzable.onAnalyze(player, side.ordinal(), hitX.toFloat, hitY.toFloat, hitZ.toFloat), nbt)
+              processNodes(analyzable.onAnalyze(player, side.ordinal, hitX.toFloat, hitY.toFloat, hitZ.toFloat), nbt)
             case host: SidedEnvironment =>
               processNodes(Array(host.sidedNode(side)), nbt)
             case host: Environment =>
@@ -67,9 +68,10 @@ class UpgradeBarcodeReader(val host: EnvironmentHost) extends prefab.ManagedEnvi
         case _ =>
       }
 
-      val address = node.address()
+      // 1.21.1：`Node#address()` 是无参方法，Scala 里直接写 `address`。
+      val address = node.address
       if (address != null && !address.isEmpty) {
-        nodeNBT.putString("address", node.address())
+        nodeNBT.putString("address", address)
       }
 
       readerNBT.add(nodeNBT)

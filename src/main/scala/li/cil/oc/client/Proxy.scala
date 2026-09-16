@@ -14,7 +14,8 @@ import net.minecraft.client.renderer.entity.EntityRendererProvider
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.neoforged.bus.api.{EventPriority, IEventBus}
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent
-import net.neoforged.neoforge.client.event.{EntityRenderersEvent, RegisterClientExtensionsEvent, RegisterKeyMappingsEvent, RegisterMenuScreensEvent}
+import net.neoforged.neoforge.client.event.{EntityRenderersEvent, RegisterKeyMappingsEvent, RegisterMenuScreensEvent}
+import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent
 import net.neoforged.neoforge.common.NeoForge
 
 /**
@@ -185,7 +186,9 @@ object Proxy {
   /** 客户端 setup：API 接线 + 各子系统的运行期监听器。 */
   private def clientSetup(): Unit = {
     // 手册实现（原 `api.API.manual = client.Manual`）。
-    api.API.manual = client.Manual
+    // 注意：本对象就在 `package li.cil.oc.client` 内，`client.Manual` 里的 `client`
+    // 会被解析成 `li.cil.oc.client.client`，所以必须直接写 `Manual`。
+    api.API.manual = Manual
 
     CommandHandler.initialize()
     Icons.initialize()

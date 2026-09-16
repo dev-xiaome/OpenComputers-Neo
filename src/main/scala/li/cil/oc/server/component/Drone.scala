@@ -16,6 +16,8 @@ import li.cil.oc.api.prefab
 import li.cil.oc.common.entity
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.InventoryUtils
+import net.minecraft.sounds.SoundEvents
+import net.minecraft.sounds.SoundSource
 import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.core.Direction
 
@@ -35,16 +37,21 @@ class Drone(val agent: entity.Drone) extends prefab.ManagedEnvironment with Agen
     DeviceAttribute.Capacity -> agent.inventorySize.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：`deviceInfo` 是 Scala `Map`，而接口要求 `java.util.Map`，需显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   override protected def checkSideForAction(args: Arguments, n: Int) =
     args.checkSideAny(n)
 
   override protected def suckableItems(side: Direction) = entitiesInBlock(position) ++ super.suckableItems(side)
 
-  override protected def onSuckCollect(entity: ItemEntity) = {
-    if (InventoryUtils.insertIntoInventory(entity.getEntityItem, inventory, slots = Option(insertionSlots))) {
-      world.playSoundAtEntity(agent, "random.pop", 0.2f, ((world.rand.nextFloat - world.rand.nextFloat) * 0.7f + 1) * 2)
+  override protected def onSuckCollect(entity: ItemEntity): Unit = {
+    // 1.21.1：`ItemEntity#getEntityItem` → `getItem`。
+    if (InventoryUtils.insertIntoInventory(entity.getItem, inventory, slots = Option(insertionSlots))) {
+      // 1.21.1：`Level#playSoundAtEntity` 已被移除，改为 `Level#playSound` +
+      // `SoundEvents.ITEM_PICKUP`（即原版 "random.pop" 音效）；`Level#rand` → `Level#random`。
+      world.playSound(null, agent.getX, agent.getY, agent.getZ, SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.2f,
+        ((world.random.nextFloat - world.random.nextFloat) * 0.7f + 1) * 2)
     }
   }
 
@@ -89,11 +96,15 @@ class Drone(val agent: entity.Drone) extends prefab.ManagedEnvironment with Agen
 
   @Callback(doc = "function():number -- Get the current distance to the target position.")
   def getOffset(context: Context, args: Arguments): Array[AnyRef] =
-    result(agent.getDistance(agent.targetX, agent.targetY, agent.targetZ))
+    // 1.21.1：`Entity#getDistance(x, y, z)` 已移除，改用 `distanceToSqr` 后开方（语义一致）。
+    result(math.sqrt(agent.distanceToSqr(agent.targetX, agent.targetY, agent.targetZ)))
 
   @Callback(doc = "function():number -- Get the current velocity in m/s.")
-  def getVelocity(context: Context, args: Arguments): Array[AnyRef] =
-    result(math.sqrt(agent.motionX * agent.motionX + agent.motionY * agent.motionY + agent.motionZ * agent.motionZ) * 20) // per second
+  def getVelocity(context: Context, args: Arguments): Array[AnyRef] = {
+    // 1.21.1：`Entity#motionX/Y/Z` 字段 → `getDeltaMovement()`（返回 `Vec3`）。
+    val velocity = agent.getDeltaMovement
+    result(math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z) * 20) // per second
+  }
 
   @Callback(doc = "function():number -- Get the maximum velocity, in m/s.")
   def getMaxVelocity(context: Context, args: Arguments): Array[AnyRef] = {

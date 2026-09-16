@@ -16,11 +16,12 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
 import li.cil.oc.util.BlockPosition
+import li.cil.oc.util.ExtendedWorld._
 import li.cil.oc.util.InventoryUtils
 import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.entity.player.Player
+import net.minecraft.world.level.block.LevelEvent
 
-import scala.jdk.CollectionConverters._
 import scala.jdk.CollectionConverters._
 
 object UpgradeTractorBeam {
@@ -39,7 +40,8 @@ object UpgradeTractorBeam {
       DeviceAttribute.Product -> "T313-K1N.3515"
     )
 
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo
+    // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
     protected def position: BlockPosition
 
@@ -49,17 +51,27 @@ object UpgradeTractorBeam {
 
     @Callback(doc = """function():boolean -- Tries to pick up a random item in the robots' vicinity.""")
     def suck(context: Context, args: Arguments): Array[AnyRef] = {
-      val items = world.getEntitiesWithinAABB(classOf[ItemEntity], position.bounds.expand(pickupRadius, pickupRadius, pickupRadius))
-        .map(_.asInstanceOf[ItemEntity])
-        .filter(item => item.isEntityAlive && item.delayBeforeCanPickup <= 0)
+      // 1.21.1：`Level#getEntitiesWithinAABB` → `Level#getEntitiesOfClass`（返回 `java.util.List`，需 `asScala`）；
+      // `AABB#expand` → `AABB#inflate`；
+      // `Entity#isEntityAlive` → `isAlive`，`Entity#delayBeforeCanPickup` → `ItemEntity#hasPickUpDelay`；
+      // `Level#rand` → `Level#random`。
+      val items = world.getEntitiesOfClass(classOf[ItemEntity],
+        position.bounds.inflate(pickupRadius, pickupRadius, pickupRadius)).asScala
+        .filter(item => item != null && item.isAlive && !item.hasPickUpDelay)
       if (items.nonEmpty) {
-        val item = items(world.rand.nextInt(items.size))
-        val stack = item.getEntityItem
-        val size = stack.stackSize
+        val item = items(world.random.nextInt(items.size))
+        // 1.21.1：`ItemEntity#getEntityItem` → `getItem`，`ItemStack#stackSize` → `getCount`，
+        // `Entity#isDead` → `isRemoved`。
+        val stack = item.getItem
+        val size = if (stack == null) 0 else stack.getCount
         collectItem(item)
-        if (stack.stackSize < size || item.isDead) {
+        val remaining = if (stack == null) 0 else stack.getCount
+        if (remaining < size || item.isRemoved) {
           context.pause(Settings.get.suckDelay)
-          world.playAuxSFX(2003, math.floor(item.posX).toInt, math.floor(item.posY).toInt, math.floor(item.posZ).toInt, 0)
+          // 1.21.1：`Level#playAuxSFX(id, x, y, z, data)` 已移除，
+          // 2003（拾取物品粒子 + 音效）对应 `LevelEvent.SOUND_ITEM_PICKUP` 与 `Level#levelEvent`。
+          world.levelEvent(LevelEvent.SOUND_ITEM_PICKUP,
+            math.floor(item.getX).toInt, math.floor(item.getY).toInt, math.floor(item.getZ).toInt, 0)
           return result(true)
         }
       }
@@ -70,17 +82,20 @@ object UpgradeTractorBeam {
   class Player(val owner: EnvironmentHost, val player: () => Player) extends Common {
     override protected def position = BlockPosition(owner)
 
-    override protected def collectItem(item: ItemEntity) = item.onCollideWithPlayer(player())
+    // 1.21.1：`Entity#onCollideWithPlayer(player)` 重命名为 `playerTouch(player)`。
+    override protected def collectItem(item: ItemEntity) = item.playerTouch(player())
   }
 
   class Drone(val owner: internal.Agent) extends Common {
     override protected def position = BlockPosition(owner)
 
     override protected def collectItem(item: ItemEntity) = {
-      InventoryUtils.insertIntoInventory(item.getEntityItem, owner.mainInventory, None, 64, simulate = false, Some(insertionSlots))
+      // 1.21.1：`ItemEntity#getEntityItem` → `getItem`。
+      InventoryUtils.insertIntoInventory(item.getItem, owner.mainInventory, None, 64, simulate = false, Some(insertionSlots))
     }
 
-    private def insertionSlots = (owner.selectedSlot until owner.mainInventory.getSizeInventory) ++ (0 until owner.selectedSlot)
+    // 1.21.1：`IInventory#getSizeInventory` → `IItemHandler#getSlots`。
+    private def insertionSlots = (owner.selectedSlot until owner.mainInventory.getSlots) ++ (0 until owner.selectedSlot)
   }
 
 }

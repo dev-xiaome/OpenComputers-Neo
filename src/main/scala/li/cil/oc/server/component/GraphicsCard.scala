@@ -93,7 +93,8 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
 
   def clockInfo: String = ((2000 / setBackgroundCosts(tier)).toInt / 100).toString + "/" + ((2000 / setForegroundCosts(tier)).toInt / 100).toString + "/" + ((2000 / setPaletteColorCosts(tier)).toInt / 100).toString + "/" + ((2000 / setCosts(tier)).toInt / 100).toString + "/" + ((2000 / copyCosts(tier)).toInt / 100).toString + "/" + ((2000 / fillCosts(tier)).toInt / 100).toString
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：`deviceInfo` 是 Scala `Map`，而接口要求 `java.util.Map`，需显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -561,7 +562,9 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
             s.fill(0, 0, w, h, 0x20)
             try {
               val wrapRegEx = s"(.{1,${math.max(1, w - 2)}})\\s".r
-              val lines = wrapRegEx.replaceAllIn(Localization.localizeImmediately(machine.lastError).replace("\t", "  ") + "\n", m => Regex.quoteReplacement(m.group(1) + "\n")).lines.toArray
+              // 1.21.1：`String#lines` 返回 `java.util.stream.Stream`，其 `toArray` 得到的是
+              // `Array[Object]`，必须先经 `asScala` 才能拿到 `Array[String]`。
+              val lines = wrapRegEx.replaceAllIn(Localization.localizeImmediately(machine.lastError).replace("\t", "  ") + "\n", m => Regex.quoteReplacement(m.group(1) + "\n")).lines.iterator().asScala.toArray
               val firstRow = ((h - lines.length) / 2) max 2
 
               val message = "Unrecoverable Error"
@@ -627,16 +630,18 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
     }
 
     if (nbt.contains(BUFFER_INDEX_KEY)) {
-      bufferIndex = nbt.getInteger(BUFFER_INDEX_KEY)
+      // 1.21.1：`CompoundTag#getInteger` → `getInt`。
+      bufferIndex = nbt.getInt(BUFFER_INDEX_KEY)
     }
 
     removeAllBuffers() // JUST in case
     if (nbt.contains(VIDEO_RAM_KEY)) {
       val videoRamNbt = nbt.getCompound(VIDEO_RAM_KEY)
       val nbtPages = videoRamNbt.getList(NBT_PAGES, COMPOUND_ID)
-      for (i <- 0 until nbtPages.tagCount) {
+      // 1.21.1：`ListTag#tagCount` → `size()`。
+      for (i <- 0 until nbtPages.size()) {
         val nbtPage = nbtPages.getCompound(i)
-        val idx: Int = nbtPage.getInteger(NBT_PAGE_IDX)
+        val idx: Int = nbtPage.getInt(NBT_PAGE_IDX)
         val data = nbtPage.getCompound(NBT_PAGE_DATA)
         loadBuffer(node.address, idx, data)
       }

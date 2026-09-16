@@ -7,14 +7,22 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.InventoryUtils
 import li.cil.oc.util.ResultWrapper.result
-import net.minecraft.inventory.IInventory
 import net.minecraft.world.item.ItemStack
-import net.minecraft.core.Direction
+import net.neoforged.neoforge.items.IItemHandler
 
+/**
+ * 物品自带的物品栏（背包等）与设备内部物品栏之间的转移。
+ * 对应 1.7.10 的 `traits.ItemInventoryControl`。
+ *
+ * 1.21.1 迁移要点：
+ *  - `IInventory` → `IItemHandler`：`getSizeInventory` → `getSlots`
+ *  - 旧版的 `ForgeDirection.UNKNOWN`（“面无关”）在 1.21.1 没有对应物：
+ *    `IItemHandler` 的工具方法已忽略 `side` 参数，这里相应传 `None` / `null`。
+ */
 trait ItemInventoryControl extends InventoryAware {
   @Callback(doc = "function(slot:number):number -- The size of an item inventory in the specified slot.")
   def getItemInventorySize(context: Context, args: Arguments): Array[AnyRef] = {
-    withItemInventory(args.checkSlot(inventory, 0), itemInventory => result(itemInventory.getSizeInventory))
+    withItemInventory(args.checkSlot(inventory, 0), itemInventory => result(itemInventory.getSlots))
   }
 
   @Callback(doc = "function(inventorySlot:number, slot:number[, count:number=64]):number -- Drops an item into the specified slot in the item inventory.")
@@ -22,7 +30,8 @@ trait ItemInventoryControl extends InventoryAware {
     withItemInventory(args.checkSlot(inventory, 0), itemInventory => {
       val slot = args.checkSlot(itemInventory, 1)
       val count = args.optItemCount(2)
-      result(InventoryUtils.extractAnyFromInventory(InventoryUtils.insertIntoInventorySlot(_, itemInventory, Option(Direction.UNKNOWN), slot), inventory, Direction.UNKNOWN, count))
+      // `side` 在新 API 里不再使用（物品能力没有“面”的概念），传 None / null 表达旧版的 UNKNOWN。
+      result(InventoryUtils.extractAnyFromInventory(InventoryUtils.insertIntoInventorySlot(_, itemInventory, None, slot), inventory, null, count))
     })
   }
 
@@ -31,16 +40,15 @@ trait ItemInventoryControl extends InventoryAware {
     withItemInventory(args.checkSlot(inventory, 0), itemInventory => {
       val slot = args.checkSlot(itemInventory, 1)
       val count = args.optItemCount(2)
-      result(InventoryUtils.extractFromInventorySlot(InventoryUtils.insertIntoInventory(_, inventory, slots = Option(insertionSlots)), itemInventory, Direction.UNKNOWN, slot, count))
+      result(InventoryUtils.extractFromInventorySlot(InventoryUtils.insertIntoInventory(_, inventory, slots = Option(insertionSlots)), itemInventory, null, slot, count))
     })
   }
 
-  private def withItemInventory(slot: Int, f: IInventory => Array[AnyRef]): Array[AnyRef] = {
-    inventory.getStackInSlot(slot) match {
-      case stack: ItemStack => api.Driver.inventoryFor(stack, fakePlayer) match {
-        case inventory: IInventory => f(inventory)
-        case _ => result(0, "no item inventory")
-      }
+  private def withItemInventory(slot: Int, f: IItemHandler => Array[AnyRef]): Array[AnyRef] = {
+    val stack = inventory.getStackInSlot(slot)
+    if (stack == null || stack.isEmpty) result(0, "no item inventory")
+    else api.Driver.inventoryFor(stack, fakePlayer) match {
+      case itemInventory: IItemHandler => f(itemInventory)
       case _ => result(0, "no item inventory")
     }
   }

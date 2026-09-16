@@ -84,7 +84,7 @@ object DataCard {
       DeviceAttribute.Product -> "SC01D H45h3r"
     )
 
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
     // ----------------------------------------------------------------------- //
 
@@ -145,7 +145,7 @@ object DataCard {
       DeviceAttribute.Product -> "SC02D Cryptic"
     )
 
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
     // ----------------------------------------------------------------------- //
 
@@ -219,7 +219,7 @@ object DataCard {
       DeviceAttribute.Product -> "SC03D Signer"
     )
 
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
     // ----------------------------------------------------------------------- //
 

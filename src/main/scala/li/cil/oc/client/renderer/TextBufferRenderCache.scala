@@ -1,108 +1,63 @@
 package li.cil.oc.client.renderer
 
-import java.util.concurrent.Callable
-import java.util.concurrent.TimeUnit
-
-import com.google.common.cache.CacheBuilder
-import com.google.common.cache.RemovalListener
-import com.google.common.cache.RemovalNotification
-import net.neoforged.bus.api.SubscribeEvent
-import cpw.mods.fml.common.gameevent.TickEvent.ClientTickEvent
+import com.mojang.blaze3d.vertex.PoseStack
 import li.cil.oc.Settings
-import li.cil.oc.client.renderer.font.TextBufferRenderData
-import li.cil.oc.util.RenderState
-import net.minecraft.client.renderer.GLAllocation
-import net.minecraft.world.level.block.entity.BlockEntity
-import org.lwjgl.opengl.GL11
+import li.cil.oc.client.renderer.font.{TextBufferRenderData, TextureFontRenderer}
+import li.cil.oc.util.TextBuffer
+import net.minecraft.client.renderer.MultiBufferSource
 
-object TextBufferRenderCache extends Callable[Int] with RemovalListener[BlockEntity, Int] {
-  val renderer =
+/**
+ * 文本缓冲的渲染入口：挑选字体渲染器，把 [[TextBuffer]] 的内容交给它画出来。
+ *
+ * ==1.7.10 到 1.21.1 的变化==
+ * 旧版用 Guava 缓存把每个缓冲编译成一张 OpenGL 显示列表
+ * （`GLAllocation.generateDisplayLists` / `glNewList` / `glCallList`），
+ * 并在客户端 tick 时 `cache.cleanUp()` 回收过期的显示列表。
+ * 1.21.1 已经彻底移除固定管线的显示列表：
+ *  - 每个缓冲不再持有任何 GPU 资源，字形图集由字体渲染器全局共享
+ *    （见 [[li.cil.oc.client.renderer.font.DynamicFontRenderer]]），
+ *    所以这里不再需要按缓冲缓存，也不需要 RemovalListener / tick 清理；
+ *  - 顶点改成每帧写进 `MultiBufferSource`，由调用方在帧末统一提交；
+ *  - `TextBufferRenderData#dirty` 的语义退化为「内容有变化」，渲染器自己按码点缓存字形，
+ *    因此这里不再读取 dirty（保留 trait 是为了让 `gui.Drone` 等调用点少改）。
+ *
+ * ==接线==
+ * 由 `client.Proxy` 在客户端初始化时调用一次 [initialize]：
+ *  - `DynamicFontRenderer` 在这里解析 `font.hex` 并重建字形图集；
+ *  - `StaticFontRenderer` 在这里重读 `chars.txt`。
+ */
+object TextBufferRenderCache {
+  /** 与旧版一致：配置里 `client.fontRenderer = "texture"` 时用静态贴图字体。 */
+  val renderer: TextureFontRenderer =
     if (Settings.get.fontRenderer == "texture") new font.StaticFontRenderer()
     else new font.DynamicFontRenderer()
 
-  private val cache = com.google.common.cache.CacheBuilder.newBuilder().
-    expireAfterAccess(2, TimeUnit.SECONDS).
-    removalListener(this).
-    asInstanceOf[CacheBuilder[TextBufferRenderData, Int]].
-    build[TextBufferRenderData, Int]()
+  /** 资源重载 / 客户端初始化入口。可重复调用，幂等。 */
+  def initialize(): Unit = renderer.initialize()
 
-  // To allow access in cache entry init.
-  private var currentBuffer: TextBufferRenderData = _
-
-  // ----------------------------------------------------------------------- //
-  // Rendering
-  // ----------------------------------------------------------------------- //
-
-  def render(buffer: TextBufferRenderData): Unit = {
-    currentBuffer = buffer
-    compileOrDraw(cache.get(currentBuffer, this))
+  /**
+   * 绘制一个 [[TextBufferRenderData]]。
+   *
+   * 调用方负责先 `pushPose` 并平移到内容区左上角（整体缩放也由调用方给）。
+   */
+  def render(pose: PoseStack,
+             buffers: MultiBufferSource,
+             buffer: TextBufferRenderData): Unit = {
+    if (buffer == null) return
+    render(pose, buffers, buffer.data, buffer.viewport._1, buffer.viewport._2, TextureFontRenderer.fullBright)
   }
 
-  private def compileOrDraw(list: Int) = {
-    if (currentBuffer.dirty) {
-      RenderState.checkError(getClass.getName + ".compileOrDraw: entering (aka: wasntme)")
-
-      for (line <- currentBuffer.data.buffer) {
-        renderer.generateChars(line)
-      }
-
-      val doCompile = !RenderState.compilingDisplayList
-      if (doCompile) {
-        currentBuffer.dirty = false
-        GL11.glNewList(list, GL11.GL_COMPILE_AND_EXECUTE)
-
-        RenderState.checkError(getClass.getName + ".compileOrDraw: glNewList")
-      }
-
-      renderer.drawBuffer(currentBuffer.data, currentBuffer.viewport._1, currentBuffer.viewport._2)
-
-      RenderState.checkError(getClass.getName + ".compileOrDraw: drawString")
-
-      if (doCompile) {
-        GL11.glEndList()
-
-        RenderState.checkError(getClass.getName + ".compileOrDraw: glEndList")
-
-      }
-
-      RenderState.checkError(getClass.getName + ".compileOrDraw: leaving")
-
-      true
-    }
-    else {
-      GL11.glCallList(list)
-
-      RenderState.checkError(getClass.getName + ".compileOrDraw: glCallList")
-    }
-  }
-
-  // ----------------------------------------------------------------------- //
-  // Cache
-  // ----------------------------------------------------------------------- //
-
-  def call = {
-    RenderState.checkError(getClass.getName + ".call: entering (aka: wasntme)")
-
-    val list = GLAllocation.generateDisplayLists(1)
-    currentBuffer.dirty = true // Force compilation.
-
-    RenderState.checkError(getClass.getName + ".call: leaving")
-
-    list
-  }
-
-  def onRemoval(e: RemovalNotification[BlockEntity, Int]): Unit = {
-    RenderState.checkError(getClass.getName + ".onRemoval: entering (aka: wasntme)")
-
-    GLAllocation.deleteDisplayLists(e.getValue)
-
-    RenderState.checkError(getClass.getName + ".onRemoval: leaving")
-  }
-
-  // ----------------------------------------------------------------------- //
-  // ITickHandler
-  // ----------------------------------------------------------------------- //
-
-  @SubscribeEvent
-  def onTick(e: ClientTickEvent) = cache.cleanUp()
+  /**
+   * 直接绘制一个 [[TextBuffer]]（`common.component.TextBuffer` 的底层数据）。
+   *
+   * @param viewportWidth  视口列数
+   * @param viewportHeight 视口行数
+   */
+  def render(pose: PoseStack,
+             buffers: MultiBufferSource,
+             buffer: TextBuffer,
+             viewportWidth: Int,
+             viewportHeight: Int,
+             light: Int = TextureFontRenderer.fullBright): Unit =
+    renderer.drawBuffer(pose, buffers, buffer, viewportWidth, viewportHeight, light)
 }

@@ -10,7 +10,7 @@ import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.entity.vehicle.AbstractMinecart
-import net.minecraft.world.phys.AABB
+import net.minecraft.world.phys.{AABB, BlockHitResult}
 import net.minecraft.world.phys.shapes.CollisionContext
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.common.util.FakePlayerFactory
@@ -56,11 +56,13 @@ trait WorldAware {
    */
   def mayInteract(blockPos: BlockPosition, face: Direction): Boolean = {
     try {
+      // 1.21.1 的 RightClickBlock 只接受 BlockHitResult，不再接受裸的 Direction；
+      // 这里用方块中心 + 指定面构造一个等价的命中结果。
       val event = new PlayerInteractEvent.RightClickBlock(
         fakePlayer,
         net.minecraft.world.InteractionHand.MAIN_HAND,
         blockPos.toChunkCoordinates,
-        face)
+        new BlockHitResult(blockPos.toVec3, face, blockPos.toChunkCoordinates, false))
       !NeoForge.EVENT_BUS.post(event).isCanceled
     }
     catch {

@@ -25,7 +25,8 @@ trait RedstoneBundled extends RedstoneVanilla {
     DeviceAttribute.Width -> "16"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：`DeviceInfo#getDeviceInfo` 返回 `java.util.Map`，Scala 的 `Map` 需要显式转换。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   private val COLOR_RANGE = 0 until 16
 

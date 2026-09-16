@@ -29,9 +29,8 @@ import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractValue
 import li.cil.oc.util.ThreadPoolFactory
-import net.minecraft.server.MinecraftServer
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 
-import scala.jdk.CollectionConverters._
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
@@ -53,7 +52,8 @@ class InternetCard extends prefab.ManagedEnvironment with DeviceInfo {
     DeviceAttribute.Product -> "SuperLink X-D4NK"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：`deviceInfo` 是 Scala `Map`，而接口要求 `java.util.Map`，需显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -74,7 +74,9 @@ class InternetCard extends prefab.ManagedEnvironment with DeviceInfo {
       throw new IOException("too many open connections")
     }
     val post = if (args.isString(1)) Option(args.checkString(1)) else None
-    val headers = if (args.isTable(2)) args.checkTable(2).collect {
+    // 1.21.1（Scala 2.13）：`Arguments#checkTable` 返回的是 `java.util.Map`，
+    // 旧版靠 `JavaConversions` 隐式当 Scala `Map` 用；这里显式 `asScala`。
+    val headers: Map[String, String] = if (args.isTable(2)) args.checkTable(2).asInstanceOf[util.Map[AnyRef, AnyRef]].asScala.collect {
       case (key: String, value: AnyRef) => (key, value.toString)
     }.toMap
     else Map.empty[String, String]
@@ -211,7 +213,9 @@ object InternetCard {
           selector.select()
 
           import scala.jdk.CollectionConverters._
-          val selectedKeys = selector.selectedKeys
+          // 1.21.1（Scala 2.13）：`Selector#selectedKeys` / `#keys` 返回 `java.util.Set`，
+          // 旧版靠 `JavaConversions` 隐式得到 Scala 集合的 `filter`，这里显式 `asScala`。
+          val selectedKeys = selector.selectedKeys.asScala
           val readableKeys = mutable.HashSet[SelectionKey]()
           selectedKeys.filter(_.isReadable).foreach(key => {
             key.attachment.asInstanceOf[() => Unit].apply()
@@ -220,7 +224,7 @@ object InternetCard {
 
           if(readableKeys.nonEmpty) {
             val newSelector = Selector.open()
-            selector.keys.filter(!readableKeys.contains(_)).foreach(key => {
+            selector.keys.asScala.filter(key => !readableKeys.contains(key)).foreach(key => {
               key.channel.register(newSelector, SelectionKey.OP_READ, key.attachment)
             })
             selector.close()
@@ -284,7 +288,8 @@ object InternetCard {
         if (read == -1) result(Unit)
         else {
           setupSelector()
-          result(buffer.array.view(0, read).toArray)
+          // 1.21.1（Scala 2.13）：`ArrayOps#view(from, until)` 已被移除，改用 `Arrays.copyOfRange`。
+          result(util.Arrays.copyOfRange(buffer.array, 0, read))
         }
       }
       else result(Array.empty[Byte])
@@ -464,7 +469,8 @@ object InternetCard {
           if (read == 0) {
             readMore()
           }
-          result(buffer.array.view(0, read).toArray)
+          // 见 TCPSocket#read：`ArrayOps#view(from, until)` 在 Scala 2.13 已被移除。
+          result(util.Arrays.copyOfRange(buffer.array, 0, read))
         }
       }
       else result(Array.empty[Byte])
@@ -530,7 +536,9 @@ object InternetCard {
     private class RequestSender(val url: URL, val post: Option[String], val headers: Map[String, String], val method: Option[String]) extends Callable[InputStream] {
       override def call() = try {
         checkLists(InetAddress.getByName(url.getHost), url.getHost)
-        val proxy = Option(MinecraftServer.getServer.getServerProxy).getOrElse(java.net.Proxy.NO_PROXY)
+        // 1.21.1：`MinecraftServer.getServer` 静态入口已移除，改用 NeoForge 的
+        // `ServerLifecycleHooks.getCurrentServer`；`getServerProxy` → `getProxy`。
+        val proxy = Option(ServerLifecycleHooks.getCurrentServer).flatMap(server => Option(server.getProxy)).getOrElse(java.net.Proxy.NO_PROXY)
         url.openConnection(proxy) match {
           case http: HttpURLConnection => try {
             http.setDoInput(true)

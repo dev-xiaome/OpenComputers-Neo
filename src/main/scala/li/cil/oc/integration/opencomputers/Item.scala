@@ -1,4 +1,5 @@
 package li.cil.oc.integration.opencomputers
+import li.cil.oc.util.ItemStackNBTExtensions._
 
 import com.google.common.base.Strings
 import li.cil.oc.Settings
@@ -17,7 +18,8 @@ trait Item extends driver.Item {
   def worksWith(stack: ItemStack, host: Class[_ <: EnvironmentHost]): Boolean =
     worksWith(stack) && !Registry.blacklist.exists {
       case (blacklistedStack, blacklistedHost) =>
-        stack.isItemEqual(blacklistedStack) &&
+        // 1.21.1：`ItemStack#isItemEqual` 已移除，改为「物品 + 数据组件」一起比较。
+        ItemStack.isSameItemSameComponents(stack, blacklistedStack) &&
           blacklistedHost.exists(_.isAssignableFrom(host))
     }
 
@@ -46,10 +48,11 @@ trait Item extends driver.Item {
 
 object Item {
   def dataTag(stack: ItemStack) = {
-    if (!stack.hasTagCompound) {
-      stack.put(new CompoundTag())
+    // 1.21.1：`ItemStack` 没有 `put`，写 NBT 走隐式类的 `setTag`。
+    if (!stack.hasTag()) {
+      stack.setTag(new CompoundTag())
     }
-    val nbt = stack.getTagCompound
+    val nbt = stack.getTag()
     if (!nbt.contains(Settings.namespace + "data")) {
       nbt.put(Settings.namespace + "data", new CompoundTag())
     }
@@ -64,9 +67,10 @@ object Item {
   }
 
   private def getTag(stack: ItemStack, keys: Array[String]): Option[CompoundTag] = {
-    if (stack == null || stack.stackSize == 0) None
-    else if (!stack.hasTagCompound) None
-    else getTag(stack.getTagCompound, keys)
+    // 1.21.1：`stackSize` → `isEmpty`。
+    if (stack == null || stack.isEmpty) None
+    else if (!stack.hasTag()) None
+    else getTag(stack.getTag(), keys)
   }
 
   def address(stack: ItemStack): Option[String] = {

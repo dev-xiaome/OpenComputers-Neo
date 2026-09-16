@@ -1,131 +1,49 @@
 package li.cil.oc.client.renderer.block
 
-import codechicken.multipart.TileMultipart
-import li.cil.oc.client.Textures
-import li.cil.oc.common
-import li.cil.oc.integration.Mods
-import net.minecraft.world.level.block.Block
-import net.minecraft.client.renderer.{RenderBlocks, Tessellator}
-import net.minecraft.item.{ItemBlock, ItemStack}
-import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.world.phys.AABB
-import net.minecraft.world.level.BlockGetter
-import net.minecraft.core.Direction
-
+/**
+ * 线缆（Cable）的静态方块几何。
+ *
+ * ==1.7.10 状态==
+ * `Cable.render(world, x, y, z, block, renderer)` 用 `RenderBlocks` 画三部分：
+ *  1. 中心方块——半边长 `4/16/2`，即 8×8×8 像素的芯；
+ *  2. 每个有连接的朝向各画一段「连接臂」，包围盒由 `setConnectedBounds`
+ *     扩展到该方向的中点；
+ *  3. 连出去但对面**不是**线缆时，再叠一个更小的「插头」（半边长
+ *     `6/16/2 - 10e-5`）并在该方向画 `Textures.Cable.iconCap` 端盖；
+ *     完全孤立的线缆则用 `setUnconnectedBounds` 画一圈封口。
+ * 另有 `Cable.render(stack, renderer)` 负责物品栏里的线缆模型
+ * （竖直的芯 + 上下端盖）。
+ *
+ * ==1.21.1 状态==
+ * 1.21.1 取消了 `ISimpleBlockRenderingHandler` / `RenderBlocks`：方块几何
+ * 由 blockstate json + 烘焙模型（BakedModel）表达。但线缆的连接形状
+ * **依赖于邻居**（`common.block.Cable.neighbors(world, x, y, z)` 返回的位掩码），
+ * 静态 json 无法表达这种「相邻即延长」的关系。
+ *
+ * ==1.21.1 应该由谁承担==
+ *  - 静态「中心芯 + 六向连接臂」：1.21.1 的标准做法是
+ *    `blockstates/cable.json` 写 **multipart**（多方）模型——六个方向各一条
+ *    `when: { north: "true" }` 之类的条件，再加一个无条件的基础芯。
+ *    这要求 `common.block.Cable` 的 `BlockState` 上带六个布尔属性
+ *    （common 侧改动，本代理不可改），或改用 `ModelData` +
+ *    `IDynamicBakedModel`。**建议落点**：`client/renderer/tileentity/` 下新增
+ *    `CableRenderer` / `CableModel`，或更贴近 1.21.1 习惯地在客户端注册一个
+ *    动态烘焙模型加载器（`RegisterModelLoadersEvent`）；本文件不改别的代理的文件。
+ *  - 插头 / 端盖：`Textures.Block.CableCap`（原 `Textures.Cable.iconCap`），
+ *    做成独立 element 或独立模型 json。
+ *  - 物品栏模型：`item/cable.json`。1.7.10 的物品栏分支完全是为了绕开
+ *    `RenderBlocks` 不补画不可见面，烘焙模型没有这个问题。
+ */
 object Cable {
-  private val baseSize = 4.0 / 16.0 / 2.0
 
-  private val plugSize = 6.0 / 16.0 / 2.0 - 10e-5
-
-  def render(world: IBlockAccess, x: Int, y: Int, z: Int, block: Block, renderer: RenderBlocks): Unit = {
-    // Center part.
-    val bounds = AABB.getBoundingBox(-baseSize, -baseSize, -baseSize, baseSize, baseSize, baseSize)
-    bounds.offset(0.5, 0.5, 0.5)
-    renderer.setRenderBounds(bounds.minX, bounds.minY, bounds.minZ, bounds.maxX, bounds.maxY, bounds.maxZ)
-    renderer.renderStandardBlock(block, x, y, z)
-
-    // Connections.
-    def renderPart(side: Direction, size: Double, boundSetter: (AABB, Direction) => Unit) {
-      bounds.setBounds(-size, -size, -size, size, size, size)
-      bounds.offset(side.offsetX * 0.25, side.offsetY * 0.25, side.offsetZ * 0.25)
-      boundSetter(bounds, side)
-      bounds.offset(0.5, 0.5, 0.5)
-      renderer.setRenderBounds(bounds.minX, bounds.minY, bounds.minZ, bounds.maxX, bounds.maxY, bounds.maxZ)
-      renderer.partialRenderBounds = false
-      renderer.renderStandardBlock(block, x, y, z)
-    }
-
-    val mask = common.block.Cable.neighbors(world, x, y, z)
-    for (side <- Direction.VALID_DIRECTIONS) {
-      if ((side.flag & mask) != 0) {
-        renderPart(side, baseSize, setConnectedBounds)
-      }
-      renderer.overrideBlockTexture = Textures.Cable.iconCap
-      if ((side.flag & mask) != 0 && !isCable(world, x + side.offsetX, y + side.offsetY, z + side.offsetZ)) {
-        utilForTrickingTheRendererIntoUsingUnclampedTextureCoordinates(renderer, 1)
-        renderPart(side, plugSize, setPlugBounds)
-        utilForTrickingTheRendererIntoUsingUnclampedTextureCoordinates(renderer, 0)
-      }
-      else if ((side.getOpposite.flag & mask) == mask || mask == 0) {
-        renderPart(side, baseSize, setUnconnectedBounds)
-      }
-      renderer.clearOverrideBlockTexture()
-    }
-  }
-
-  def render(stack: ItemStack, renderer: RenderBlocks): Unit = {
-    val block = stack.getItem.asInstanceOf[ItemBlock].field_150939_a
-    val metadata = 0
-
-    val previousRenderAllFaces = renderer.renderAllFaces
-    renderer.renderAllFaces = true
-
-    renderer.setRenderBounds(0.375, 3 / 16f, 0.375, 0.625, 13 / 16f, 0.625)
-    BlockRenderer.renderFaceXNeg(block, metadata, renderer)
-    BlockRenderer.renderFaceXPos(block, metadata, renderer)
-    BlockRenderer.renderFaceZNeg(block, metadata, renderer)
-    BlockRenderer.renderFaceZPos(block, metadata, renderer)
-
-    renderer.overrideBlockTexture = Textures.Cable.iconCap
-    renderer.setRenderBounds(0.375, 2 / 16f, 0.375, 0.625, 3 / 16f, 0.625)
-    BlockRenderer.renderFaceYNeg(block, metadata, renderer)
-    BlockRenderer.renderFaceXNeg(block, metadata, renderer)
-    BlockRenderer.renderFaceXPos(block, metadata, renderer)
-    BlockRenderer.renderFaceZNeg(block, metadata, renderer)
-    BlockRenderer.renderFaceZPos(block, metadata, renderer)
-    renderer.setRenderBounds(0.375, 13 / 16f, 0.375, 0.625, 14 / 16f, 0.625)
-    BlockRenderer.renderFaceYPos(block, metadata, renderer)
-    BlockRenderer.renderFaceXNeg(block, metadata, renderer)
-    BlockRenderer.renderFaceXPos(block, metadata, renderer)
-    BlockRenderer.renderFaceZNeg(block, metadata, renderer)
-    BlockRenderer.renderFaceZPos(block, metadata, renderer)
-    renderer.clearOverrideBlockTexture()
-
-    renderer.renderAllFaces = previousRenderAllFaces
-  }
-
-  private def isCable(world: IBlockAccess, x: Int, y: Int, z: Int) = {
-    val tileEntity = world.getTileEntity(x, y, z)
-    tileEntity.isInstanceOf[common.tileentity.Cable] || (Mods.ForgeMultipart.isAvailable && isCableFMP(tileEntity))
-  }
-
-  private def isCableFMP(tileEntity: BlockEntity) = {
-    tileEntity.isInstanceOf[TileMultipart]
-  }
-
-  private def utilForTrickingTheRendererIntoUsingUnclampedTextureCoordinates(renderer: RenderBlocks, value: Int): Unit = {
-    renderer.uvRotateBottom = value
-    renderer.uvRotateEast = value
-    renderer.uvRotateNorth = value
-    renderer.uvRotateSouth = value
-    renderer.uvRotateTop = value
-    renderer.uvRotateWest = value
-  }
-
-  private def setConnectedBounds(bounds: AABB, side: Direction): Unit = {
-    bounds.minX = math.min(bounds.minX, side.offsetX * 0.5)
-    bounds.maxX = math.max(bounds.maxX, side.offsetX * 0.5)
-    bounds.minY = math.min(bounds.minY, side.offsetY * 0.5)
-    bounds.maxY = math.max(bounds.maxY, side.offsetY * 0.5)
-    bounds.minZ = math.min(bounds.minZ, side.offsetZ * 0.5)
-    bounds.maxZ = math.max(bounds.maxZ, side.offsetZ * 0.5)
-  }
-
-  private def setPlugBounds(bounds: AABB, side: Direction): Unit = {
-    bounds.minX = math.max(math.min(bounds.minX + side.offsetX * 10.0 / 16.0, 7.0 / 16.0), -0.5 - 10e-5)
-    bounds.maxX = math.min(math.max(bounds.maxX + side.offsetX * 10.0 / 16.0, -7.0 / 16.0), 0.5 + 10e-5)
-    bounds.minY = math.max(math.min(bounds.minY + side.offsetY * 10.0 / 16.0, 7.0 / 16.0), -0.5 - 10e-5)
-    bounds.maxY = math.min(math.max(bounds.maxY + side.offsetY * 10.0 / 16.0, -7.0 / 16.0), 0.5 + 10e-5)
-    bounds.minZ = math.max(math.min(bounds.minZ + side.offsetZ * 10.0 / 16.0, 7.0 / 16.0), -0.5 - 10e-5)
-    bounds.maxZ = math.min(math.max(bounds.maxZ + side.offsetZ * 10.0 / 16.0, -7.0 / 16.0), 0.5 + 10e-5)
-  }
-
-  private def setUnconnectedBounds(bounds: AABB, side: Direction): Unit = {
-    bounds.minX = math.max(bounds.minX, -plugSize)
-    bounds.maxX = math.min(bounds.maxX, plugSize)
-    bounds.minY = math.max(bounds.minY, -plugSize)
-    bounds.maxY = math.min(bounds.maxY, plugSize)
-    bounds.minZ = math.max(bounds.minZ, -plugSize)
-    bounds.maxZ = math.min(bounds.maxZ, plugSize)
+  /**
+   * 原 `render(world, x, y, z, block, renderer)`：在**世界里**按邻居掩码拼线缆几何。
+   *
+   * 原参数 `RenderBlocks` / `Block` / 世界坐标都只存在于 1.7.10，已整体删除；
+   * 1.21.1 侧没有任何调用方。
+   */
+  def render(): Unit = {
+    // TODO(blk): 需要「连接掩码 → multipart / 动态模型」的客户端模型，
+    //  见文件头的说明。1.21.1 没有 ISimpleBlockRenderingHandler 注册点。
   }
 }

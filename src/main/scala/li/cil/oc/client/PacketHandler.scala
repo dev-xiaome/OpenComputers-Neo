@@ -2,8 +2,7 @@ package li.cil.oc.client
 
 import java.io.EOFException
 
-import net.neoforged.bus.api.SubscribeEvent
-import cpw.mods.fml.common.network.FMLNetworkEvent.ClientCustomPacketEvent
+import com.mojang.blaze3d.platform.InputConstants
 import li.cil.oc.Localization
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
@@ -11,6 +10,7 @@ import li.cil.oc.api
 import li.cil.oc.api.event.FileSystemAccessEvent
 import li.cil.oc.api.event.NetworkActivityEvent
 import li.cil.oc.client.renderer.PetRenderer
+import li.cil.oc.common
 import li.cil.oc.common.Loot
 import li.cil.oc.common.PacketType
 import li.cil.oc.common.component
@@ -18,137 +18,167 @@ import li.cil.oc.common.container
 import li.cil.oc.common.nanomachines.ControllerImpl
 import li.cil.oc.common.tileentity._
 import li.cil.oc.common.tileentity.traits._
-import li.cil.oc.common.{PacketHandler => CommonPacketHandler}
 import li.cil.oc.util.Audio
-import li.cil.oc.util.ExtendedWorld._
 import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.GuiScreen
-import net.minecraft.world.entity.player.Player
-import net.minecraft.nbt.NbtIo
-import net.neoforged.neoforge.common.NeoForge
 import net.minecraft.core.Direction
-import org.lwjgl.input.Keyboard
+import net.minecraft.core.particles.{ParticleOptions, ParticleTypes}
+import net.minecraft.nbt.NbtIo
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.neoforged.neoforge.common.NeoForge
+import org.lwjgl.glfw.GLFW
 
-object PacketHandler extends CommonPacketHandler {
-  @SubscribeEvent
-  def onPacket(e: ClientCustomPacketEvent) =
-    onPacketData(e.packet.payload, Minecraft.getMinecraft.thePlayer)
+/**
+ * 客户端侧包处理器（对应 1.7.10 的 `li.cil.oc.client.PacketHandler`）。
+ *
+ * ==1.21.1 结构变化（重要）==
+ * 1.7.10 里本 object 继承 `common.PacketHandler`（抽象基类），并覆写 `dispatch` 把一个
+ * `PacketType` 硬编码到对应的 `onXxx` 方法。1.21.1 的 [[li.cil.oc.common.PacketHandler]]
+ * 改成了**注册表驱动**：基类只保留 `onData` → `dispatch` → 查表，而 `PacketParser` 里
+ * 已经没有 1.7.10 的维度 id / 内部类成员，因此：
+ *
+ *  - 本 object **不再继承** [[common.PacketHandler]]（也不继承抽象基类
+ *    `common.PacketHandler` 的 `world(player, dimension)` 钩子）；
+ *  - 改为 [[initialize]] 里为每个包类型调用
+ *    `common.PacketHandler.registerClient(PacketType.Xxx, (p, ctx) => onXxx(p))`；
+ *  - 维度解析改用 `p.context.world(dimension)`（`dimension` 是 `ResourceLocation`）；
+ *  - 所有 `onXxx(p: PacketParser)` 方法原样保留，仅按 1.21.1 API 修正方法体。
+ *
+ * [[initialize]] 必须由客户端入口（`client.Proxy`）调用一次；本 object 的初始化里
+ * **不做**任何注册，避免依赖 object 初始化时机。
+ */
+object PacketHandler {
+  /** 便于沿用 1.7.10 的 `p: PacketParser` 写法（1.7.10 里它是基类的内部类）。 */
+  type PacketParser = common.PacketParser
 
-  protected override def world(player: Player, dimension: Int) = {
-    val world = player.worldObj
-    if (world.provider.dimensionId == dimension) Some(world)
-    else None
+  /**
+   * 把客户端（S→C）的包处理器登记进 [[common.PacketHandler]] 的注册表。
+   *
+   * 由 `client.Proxy` 调用一次即可；重复调用是安全的（注册表按包类型覆盖）。
+   */
+  def initialize(): Unit = {
+    val handler = common.PacketHandler
+    handler.registerClient(PacketType.AbstractBusState, (p, _) => onAbstractBusState(p))
+    handler.registerClient(PacketType.AdapterState, (p, _) => onAdapterState(p))
+    handler.registerClient(PacketType.Analyze, (p, _) => onAnalyze(p))
+    handler.registerClient(PacketType.ChargerState, (p, _) => onChargerState(p))
+    handler.registerClient(PacketType.ClientLog, (p, _) => onClientLog(p))
+    handler.registerClient(PacketType.Clipboard, (p, _) => onClipboard(p))
+    handler.registerClient(PacketType.ColorChange, (p, _) => onColorChange(p))
+    handler.registerClient(PacketType.ComputerState, (p, _) => onComputerState(p))
+    handler.registerClient(PacketType.ComputerUserList, (p, _) => onComputerUserList(p))
+    handler.registerClient(PacketType.ContainerUpdate, (p, _) => onContainerUpdate(p))
+    handler.registerClient(PacketType.DisassemblerActiveChange, (p, _) => onDisassemblerActiveChange(p))
+    handler.registerClient(PacketType.FileSystemActivity, (p, _) => onFileSystemActivity(p))
+    handler.registerClient(PacketType.FloppyChange, (p, _) => onFloppyChange(p))
+    handler.registerClient(PacketType.HologramArea, (p, _) => onHologramArea(p))
+    handler.registerClient(PacketType.HologramClear, (p, _) => onHologramClear(p))
+    handler.registerClient(PacketType.HologramColor, (p, _) => onHologramColor(p))
+    handler.registerClient(PacketType.HologramPowerChange, (p, _) => onHologramPowerChange(p))
+    handler.registerClient(PacketType.HologramRotation, (p, _) => onHologramRotation(p))
+    handler.registerClient(PacketType.HologramRotationSpeed, (p, _) => onHologramRotationSpeed(p))
+    handler.registerClient(PacketType.HologramScale, (p, _) => onHologramScale(p))
+    handler.registerClient(PacketType.HologramTranslation, (p, _) => onHologramPositionOffsetY(p))
+    handler.registerClient(PacketType.HologramValues, (p, _) => onHologramValues(p))
+    handler.registerClient(PacketType.LootDisk, (p, _) => onLootDisk(p))
+    handler.registerClient(PacketType.CyclingDisk, (p, _) => onCyclingDisk(p))
+    handler.registerClient(PacketType.NanomachinesConfiguration, (p, _) => onNanomachinesConfiguration(p))
+    handler.registerClient(PacketType.NanomachinesInputs, (p, _) => onNanomachinesInputs(p))
+    handler.registerClient(PacketType.NanomachinesPower, (p, _) => onNanomachinesPower(p))
+    handler.registerClient(PacketType.NetSplitterState, (p, _) => onNetSplitterState(p))
+    handler.registerClient(PacketType.NetworkActivity, (p, _) => onNetworkActivity(p))
+    handler.registerClient(PacketType.ParticleEffect, (p, _) => onParticleEffect(p))
+    handler.registerClient(PacketType.PetVisibility, (p, _) => onPetVisibility(p))
+    handler.registerClient(PacketType.PowerState, (p, _) => onPowerState(p))
+    handler.registerClient(PacketType.PrinterState, (p, _) => onPrinterState(p))
+    handler.registerClient(PacketType.RackInventory, (p, _) => onRackInventory(p))
+    handler.registerClient(PacketType.RackMountableData, (p, _) => onRackMountableData(p))
+    handler.registerClient(PacketType.RaidStateChange, (p, _) => onRaidStateChange(p))
+    handler.registerClient(PacketType.RedstoneState, (p, _) => onRedstoneState(p))
+    handler.registerClient(PacketType.RobotAnimateSwing, (p, _) => onRobotAnimateSwing(p))
+    handler.registerClient(PacketType.RobotAnimateTurn, (p, _) => onRobotAnimateTurn(p))
+    handler.registerClient(PacketType.RobotAssemblingState, (p, _) => onRobotAssemblingState(p))
+    handler.registerClient(PacketType.RobotInventoryChange, (p, _) => onRobotInventoryChange(p))
+    handler.registerClient(PacketType.RobotLightChange, (p, _) => onRobotLightChange(p))
+    handler.registerClient(PacketType.RobotMove, (p, _) => onRobotMove(p))
+    handler.registerClient(PacketType.RobotNameChange, (p, _) => onRobotNameChange(p))
+    handler.registerClient(PacketType.RobotSelectedSlotChange, (p, _) => onRobotSelectedSlotChange(p))
+    handler.registerClient(PacketType.RotatableState, (p, _) => onRotatableState(p))
+    handler.registerClient(PacketType.SwitchActivity, (p, _) => onSwitchActivity(p))
+    handler.registerClient(PacketType.TextBufferInit, (p, _) => onTextBufferInit(p))
+    handler.registerClient(PacketType.TextBufferPowerChange, (p, _) => onTextBufferPowerChange(p))
+    handler.registerClient(PacketType.TextBufferMulti, (p, _) => onTextBufferMulti(p))
+    handler.registerClient(PacketType.ScreenTouchMode, (p, _) => onScreenTouchMode(p))
+    handler.registerClient(PacketType.Sound, (p, _) => onSound(p))
+    handler.registerClient(PacketType.SoundPattern, (p, _) => onSoundPattern(p))
+    handler.registerClient(PacketType.TransposerActivity, (p, _) => onTransposerActivity(p))
+    handler.registerClient(PacketType.WaypointLabel, (p, _) => onWaypointLabel(p))
+    OpenComputers.log.debug(s"Registered ${handler.registeredCount} client packet handlers.")
   }
 
-  override def dispatch(p: PacketParser): Unit = {
-    p.packetType match {
-      case PacketType.AbstractBusState => onAbstractBusState(p)
-      case PacketType.AdapterState => onAdapterState(p)
-      case PacketType.Analyze => onAnalyze(p)
-      case PacketType.ChargerState => onChargerState(p)
-      case PacketType.ClientLog => onClientLog(p)
-      case PacketType.Clipboard => onClipboard(p)
-      case PacketType.ColorChange => onColorChange(p)
-      case PacketType.ComputerState => onComputerState(p)
-      case PacketType.ComputerUserList => onComputerUserList(p)
-      case PacketType.ContainerUpdate => onContainerUpdate(p)
-      case PacketType.DisassemblerActiveChange => onDisassemblerActiveChange(p)
-      case PacketType.FileSystemActivity => onFileSystemActivity(p)
-      case PacketType.FloppyChange => onFloppyChange(p)
-      case PacketType.HologramArea => onHologramArea(p)
-      case PacketType.HologramClear => onHologramClear(p)
-      case PacketType.HologramColor => onHologramColor(p)
-      case PacketType.HologramPowerChange => onHologramPowerChange(p)
-      case PacketType.HologramRotation => onHologramRotation(p)
-      case PacketType.HologramRotationSpeed => onHologramRotationSpeed(p)
-      case PacketType.HologramScale => onHologramScale(p)
-      case PacketType.HologramTranslation => onHologramPositionOffsetY(p)
-      case PacketType.HologramValues => onHologramValues(p)
-      case PacketType.LootDisk => onLootDisk(p)
-      case PacketType.CyclingDisk => onCyclingDisk(p)
-      case PacketType.NanomachinesConfiguration => onNanomachinesConfiguration(p)
-      case PacketType.NanomachinesInputs => onNanomachinesInputs(p)
-      case PacketType.NanomachinesPower => onNanomachinesPower(p)
-      case PacketType.NetSplitterState => onNetSplitterState(p)
-      case PacketType.NetworkActivity => onNetworkActivity(p)
-      case PacketType.ParticleEffect => onParticleEffect(p)
-      case PacketType.PetVisibility => onPetVisibility(p)
-      case PacketType.PowerState => onPowerState(p)
-      case PacketType.PrinterState => onPrinterState(p)
-      case PacketType.RackInventory => onRackInventory(p)
-      case PacketType.RackMountableData => onRackMountableData(p)
-      case PacketType.RaidStateChange => onRaidStateChange(p)
-      case PacketType.RedstoneState => onRedstoneState(p)
-      case PacketType.RobotAnimateSwing => onRobotAnimateSwing(p)
-      case PacketType.RobotAnimateTurn => onRobotAnimateTurn(p)
-      case PacketType.RobotAssemblingState => onRobotAssemblingState(p)
-      case PacketType.RobotInventoryChange => onRobotInventoryChange(p)
-      case PacketType.RobotLightChange => onRobotLightChange(p)
-      case PacketType.RobotMove => onRobotMove(p)
-      case PacketType.RobotNameChange => onRobotNameChange(p)
-      case PacketType.RobotSelectedSlotChange => onRobotSelectedSlotChange(p)
-      case PacketType.RotatableState => onRotatableState(p)
-      case PacketType.SwitchActivity => onSwitchActivity(p)
-      case PacketType.TextBufferInit => onTextBufferInit(p)
-      case PacketType.TextBufferPowerChange => onTextBufferPowerChange(p)
-      case PacketType.TextBufferMulti => onTextBufferMulti(p)
-      case PacketType.ScreenTouchMode => onScreenTouchMode(p)
-      case PacketType.Sound => onSound(p)
-      case PacketType.SoundPattern => onSoundPattern(p)
-      case PacketType.TransposerActivity => onTransposerActivity(p)
-      case PacketType.WaypointLabel => onWaypointLabel(p)
-      case _ => // Invalid packet.
-    }
-  }
+  // ------------------------------------------------------------------------- //
+  // 各包类型的处理方法（与 1.7.10 一一对应）
+  // ------------------------------------------------------------------------- //
 
-  def onAbstractBusState(p: PacketParser) =
+  def onAbstractBusState(p: PacketParser): Unit =
     p.readTileEntity[AbstractBusAware]() match {
       case Some(t) => t.isAbstractBusAvailable = p.readBoolean()
       case _ => // Invalid packet.
     }
 
-  def onAdapterState(p: PacketParser) =
+  def onAdapterState(p: PacketParser): Unit =
     p.readTileEntity[Adapter]() match {
       case Some(t) =>
         t.openSides = t.uncompressSides(p.readByte())
-        t.world.markBlockForUpdate(t.x, t.y, t.z)
+        // 1.21.1：`world.markBlockForUpdate(x, y, z)` → 方块实体自己的 markBlockForUpdate。
+        t.markBlockForUpdate()
       case _ => // Invalid packet.
     }
 
   def onAnalyze(p: PacketParser): Unit = {
     val address = p.readUTF()
-    if (Keyboard.isKeyDown(Keyboard.KEY_LCONTROL) || Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)) {
-      GuiScreen.setClipboardString(address)
-      p.player.addChatMessage(Localization.Analyzer.AddressCopied)
+    // 1.7.10 的 `Keyboard.isKeyDown(Keyboard.KEY_LCONTROL)`（原代码把左 Ctrl 判断写了两遍）
+    // → 1.21.1 的 `InputConstants.isKeyDown`；这里顺手把右 Ctrl 也纳入判断。
+    if (isControlDown) {
+      Minecraft.getInstance().keyboardHandler.setClipboard(address)
+      p.player.displayClientMessage(Localization.Analyzer.AddressCopied, false)
     }
   }
 
-  def onChargerState(p: PacketParser) =
+  /** 左 / 右 Ctrl 是否按下（GUI 之外也成立，不需要 `Screen` 上下文）。 */
+  private def isControlDown: Boolean = {
+    val window = Minecraft.getInstance().getWindow.getWindow
+    InputConstants.isKeyDown(window, GLFW.GLFW_KEY_LEFT_CONTROL) ||
+      InputConstants.isKeyDown(window, GLFW.GLFW_KEY_RIGHT_CONTROL)
+  }
+
+  def onChargerState(p: PacketParser): Unit =
     p.readTileEntity[Charger]() match {
       case Some(t) =>
         t.chargeSpeed = p.readDouble()
         t.hasPower = p.readBoolean()
-        t.world.markBlockForUpdate(t.position)
+        t.markBlockForUpdate()
       case _ => // Invalid packet.
     }
 
-  def onClientLog(p: PacketParser) = {
+  def onClientLog(p: PacketParser): Unit = {
     OpenComputers.log.info(p.readUTF())
   }
 
   def onClipboard(p: PacketParser): Unit = {
-    GuiScreen.setClipboardString(p.readUTF())
+    // 1.21.1：`GuiScreen.setClipboardString` → `KeyboardHandler#setClipboard`。
+    Minecraft.getInstance().keyboardHandler.setClipboard(p.readUTF())
   }
 
-  def onColorChange(p: PacketParser) =
+  def onColorChange(p: PacketParser): Unit =
     p.readTileEntity[Colored]() match {
       case Some(t) =>
         t.color = p.readInt()
-        t.world.markBlockForUpdate(t.position)
+        t.markBlockForUpdate()
       case _ => // Invalid packet.
     }
 
-  def onComputerState(p: PacketParser) =
+  def onComputerState(p: PacketParser): Unit =
     p.readTileEntity[Computer]() match {
       case Some(t) =>
         t.setRunning(p.readBoolean())
@@ -156,7 +186,7 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onComputerUserList(p: PacketParser) =
+  def onComputerUserList(p: PacketParser): Unit =
     p.readTileEntity[Computer]() match {
       case Some(t) =>
         val count = p.readInt()
@@ -164,64 +194,82 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onContainerUpdate(p: PacketParser) = {
+  def onContainerUpdate(p: PacketParser): Unit = {
     val windowId = p.readUnsignedByte()
-    if (p.player.openContainer != null && p.player.openContainer.windowId == windowId) {
-      p.player.openContainer match {
-        case container: container.Player => container.updateCustomData(p.readNBT())
+    // 1.21.1：`EntityPlayer#openContainer` → `Player#containerMenu`。
+    val menu = p.player.containerMenu
+    if (menu != null && menu.containerId == windowId) {
+      menu match {
+        case ocPlayer: container.Player => ocPlayer.updateCustomData(p.readNBT())
         case _ => // Invalid packet.
       }
     }
   }
 
-  def onDisassemblerActiveChange(p: PacketParser) =
+  def onDisassemblerActiveChange(p: PacketParser): Unit =
     p.readTileEntity[Disassembler]() match {
       case Some(t) => t.isActive = p.readBoolean()
       case _ => // Invalid packet.
     }
 
-  def onFileSystemActivity(p: PacketParser) = {
+  def onFileSystemActivity(p: PacketParser): Unit = {
     val sound = p.readUTF()
+    // 服务端用 `NbtIo.write(data, pb)` 直接写裸 NBT（**没有** `writeNBT` 的存在性布尔前缀），
+    // 因此这里必须用 `NbtIo.read` 对称读取。
     val data = NbtIo.read(p)
-    if (p.readBoolean()) p.readTileEntity[net.minecraft.tileentity.BlockEntity]() match {
-      case Some(t) =>
-        MinecraftForge.EVENT_BUS.post(new FileSystemAccessEvent.Client(sound, t, data))
-      case _ => // Invalid packet.
+    if (p.readBoolean()) {
+      p.readTileEntity[BlockEntity]() match {
+        case Some(t) =>
+          NeoForge.EVENT_BUS.post(new FileSystemAccessEvent.Client(sound, t, data))
+        case _ => // Invalid packet.
+      }
     }
-    else world(p.player, p.readInt()) match {
-      case Some(world) =>
-        val x = p.readDouble()
-        val y = p.readDouble()
-        val z = p.readDouble()
-        MinecraftForge.EVENT_BUS.post(new FileSystemAccessEvent.Client(sound, world, x, y, z, data))
-      case _ => // Invalid packet.
+    else {
+      // 1.21.1 的维度是 `ResourceLocation`，通过解析上下文取世界（替代原
+      // `world(p.player, dimensionId)`）。
+      val dimension = p.readDimension()
+      p.context.world(dimension) match {
+        case Some(world) =>
+          val x = p.readDouble()
+          val y = p.readDouble()
+          val z = p.readDouble()
+          NeoForge.EVENT_BUS.post(new FileSystemAccessEvent.Client(sound, world, x, y, z, data))
+        case _ => // Invalid packet.
+      }
     }
   }
 
-  def onNetworkActivity(p: PacketParser) = {
+  def onNetworkActivity(p: PacketParser): Unit = {
     val data = NbtIo.read(p)
-    if (p.readBoolean()) p.readTileEntity[net.minecraft.tileentity.BlockEntity]() match {
-      case Some(t) =>
-        MinecraftForge.EVENT_BUS.post(new NetworkActivityEvent.Client(t, data))
-      case _ => // Invalid packet.
+    if (p.readBoolean()) {
+      p.readTileEntity[BlockEntity]() match {
+        case Some(t) =>
+          NeoForge.EVENT_BUS.post(new NetworkActivityEvent.Client(t, data))
+        case _ => // Invalid packet.
+      }
     }
-    else world(p.player, p.readInt()) match {
-      case Some(world) =>
-        val x = p.readDouble()
-        val y = p.readDouble()
-        val z = p.readDouble()
-        MinecraftForge.EVENT_BUS.post(new NetworkActivityEvent.Client(world, x, y, z, data))
-      case _ => // Invalid packet.
+    else {
+      val dimension = p.readDimension()
+      p.context.world(dimension) match {
+        case Some(world) =>
+          val x = p.readDouble()
+          val y = p.readDouble()
+          val z = p.readDouble()
+          NeoForge.EVENT_BUS.post(new NetworkActivityEvent.Client(world, x, y, z, data))
+        case _ => // Invalid packet.
+      }
     }
   }
 
-  def onFloppyChange(p: PacketParser) =
+  def onFloppyChange(p: PacketParser): Unit =
     p.readTileEntity[DiskDrive]() match {
+      // `readItemStack` 在没有堆栈时返回 `null`，`setInventorySlotContents(slot, null)`
+      // 表示清空槽位——与 1.7.10 语义一致。
       case Some(t) => t.setInventorySlotContents(0, p.readItemStack())
       case _ => // Invalid packet.
     }
 
-  def onHologramClear(p: PacketParser) =
+  def onHologramClear(p: PacketParser): Unit =
     p.readTileEntity[Hologram]() match {
       case Some(t) =>
         for (i <- t.volume.indices) t.volume(i) = 0
@@ -229,7 +277,7 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onHologramColor(p: PacketParser) =
+  def onHologramColor(p: PacketParser): Unit =
     p.readTileEntity[Hologram]() match {
       case Some(t) =>
         val index = p.readInt()
@@ -239,20 +287,20 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onHologramPowerChange(p: PacketParser) =
+  def onHologramPowerChange(p: PacketParser): Unit =
     p.readTileEntity[Hologram]() match {
       case Some(t) => t.hasPower = p.readBoolean()
       case _ => // Invalid packet.
     }
 
-  def onHologramScale(p: PacketParser) =
+  def onHologramScale(p: PacketParser): Unit =
     p.readTileEntity[Hologram]() match {
       case Some(t) =>
         t.scale = p.readDouble()
       case _ => // Invalid packet.
     }
 
-  def onHologramArea(p: PacketParser) =
+  def onHologramArea(p: PacketParser): Unit =
     p.readTileEntity[Hologram]() match {
       case Some(t) =>
         val fromX = p.readByte(): Int
@@ -269,7 +317,7 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onHologramValues(p: PacketParser) =
+  def onHologramValues(p: PacketParser): Unit =
     p.readTileEntity[Hologram]() match {
       case Some(t) =>
         val count = p.readInt()
@@ -284,16 +332,18 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onHologramPositionOffsetY(p: PacketParser) =
+  def onHologramPositionOffsetY(p: PacketParser): Unit =
     p.readTileEntity[Hologram]() match {
       case Some(t) =>
+        // 1.21.1 的 `Vec3` 不可变，`Hologram` 为此提供了可变的 `Hologram.Offset`
+        // （字段名沿用 `xCoord` / `yCoord` / `zCoord`）。
         t.translation.xCoord = p.readDouble()
         t.translation.yCoord = p.readDouble()
         t.translation.zCoord = p.readDouble()
       case _ => // Invalid packet.
     }
 
-  def onHologramRotation(p: PacketParser) =
+  def onHologramRotation(p: PacketParser): Unit =
     p.readTileEntity[Hologram]() match {
       case Some(t) =>
         t.rotationAngle = p.readFloat()
@@ -303,7 +353,7 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onHologramRotationSpeed(p: PacketParser) =
+  def onHologramRotationSpeed(p: PacketParser): Unit =
     p.readTileEntity[Hologram]() match {
       case Some(t) =>
         t.rotationSpeed = p.readFloat()
@@ -313,21 +363,21 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onLootDisk(p: PacketParser) = {
+  def onLootDisk(p: PacketParser): Unit = {
     val stack = p.readItemStack()
     if (stack != null) {
       Loot.disksForClient += stack
     }
   }
 
-  def onCyclingDisk(p: PacketParser) = {
+  def onCyclingDisk(p: PacketParser): Unit = {
     val stack = p.readItemStack()
     if (stack != null) {
       Loot.disksForCyclingClient += stack
     }
   }
 
-  def onNanomachinesConfiguration(p: PacketParser) = {
+  def onNanomachinesConfiguration(p: PacketParser): Unit = {
     p.readEntity[Player]() match {
       case Some(player) =>
         val hasController = p.readBoolean()
@@ -344,7 +394,7 @@ object PacketHandler extends CommonPacketHandler {
     }
   }
 
-  def onNanomachinesInputs(p: PacketParser) = {
+  def onNanomachinesInputs(p: PacketParser): Unit = {
     p.readEntity[Player]() match {
       case Some(player) => api.Nanomachines.getController(player) match {
         case controller: ControllerImpl =>
@@ -362,7 +412,7 @@ object PacketHandler extends CommonPacketHandler {
     }
   }
 
-  def onNanomachinesPower(p: PacketParser) = {
+  def onNanomachinesPower(p: PacketParser): Unit = {
     p.readEntity[Player]() match {
       case Some(player) => api.Nanomachines.getController(player) match {
         case controller: ControllerImpl => controller.storedEnergy = p.readDouble()
@@ -372,18 +422,30 @@ object PacketHandler extends CommonPacketHandler {
     }
   }
 
-  def onNetSplitterState(p: PacketParser) =
+  def onNetSplitterState(p: PacketParser): Unit =
     p.readTileEntity[NetSplitter]() match {
       case Some(t) =>
         t.isInverted = p.readBoolean()
         t.openSides = t.uncompressSides(p.readByte())
-        t.world.markBlockForUpdate(t.x, t.y, t.z)
+        t.markBlockForUpdate()
       case _ => // Invalid packet.
     }
 
-  def onParticleEffect(p: PacketParser) = {
-    val dimension = p.readInt()
-    world(p.player, dimension) match {
+  /**
+   * 粒子效果。
+   *
+   * 1.7.10 的 `World#spawnParticle(name, ...)` 接受效果名字符串；1.21.1 的
+   * `Level#addParticle` 需要 `ParticleOptions`，因此这里把旧版用到的名字映射到
+   * `ParticleTypes` 的常量上。
+   *
+   * TODO(client.particle): 1.7.10 还支持 `reddust` / `note` / `blockcrack` 这类
+   * **需要额外参数**的粒子（对应 1.21.1 的 `DustParticleOptions` /
+   * `NoteParticleOptions` / `BlockParticleOption`）。报文只传名字、不传参数，
+   * 这些名字先忽略（当前发送方只有机器人挥动时的 `crit`）。
+   */
+  def onParticleEffect(p: PacketParser): Unit = {
+    val dimension = p.readDimension()
+    p.context.world(dimension) match {
       case Some(world) =>
         val x = p.readInt()
         val y = p.readInt()
@@ -391,36 +453,81 @@ object PacketHandler extends CommonPacketHandler {
         val velocity = p.readDouble()
         val direction = p.readDirection()
         val name = p.readUTF()
-        val count = p.readUnsignedByte() / (1 << Minecraft.getMinecraft.gameSettings.particleSetting)
+        // 1.21.1：`gameSettings.particleSetting`（Int）→ `options.particles().get().getId`。
+        val count = p.readUnsignedByte() / (1 << Minecraft.getInstance.options.particles().get().getId)
+        val particle = particleByName(name)
 
-        for (i <- 0 until count) {
-          def rv(f: Direction => Int) = direction match {
-            case Some(d) => world.rand.nextFloat - 0.5 + f(d) * 0.5
-            case _ => world.rand.nextFloat * 2.0 - 1
-          }
-          val vx = rv(_.offsetX)
-          val vy = rv(_.offsetY)
-          val vz = rv(_.offsetZ)
-          if (vx * vx + vy * vy + vz * vz < 1) {
-            def rp(x: Int, v: Double, f: Direction => Int) = direction match {
-              case Some(d) => x + 0.5 + v * velocity * 0.5 + f(d) * velocity
-              case _ => x + 0.5 + v * velocity
+        if (particle != null) {
+          for (i <- 0 until count) {
+            // 1.21.1：`ForgeDirection#offsetX` → `Direction#getStepX`。
+            def rv(f: Direction => Int) = direction match {
+              case Some(d) => world.random.nextFloat - 0.5 + f(d) * 0.5
+              case _ => world.random.nextFloat * 2.0 - 1
             }
-            val px = rp(x, vx, _.offsetX)
-            val py = rp(y, vy, _.offsetY)
-            val pz = rp(z, vz, _.offsetZ)
-            world.spawnParticle(name, px, py, pz, vx, vy + velocity * 0.25, vz)
+
+            val vx = rv(_.getStepX)
+            val vy = rv(_.getStepY)
+            val vz = rv(_.getStepZ)
+            if (vx * vx + vy * vy + vz * vz < 1) {
+              def rp(x: Int, v: Double, f: Direction => Int) = direction match {
+                case Some(d) => x + 0.5 + v * velocity * 0.5 + f(d) * velocity
+                case _ => x + 0.5 + v * velocity
+              }
+
+              val px = rp(x, vx, _.getStepX)
+              val py = rp(y, vy, _.getStepY)
+              val pz = rp(z, vz, _.getStepZ)
+              // 1.21.1：`World#spawnParticle(name, ...)` → `Level#addParticle(options, ...)`。
+              world.addParticle(particle, px, py, pz, vx, vy + velocity * 0.25, vz)
+            }
           }
         }
       case _ => // Invalid packet.
     }
   }
 
+  /**
+   * 把 1.7.10 的粒子效果名映射到 1.21.1 的 `ParticleTypes`。
+   *
+   * 无法映射（需要额外参数、或 1.21.1 已删除）的名字返回 `null`，调用方直接跳过。
+   */
+  private def particleByName(name: String): ParticleOptions = name match {
+    case "crit" => ParticleTypes.CRIT
+    case "magicCrit" => ParticleTypes.ENCHANTED_HIT
+    case "flame" => ParticleTypes.FLAME
+    case "smoke" => ParticleTypes.SMOKE
+    case "largesmoke" => ParticleTypes.LARGE_SMOKE
+    case "cloud" => ParticleTypes.CLOUD
+    case "portal" => ParticleTypes.PORTAL
+    case "heart" => ParticleTypes.HEART
+    case "happyVillager" => ParticleTypes.HAPPY_VILLAGER
+    case "spell" => ParticleTypes.EFFECT
+    case "instantSpell" => ParticleTypes.INSTANT_EFFECT
+    case "enchantmenttable" => ParticleTypes.ENCHANT
+    case "snowballpoof" => ParticleTypes.ITEM_SNOWBALL
+    case "lava" => ParticleTypes.LAVA
+    case "splash" => ParticleTypes.SPLASH
+    case "bubble" => ParticleTypes.BUBBLE
+    case "explode" => ParticleTypes.EXPLOSION
+    case "fireworksSpark" => ParticleTypes.FIREWORK
+    case "endRod" => ParticleTypes.END_ROD
+    case _ => null
+  }
+
   def onPetVisibility(p: PacketParser): Unit = {
     if (!PetRenderer.isInitialized) {
       PetRenderer.isInitialized = true
       if (Settings.get.hideOwnPet) {
-        PetRenderer.hidden += Minecraft.getMinecraft.thePlayer.getCommandSenderName
+        // 服务端把「隐藏宠物」的玩家记在 `server.PetVisibility` 里（见
+        // server.PacketHandler.onPetVisibility，用的是 `getScoreboardName`）。
+        // 1.21.1 已移除 `Entity#getCommandSenderName`，这里保持与服务端一致的标识。
+        //
+        // TODO(client.renderer): `client.renderer.PetRenderer` 目前仍按玩家 UUID 判定
+        // `hidden`，两处标识需要统一（等该渲染器移植完成时一并处理）。
+        val player = Minecraft.getInstance().player
+        if (player != null) {
+          PetRenderer.hidden += player.getScoreboardName
+        }
       }
       PacketSender.sendPetVisibility()
     }
@@ -437,7 +544,7 @@ object PacketHandler extends CommonPacketHandler {
     }
   }
 
-  def onPowerState(p: PacketParser) =
+  def onPowerState(p: PacketParser): Unit =
     p.readTileEntity[PowerInformation]() match {
       case Some(t) =>
         t.globalBuffer = p.readDouble()
@@ -445,7 +552,7 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onPrinterState(p: PacketParser) =
+  def onPrinterState(p: PacketParser): Unit =
     p.readTileEntity[Printer]() match {
       case Some(t) =>
         if (p.readBoolean()) t.requiredEnergy = 9001
@@ -453,7 +560,7 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onRackInventory(p: PacketParser) =
+  def onRackInventory(p: PacketParser): Unit =
     p.readTileEntity[Rack]() match {
       case Some(t) =>
         val count = p.readInt()
@@ -464,7 +571,7 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onRackMountableData(p: PacketParser) =
+  def onRackMountableData(p: PacketParser): Unit =
     p.readTileEntity[Rack]() match {
       case Some(t) =>
         val mountableIndex = p.readInt()
@@ -472,38 +579,40 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onRaidStateChange(p: PacketParser) =
+  def onRaidStateChange(p: PacketParser): Unit =
     p.readTileEntity[Raid]() match {
       case Some(t) =>
-        for (slot <- 0 until t.getSizeInventory) {
+        // 1.21.1：`getSizeInventory` → `getSlots`（`IItemHandler`）。
+        for (slot <- 0 until t.getSlots) {
           t.presence(slot) = p.readBoolean()
         }
       case _ => // Invalid packet.
     }
 
-  def onRedstoneState(p: PacketParser) =
+  def onRedstoneState(p: PacketParser): Unit =
     p.readTileEntity[RedstoneAware]() match {
       case Some(t) =>
         t.setOutputEnabled(p.readBoolean())
-        for (d <- Direction.VALID_DIRECTIONS) {
+        // 1.21.1：`ForgeDirection.VALID_DIRECTIONS` → `Direction.values()`。
+        for (d <- Direction.values()) {
           t.setOutput(d, p.readByte())
         }
       case _ => // Invalid packet.
     }
 
-  def onRobotAnimateSwing(p: PacketParser) =
+  def onRobotAnimateSwing(p: PacketParser): Unit =
     p.readTileEntity[RobotProxy]() match {
       case Some(t) => t.robot.setAnimateSwing(p.readInt())
       case _ => // Invalid packet.
     }
 
-  def onRobotAnimateTurn(p: PacketParser) =
+  def onRobotAnimateTurn(p: PacketParser): Unit =
     p.readTileEntity[RobotProxy]() match {
       case Some(t) => t.robot.setAnimateTurn(p.readByte(), p.readInt())
       case _ => // Invalid packet.
     }
 
-  def onRobotAssemblingState(p: PacketParser) =
+  def onRobotAssemblingState(p: PacketParser): Unit =
     p.readTileEntity[Assembler]() match {
       case Some(t) =>
         if (p.readBoolean()) t.requiredEnergy = 9001
@@ -511,7 +620,7 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onRobotInventoryChange(p: PacketParser) =
+  def onRobotInventoryChange(p: PacketParser): Unit =
     p.readTileEntity[RobotProxy]() match {
       case Some(t) =>
         val robot = t.robot
@@ -520,32 +629,32 @@ object PacketHandler extends CommonPacketHandler {
         if (slot >= robot.getSizeInventory - robot.componentCount) {
           robot.info.components(slot - (robot.getSizeInventory - robot.componentCount)) = stack
         }
-        else t.robot.setInventorySlotContents(slot, stack)
+        else robot.setInventorySlotContents(slot, stack)
       case _ => // Invalid packet.
     }
 
-  def onRobotLightChange(p: PacketParser) =
+  def onRobotLightChange(p: PacketParser): Unit =
     p.readTileEntity[RobotProxy]() match {
       case Some(t) => t.robot.info.lightColor = p.readInt()
       case _ => // Invalid packet.
     }
 
-  def onRobotNameChange(p: PacketParser) = {
+  def onRobotNameChange(p: PacketParser): Unit =
     p.readTileEntity[RobotProxy]() match {
-      case Some(t) => {
+      case Some(t) =>
         val len = p.readShort()
         val name = new Array[Char](len)
         for (x <- 0 until len) {
           name(x) = p.readChar()
         }
         t.robot.setName(name.mkString)
-      }
       case _ => // Invalid packet.
     }
-  }
 
-  def onRobotMove(p: PacketParser) = {
-    val dimension = p.readInt()
+  def onRobotMove(p: PacketParser): Unit = {
+    // 服务端 `sendRobotMove` 写的是「维度字符串 + 假坐标 + 方向」（见
+    // server.PacketSender.sendRobotMove），因此这里按 `readDimension` 解析。
+    val dimension = p.readDimension()
     val x = p.readInt()
     val y = p.readInt()
     val z = p.readInt()
@@ -554,80 +663,88 @@ object PacketHandler extends CommonPacketHandler {
       case (Some(t), Some(d)) => t.robot.move(d)
       case (_, Some(d)) =>
         // Invalid packet, robot may be coming from outside our loaded area.
-        PacketSender.sendRobotStateRequest(dimension, x + d.offsetX, y + d.offsetY, z + d.offsetZ)
+        PacketSender.sendRobotStateRequest(dimension, x + d.getStepX, y + d.getStepY, z + d.getStepZ)
       case _ => // Invalid packet.
     }
   }
 
-  def onRobotSelectedSlotChange(p: PacketParser) =
+  def onRobotSelectedSlotChange(p: PacketParser): Unit =
     p.readTileEntity[RobotProxy]() match {
       case Some(t) => t.robot.selectedSlot = p.readInt()
       case _ => // Invalid packet.
     }
 
-  def onRotatableState(p: PacketParser) =
+  def onRotatableState(p: PacketParser): Unit =
     p.readTileEntity[Rotatable]() match {
       case Some(t) =>
-        t.pitch = p.readDirection().get
-        t.yaw = p.readDirection().get
+        // 写侧保证方向有效；这里用 `foreach` 而不是 `Option#get`，避免畸形包抛异常。
+        p.readDirection().foreach(d => t.pitch = d)
+        p.readDirection().foreach(d => t.yaw = d)
       case _ => // Invalid packet.
     }
 
-  def onSwitchActivity(p: PacketParser) =
-    p.readTileEntity[traits.SwitchLike]() match {
+  def onSwitchActivity(p: PacketParser): Unit =
+    p.readTileEntity[SwitchLike]() match {
       case Some(t) => t.lastMessage = System.currentTimeMillis()
       case _ => // Invalid packet.
     }
 
-  def onTextBufferPowerChange(p: PacketParser) =
-    ComponentTracker.get(p.player.worldObj, p.readUTF()) match {
+  def onTextBufferPowerChange(p: PacketParser): Unit =
+    // 1.21.1：`player.worldObj` → `player.level()`。
+    ComponentTracker.get(p.player.level(), p.readUTF()) match {
       case Some(buffer: api.internal.TextBuffer) =>
         buffer.setRenderingEnabled(p.readBoolean())
       case _ => // Invalid packet.
     }
 
   def onTextBufferInit(p: PacketParser): Unit = {
-    ComponentTracker.get(p.player.worldObj, p.readUTF()) match {
-      case Some(buffer: li.cil.oc.common.component.TextBuffer) =>
+    ComponentTracker.get(p.player.level(), p.readUTF()) match {
+      case Some(buffer: component.TextBuffer) =>
         val nbt = p.readNBT()
-        if (nbt.contains("maxWidth")) {
-          val maxWidth = nbt.getInteger("maxWidth")
-          val maxHeight = nbt.getInteger("maxHeight")
-          buffer.setMaximumResolution(maxWidth, maxHeight)
+        if (nbt != null) {
+          // 注意：服务端写的是无命名空间的 `maxWidth` / `viewportWidth`（见
+          // server.PacketHandler.onTextBufferInit），不要加 `Settings.namespace` 前缀。
+          if (nbt.contains("maxWidth")) {
+            val maxWidth = nbt.getInt("maxWidth")
+            val maxHeight = nbt.getInt("maxHeight")
+            buffer.setMaximumResolution(maxWidth, maxHeight)
+          }
+          buffer.data.load(nbt)
+          if (nbt.contains("viewportWidth")) {
+            val viewportWidth = nbt.getInt("viewportWidth")
+            val viewportHeight = nbt.getInt("viewportHeight")
+            buffer.setViewport(viewportWidth, viewportHeight)
+          }
+          buffer.proxy.markDirty()
+          buffer.markInitialized()
         }
-        buffer.data.load(nbt)
-        if (nbt.contains("viewportWidth")) {
-          val viewportWidth = nbt.getInteger("viewportWidth")
-          val viewportHeight = nbt.getInteger("viewportHeight")
-          buffer.setViewport(viewportWidth, viewportHeight)
-        }
-        buffer.proxy.markDirty()
-        buffer.markInitialized()
       case _ => // Invalid packet.
     }
   }
 
-  def onTextBufferMulti(p: PacketParser) =
-    ComponentTracker.get(p.player.worldObj, p.readUTF()) match {
+  def onTextBufferMulti(p: PacketParser): Unit =
+    ComponentTracker.get(p.player.level(), p.readUTF()) match {
       case Some(buffer: api.internal.TextBuffer) =>
-        try while (true) {
-          p.readPacketType() match {
-            case PacketType.TextBufferMultiColorChange => onTextBufferMultiColorChange(p, buffer)
-            case PacketType.TextBufferMultiCopy => onTextBufferMultiCopy(p, buffer)
-            case PacketType.TextBufferMultiDepthChange => onTextBufferMultiDepthChange(p, buffer)
-            case PacketType.TextBufferMultiFill => onTextBufferMultiFill(p, buffer)
-            case PacketType.TextBufferMultiPaletteChange => onTextBufferMultiPaletteChange(p, buffer)
-            case PacketType.TextBufferMultiResolutionChange => onTextBufferMultiResolutionChange(p, buffer)
-            case PacketType.TextBufferMultiViewportResolutionChange => onTextBufferMultiViewportResolutionChange(p, buffer)
-            case PacketType.TextBufferMultiMaxResolutionChange => onTextBufferMultiMaxResolutionChange(p, buffer)
-            case PacketType.TextBufferMultiSet => onTextBufferMultiSet(p, buffer)
-            case PacketType.TextBufferRamInit => onTextBufferRamInit(p, buffer)
-            case PacketType.TextBufferBitBlt => onTextBufferBitBlt(p, buffer)
-            case PacketType.TextBufferRamDestroy => onTextBufferRamDestroy(p, buffer)
-            case PacketType.TextBufferMultiRawSetText => onTextBufferMultiRawSetText(p, buffer)
-            case PacketType.TextBufferMultiRawSetBackground => onTextBufferMultiRawSetBackground(p, buffer)
-            case PacketType.TextBufferMultiRawSetForeground => onTextBufferMultiRawSetForeground(p, buffer)
-            case _ => // Invalid packet.
+        try {
+          while (true) {
+            p.readPacketType() match {
+              case PacketType.TextBufferMultiColorChange => onTextBufferMultiColorChange(p, buffer)
+              case PacketType.TextBufferMultiCopy => onTextBufferMultiCopy(p, buffer)
+              case PacketType.TextBufferMultiDepthChange => onTextBufferMultiDepthChange(p, buffer)
+              case PacketType.TextBufferMultiFill => onTextBufferMultiFill(p, buffer)
+              case PacketType.TextBufferMultiPaletteChange => onTextBufferMultiPaletteChange(p, buffer)
+              case PacketType.TextBufferMultiResolutionChange => onTextBufferMultiResolutionChange(p, buffer)
+              case PacketType.TextBufferMultiViewportResolutionChange => onTextBufferMultiViewportResolutionChange(p, buffer)
+              case PacketType.TextBufferMultiMaxResolutionChange => onTextBufferMultiMaxResolutionChange(p, buffer)
+              case PacketType.TextBufferMultiSet => onTextBufferMultiSet(p, buffer)
+              case PacketType.TextBufferRamInit => onTextBufferRamInit(p, buffer)
+              case PacketType.TextBufferBitBlt => onTextBufferBitBlt(p, buffer)
+              case PacketType.TextBufferRamDestroy => onTextBufferRamDestroy(p, buffer)
+              case PacketType.TextBufferMultiRawSetText => onTextBufferMultiRawSetText(p, buffer)
+              case PacketType.TextBufferMultiRawSetBackground => onTextBufferMultiRawSetBackground(p, buffer)
+              case PacketType.TextBufferMultiRawSetForeground => onTextBufferMultiRawSetForeground(p, buffer)
+              case _ => // Invalid packet.
+            }
           }
         }
         catch {
@@ -669,6 +786,7 @@ object PacketHandler extends CommonPacketHandler {
     val w = p.readInt()
     val h = p.readInt()
     val c = p.readMedium()
+    // 1.21.1 的 API 里 `fill` 的取色参数是 `int`（旧版的 `char` 变体已废弃）。
     buffer.fill(col, row, w, h, c)
   }
 
@@ -786,27 +904,28 @@ object PacketHandler extends CommonPacketHandler {
     buffer.rawSetForeground(col, row, color)
   }
 
-  def onScreenTouchMode(p: PacketParser) =
+  def onScreenTouchMode(p: PacketParser): Unit =
     p.readTileEntity[Screen]() match {
       case Some(t) => t.invertTouchMode = p.readBoolean()
       case _ => // Invalid packet.
     }
 
   def onSound(p: PacketParser): Unit = {
-    val dimension = p.readInt()
-    if (world(p.player, dimension).isDefined) {
+    val dimension = p.readDimension()
+    if (p.context.world(dimension).isDefined) {
       val x = p.readInt()
       val y = p.readInt()
       val z = p.readInt()
       val frequency = p.readShort()
       val duration = p.readShort()
+      // 1.21.1 的 `Audio.play` 仍是 (x, y, z, frequency, duration)。
       Audio.play(x + 0.5f, y + 0.5f, z + 0.5f, frequency, duration)
     }
   }
 
   def onSoundPattern(p: PacketParser): Unit = {
-    val dimension = p.readInt()
-    if (world(p.player, dimension).isDefined) {
+    val dimension = p.readDimension()
+    if (p.context.world(dimension).isDefined) {
       val x = p.readInt()
       val y = p.readInt()
       val z = p.readInt()
@@ -815,13 +934,13 @@ object PacketHandler extends CommonPacketHandler {
     }
   }
 
-  def onTransposerActivity(p: PacketParser) =
+  def onTransposerActivity(p: PacketParser): Unit =
     p.readTileEntity[Transposer]() match {
       case Some(transposer) => transposer.lastOperation = System.currentTimeMillis()
       case _ => // Invalid packet.
     }
 
-  def onWaypointLabel(p: PacketParser) =
+  def onWaypointLabel(p: PacketParser): Unit =
     p.readTileEntity[Waypoint]() match {
       case Some(waypoint) => waypoint.label = p.readUTF()
       case _ => // Invalid packet.

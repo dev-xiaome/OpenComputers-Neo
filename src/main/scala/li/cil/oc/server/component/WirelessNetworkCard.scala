@@ -97,7 +97,8 @@ abstract class WirelessNetworkCard(host: EnvironmentHost) extends NetworkCard(ho
 
   override def update(): Unit = {
     super.update()
-    if (world.getTotalWorldTime % 20 == 0) {
+    // 1.21.1：`Level#getTotalWorldTime` → `Level#getGameTime`。
+    if (world.getGameTime % 20 == 0) {
       api.Network.updateWirelessNetwork(this)
     }
   }
@@ -111,7 +112,9 @@ abstract class WirelessNetworkCard(host: EnvironmentHost) extends NetworkCard(ho
 
   override def onDisconnect(node: Node): Unit = {
     super.onDisconnect(node)
-    if (node == this.node || !world.blockExists(x, y, z)) {
+    // 1.21.1：`Level#blockExists(x, y, z)` → `Level#isLoaded(BlockPos)`
+    // （`ExtendedWorld` 里以 `BlockPosition` 为参数提供同名封装）。
+    if (node == this.node || !li.cil.oc.util.ExtendedWorld.extendedWorld(world).blockExists(BlockPosition(x, y, z, world))) {
       api.Network.leaveWirelessNetwork(this)
     }
   }
@@ -155,7 +158,8 @@ object WirelessNetworkCard {
       DeviceAttribute.Width -> maxWirelessRange.toString
     )
 
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo
+    // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
     override protected def isPacketAccepted(packet: Packet, distance: Double): Boolean = {
       if (distance <= maxWirelessRange && (distance > 0 || shouldSendWiredTraffic)) {
@@ -189,6 +193,7 @@ object WirelessNetworkCard {
       DeviceAttribute.Width -> maxWirelessRange.toString
     )
     
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo
+    // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
   }
 }

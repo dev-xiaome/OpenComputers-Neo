@@ -26,5 +26,6 @@ class UpgradeBattery(val tier: Int) extends prefab.ManagedEnvironment with Devic
     DeviceAttribute.Capacity -> Settings.get.bufferCapacitorUpgrades(tier).toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 }

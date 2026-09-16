@@ -45,14 +45,20 @@ private[markdown] class LinkSegment(parent: Segment, text: String, val url: Stri
   }
 
   private def handleUrl(url: String): Unit = {
-    // Pretty much copy-paste from GuiChat.
+    // 与 GuiChat 的处理方式一致：优先交给桌面浏览器打开。
     try {
       val desktop = Class.forName("java.awt.Desktop")
       val instance = desktop.getMethod("getDesktop").invoke(null)
       desktop.getMethod("browse", classOf[URI]).invoke(instance, new URI(url))
     }
     catch {
-      case t: Throwable => Minecraft.getMinecraft.thePlayer.addChatMessage(Localization.Chat.WarningLink(t.toString))
+      // 1.21.1：`Minecraft.getMinecraft` → `getInstance`、
+      // `thePlayer` → `player`、`addChatMessage` → `displayClientMessage(..., false)`。
+      case t: Throwable =>
+        val mc = Minecraft.getInstance()
+        if (mc != null && mc.player != null) {
+          mc.player.displayClientMessage(Localization.Chat.WarningLink(t.toString), false)
+        }
     }
   }
 

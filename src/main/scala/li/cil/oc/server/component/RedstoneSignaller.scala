@@ -7,8 +7,8 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
 import li.cil.oc.common.tileentity.traits.RedstoneChangedEventArgs
-import net.minecraft.nbt.CompoundTag
 import net.minecraft.core.Direction
+import net.minecraft.nbt.CompoundTag
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -36,7 +36,14 @@ trait RedstoneSignaller extends prefab.ManagedEnvironment {
   // ----------------------------------------------------------------------- //
 
   def onRedstoneChanged(args: RedstoneChangedEventArgs): Unit = {
-    val side: AnyRef = if (args.side == Direction.UNKNOWN) "wireless" else Int.box(args.side.ordinal)
+    // 1.21.1：`Direction` 没有 `UNKNOWN`（不存在「无线来源」这个取值）。
+    // 原实现在「无线红石」时把 side 报成字符串 "wireless"，这里约定 `side == null`
+    // 表示同一种情况（`RedstoneWireless` 即用 `null` 构造事件），以保持 Lua 侧
+    // `redstone_changed` 信号的第 2 个参数语义不变。
+    val side: AnyRef = args.side match {
+      case null => "wireless"
+      case value => Int.box(value.ordinal)
+    }
     val flatArgs = ArrayBuffer[Object]("redstone_changed", side, Int.box(args.oldValue), Int.box(args.newValue))
     if (args.color >= 0)
       flatArgs += Int.box(args.color)
@@ -53,7 +60,8 @@ trait RedstoneSignaller extends prefab.ManagedEnvironment {
 
   override def load(nbt: CompoundTag): Unit = {
     super.load(nbt)
-    wakeThreshold = nbt.getInteger("wakeThreshold")
+    // 1.21.1：`CompoundTag#getInteger` → `getInt`。
+    wakeThreshold = nbt.getInt("wakeThreshold")
   }
 
   override def save(nbt: CompoundTag): Unit = {

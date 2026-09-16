@@ -35,7 +35,7 @@ object PacketSender {
    * 因此 `AbstractBusAware` / `Computer` / `RedstoneAware` 等静态类型在这里无法直接使用。
    * 由于每个具体实现都必然是 `BlockEntity`（自类型保证），这里给出安全的隐式转换。
    */
-  private implicit def traitTileEntityAsBlockEntity(t: common.tileentity.traits.TileEntity): BlockEntity =
+  private implicit def traitTileEntityAsBlockEntity(t: li.cil.oc.common.tileentity.traits.TileEntity): BlockEntity =
     t.asInstanceOf[BlockEntity]
 
   def sendAbstractBusState(t: AbstractBusAware): Unit = {
@@ -193,25 +193,23 @@ object PacketSender {
     // 1.21.1 的 `li.cil.oc.api.event.NetworkActivityEvent` 没有实现 `ICancellableEvent`，
     // API 里也没有 `setCanceled`，所以这里只能无条件发包。若之后恢复可取消语义，
     // 需要给该事件补上 `ICancellableEvent`。
-    {
 
-      val pb = new SimplePacketBuilder(PacketType.NetworkActivity)
+    val pb = new SimplePacketBuilder(PacketType.NetworkActivity)
 
-      NbtIo.write(event.getData, pb)
-      event.getTileEntity match {
-        case t: BlockEntity =>
-          pb.writeBoolean(true)
-          pb.writeTileEntity(t)
-        case _ =>
-          pb.writeBoolean(false)
-          pb.writeDimension(event.getWorld)
-          pb.writeDouble(event.getX)
-          pb.writeDouble(event.getY)
-          pb.writeDouble(event.getZ)
-      }
-
-      pb.sendToPlayersNearHost(host, Option(Settings.get.maxNetworkClientEffectPacketDistance))
+    NbtIo.write(event.getData, pb)
+    event.getTileEntity match {
+      case t: BlockEntity =>
+        pb.writeBoolean(true)
+        pb.writeTileEntity(t)
+      case _ =>
+        pb.writeBoolean(false)
+        pb.writeDimension(event.getWorld)
+        pb.writeDouble(event.getX)
+        pb.writeDouble(event.getY)
+        pb.writeDouble(event.getZ)
     }
+
+    pb.sendToPlayersNearHost(host, Option(Settings.get.maxNetworkClientEffectPacketDistance))
   }
 
   def sendFloppyChange(t: tileentity.DiskDrive, stack: ItemStack = null) {

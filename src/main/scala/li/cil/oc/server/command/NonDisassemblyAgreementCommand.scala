@@ -5,6 +5,8 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder
 import com.mojang.brigadier.builder.RequiredArgumentBuilder
 import li.cil.oc.Settings
 import li.cil.oc.common.command.SimpleCommand
+// 注意：`li.cil.oc` 包对象里的 NBT 隐式类对子包不可见，必须显式导入。
+import li.cil.oc.util.ItemStackNBTExtensions._
 import net.minecraft.commands.CommandSourceStack
 import net.minecraft.network.chat.Component
 

@@ -149,18 +149,25 @@ object PacketHandler {
    * 玩家的「可交互」判定由 `getCommandSenderName` 改为 `getScoreboardName`
    * （1.21.1 里名字即档案名）。
    */
-  private def trySetComputerPower(computer: Machine, value: Boolean, player: ServerPlayer): Unit = {
-    if (computer.canInteract(player.getScoreboardName)) {
-      if (value) {
-        if (!computer.isPaused) {
-          computer.start()
-          computer.lastError match {
-            case message if message != null => player.displayClientMessage(Localization.Analyzer.LastError(message), false)
-            case _ =>
+  private def trySetComputerPower(computer: api.machine.Machine, value: Boolean, player: ServerPlayer): Unit = {
+    // `canInteract` / `isPaused` / `start` / `stop` 只在服务端实现
+    // [[li.cil.oc.server.machine.Machine]] 上，`api.machine.Machine` 接口只暴露只读查询
+    // （`lastError` 等），因此这里先收窄到具体类型。
+    computer match {
+      case machine: Machine =>
+        if (machine.canInteract(player.getScoreboardName)) {
+          if (value) {
+            if (!machine.isPaused) {
+              machine.start()
+              machine.lastError match {
+                case message if message != null => player.displayClientMessage(Localization.Analyzer.LastError(message), false)
+                case _ =>
+              }
+            }
           }
+          else machine.stop()
         }
-      }
-      else computer.stop()
+      case _ => // 不是本项目的机器实现（理论上不会发生）。
     }
   }
 

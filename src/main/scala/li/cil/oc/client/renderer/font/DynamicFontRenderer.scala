@@ -1,163 +1,214 @@
 package li.cil.oc.client.renderer.font
 
+import com.mojang.blaze3d.platform.NativeImage
 import li.cil.oc.Settings
-import li.cil.oc.client.renderer.font.DynamicFontRenderer.CharTexture
+import li.cil.oc.client.renderer.font.TextureFontRenderer.Glyph
 import li.cil.oc.util.FontUtils
-import li.cil.oc.util.RenderState
 import net.minecraft.client.Minecraft
-import net.minecraft.client.resources.IReloadableResourceManager
-import net.minecraft.client.resources.IResourceManager
-import net.minecraft.client.resources.IResourceManagerReloadListener
-import org.lwjgl.BufferUtils
-import org.lwjgl.opengl._
+import net.minecraft.client.renderer.texture.DynamicTexture
+import net.minecraft.resources.ResourceLocation
 
 import scala.collection.mutable
 
 /**
- * Font renderer that dynamically generates lookup textures by rendering a font
- * to it. It's pretty broken right now, and font rendering looks crappy as hell.
+ * 用 hex 字形数据（[[IGlyphProvider]]）在运行时生成字形图集的字体渲染器。
+ *
+ * ==1.7.10 到 1.21.1 的变化==
+ * 旧版直接 `GL11.glGenTextures` / `glTexImage2D` 建纹理、`glTexSubImage2D` 逐个上传字形，
+ * 并用 `IResourceManagerReloadListener` 监听资源重载。1.21.1 改成：
+ *  - 用 [[com.mojang.blaze3d.platform.NativeImage]] 当 CPU 侧图集，
+ *    字形像素用 `NativeImage#setPixelRGBA` 写入；
+ *  - 交给 [[net.minecraft.client.renderer.texture.DynamicTexture]] 管理 GL 纹理，
+ *    由 `TextureManager#register(String, DynamicTexture)` 分配贴图名；
+ *  - 一帧里所有新字形只在 [flushPendingUploads] 里上传一次，避免每加一个字形就重传整页；
+ *  - 资源重载改由外部入口 [initialize] 触发（由 `client.Proxy` 调用
+ *    [[li.cil.oc.client.renderer.TextBufferRenderCache.initialize]]）。
  */
-class DynamicFontRenderer extends TextureFontRenderer with IResourceManagerReloadListener {
-  private val glyphProvider: IGlyphProvider = Settings.get.fontRenderer match {
-    case _ => new FontParserHex()
-  }
+class DynamicFontRenderer extends TextureFontRenderer {
+  private val glyphProvider: IGlyphProvider = new FontParserHex()
 
-  private val textures = mutable.ArrayBuffer.empty[CharTexture]
+  private val pages = mutable.ArrayBuffer.empty[DynamicFontRenderer.GlyphPage]
 
-  private val charMap = mutable.Map.empty[Int, DynamicFontRenderer.CharIcon]
-
-  private var activeTexture: CharTexture = _
+  /** 码点 -> 字形矩形；值为 null 表示该码点确认没有字形（缺字回退到问号也算命中）。 */
+  private val glyphs = mutable.Map.empty[Int, Glyph]
 
   initialize()
 
-  Minecraft.getMinecraft.getResourceManager match {
-    case reloadable: IReloadableResourceManager => reloadable.registerReloadListener(this)
-    case _ =>
-  }
+  // ----------------------------------------------------------------------- //
+  // 生命周期
+  // ----------------------------------------------------------------------- //
 
-  def initialize(): Unit = {
-    for (texture <- textures) {
-      texture.delete()
-    }
-    textures.clear()
-    charMap.clear()
-    textures += new DynamicFontRenderer.CharTexture(this)
-    activeTexture = textures.head
+  override def initialize(): Unit = {
+    releasePages()
+    glyphs.clear()
+    // 必须先重新解析字形数据，再预生成基本字符：否则基本字符会被缓存成「缺字」，
+    // 之后即使数据到位也不会再重试。
+    // 1.7.10 靠 `IReloadableResourceManager#registerReloadListener` 的立即回调触发这一步，
+    // 1.21.1 没有该回调，只能由外部入口（client.Proxy）显式调用。
+    glyphProvider.initialize()
+    newPage()
     generateChars(basicChars.toCharArray)
   }
 
-  def onResourceManagerReload(manager: IResourceManager): Unit = {
-    glyphProvider.initialize()
-    initialize()
+  override protected def charWidth: Int = glyphProvider.getGlyphWidth
+
+  override protected def charHeight: Int = glyphProvider.getGlyphHeight
+
+  override protected def textureSize: Int = DynamicFontRenderer.PageSize
+
+  override protected def textureLocation(page: Int): ResourceLocation = {
+    if (pages.isEmpty) null
+    else pages(math.max(0, math.min(pages.length - 1, page))).location
   }
 
-  override protected def charWidth = glyphProvider.getGlyphWidth
-
-  override protected def charHeight = glyphProvider.getGlyphHeight
-
-  override protected def textureCount = textures.length
-
-  override protected def bindTexture(index: Int): Unit = {
-    activeTexture = textures(index)
-    activeTexture.bind()
-    RenderState.checkError(getClass.getName + ".bindTexture")
-  }
-
-  override protected def generateChar(char: Int): Unit = {
-    charMap.getOrElseUpdate(char, createCharIcon(char))
-  }
-
-  override protected def drawChar(tx: Float, ty: Float, char: Int): Unit = {
-    charMap.get(char) match {
-      case Some(icon) if icon.texture == activeTexture => icon.draw(tx, ty)
-      case _ =>
-    }
-  }
-
-  private def createCharIcon(char: Int): DynamicFontRenderer.CharIcon = {
-    if (FontUtils.wcwidth(char) < 1 || glyphProvider.getGlyph(char) == null) {
-      if (char == '?') null
-      else charMap.getOrElseUpdate('?', createCharIcon('?'))
-    }
-    else {
-      if (textures.last.isFull(char)) {
-        textures += new DynamicFontRenderer.CharTexture(this)
-        textures.last.bind()
+  /** 把这一帧里攒下的字形改动一次性上传。 */
+  override protected def flushPendingUploads(): Unit = {
+    var i = 0
+    while (i < pages.length) {
+      val page = pages(i)
+      if (page.dirty) {
+        page.texture.upload()
+        page.dirty = false
       }
-      textures.last.add(char)
+      i += 1
     }
+  }
+
+  // ----------------------------------------------------------------------- //
+  // 字形
+  // ----------------------------------------------------------------------- //
+
+  override protected def glyph(char: Int): Glyph = {
+    if (glyphs.contains(char)) glyphs(char)
+    else {
+      val created = createGlyph(char)
+      glyphs.put(char, created)
+      created
+    }
+  }
+
+  private def createGlyph(char: Int): Glyph = {
+    // 控制字符没有字形，等价于旧版的 wcwidth < 1 分支。
+    if (FontUtils.wcwidth(char) < 1) return null
+
+    val data = glyphProvider.getGlyph(char)
+    if (data == null) {
+      // 缺字回退到问号；问号本身也缺失时只能放弃。
+      if (char == '?') return null
+      return glyph('?')
+    }
+
+    val width = charWidth * FontUtils.wcwidth(char)
+    val height = charHeight
+    if (width <= 0 || height <= 0) return null
+    // 防御性检查：字形字节数不足时不能按 width * height 取像素。
+    if (data.capacity() < width * height * 4) return null
+
+    var index = pages.length - 1
+    var slot = pages(index).allocate(width, height)
+    if (slot.isEmpty) {
+      newPage()
+      index = pages.length - 1
+      slot = pages(index).allocate(width, height)
+    }
+
+    slot match {
+      case Some((x, y)) =>
+        val page = pages(index)
+        var py = 0
+        while (py < height) {
+          var px = 0
+          while (px < width) {
+            // 字形数据每像素 4 字节 RGBA，且只可能是「白色不透明」或「全透明」，
+            // 因此只看 alpha 通道即可（0xFFFFFFFF 在 RGBA 布局下就是白色不透明）。
+            if (data.get((py * width + px) * 4 + 3) != 0) {
+              page.image.setPixelRGBA(x + px, y + py, 0xFFFFFFFF)
+            }
+            px += 1
+          }
+          py += 1
+        }
+        page.dirty = true
+        Glyph(page.index, x, y, width, height)
+      case None =>
+        // 图集页排满又开不了新页（实际不会发生），放弃这个字形。
+        null
+    }
+  }
+
+  // ----------------------------------------------------------------------- //
+  // 纹理页
+  // ----------------------------------------------------------------------- //
+
+  private def newPage(): Unit = {
+    pages += new DynamicFontRenderer.GlyphPage(pages.length)
+  }
+
+  private def releasePages(): Unit = {
+    var i = 0
+    while (i < pages.length) {
+      pages(i).close()
+      i += 1
+    }
+    pages.clear()
   }
 }
 
 object DynamicFontRenderer {
-  private val size = 256
+  /** 图集页边长（像素）。旧版同样是 256。 */
+  val PageSize: Int = 256
 
-  class CharTexture(val owner: DynamicFontRenderer) {
-    private val id = GL11.glGenTextures()
-    GL11.glBindTexture(GL11.GL_TEXTURE_2D, id)
-    if (Settings.get.textLinearFiltering) {
-      GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR)
-    } else {
-      GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST)
-    }
-    GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST)
-    GL11.glTexImage2D(GL11.GL_TEXTURE_2D, 0, GL11.GL_RGBA8, size, size, 0, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, BufferUtils.createByteBuffer(size * size * 4))
+  /**
+   * 一页字形图集。
+   *
+   * 字形按行排布，每个字形四周留 1 像素空隙，避免开启线性过滤时相邻字形互相渗色。
+   * 像素用 `NativeImage#setPixelRGBA` 写入，攒够一帧再统一 `DynamicTexture#upload`。
+   */
+  class GlyphPage(val index: Int) {
+    val image: NativeImage = new NativeImage(NativeImage.Format.RGBA, PageSize, PageSize, true)
 
-    RenderState.checkError(getClass.getName + ".<init>: create texture")
+    val texture: DynamicTexture = new DynamicTexture(image)
 
-    // Some padding to avoid bleeding.
-    private val cellWidth = owner.charWidth + 2
-    private val cellHeight = owner.charHeight + 2
-    private val cols = size / cellWidth
-    private val rows = size / cellHeight
-    private val uStep = cellWidth / size.toDouble
-    private val vStep = cellHeight / size.toDouble
-    private val pad = 1.0 / size
-    private val capacity = cols * rows
+    /** 贴图名由 TextureManager 生成，形如 `minecraft:dynamic/oc_font_1`。 */
+    val location: ResourceLocation = Minecraft.getInstance.getTextureManager.register("oc_font", texture)
 
-    private var chars = 0
+    var dirty: Boolean = false
 
-    def delete(): Unit = {
-      GL11.glDeleteTextures(id)
-    }
+    private val padding = 1
+    private var cursorX = padding
+    private var cursorY = padding
+    private var rowHeight = 0
 
-    def bind(): Unit = {
-      GL11.glBindTexture(GL11.GL_TEXTURE_2D, id)
-    }
+    // 旧版对 MIN_FILTER 用 LINEAR/NEAREST、MAG_FILTER 固定 NEAREST；
+    // 1.21.1 的 AbstractTexture#setFilter 会同时设置这两个，这里按配置选择。
+    if (Settings.get.textLinearFiltering) texture.setFilter(true, false)
+    else texture.setFilter(false, false)
 
-    def isFull(char: Int) = chars + FontUtils.wcwidth(char) > capacity
-
-    def add(char: Int) = {
-      val glyphWidth = FontUtils.wcwidth(char)
-      val w = owner.charWidth * glyphWidth
-      val h = owner.charHeight
-      // Force line break if we have a char that's wider than what space remains in this row.
-      if (chars % cols + glyphWidth > cols) {
-        chars += 1
+    /**
+     * 在本页申请一块 width x height 的区域。
+     *
+     * 当前行放不下就换行；换行后仍放不下说明本页已满，返回 None。
+     */
+    def allocate(width: Int, height: Int): Option[(Int, Int)] = {
+      if (cursorX + width + padding > PageSize) {
+        cursorX = padding
+        cursorY += rowHeight + padding
+        rowHeight = 0
       }
-      val x = chars % cols
-      val y = chars / cols
+      if (cursorY + height + padding > PageSize) None
+      else {
+        val x = cursorX
+        val y = cursorY
+        cursorX += width + padding
+        rowHeight = math.max(rowHeight, height)
+        Some((x, y))
+      }
+    }
 
-      GL11.glBindTexture(GL11.GL_TEXTURE_2D, id)
-      GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 1 + x * cellWidth, 1 + y * cellHeight, w, h, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, owner.glyphProvider.getGlyph(char))
-
-      chars += glyphWidth
-
-      new CharIcon(this, w, h, pad + x * uStep, pad + y * vStep, (x + glyphWidth) * uStep - pad, (y + 1) * vStep - pad)
+    /** 释放贴图；之后本对象不可再使用。 */
+    def close(): Unit = {
+      val mc = Minecraft.getInstance
+      if (mc != null) mc.getTextureManager.release(location)
     }
   }
-
-  class CharIcon(val texture: CharTexture, val w: Int, val h: Int, val u1: Double, val v1: Double, val u2: Double, val v2: Double) {
-    def draw(tx: Float, ty: Float): Unit = {
-      GL11.glTexCoord2d(u1, v2)
-      GL11.glVertex2f(tx, ty + h)
-      GL11.glTexCoord2d(u2, v2)
-      GL11.glVertex2f(tx + w, ty + h)
-      GL11.glTexCoord2d(u2, v1)
-      GL11.glVertex2f(tx + w, ty)
-      GL11.glTexCoord2d(u1, v1)
-      GL11.glVertex2f(tx, ty)
-    }
-  }
-
 }

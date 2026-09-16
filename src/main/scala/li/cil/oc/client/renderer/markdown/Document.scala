@@ -1,35 +1,33 @@
 package li.cil.oc.client.renderer.markdown
 
 import li.cil.oc.api
-import li.cil.oc.client.renderer.markdown.segment.InteractiveSegment
-import li.cil.oc.client.renderer.markdown.segment.Segment
-import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.FontRenderer
-import org.lwjgl.opengl.GL11
+import li.cil.oc.client.renderer.markdown.segment.{InteractiveSegment, Segment}
+import net.minecraft.client.gui.{Font, GuiGraphics}
 
 import scala.collection.Iterable
 import scala.util.matching.Regex
 
 /**
- * Primitive Markdown parser, only supports a very small subset. Used for
- * parsing documentation into segments, to be displayed in a GUI somewhere.
+ * 极简 Markdown 解析器，只支持很小的一个子集，用于把手册页面文本解析成片段
+ * 后交给 GUI 绘制。
  *
- * General usage is: parse a string using parse(), render it using render().
+ * 一般用法：用 `parse` 解析文本，用 `render` 绘制。
  *
- * The parser generates a list of segments, each segment representing a part
- * of the document, with a specific formatting / render type. For example,
- * links are their own segments, a bold section in a link would be its own
- * section and so on.
- * The data structure is essentially a very flat multi-tree, where the segments
- * returned are the leaves, and the roots are the individual lines, represented
- * as text segments.
- * Formatting is done by accumulating formatting information over the parent
- * nodes, up to the root.
+ * 解析结果是「一串片段」，每个片段代表文档的一部分，可能带有特定格式/渲染方式。
+ * 例如链接是独立片段，链接里的粗体又是它自己的片段，以此类推。
+ * 数据结构本质上是一棵很扁的树：返回的片段是叶子，根是每一行（用文本片段表示）。
+ * 格式化信息沿着父链一路累积到根。
+ *
+ * ==1.21.1 迁移要点==
+ *  - 立即模式 `GL11` 全部删除，绘制改为 `GuiGraphics`；
+ *  - 1.7.10 里用「深度缓冲 + 颜色掩码」在滚动区域上下各画一块遮罩的技巧，
+ *    在 1.21.1 中改由 [GuiGraphics#enableScissor] 做裁剪（更简单也更可靠）；
+ *  - 调用方传入的 `(x, y)` 现在是**屏幕绝对坐标**，函数内部会
+ *    `pose.translate(x, y, 0)`，片段自身仍按「相对文档左上角」的坐标绘制，
+ *    因此鼠标坐标也要相应减去 `(x, y)`。
  */
 object Document {
-  /**
-   * Parses a plain text document into a list of segments.
-   */
+  /** 解析一份纯文本文档，返回片段链表的头。 */
   def parse(document: Iterable[String]): Segment = {
     var segments: Iterable[Segment] = document.map(line => new segment.TextSegment(null, Option(line).fold("")(_.reverse.dropWhile(_.isWhitespace).reverse)))
     for ((pattern, factory) <- segmentTypes) {
@@ -41,10 +39,8 @@ object Document {
     segments.head
   }
 
-  /**
-   * Compute the overall height of a document, e.g. for computation of scroll offsets.
-   */
-  def height(document: Segment, maxWidth: Int, renderer: FontRenderer): Int = {
+  /** 计算整份文档的高度（用于滚动条 / 滚动偏移计算）。 */
+  def height(document: Segment, maxWidth: Int, renderer: Font): Int = {
     var currentX = 0
     var currentY = 0
     var segment = document
@@ -56,60 +52,48 @@ object Document {
     currentY
   }
 
-  /**
-   * Line height for a normal line of text.
-   */
-  def lineHeight(renderer: FontRenderer): Int = renderer.FONT_HEIGHT + 1
+  /** 普通文本行的行高。 */
+  def lineHeight(renderer: Font): Int = renderer.lineHeight + 1
 
   /**
-   * Renders a list of segments and tooltips if a segment with a tooltip is hovered.
-   * Returns the hovered interactive segment, if any.
+   * 绘制整份文档，返回鼠标悬停到的可交互片段（如果有）。
+   *
+   * @param guiGraphics 当前 GUI 的绘图上下文
+   * @param x,y         文档区域左上角的屏幕绝对坐标
+   * @param maxWidth    文档区域宽度
+   * @param maxHeight   文档区域高度（超出部分被裁剪）
+   * @param yOffset     滚动偏移
+   * @param mouseX,mouseY 鼠标的屏幕绝对坐标
    */
-  def render(document: Segment, x: Int, y: Int, maxWidth: Int, maxHeight: Int, yOffset: Int, renderer: FontRenderer, mouseX: Int, mouseY: Int): Option[InteractiveSegment] = {
-    val mc = Minecraft.getMinecraft
+  def render(guiGraphics: GuiGraphics,
+             document: Segment,
+             x: Int, y: Int,
+             maxWidth: Int, maxHeight: Int,
+             yOffset: Int,
+             renderer: Font,
+             mouseX: Int, mouseY: Int): Option[InteractiveSegment] = {
+    val pose = guiGraphics.pose()
+    val previousContext = RenderContext.push(guiGraphics)
 
-    GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS)
+    // 裁剪到文档区域，替代 1.7.10 那套深度缓冲遮罩。
+    guiGraphics.enableScissor(x, y, x + maxWidth, y + maxHeight)
+    pose.pushPose()
+    pose.translate(x.toFloat, y.toFloat, 0f)
 
-    // On some systems/drivers/graphics cards the next calls won't update the
-    // depth buffer correctly if alpha test is enabled. Guess how we found out?
-    // By noticing that on those systems it only worked while chat messages
-    // were visible. Yeah. I know.
-    GL11.glDisable(GL11.GL_ALPHA_TEST)
+    // 片段坐标以文档左上角为原点。
+    val localMouseX = mouseX - x
+    val localMouseY = mouseY - y
 
-    // Clear depth mask, then create masks in foreground above and below scroll area.
-    GL11.glColor4f(1, 1, 1, 1)
-    GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT)
-    GL11.glEnable(GL11.GL_DEPTH_TEST)
-    GL11.glDepthFunc(GL11.GL_LEQUAL)
-    GL11.glDepthMask(true)
-    GL11.glColorMask(false, false, false, false)
-
-    GL11.glPushMatrix()
-    GL11.glTranslatef(0, 0, 300)
-    GL11.glBegin(GL11.GL_QUADS)
-    GL11.glVertex2f(0, y)
-    GL11.glVertex2f(mc.displayWidth, y)
-    GL11.glVertex2f(mc.displayWidth, 0)
-    GL11.glVertex2f(0, 0)
-    GL11.glVertex2f(0, mc.displayHeight)
-    GL11.glVertex2f(mc.displayWidth, mc.displayHeight)
-    GL11.glVertex2f(mc.displayWidth, y + maxHeight)
-    GL11.glVertex2f(0, y + maxHeight)
-    GL11.glEnd()
-    GL11.glPopMatrix()
-    GL11.glColorMask(true, true, true, true)
-
-    // Actual rendering.
     var hovered: Option[InteractiveSegment] = None
     var indent = 0
-    var currentY = y - yOffset
-    val minY = y - lineHeight(renderer)
-    val maxY = y + maxHeight + lineHeight(renderer)
+    var currentY = -yOffset
+    val minY = -lineHeight(renderer)
+    val maxY = maxHeight + lineHeight(renderer)
     var segment = document
     while (segment != null) {
       val segmentHeight = segment.nextY(indent, maxWidth, renderer)
       if (currentY + segmentHeight >= minY && currentY <= maxY) {
-        val result = segment.render(x, currentY, indent, maxWidth, renderer, mouseX, mouseY)
+        val result = segment.render(guiGraphics, 0, currentY, indent, maxWidth, renderer, localMouseX, localMouseY)
         hovered = hovered.orElse(result)
       }
       currentY += segmentHeight
@@ -119,7 +103,9 @@ object Document {
     if (mouseX < x || mouseX > x + maxWidth || mouseY < y || mouseY > y + maxHeight) hovered = None
     hovered.foreach(_.notifyHover())
 
-    GL11.glPopAttrib()
+    pose.popPose()
+    guiGraphics.disableScissor()
+    RenderContext.pop(previousContext)
 
     hovered
   }
@@ -150,12 +136,12 @@ object Document {
   // ----------------------------------------------------------------------- //
 
   private val segmentTypes = Array(
-    """^(#+)\s(.*)""".r -> HeaderSegment _, // headers: # ...
-    """(`)(.*?)\1""".r -> CodeSegment _, // code: `...`
-    """!\[([^\[]*)\]\(([^\)]+)\)""".r -> ImageSegment _, // images: ![...](...)
-    """\[([^\[]+)\]\(([^\)]+)\)""".r -> LinkSegment _, // links: [...](...)
-    """(\*\*|__)(\S.*?\S|$)\1""".r -> BoldSegment _, // bold: **...** | __...__
-    """(\*|_)(\S.*?\S|$)\1""".r -> ItalicSegment _, // italic: *...* | _..._
-    """~~(\S.*?\S|$)~~""".r -> StrikethroughSegment _ // strikethrough: ~~...~~
+    """^(#+)\s(.*)""".r -> HeaderSegment _, // 标题：# ...
+    """(`)(.*?)\1""".r -> CodeSegment _, // 行内代码：`...`
+    """!\[([^\[]*)\]\(([^\)]+)\)""".r -> ImageSegment _, // 图片：![...](...)
+    """\[([^\[]+)\]\(([^\)]+)\)""".r -> LinkSegment _, // 链接：[...](...)
+    """(\*\*|__)(\S.*?\S|$)\1""".r -> BoldSegment _, // 粗体：**...** | __...__
+    """(\*|_)(\S.*?\S|$)\1""".r -> ItalicSegment _, // 斜体：*...* | _..._
+    """~~(\S.*?\S|$)~~""".r -> StrikethroughSegment _ // 删除线：~~...~~
   )
 }

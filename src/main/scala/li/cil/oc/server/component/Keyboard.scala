@@ -42,7 +42,8 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
     DeviceAttribute.Product -> "Fancytyper MX-Stone"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：`DeviceInfo#getDeviceInfo` 返回 `java.util.Map`，Scala 的 `Map` 需要显式转换。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -50,7 +51,9 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
     pressedKeys.get(player) match {
       case Some(keys) => for ((code, char) <- keys) {
         if (Settings.get.inputUsername) {
-          signal(player, "key_up", char, code, player.getCommandSenderName)
+          // 1.21.1：`Entity#getCommandSenderName` → `getGameProfile.getName`
+          //（与 `common.tileentity.Keyboard` 的占位组件保持一致）。
+          signal(player, "key_up", char, code, player.getGameProfile.getName)
         }
         else {
           signal(player, "key_up", char, code)
@@ -69,7 +72,7 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
         if (isUseableByPlayer(p)) {
           pressedKeys.getOrElseUpdate(p, mutable.Map.empty[Integer, Character]) += code -> char
           if (Settings.get.inputUsername) {
-            signal(p, "key_down", char, code, p.getCommandSenderName)
+            signal(p, "key_down", char, code, p.getGameProfile.getName)
           }
           else {
             signal(p, "key_down", char, code)
@@ -80,7 +83,7 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
           case Some(keys) if keys.contains(code) =>
             keys -= code
             if (Settings.get.inputUsername) {
-              signal(p, "key_up", char, code, p.getCommandSenderName)
+              signal(p, "key_up", char, code, p.getGameProfile.getName)
             }
             else {
               signal(p, "key_up", char, code)
@@ -91,7 +94,7 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
         if (isUseableByPlayer(p)) {
           for (line <- value.linesWithSeparators) {
             if (Settings.get.inputUsername) {
-              signal(p, "clipboard", line, p.getCommandSenderName)
+              signal(p, "clipboard", line, p.getGameProfile.getName)
             }
             else {
               signal(p, "clipboard", line)
@@ -106,7 +109,9 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
 
   def isUseableByPlayer(p: Player) = usableOverride match {
     case Some(callback) => callback.isUsableByPlayer(this, p)
-    case _ => p.getDistanceSq(host.xPosition, host.yPosition, host.zPosition) <= 64
+    // 1.21.1：`Entity#getDistanceSq(x, y, z)` → `distanceToSqr(x, y, z)`
+    //（与 `common.tileentity.Keyboard` 的占位组件保持一致）。
+    case _ => p.distanceToSqr(host.xPosition, host.yPosition, host.zPosition) <= 64
   }
 
   protected def signal(args: AnyRef*) =

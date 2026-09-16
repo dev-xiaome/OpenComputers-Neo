@@ -1,4 +1,5 @@
 package li.cil.oc.integration.opencomputers
+import li.cil.oc.util.ItemStackNBTExtensions._
 
 import li.cil.oc.Constants
 import li.cil.oc.api
@@ -23,9 +24,9 @@ object DriverDiskDriveMountable extends Item with HostAware {
   override def slot(stack: ItemStack): String = Slot.RackMountable
 
   override def dataTag(stack: ItemStack): CompoundTag = {
-    if (!stack.hasTagCompound) {
+    if (!stack.hasTag()) {
       stack.put(new CompoundTag())
     }
-    stack.getTagCompound
+    stack.getTag()
   }
 }

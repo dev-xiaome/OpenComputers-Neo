@@ -8,8 +8,6 @@ import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
-import li.cil.oc.common.event.BlockChangeHandler
-import li.cil.oc.common.event.BlockChangeHandler.ChangeListener
 import li.cil.oc.server.network
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedWorld._
@@ -25,9 +23,21 @@ import scala.jdk.CollectionConverters._
 /**
   * Mostly stolen from {@link li.cil.oc.common.tileentity.Adapter}
   *
-  * @author Sangar, Vexatos
+  * ==1.21.1 迁移要点==
+  *  - `ForgeDirection` → `Direction`；`Vec3.createVectorHelper` → `new Vec3`；
+  *    `xCoord/yCoord/zCoord` → `x/y/z`。
+  *  - `World#getTotalWorldTime` → `Level#getGameTime`，
+  *    `world.provider.dimensionId` → `world.dimension()`（`ResourceKey[Level]` 比较）。
+  *  - `deviceInfo` 是 Scala `Map`，`getDeviceInfo` 需要 `.asJava`。
+  *
+  * ==已知降级==
+  * TODO(server): 1.7.10 通过 `common.event.BlockChangeHandler` 注册「方块变化」监听，
+  * 由它回调 `onBlockChanged()` 重新绑定相邻方块上的驱动。`li.cil.oc.common.event` 包还未进入编译范围，
+  * 因此改为在 [[update]] 中按 `Settings#tickFrequency` 轮询调用 [[updateBoundState]]
+  * （方块被增删后最迟一个 `tickFrequency` 内被发现；绑定过程是幂等的）。
+  * 等 `BlockChangeHandler` 可用后可恢复事件驱动，并把轮询去掉。
   */
-class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Direction) extends prefab.ManagedEnvironment with ChangeListener with DeviceInfo {
+class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Direction) extends prefab.ManagedEnvironment with DeviceInfo {
   override val node = api.Network.newNode(this, Visibility.None).
     withConnector().
     create()
@@ -45,7 +55,7 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
     DeviceAttribute.Product -> "ERR NAME NOT FOUND"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   private def otherNode(tile: BlockEntity, f: (Node) => Unit) {
     network.Network.getNetworkNode(tile, dir) match {
@@ -55,8 +65,8 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
   }
 
   private def updateBoundState(): Unit = {
-    if (node != null && node.network != null && coord.world.exists(_.provider.dimensionId == host.world.provider.dimensionId)
-      && coord.toVec3.distanceTo(Vec3.createVectorHelper(host.xPosition, host.yPosition, host.zPosition)) <= Settings.get.mfuRange) {
+    if (node != null && node.network != null && coord.world.exists(_.dimension() == host.world.dimension())
+      && coord.toVec3.distanceTo(new Vec3(host.xPosition(), host.yPosition(), host.zPosition())) <= Settings.get.mfuRange) {
       host.world.getTileEntity(coord) match {
         case env: BlockEntity with api.network.Environment =>
           otherEnv match {
@@ -148,7 +158,8 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
     }
   }
 
-  override def onBlockChanged() = updateBoundState()
+  /** 方块变化时的重新绑定入口（现在由 [[update]] 轮询调用，见类注释的降级说明）。 */
+  def onBlockChanged(): Unit = updateBoundState()
 
   override def update(): Unit = {
     super.update()
@@ -156,9 +167,12 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
       case Some((env, drv)) if env.canUpdate => env.update()
       case _ => // No driver
     }
-    if (host.world.getTotalWorldTime % Settings.get.tickFrequency == 0) {
+    if (host.world.getGameTime % Settings.get.tickFrequency == 0) {
+      // TODO(server): 旧实现由 `common.event.BlockChangeHandler` 在方块变化时触发
+      // `onBlockChanged()`；该对象尚未进入编译范围，这里按 tickFrequency 轮询重新绑定。
+      updateBoundState()
       if (!node.tryChangeBuffer(-Settings.get.mfuCost * Settings.get.tickFrequency
-        * coord.toVec3.distanceTo(Vec3.createVectorHelper(host.xPosition, host.yPosition, host.zPosition)))) {
+        * coord.toVec3.distanceTo(new Vec3(host.xPosition(), host.yPosition(), host.zPosition())))) {
         disconnect()
       }
     }
@@ -168,8 +182,6 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
     super.onConnect(node)
     if (node == this.node) {
       // Not checking for range yet because host may be a moving adapter, who knows?
-      BlockChangeHandler.addListener(this, coord)
-
       updateBoundState()
     }
   }
@@ -183,9 +195,6 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
     otherDrv match {
       case Some((env, drv)) if node == env.node => otherDrv = None
       case _ => // No driver
-    }
-    if (node == this.node) {
-      BlockChangeHandler.removeListener(this)
     }
   }
 

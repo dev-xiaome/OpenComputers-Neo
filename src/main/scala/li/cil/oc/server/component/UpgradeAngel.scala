@@ -29,5 +29,6 @@ class UpgradeAngel extends prefab.ManagedEnvironment with DeviceInfo {
     DeviceAttribute.Capacity -> Settings.get.maxNetworkPacketSize.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 }

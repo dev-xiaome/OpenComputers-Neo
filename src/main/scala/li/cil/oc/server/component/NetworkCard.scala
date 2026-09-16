@@ -23,7 +23,6 @@ import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import net.minecraft.nbt._
 
 import scala.jdk.CollectionConverters._
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 class NetworkCard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with RackBusConnectable with DeviceInfo with traits.WakeMessageAware {
@@ -54,7 +53,8 @@ class NetworkCard(val host: EnvironmentHost) extends prefab.ManagedEnvironment w
     DeviceAttribute.Width -> Settings.get.maxNetworkPacketParts.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -97,7 +97,8 @@ class NetworkCard(val host: EnvironmentHost) extends prefab.ManagedEnvironment w
   def send(context: Context, args: Arguments): Array[AnyRef] = {
     val address = args.checkString(0)
     val port = checkPort(args.checkInteger(1))
-    val packet = api.Network.newPacket(node.address, address, port, args.drop(2).toArray)
+    // 1.21.1：`Arguments` 是 `java.lang.Iterable`，2.13 需要显式 `asScala` 才能调用 `drop`。
+    val packet = api.Network.newPacket(node.address, address, port, args.asScala.drop(2).toArray)
     doSend(packet)
     networkActivity()
     result(true)
@@ -106,7 +107,7 @@ class NetworkCard(val host: EnvironmentHost) extends prefab.ManagedEnvironment w
   @Callback(doc = """function(port:number, data...) -- Broadcasts the specified data on the specified port.""")
   def broadcast(context: Context, args: Arguments): Array[AnyRef] = {
     val port = checkPort(args.checkInteger(0))
-    val packet = api.Network.newPacket(node.address, null, port, args.drop(1).toArray)
+    val packet = api.Network.newPacket(node.address, null, port, args.asScala.drop(1).toArray)
     doBroadcast(packet)
     networkActivity()
     result(true)

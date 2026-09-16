@@ -1,54 +1,56 @@
 package li.cil.oc.integration.opencomputers
 
-import cpw.mods.fml.common.FMLCommonHandler
 import li.cil.oc.Constants
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.api
-import li.cil.oc.api.detail.ItemInfo
 import li.cil.oc.api.driver.item.Chargeable
 import li.cil.oc.api.internal
 import li.cil.oc.api.internal.Wrench
 import li.cil.oc.api.manual.PathProvider
 import li.cil.oc.api.prefab.ItemStackTabIconRenderer
 import li.cil.oc.api.prefab.ResourceContentProvider
-import li.cil.oc.api.prefab.TextureTabIconRenderer
-import li.cil.oc.client.Textures
-import li.cil.oc.client.renderer.markdown.segment.render.BlockImageProvider
-import li.cil.oc.client.renderer.markdown.segment.render.ItemImageProvider
-import li.cil.oc.client.renderer.markdown.segment.render.OreDictImageProvider
-import li.cil.oc.client.renderer.markdown.segment.render.TextureImageProvider
-import li.cil.oc.common.EventHandler
-import li.cil.oc.common.Loot
-import li.cil.oc.common.SaveHandler
-import li.cil.oc.common.asm.SimpleComponentTickHandler
-import li.cil.oc.common.block.SimpleBlock
-import li.cil.oc.common.event._
-import li.cil.oc.common.item.Analyzer
 import li.cil.oc.common.item.Delegator
 import li.cil.oc.common.item.RedstoneCard
-import li.cil.oc.common.item.Tablet
-import li.cil.oc.common.nanomachines.provider.DisintegrationProvider
-import li.cil.oc.common.nanomachines.provider.HungryProvider
-import li.cil.oc.common.nanomachines.provider.MagnetProvider
-import li.cil.oc.common.nanomachines.provider.ParticleProvider
-import li.cil.oc.common.nanomachines.provider.PotionProvider
 import li.cil.oc.common.template._
 import li.cil.oc.integration.ModProxy
 import li.cil.oc.integration.Mods
 import li.cil.oc.integration.util.BundledRedstone
 import li.cil.oc.integration.util.WirelessRedstone
-import li.cil.oc.server.machine.luac.LuaStateFactory
-import li.cil.oc.server.machine.luac.NativeLua53Architecture
-import li.cil.oc.server.network.Waypoints
-import li.cil.oc.server.network.WirelessNetwork
+import li.cil.oc.server.network.{Waypoints, WirelessNetwork}
 import li.cil.oc.util.Color
+import net.minecraft.core.BlockPos
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
-import net.minecraftforge.common.ForgeChunkManager
 import net.neoforged.neoforge.common.NeoForge
+import net.neoforged.neoforge.event.level.{ChunkEvent, LevelEvent}
 
+/**
+ * OpenComputers 自身的驱动 / 转换器 / 模板注册代理。
+ *
+ * ==1.21.1 迁移要点==
+ *  - 驱动一律通过 `li.cil.oc.api.Driver.add(...)` 登记（底层是
+ *    `li.cil.oc.server.driver.Registry`）；
+ *  - 事件注册统一走 `li.cil.oc.common.event.EventHandlers`（NeoForge 对 Scala `object` 上的
+ *    注解扫描不可靠，工程统一改成 `addListener`）；`Waypoints` / `WirelessNetwork` 这两个
+ *    还没有 `initialize()` 的对象在这里用 `addListener` 直接挂上；
+ *  - `MinecraftForge.EVENT_BUS` → `net.neoforged.neoforge.common.NeoForge.EVENT_BUS`；
+ *    `FMLCommonHandler.instance.bus`（mod 事件总线）在 1.21.1 通过
+ *    `ModLoadingContext#getActiveContainer#getEventBus` 取得。
+ *
+ * ==降级清单==
+ *  - **手册（Manual）的客户端资源**：`TextureImageProvider` / `ItemImageProvider` /
+ *    `BlockImageProvider` / `OreDictImageProvider` / `Textures.guiManualHome`
+ *    全部来自尚未移植的 `client/**`，这里只保留服务端可用的 PathProvider 与
+ *    ResourceContentProvider，其余留 TODO。
+ *  - **`common.asm.SimpleComponentTickHandler`**：ASM 注入层整体删除，随之一并移除。
+ *  - **`ForgeChunkManager.setForcedChunkLoadingCallback`**：1.21.1 的区块强制加载改为
+ *    `ServerLevel#setChunkForced` / ticket，由 `common.event.ChunkloaderUpgradeHandler`
+ *    自己处理（它已由 `common.event.EventHandlers.initialize` 接线）。
+ *  - **`Analyzer` / `Tablet` 的事件注册**：这两个对象上的监听器属于客户端展示逻辑
+ *    （工具提示 / 实体进世界的客户端同步），等 `client/**` 移植后再接。
+ */
 object ModOpenComputers extends ModProxy {
   override def getMod = Mods.OpenComputers
 
@@ -89,32 +91,20 @@ object ModOpenComputers extends ModProxy {
     api.IMC.registerProgramDiskLabel("opl-flash", "openloader", "Lua 5.2", "Lua 5.3", "LuaJ")
     api.IMC.registerProgramDiskLabel("oppm", "oppm", "Lua 5.2", "Lua 5.3", "LuaJ")
 
-    ForgeChunkManager.setForcedChunkLoadingCallback(OpenComputers, ChunkloaderUpgradeHandler)
-
-    FMLCommonHandler.instance.bus.register(EventHandler)
-    FMLCommonHandler.instance.bus.register(NanomachinesHandler.Common)
-    FMLCommonHandler.instance.bus.register(SimpleComponentTickHandler.Instance)
-    FMLCommonHandler.instance.bus.register(Tablet)
-
-    MinecraftForge.EVENT_BUS.register(Analyzer)
-    MinecraftForge.EVENT_BUS.register(AngelUpgradeHandler)
-    MinecraftForge.EVENT_BUS.register(BlockChangeHandler)
-    MinecraftForge.EVENT_BUS.register(ChunkloaderUpgradeHandler)
-    MinecraftForge.EVENT_BUS.register(EventHandler)
-    MinecraftForge.EVENT_BUS.register(ExperienceUpgradeHandler)
-    MinecraftForge.EVENT_BUS.register(FileSystemAccessHandler)
-    MinecraftForge.EVENT_BUS.register(HoverBootsHandler)
-    MinecraftForge.EVENT_BUS.register(Loot)
-    MinecraftForge.EVENT_BUS.register(NanomachinesHandler.Common)
-    MinecraftForge.EVENT_BUS.register(NetworkActivityHandler)
-    MinecraftForge.EVENT_BUS.register(RobotCommonHandler)
-    MinecraftForge.EVENT_BUS.register(SaveHandler)
-    MinecraftForge.EVENT_BUS.register(Tablet)
-    MinecraftForge.EVENT_BUS.register(Waypoints)
-    MinecraftForge.EVENT_BUS.register(WirelessNetwork)
-    MinecraftForge.EVENT_BUS.register(WirelessNetworkCardHandler)
-    MinecraftForge.EVENT_BUS.register(li.cil.oc.client.ComponentTracker)
-    MinecraftForge.EVENT_BUS.register(li.cil.oc.server.ComponentTracker)
+    // 事件接线：对应 1.7.10 的 `FMLCommonHandler.instance.bus.register(...)` 与
+    // `MinecraftForge.EVENT_BUS.register(...)`。
+    modBus.foreach(li.cil.oc.common.event.EventHandlers.initialize)
+    // `Waypoints` / `WirelessNetwork` 还没有 `initialize()`，在这里显式挂上世界 / 区块钩子。
+    NeoForge.EVENT_BUS.addListener((e: LevelEvent.Load) => Waypoints.onWorldLoad(e))
+    NeoForge.EVENT_BUS.addListener((e: LevelEvent.Unload) => Waypoints.onWorldUnload(e))
+    NeoForge.EVENT_BUS.addListener((e: ChunkEvent.Unload) => Waypoints.onChunkUnload(e))
+    NeoForge.EVENT_BUS.addListener((e: LevelEvent.Load) => WirelessNetwork.onWorldLoad(e))
+    NeoForge.EVENT_BUS.addListener((e: LevelEvent.Unload) => WirelessNetwork.onWorldUnload(e))
+    NeoForge.EVENT_BUS.addListener((e: ChunkEvent.Unload) => WirelessNetwork.onChunkUnload(e))
+    // TODO(port): 1.7.10 还会把 `Analyzer`（工具提示）与 `Tablet`（实体进世界）注册到事件总线，
+    // 两者的监听器都属于客户端展示逻辑，等 `client/**` 移植后再接。
+    // `Loot` 由主类（`OpenComputersNeo`）注册；`SaveHandler` / `EventHandler` /
+    // `server.ComponentTracker` 等已包含在 `common.event.EventHandlers.initialize` 里。
 
     api.Driver.add(ConverterNanomachines)
     api.Driver.add(ConverterLinkedCard)
@@ -323,12 +313,12 @@ object ModOpenComputers extends ModProxy {
 
     api.Manual.addProvider(DefinitionPathProvider)
     api.Manual.addProvider(new ResourceContentProvider(Settings.resourceDomain, "doc/"))
-    api.Manual.addProvider("", TextureImageProvider)
-    api.Manual.addProvider("item", ItemImageProvider)
-    api.Manual.addProvider("block", BlockImageProvider)
-    api.Manual.addProvider("oredict", OreDictImageProvider)
+    // TODO(port): 1.7.10 还注册了四个**客户端**图片提供器
+    //   （`TextureImageProvider` / `ItemImageProvider` / `BlockImageProvider` /
+    //   `OreDictImageProvider`）与一个用 `Textures.guiManualHome` 的标签页图标。
+    //   它们都在尚未移植的 `client.renderer.markdown.segment.render` / `client.Textures` 里，
+    //   等 `client/**` 完成后补回。
 
-    api.Manual.addTab(new TextureTabIconRenderer(Textures.guiManualHome), "oc:gui.Manual.Home", "%LANGUAGE%/index.md")
     api.Manual.addTab(new ItemStackTabIconRenderer(api.Items.get("case1").createItemStack(1)), "oc:gui.Manual.Blocks", "%LANGUAGE%/block/index.md")
     api.Manual.addTab(new ItemStackTabIconRenderer(api.Items.get("cpu1").createItemStack(1)), "oc:gui.Manual.Items", "%LANGUAGE%/item/index.md")
 
@@ -339,9 +329,26 @@ object ModOpenComputers extends ModProxy {
     api.Nanomachines.addProvider(MagnetProvider)
   }
 
+  /**
+   * mod 事件总线（1.7.10 的 `FMLCommonHandler.instance.bus`）。
+   *
+   * `ModProxy#initialize()` 没有参数，所以这里从 `ModLoadingContext` 反查当前容器；
+   * 取不到时返回 `None`（只跳过需要 mod 总线的那部分接线，不会崩）。
+   *
+   * TODO(port): 更干净的做法是给 `ModProxy#initialize` 加一个 `IEventBus` 参数，
+   * 由 `server.Proxy.init` 把总线传下来；在此之前先用这里反查。
+   */
+  private def modBus: Option[net.neoforged.bus.api.IEventBus] = try {
+    Option(net.neoforged.fml.ModLoadingContext.get().getActiveContainer).map(_.getEventBus)
+  }
+  catch {
+    case _: Throwable => None
+  }
+
   def useWrench(player: Player, x: Int, y: Int, z: Int, changeDurability: Boolean): Boolean = {
-    player.getHeldItem.getItem match {
-      case wrench: Wrench => wrench.useWrenchOnBlock(player, player.getEntityWorld, x, y, z, !changeDurability)
+    // 1.21.1：`getHeldItem` → `getMainHandItem`；`getEntityWorld` → `level()`。
+    player.getMainHandItem.getItem match {
+      case wrench: Wrench => wrench.useWrenchOnBlock(player, player.level(), x, y, z, !changeDurability)
       case _ => false
     }
   }
@@ -393,12 +400,18 @@ object ModOpenComputers extends ModProxy {
       case _ => null
     }
 
-    override def pathFor(world: Level, x: Int, y: Int, z: Int): String = world.getBlock(x, y, z) match {
-      case block: SimpleBlock => checkBlacklisted(api.Items.get(new ItemStack(block)))
-      case _ => null
-    }
+    override def pathFor(world: Level, x: Int, y: Int, z: Int): String =
+      // 1.21.1：`world.getBlock(x, y, z)` 改成方块状态取方块；`api.Items.get(block)` 也没有了，
+      // 改为先用方块反查物品，再通过物品堆叠查描述符。
+      world.getBlockState(new BlockPos(x, y, z)).getBlock match {
+        case block: li.cil.oc.common.block.SimpleBlock =>
+          val item = block.asItem()
+          if (item == null || item == net.minecraft.world.item.Items.AIR) null
+          else checkBlacklisted(api.Items.get(new ItemStack(item)))
+        case _ => null
+      }
 
-    private def checkBlacklisted(info: ItemInfo): String =
+    private def checkBlacklisted(info: api.detail.ItemInfo): String =
       if (info == null || Blacklist.contains(info.name)) null
       else if (info.block != null) "%LANGUAGE%/block/" + info.name + ".md"
       else "%LANGUAGE%/item/" + info.name + ".md"

@@ -100,7 +100,7 @@ object InventorySlots {
   }
 
   /**
-   * TODO(标签): 1.21.1 的 `IItemHandler` 没有 `markDirty`/`setChanged`（那是
+   * TODO(server): 1.21.1 的 `IItemHandler` 没有 `markDirty`/`setChanged`（那是
    * `Container` 与 `BlockEntity` 的职责），这里保留为无操作，由宿主方块实体自行 `setChanged`。
    */
   def markDirty(inventory: IItemHandler): Unit = ()

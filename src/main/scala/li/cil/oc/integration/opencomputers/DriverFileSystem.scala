@@ -1,4 +1,5 @@
 package li.cil.oc.integration.opencomputers
+import li.cil.oc.util.ItemStackNBTExtensions._
 
 import li.cil.oc
 import li.cil.oc.Constants
@@ -27,7 +28,7 @@ object DriverFileSystem extends Item {
     api.Items.get(Constants.ItemName.Floppy))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) =
-    if (host.world != null && host.world.isRemote) null
+    if (host.world != null && host.world.isClientSide) null
     else Delegator.subItem(stack) match {
       case Some(hdd: HardDiskDrive) => createEnvironment(stack, hdd.kiloBytes * 1024, hdd.platterCount, host, hdd.tier + 2)
       case Some(disk: FloppyDisk) => createEnvironment(stack, Settings.get.floppySize * 1024, 1, host, 1)
@@ -48,9 +49,9 @@ object DriverFileSystem extends Item {
     }
 
   private def createEnvironment(stack: ItemStack, capacity: Int, platterCount: Int, host: EnvironmentHost, speed: Int) = {
-    if (stack.hasTagCompound && stack.getTagCompound.contains(Settings.namespace + "lootFactory")) {
+    if (stack.hasTag() && stack.getTag().contains(Settings.namespace + "lootFactory")) {
       // Loot disk, create file system using factory callback.
-      Loot.factories.get(stack.getTagCompound.getString(Settings.namespace + "lootFactory")) match {
+      Loot.factories.get(stack.getTag().getString(Settings.namespace + "lootFactory")) match {
         case Some(factory) =>
           val label =
             if (dataTag(stack).contains(Settings.namespace + "fs.label"))

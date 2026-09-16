@@ -18,8 +18,10 @@ import li.cil.oc.api.prefab
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.ExtendedWorld._
-import net.minecraft.world.level.block.Blocks
 import net.minecraft.core.Direction
+import net.minecraft.sounds.SoundEvents
+import net.minecraft.sounds.SoundSource
+import net.minecraft.world.level.block.piston.PistonBaseBlock
 
 import scala.jdk.CollectionConverters._
 
@@ -36,7 +38,8 @@ abstract class UpgradePiston(val host: EnvironmentHost) extends prefab.ManagedEn
     DeviceAttribute.Product -> "Displacer II+"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   def pushDirection(args: Arguments, index: Int): Direction
 
@@ -47,9 +50,21 @@ abstract class UpgradePiston(val host: EnvironmentHost) extends prefab.ManagedEn
     val side = pushDirection(args, 0)
     val hostPos = pushOrigin(side)
     val blockPos = hostPos.offset(side)
-    if (!host.world.isAirBlock(blockPos) && node.tryChangeBuffer(-Settings.get.pistonCost) && Blocks.piston.tryExtend(host.world, hostPos.x, hostPos.y, hostPos.z, side.ordinal)) {
+    // 1.21.1：`Block#tryExtend`（1.7.10）已被移除，活塞的「能否推动」判定改为静态的
+    // `PistonBaseBlock.isPushable(state, level, pos, pushDirection, allowOverpowered, pistonFacing)`。
+    // 这里保留原语义：只判断目标方块能否被推动，推动动作本身由下方直接清除方块完成。
+    val pushable = PistonBaseBlock.isPushable(
+      host.world.getBlockState(blockPos.toChunkCoordinates),
+      host.world, blockPos.toChunkCoordinates, side, false, side)
+    if (!host.world.isAirBlock(blockPos) && node.tryChangeBuffer(-Settings.get.pistonCost) && pushable) {
       host.world.setBlockToAir(blockPos)
-      host.world.playSoundEffect(host.xPosition, host.yPosition, host.zPosition, "tile.piston.out", 0.5f, host.world.rand.nextFloat() * 0.25f + 0.6f)
+      // 1.21.1：`World#playSoundEffect(x, y, z, name, volume, pitch)` →
+      // `Level#playSound(player, x, y, z, SoundEvent, SoundSource, volume, pitch)`；
+      // 原字符串音效名 `"tile.piston.out"` 对应 `SoundEvents.PISTON_EXTEND`。
+      host.world.playSound(null: net.minecraft.world.entity.player.Player,
+        BlockPosition(host).x + 0.5, BlockPosition(host).y + 0.5, BlockPosition(host).z + 0.5,
+        SoundEvents.PISTON_EXTEND, SoundSource.BLOCKS,
+        0.5f, host.world.random.nextFloat() * 0.25f + 0.6f)
       context.pause(0.5)
       result(true)
     }
@@ -64,8 +79,9 @@ object UpgradePiston {
   }
 
   class Tablet(tablet: internal.Tablet) extends Rotatable(tablet) {
+    // 1.21.1：`Entity#getEyeHeight` 变成方法 `getEyeHeight()`。
     override def pushOrigin(side: Direction) =
-      if (side == Direction.DOWN && tablet.player.getEyeHeight > 1) super.pushOrigin(side).offset(Direction.DOWN)
+      if (side == Direction.DOWN && tablet.player.getEyeHeight() > 1) super.pushOrigin(side).offset(Direction.DOWN)
       else super.pushOrigin(side)
   }
 

@@ -18,7 +18,8 @@ object ConverterNanomachines extends Converter {
     case stack: ItemStack if api.Items.get(stack) == nanomachines =>
       val data = new NanomachineData(stack)
       if (!Strings.isNullOrEmpty(data.uuid)) {
-        output += "nanomachines" -> data.uuid
+        // 1.21.1：`java.util.Map` 没有 `+=`，改用 `put`。
+        output.put("nanomachines", data.uuid)
       }
     case _ => // Ignore.
   }

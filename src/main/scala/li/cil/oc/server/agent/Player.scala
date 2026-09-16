@@ -395,9 +395,14 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.world.asInstanc
    *
    * TODO(port): 1.21.1 的 `Player` 没有这个方法（掉落改由 `Player#drop` 负责），
    *  保留同名工具方法供机器人组件调用，行为仍是「按朝向在世界里生成掉落物」。
+   *
+   * TODO(port): 1.7.10 的 `InventoryUtils.spawnStackInWorld` 返回 `EntityItem`，
+   *  1.21.1 对应返回 `ItemEntity`；而上游本方法的返回语义是「被丢弃的那个堆叠」，
+   *  因此这里丢弃掉 `ItemEntity` 返回值，改回传传入的 `stack`。
    */
   def dropPlayerItemWithRandomChoice(stack: ItemStack, inPlace: Boolean): ItemStack = {
     InventoryUtils.spawnStackInWorld(BlockPosition(agent), stack, if (inPlace) None else Option(facing))
+    stack
   }
 
   private def blockHit(x: Int, y: Int, z: Int, side: Int, hitX: Float, hitY: Float, hitZ: Float): BlockHitResult = {

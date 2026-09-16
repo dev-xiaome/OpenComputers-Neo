@@ -20,20 +20,22 @@ import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
 import li.cil.oc.common.tileentity.{Robot => EntityRobot, Microcontroller}
 import li.cil.oc.common.entity.{Drone => EntityDrone}
-import li.cil.oc.common.item.TabletWrapper
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.DatabaseAccess
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.ExtendedWorld._
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.ItemStack
+// 1.21.1：`result` 由 `server/component/package.scala` 的包对象提供；这里显式引入同一实现，
+// 使本文件即使脱离包对象也能编译（与 `Drive.scala` 的处理一致）。
+import li.cil.oc.util.ResultWrapper.result
+import net.minecraft.core.BlockPos
+import net.minecraft.core.Direction
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.Items
 import net.minecraft.world.level.biome.Biomes
 import net.neoforged.neoforge.common.NeoForge
-import net.minecraft.core.Direction
 
-import scala.jdk.CollectionConverters._
 import scala.jdk.CollectionConverters._
 import scala.language.existentials
 
@@ -51,33 +53,40 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
     DeviceAttribute.Capacity -> Settings.get.geolyzerRange.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：`DeviceInfo#getDeviceInfo` 返回 `java.util.Map`，Scala 的 `Map` 需要显式转换。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
   override protected def checkSideForAction(args: Arguments, n: Int): Direction = {
     val side = args.checkSideAny(n)
-    val is_uc = host.isInstanceOf[Microcontroller]
     host match {
       case robot: EntityRobot => robot.proxy.toGlobal(side)
       case drone: EntityDrone => drone.toGlobal(side)
       case uc: Microcontroller => uc.toLocal(side) // not really sure what it is reversed for microcontrollers
-      case tablet: TabletWrapper => tablet.toGlobal(side)
+      case tablet: internal.Tablet => tablet.toGlobal(side)
       case _ => side
     }
   }
 
   override def position: BlockPosition = host match {
     case robot: EntityRobot => robot.proxy.position
-    case drone: EntityDrone => BlockPosition(drone.posX, drone.posY, drone.posZ, drone.world)
+    // 1.21.1：实体不再有 `posX/posY/posZ` 与 `world` 字段。
+    case drone: EntityDrone => BlockPosition(drone.getX, drone.getY, drone.getZ, drone.level())
     case uc: Microcontroller => uc.position
-    case tablet: TabletWrapper => BlockPosition(tablet.xPosition, tablet.yPosition, tablet.zPosition, tablet.world)
+    // 原实现此处匹配 `common.item.TabletWrapper`（1.7.10 的物品形态平板）。
+    // TODO(integration.opencomputers.DriverTablet): `TabletWrapper` 未随 1.21.1 的
+    // `common/item/Tablet.scala` 一起移植，这里改为匹配 `api.internal.Tablet` 宿主；
+    // 平板位置直接取自 `EnvironmentHost`，语义等价（与下面的 fallback 分支结果相同）。
+    case tablet: internal.Tablet => BlockPosition(tablet.xPosition, tablet.yPosition, tablet.zPosition, tablet.world)
     case _ => BlockPosition(host)
   }
 
   private def canSeeSky: Boolean = {
     val blockPos = position.offset(Direction.UP)
-    !host.world.provider.hasNoSky && host.world.canBlockSeeTheSky(blockPos.x, blockPos.y, blockPos.z)
+    // 1.21.1：`world.provider.hasNoSky` → `dimensionType().hasSkyLight()`；
+    // `world.canBlockSeeTheSky(x, y, z)` → `world.canSeeSky(BlockPos)`。
+    host.world.dimensionType().hasSkyLight() && host.world.canSeeSky(blockPos.toChunkCoordinates)
   }
 
   @Callback(doc = """function():boolean -- Returns whether there is a clear line of sight to the sky directly above.""")
@@ -89,9 +98,20 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
   def isSunVisible(computer: Context, args: Arguments): Array[AnyRef] = {
     val blockPos = BlockPosition(host).offset(Direction.UP)
     result(
-      host.world.isDaytime &&
+      host.world.isDay &&
       canSeeSky &&
-      (host.world.getWorldChunkManager.getBiomeGenAt(blockPos.x, blockPos.z).isInstanceOf[BiomeGenDesert] || (!host.world.isRaining && !host.world.isThundering)))
+      (isDesertBiome(blockPos.toChunkCoordinates) || (!host.world.isRaining && !host.world.isThundering)))
+  }
+
+  /**
+   * 该位置是否是沙漠生物群系。
+   *
+   * 1.7.10 的 `getWorldChunkManager.getBiomeGenAt(x, z).isInstanceOf[BiomeGenDesert]` 在 1.21.1
+   * 没有直接对应（生物群系改为注册表 + 标签）。这里用「注册表键等于 `minecraft:desert`」判定，
+   * 与原实现「只认沙漠本体」的范围一致（不含恶地等其它干旱群系）。
+   */
+  private def isDesertBiome(blockPos: BlockPos): Boolean = {
+    host.world.getBiome(blockPos).unwrapKey().map[Boolean](_.equals(Biomes.DESERT)).orElse(false)
   }
 
   @Callback(doc = """function(x:number, z:number[, y:number, w:number, d:number, h:number][, ignoreReplaceable:boolean|options:table]):table -- Analyzes the density of the column at the specified relative coordinates.""")
@@ -99,7 +119,11 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
     val (minX, minY, minZ, maxX, maxY, maxZ, optIndex) = getScanArgs(args)
     val volume = (maxX - minX + 1) * (maxZ - minZ + 1) * (maxY - minY + 1)
     if (volume > 64) throw new IllegalArgumentException("volume too large (maximum is 64)")
-    val options = if (args.isBoolean(optIndex)) mapAsJavaMap(Map("includeReplaceable" -> !args.checkBoolean(optIndex))) else args.optTable(optIndex, Map.empty[AnyRef, AnyRef])
+    // 1.21.1：`mapAsJavaMap` 已随 Scala 2.13 移除，改用 `CollectionConverters#asJava`。
+    // 注意 `Arguments#optTable` 返回的是 **Scala** `Map`，而事件构造器要的是 `java.util.Map`，
+    // 因此两个分支都要显式转换。
+    val options = if (args.isBoolean(optIndex)) Map[AnyRef, AnyRef]("includeReplaceable" -> Boolean.box(!args.checkBoolean(optIndex))).asJava
+      else args.optTable(optIndex, Map.empty[AnyRef, AnyRef]).asJava
     if (math.abs(minX) > Settings.get.geolyzerRange || math.abs(maxX) > Settings.get.geolyzerRange ||
       math.abs(minY) > Settings.get.geolyzerRange || math.abs(maxY) > Settings.get.geolyzerRange ||
       math.abs(minZ) > Settings.get.geolyzerRange || math.abs(maxZ) > Settings.get.geolyzerRange) {
@@ -110,7 +134,9 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
       return result(Unit, "not enough energy")
 
     val event = new GeolyzerEvent.Scan(host, options, minX, minY, minZ, maxX, maxY, maxZ)
-    MinecraftForge.EVENT_BUS.post(event)
+    // 1.21.1：`MinecraftForge.EVENT_BUS` → `NeoForge.EVENT_BUS`。
+    NeoForge.EVENT_BUS.post(event)
+    // 1.21.1 的事件没有 `Event.Result`，取消状态统一看 `ICancellableEvent#isCanceled`。
     if (event.isCanceled) result(Unit, "scan was canceled")
     else result(event.data)
   }
@@ -143,14 +169,14 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
       case rotatable: internal.Rotatable => rotatable.toGlobal(side)
       case _ => side
     }
-    val options = args.optTable(1, Map.empty[AnyRef, AnyRef])
+    val options = args.optTable(1, Map.empty[AnyRef, AnyRef]).asJava
 
     if (!node.tryChangeBuffer(-Settings.get.geolyzerScanCost))
       return result(Unit, "not enough energy")
 
     val globalPos = BlockPosition(host).offset(globalSide)
     val event = new Analyze(host, options, globalPos.x, globalPos.y, globalPos.z)
-    MinecraftForge.EVENT_BUS.post(event)
+    NeoForge.EVENT_BUS.post(event)
     if (event.isCanceled) result(Unit, "scan was canceled")
     else result(event.data)
   }
@@ -168,16 +194,19 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
       return result(Unit, "not enough energy")
 
     val blockPos = BlockPosition(host).offset(globalSide)
+    // 1.21.1：方块不再有 metadata / damage 概念，
+    // `Item.getItemFromBlock(block)` → `block.asItem()`；1.7.10 对「无对应物品的方块」返回
+    // `null`，1.21.1 的 `asItem()` 则退化为 `Items.AIR`，因此这里把空气也视作「无物品表示」。
+    // `block.damageDropped(metadata)` 已随 metadata 移除，等价物是默认 damage 0。
     val block = host.world.getBlock(blockPos)
-    val item = Item.getItemFromBlock(block)
-    if (item == null) result(Unit, "block has no registered item representation")
+    val item = block.asItem()
+    if (item == null || item == Items.AIR) result(Unit, "block has no registered item representation")
     else {
-      val metadata = host.world.getBlockMetadata(blockPos)
-      val damage = block.damageDropped(metadata)
-      val stack = new ItemStack(item, 1, damage)
+      val stack = new ItemStack(item, 1)
       DatabaseAccess.withDatabase(node, args.checkString(1), database => {
         val toSlot = args.checkSlot(database.data, 2)
-        val nonEmpty = database.getStackInSlot(toSlot) != null
+        // 1.21.1：空槽返回 `ItemStack.EMPTY` 而不是 `null`。
+        val nonEmpty = !database.getStackInSlot(toSlot).isEmpty
         database.setStackInSlot(toSlot, stack)
         result(nonEmpty)
       })
@@ -190,13 +219,17 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
       case machine: api.machine.Machine => (machine.host, message.data) match {
         case (tablet: internal.Tablet, Array(nbt: CompoundTag, stack: ItemStack, player: Player, blockPos: BlockPosition, side: Direction, hitX: java.lang.Float, hitY: java.lang.Float, hitZ: java.lang.Float)) =>
           if (node.tryChangeBuffer(-Settings.get.geolyzerScanCost)) {
-            val event = new Analyze(host, Map.empty[AnyRef, AnyRef], blockPos.x, blockPos.y, blockPos.z)
-            MinecraftForge.EVENT_BUS.post(event)
+            val event = new Analyze(host, Map.empty[AnyRef, AnyRef].asJava, blockPos.x, blockPos.y, blockPos.z)
+            NeoForge.EVENT_BUS.post(event)
             if (!event.isCanceled) {
-              for ((key, value) <- event.data) value match {
-                case number: java.lang.Number => nbt.putDouble(key, number.doubleValue())
-                case string: String if !string.isEmpty => nbt.putString(key, string)
-                case _ => // Unsupported, ignore.
+              // 1.21.1：`event.data` 是 `java.util.HashMap`，用 `entrySet().asScala` 遍历，
+              // 不能写 1.7.10 的 `for ((key, value) <- event.data)` 元组解包。
+              for (entry <- event.data.entrySet().asScala) {
+                entry.getValue match {
+                  case number: java.lang.Number => nbt.putDouble(entry.getKey, number.doubleValue())
+                  case string: String if string.nonEmpty => nbt.putString(entry.getKey, string)
+                  case _ => // Unsupported, ignore.
+                }
               }
             }
           }

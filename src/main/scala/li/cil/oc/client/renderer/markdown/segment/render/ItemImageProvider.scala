@@ -1,25 +1,22 @@
 package li.cil.oc.client.renderer.markdown.segment.render
 
-import com.google.common.base.Strings
-import li.cil.oc.api.manual.ImageProvider
-import li.cil.oc.api.manual.ImageRenderer
-import li.cil.oc.api.manual.InteractiveImageRenderer
+import li.cil.oc.api.manual.{ImageProvider, ImageRenderer, InteractiveImageRenderer}
 import li.cil.oc.client.Textures
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.ItemStack
 
+/**
+ * 手册图片前缀 `item`：按物品注册名取图标。
+ *
+ * 1.7.10 用 `Item.itemRegistry.getObject(name)` 查物品；1.21.1 改成
+ * `BuiltInRegistries.ITEM`，命名空间替换与子类型处理见 [[ManualImages]]。
+ */
 object ItemImageProvider extends ImageProvider {
   override def getImage(data: String): ImageRenderer = {
-    val splitIndex = data.lastIndexOf('@')
-    val (name, optMeta) = if (splitIndex > 0) data.splitAt(splitIndex) else (data, "")
-    val meta = if (Strings.isNullOrEmpty(optMeta)) 0 else Integer.parseInt(optMeta.drop(1))
-    Item.itemRegistry.getObject(name) match {
-      case item: Item => new ItemStackImageRenderer(Array(new ItemStack(item, 1, meta)))
-      case _ => new TextureImageRenderer(Textures.guiManualMissingItem) with InteractiveImageRenderer {
-        override def getTooltip(tooltip: String): String = "oc:gui.Manual.Warning.ItemMissing"
+    val stack = ManualImages.stack(data)
+    if (!stack.isEmpty) new ItemStackImageRenderer(Array(stack))
+    else new TextureImageRenderer(Textures.guiManualMissingItem) with InteractiveImageRenderer {
+      override def getTooltip(tooltip: String): String = "oc:gui.Manual.Warning.ItemMissing"
 
-        override def onMouseClick(mouseX: Int, mouseY: Int): Boolean = false
-      }
+      override def onMouseClick(mouseX: Int, mouseY: Int): Boolean = false
     }
   }
 }

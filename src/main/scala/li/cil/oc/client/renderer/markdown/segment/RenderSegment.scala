@@ -1,12 +1,18 @@
 package li.cil.oc.client.renderer.markdown.segment
 
-import li.cil.oc.api.manual.ImageRenderer
-import li.cil.oc.api.manual.InteractiveImageRenderer
+import li.cil.oc.api.manual.{ImageRenderer, InteractiveImageRenderer}
 import li.cil.oc.client.renderer.markdown.Document
 import li.cil.oc.client.renderer.markdown.MarkupFormat
-import net.minecraft.client.gui.FontRenderer
-import org.lwjgl.opengl.GL11
+import net.minecraft.client.gui.{Font, GuiGraphics}
 
+/**
+ * 图片片段（Markdown 的 `![标题](图片 URL)`）。
+ *
+ * 图片本身由 `li.cil.oc.api.manual.ImageRenderer` 负责绘制。由于那个接口是**只读的
+ * API 层 Java 接口**（`render(mouseX, mouseY)`，立刻模式），1.21.1 下借助
+ * [[li.cil.oc.client.renderer.markdown.RenderContext]] 把当前 `GuiGraphics` 传进去，
+ * 并用 `PoseStack` 把「平移 + 缩放」铺好，使图片渲染器仍可以按 `(0,0)` 起画。
+ */
 private[markdown] class RenderSegment(val parent: Segment, val title: String, val imageRenderer: ImageRenderer) extends InteractiveSegment {
   var lastX = 0
   var lastY = 0
@@ -21,17 +27,19 @@ private[markdown] class RenderSegment(val parent: Segment, val title: String, va
     case _ => false
   }
 
-  private def scale(maxWidth: Int) = math.min(1f, maxWidth / imageRenderer.getWidth.toFloat)
+  private def scale(maxWidth: Int): Float = math.min(1f, maxWidth / imageRenderer.getWidth.toFloat)
 
-  def imageWidth(maxWidth: Int) = math.min(maxWidth, imageRenderer.getWidth)
+  def imageWidth(maxWidth: Int): Int = math.min(maxWidth, imageRenderer.getWidth)
 
-  def imageHeight(maxWidth: Int) = math.ceil(imageRenderer.getHeight * scale(maxWidth)).toInt + 4
+  def imageHeight(maxWidth: Int): Int = math.ceil(imageRenderer.getHeight * scale(maxWidth)).toInt + 4
 
-  override def nextY(indent: Int, maxWidth: Int, renderer: FontRenderer): Int = imageHeight(maxWidth) + (if (indent > 0) Document.lineHeight(renderer) else 0)
+  override def nextY(indent: Int, maxWidth: Int, renderer: Font): Int =
+    imageHeight(maxWidth) + (if (indent > 0) Document.lineHeight(renderer) else 0)
 
-  override def nextX(indent: Int, maxWidth: Int, renderer: FontRenderer): Int = 0
+  override def nextX(indent: Int, maxWidth: Int, renderer: Font): Int = 0
 
-  override def render(x: Int, y: Int, indent: Int, maxWidth: Int, renderer: FontRenderer, mouseX: Int, mouseY: Int): Option[InteractiveSegment] = {
+  override def render(guiGraphics: GuiGraphics, x: Int, y: Int, indent: Int, maxWidth: Int,
+                      renderer: Font, mouseX: Int, mouseY: Int): Option[InteractiveSegment] = {
     val width = imageWidth(maxWidth)
     val height = imageHeight(maxWidth)
     val xOffset = (maxWidth - width) / 2
@@ -43,40 +51,26 @@ private[markdown] class RenderSegment(val parent: Segment, val title: String, va
 
     val hovered = checkHovered(mouseX, mouseY, x + xOffset, y + yOffset, width, height)
 
-    GL11.glPushMatrix()
-    GL11.glTranslatef(x + xOffset, y + yOffset, 0)
-    GL11.glScalef(s, s, s)
-
-    GL11.glEnable(GL11.GL_BLEND)
-    GL11.glEnable(GL11.GL_ALPHA_TEST)
+    val pose = guiGraphics.pose()
+    pose.pushPose()
+    pose.translate(lastX.toFloat, lastY.toFloat, 0f)
+    pose.scale(s, s, 1f)
 
     if (hovered.isDefined) {
-      GL11.glColor4f(1, 1, 1, 0.15f)
-      GL11.glDisable(GL11.GL_TEXTURE_2D)
-      GL11.glBegin(GL11.GL_QUADS)
-      GL11.glVertex2f(0, 0)
-      GL11.glVertex2f(0, imageRenderer.getHeight)
-      GL11.glVertex2f(imageRenderer.getWidth, imageRenderer.getHeight)
-      GL11.glVertex2f(imageRenderer.getWidth, 0)
-      GL11.glEnd()
-      GL11.glEnable(GL11.GL_TEXTURE_2D)
+      // 悬停高亮：原来是 `GL11.glColor4f(1, 1, 1, 0.15f)` 下画一个纯色四边形。
+      guiGraphics.fill(0, 0, imageRenderer.getWidth, imageRenderer.getHeight, 0x26FFFFFF)
     }
 
-    GL11.glColor4f(1, 1, 1, 1)
-
+    // 图片渲染器从 `RenderContext` 里取当前 `GuiGraphics`，在 (0,0) 起画。
     imageRenderer.render(mouseX - x, mouseY - y)
 
-    GL11.glDisable(GL11.GL_BLEND)
-    GL11.glDisable(GL11.GL_ALPHA_TEST)
-    GL11.glDisable(GL11.GL_LIGHTING)
-
-    GL11.glPopMatrix()
+    pose.popPose()
 
     hovered
   }
 
   override def toString(format: MarkupFormat.Value): String = format match {
     case MarkupFormat.Markdown => s"![$title]($imageRenderer)"
-    case MarkupFormat.IGWMod => "(Sorry, images only work in the OpenComputers manual for now.)" // TODO
+    case MarkupFormat.IGWMod => "(抱歉，图片目前只在 OpenComputers 手册里可用。)"
   }
 }

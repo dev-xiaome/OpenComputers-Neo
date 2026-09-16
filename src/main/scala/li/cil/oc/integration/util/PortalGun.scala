@@ -11,11 +11,12 @@ object PortalGun {
     case _: Throwable => null
   }
 
+  // 1.21.1：`ItemStack#stackSize` → `getCount` / `isEmpty`；`getItemDamage` → `getDamageValue`。
   def isPortalGun(stack: ItemStack) =
-    stack != null && stack.stackSize > 0 &&
+    stack != null && !stack.isEmpty &&
       Mods.PortalGun.isAvailable &&
       portalGunClass != null &&
       portalGunClass.isAssignableFrom(stack.getItem.getClass)
 
-  def isStandardPortalGun(stack: ItemStack) = isPortalGun(stack) && stack.getItemDamage == 0
+  def isStandardPortalGun(stack: ItemStack) = isPortalGun(stack) && stack.getDamageValue == 0
 }

@@ -25,9 +25,10 @@ object DebugNanomachinesCommand extends SimpleCommand("oc_debugNanomachines") {
     builder.executes(context => {
       val player = context.getSource.getPlayer
       if (player == null) {
-        // 等价于 1.7.10 的 WrongUsageException；用 Brigadier 的标准异常让命令源看到红字提示。
-        throw com.mojang.brigadier.exceptions.CommandSyntaxException.invalidInput(
-          Component.literal("Can only be used by players."))
+        // 等价于 1.7.10 的 WrongUsageException：Brigadier 没有
+        // `CommandSyntaxException.invalidInput`，用 `SimpleCommandExceptionType` 构造带消息的语法异常。
+        throw new com.mojang.brigadier.exceptions.SimpleCommandExceptionType(
+          Component.literal("Can only be used by players.")).create()
       }
       api.Nanomachines.installController(player) match {
         case controller: ControllerImpl =>

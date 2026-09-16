@@ -28,7 +28,8 @@ object UpgradeTankController {
       DeviceAttribute.Product -> "FlowCheckDX"
     )
 
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo
+    // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
   }
 
   class Adapter(val host: EnvironmentHost) extends prefab.ManagedEnvironment with traits.WorldTankAnalytics with Common {

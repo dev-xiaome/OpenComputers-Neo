@@ -1,16 +1,14 @@
 package li.cil.oc.server.component
 
 import com.google.common.base.Strings
-import net.neoforged.fml.ModList
-import cpw.mods.fml.common.ModAPIManager
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.api.Network
-import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.Environment
+import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.Node
 import li.cil.oc.api.network.Packet
 import li.cil.oc.api.network.SidedEnvironment
@@ -20,34 +18,37 @@ import li.cil.oc.api.prefab.AbstractValue
 import li.cil.oc.server.PacketSender
 import li.cil.oc.server.network.DebugNetwork
 import li.cil.oc.server.network.DebugNetwork.DebugNode
-import li.cil.oc.server.component.DebugCard.{AccessContext, CommandSender}
+import li.cil.oc.server.component.DebugCard.{AccessContext, CommandSender, serverOf}
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.ExtendedBlock._
 import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.ExtendedWorld._
+import li.cil.oc.util.FluidUtils
 import li.cil.oc.util.InventoryUtils
-import net.minecraft.world.level.block.Block
-import net.minecraft.entity.item.EntityMinecart
-import net.minecraft.entity.{Entity, LivingEntity}
-import net.minecraft.server.level.ServerPlayer
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt._
-import net.minecraft.server.MinecraftServer
-import net.minecraft.server.management.UserListOpsEntry
-import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.component.DataComponents
+import net.minecraft.core.registries.{BuiltInRegistries, Registries}
+import net.minecraft.nbt.{CompoundTag, Tag, TagParser}
 import net.minecraft.network.chat.Component
-import net.minecraft.world.{Level, ServerLevel, WorldSettings}
-import net.minecraft.world.WorldSettings.GameType
-import net.minecraftforge.common.{DimensionManager, MinecraftForge}
-import net.minecraftforge.common.util.FakePlayer
-import net.minecraftforge.common.util.FakePlayerFactory
-import net.minecraft.core.Direction
+import net.minecraft.resources.{ResourceKey, ResourceLocation}
+import net.minecraft.server.MinecraftServer
+import net.minecraft.server.level.{ServerLevel, ServerPlayer}
+import net.minecraft.sounds.{SoundEvent, SoundSource}
+import net.minecraft.world.{GameType, Level}
+import net.minecraft.world.entity.{Entity, LivingEntity}
+import net.minecraft.world.entity.vehicle.AbstractMinecart
+import net.minecraft.world.item.{Item, ItemStack, Items}
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.world.level.material.Fluids
+import net.minecraft.world.level.storage.ServerLevelData
+import net.neoforged.neoforge.common.NeoForge
+import net.neoforged.neoforge.common.util.{FakePlayer, FakePlayerFactory}
 import net.neoforged.neoforge.event.level.BlockEvent
-import net.minecraftforge.fluids.FluidRegistry
-import net.neoforged.neoforge.fluids.FluidStack
+import net.neoforged.neoforge.fluids.{FluidStack, FluidType}
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
@@ -70,10 +71,13 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
   def player = access.map(_.player)
 
   private lazy val CommandSender = {
+    // 1.21.1 的 `FakePlayerFactory` 与 1.7.10 一样只接受 `ServerLevel`；调试卡只在服务端存在。
     def defaultFakePlayer = FakePlayerFactory.get(host.world.asInstanceOf[ServerLevel], Settings.get.fakePlayerProfile)
     new CommandSender(host, player match {
-      case Some(name) => Option(MinecraftServer.getServer.getConfigurationManager.func_152612_a(name)) match {
-        case Some(playerEntity) => playerEntity
+      // 1.7.10 的 `MinecraftServer.getServer.getConfigurationManager.func_152612_a` →
+      // 1.21.1 的 `MinecraftServer#getPlayerList#getPlayerByName`。
+      case Some(name) => serverOf(host.world).map(_.getPlayerList.getPlayerByName(name)).orNull match {
+        case playerEntity: ServerPlayer => playerEntity
         case _ => defaultFakePlayer
       }
       case _ => defaultFakePlayer
@@ -111,14 +115,25 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
   @Callback(doc = """function([id:number]):userdata -- Get the world object for the specified dimension ID, or the container's.""")
   def getWorld(context: Context, args: Arguments): Array[AnyRef] = {
     checkAccess()
-    if (args.count() > 0) result(new DebugCard.WorldValue(DimensionManager.getWorld(args.checkInteger(0))))
+    if (args.count() > 0) {
+      // 1.7.10 的 `DimensionManager.getWorld(id)` → 见 DebugCard.serverLevel（1.21.1 无数字维度 ID）。
+      DebugCard.serverLevel(serverOf(host.world), args.checkInteger(0)) match {
+        case Some(level) => result(new DebugCard.WorldValue(level))
+        case _ => result(Unit, "no such dimension")
+      }
+    }
     else result(new DebugCard.WorldValue(host.world))
   }
 
   @Callback(doc = """function():table -- Get a list of all world IDs, loaded and unloaded.""")
   def getWorlds(context: Context, args: Arguments): Array[AnyRef] = {
     checkAccess()
-    result(DimensionManager.getStaticDimensionIDs)
+    // 1.7.10 返回数字维度 ID 列表；1.21.1 已没有维度 ID，改为返回维度 key
+    // （如 `minecraft:overworld`），可再传给 getWorld。
+    serverOf(host.world) match {
+      case Some(server) => result(server.getAllLevels.asScala.map(level => level.dimension().location().toString).toArray)
+      case _ => result(Array.empty[AnyRef])
+    }
   }
 
   @Callback(doc = """function(name:string):userdata -- Get the entity of a player.""")
@@ -130,7 +145,8 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
   @Callback(doc = """function():table -- Get a list of currently logged-in players.""")
   def getPlayers(context: Context, args: Arguments): Array[AnyRef] = {
     checkAccess()
-    result(MinecraftServer.getServer.getAllUsernames)
+    // 1.7.10 的 `getAllUsernames` → 1.21.1 的 `getPlayerNames`。
+    result(serverOf(host.world).map(_.getPlayerNames).getOrElse(Array.empty[String]))
   }
 
 
@@ -140,35 +156,40 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
     val x = args.checkInteger(0)
     val y = args.checkInteger(1)
     val z = args.checkInteger(2)
-    val worldServer = if (args.count() > 3) DimensionManager.getWorld(args.checkInteger(3)) else host.world
-    val world = worldServer.world
+    val worldServer = if (args.count() > 3) DebugCard.serverLevel(serverOf(host.world), args.checkInteger(3)).orNull else host.world
+    val world = worldServer match {
+      case level: Level => level
+      case _ => return result(Unit, "no such dimension")
+    }
 
     val position: BlockPosition = new BlockPosition(x, y, z, Option(world))
     val fakePlayer = FakePlayerFactory.get(world.asInstanceOf[ServerLevel], Settings.get.fakePlayerProfile)
-    fakePlayer.posX = position.x + 0.5
-    fakePlayer.posY = position.y + 0.5
-    fakePlayer.posZ = position.z + 0.5
+    // 1.7.10 直接写 `posX/posY/posZ` 字段；1.21.1 用 `setPos`。
+    fakePlayer.setPos(position.x + 0.5, position.y + 0.5, position.z + 0.5)
 
-    Option(world.findNearestEntityWithinAABB(classOf[Entity], position.bounds, fakePlayer)) match {
+    // 1.21.1 用 `getEntitiesOfClass` 取代了 `findNearestEntityWithinAABB`，取包围盒内第一个实体。
+    world.getEntitiesOfClass(classOf[Entity], position.bounds).asScala.headOption match {
       case Some(living: LivingEntity) => result(true, "LivingEntity", living)
-      case Some(minecart: EntityMinecart) => result(true, "EntityMinecart", minecart)
+      case Some(minecart: AbstractMinecart) => result(true, "AbstractMinecart", minecart)
       case _ =>
-        val block = world.getBlock(position)
-        val metadata = world.getBlockMetadata(position)
-        if (block.isAir(position)) {
+        val state = world.getBlockState(position.toChunkCoordinates)
+        val block = state.getBlock
+        if (state.isAir) {
           result(false, "air", block)
         }
-        else if (FluidRegistry.lookupFluidForBlock(block) != null) {
-          val event = new BlockEvent.BreakEvent(position.x, position.y, position.z, world, block, metadata, fakePlayer)
-          MinecraftForge.EVENT_BUS.post(event)
+        else if (FluidUtils.lookupFluidStateForBlock(world, position) != null) {
+          // 1.7.10 的 `BlockEvent.BreakEvent(x, y, z, world, block, meta, player)` →
+          // 1.21.1 的 `(level, pos, state, player)`；`isCanceled` 取代旧的 `Event.Result`。
+          val event = new BlockEvent.BreakEvent(world, position.toChunkCoordinates, state, fakePlayer)
+          NeoForge.EVENT_BUS.post(event)
           result(event.isCanceled, "liquid", block)
         }
-        else if (block.isReplaceable(position)) {
-          val event = new BlockEvent.BreakEvent(position.x, position.y, position.z, world, block, metadata, fakePlayer)
-          MinecraftForge.EVENT_BUS.post(event)
+        else if (state.canBeReplaced) {
+          val event = new BlockEvent.BreakEvent(world, position.toChunkCoordinates, state, fakePlayer)
+          NeoForge.EVENT_BUS.post(event)
           result(event.isCanceled, "replaceable", block)
         }
-        else if (block.getCollisionBoundingBoxFromPool(position) == null) {
+        else if (state.getCollisionShape(world, position.toChunkCoordinates).isEmpty) {
           result(true, "passable", block)
         }
         else {
@@ -181,21 +202,27 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
   def isModLoaded(context: Context, args: Arguments): Array[AnyRef] = {
     checkAccess()
     val name = args.checkString(0)
-    result(Loader.isModLoaded(name) || ModAPIManager.INSTANCE.hasAPI(name))
+    // 1.7.10 的 `Loader.isModLoaded` → 1.21.1 的 `ModList`。
+    // 旧 `ModAPIManager.hasAPI`（FML 的旧式 API 注册表）在 1.21.1 已被移除，
+    // 其语义（把「提供 API 的 mod」也算作已加载）没有等价物，故不再判定。
+    result(net.neoforged.fml.ModList.get().isLoaded(name))
   }
 
   @Callback(doc = """function(command:string):number -- Runs an arbitrary command using a fake player.""")
   def runCommand(context: Context, args: Arguments): Array[AnyRef] = {
     checkAccess()
     val commands =
-      if (args.isTable(0)) collectionAsScalaIterable(args.checkTable(0).values())
+      // 1.7.10 的 `collectionAsScalaIterable` 已被移除，改用 CollectionConverters 的 `.asScala`。
+      if (args.isTable(0)) args.checkTable(0).values().asScala
       else Iterable(args.checkString(0))
 
     CommandSender.synchronized {
       CommandSender.prepare()
       var value = 0
       for (command <- commands) {
-        value = MinecraftServer.getServer.getCommandManager.executeCommand(CommandSender, command.toString)
+        // 1.7.10 的 `MinecraftServer.getServer.getCommandManager` →
+        // 1.21.1 的 `MinecraftServer#getCommands#executeCommand`。
+        value = serverOf(host.world).map(_.getCommands.executeCommand(CommandSender, command.toString)).getOrElse(0)
       }
       result(value, CommandSender.messages.orNull)
     }
@@ -219,15 +246,20 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
     }
   }
 
-  private def findNode(x: Int, y: Int, z: Int) =
-    if (host.world.blockExists(x, y, z)) {
-      host.world.getTileEntity(x, y, z) match {
-        case env: SidedEnvironment => Direction.VALID_DIRECTIONS.map(env.sidedNode).find(_ != null)
+  private def findNode(x: Int, y: Int, z: Int): Option[Node] = {
+    val position = new BlockPosition(x, y, z, None)
+    // 1.7.10 的 `World#blockExists` → 1.21.1 的 `Level#isLoaded`，
+    // `World#getTileEntity` → `Level#getBlockEntity`。
+    if (host.world.isLoaded(position.toChunkCoordinates)) {
+      host.world.getBlockEntity(position.toChunkCoordinates) match {
+        // 1.7.10 的 `ForgeDirection.VALID_DIRECTIONS` → 1.21.1 的 `Direction.values`。
+        case env: SidedEnvironment => Direction.values.map(env.sidedNode).find(_ != null)
         case env: Environment => Option(env.node)
         case _ => None
       }
     }
     else None
+  }
 
   @Callback(doc = """function():userdata -- Test method for user-data and general value conversion.""")
   def test(context: Context, args: Arguments): Array[AnyRef] = {
@@ -245,7 +277,7 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
   @Callback(doc = """function(player:string, text:string) -- Sends text to the specified player's clipboard if possible.""")
   def sendToClipboard(context: Context, args: Arguments): Array[AnyRef] = {
     checkAccess()
-    Option(MinecraftServer.getServer.getConfigurationManager.func_152612_a(args.checkString(0))) match {
+    Option(serverOf(host.world).map(_.getPlayerList.getPlayerByName(args.checkString(0))).orNull) match {
       case Some(player) =>
         PacketSender.sendClipboard(player, args.checkString(1))
         result(true)
@@ -307,9 +339,9 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
     super.load(nbt)
     access = AccessContext.load(nbt)
     if (nbt.contains(Settings.namespace + "remoteX")) {
-      val x = nbt.getInteger(Settings.namespace + "remoteX")
-      val y = nbt.getInteger(Settings.namespace + "remoteY")
-      val z = nbt.getInteger(Settings.namespace + "remoteZ")
+      val x = nbt.getInt(Settings.namespace + "remoteX")
+      val y = nbt.getInt(Settings.namespace + "remoteY")
+      val z = nbt.getInt(Settings.namespace + "remoteZ")
       remoteNodePosition = Some((x, y, z))
     }
   }
@@ -327,9 +359,51 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
 }
 
 object DebugCard {
-  def checkAccess()(implicit ctx: Option[AccessContext]) =
+  def checkAccess()(implicit ctx: Option[AccessContext]): Unit =
     for (msg <- Settings.get.debugCardAccess.checkAccess(ctx))
       throw new Exception(msg)
+
+  def serverOf(level: Level): Option[MinecraftServer] =
+    if (level == null) None else Option(level.getServer)
+
+  /**
+   * 1.7.10 的 `DimensionManager.getWorld(id)` 接受数字维度 ID；1.21.1 已没有数字维度 ID
+   * （`Level#dimension()` 返回 `ResourceKey[Level]`），因此这里用维度 key 的字符串哈希当作 ID，
+   * 保证同一维度在会话之间稳定可得。**注意**：数值与旧版数字 ID 不再对应，
+   * 0/-1/1 也不再分别指向主世界 / 下界 / 末地。
+   */
+  def serverLevel(server: Option[MinecraftServer], dimensionId: Int): Option[ServerLevel] =
+    server.flatMap(_.getAllLevels.asScala.find(level => dimensionIdOf(level) == dimensionId))
+
+  /** 把维度 key 映射成稳定的伪数字 ID（见 [[serverLevel]]）。 */
+  def dimensionIdOf(level: Level): Int =
+    if (level == null) 0 else level.dimension().location().toString.hashCode
+
+  /**
+   * 按维度 key 取世界。1.7.10 用 `DimensionManager.getProvider(id).worldObj`；
+   * 1.21.1 改为 `MinecraftServer#getLevel(ResourceKey)`。
+   */
+  def serverLevelAt(location: ResourceLocation): Option[ServerLevel] =
+    if (location == null) None
+    else Option(ServerLifecycleHooks.getCurrentServer).
+      flatMap(server => Option(server.getLevel(ResourceKey.create(Registries.DIMENSION, location))))
+
+  /** 1.21.1 已没有 `NBTBase.NBTTypes`，这里保留同等的信息用于错误提示。 */
+  private val NbtTypeNames = Map[Byte, String](
+    Tag.TAG_END -> "TAG_End",
+    Tag.TAG_BYTE -> "TAG_Byte",
+    Tag.TAG_SHORT -> "TAG_Short",
+    Tag.TAG_INT -> "TAG_Int",
+    Tag.TAG_LONG -> "TAG_Long",
+    Tag.TAG_FLOAT -> "TAG_Float",
+    Tag.TAG_DOUBLE -> "TAG_Double",
+    Tag.TAG_BYTE_ARRAY -> "TAG_Byte_Array",
+    Tag.TAG_STRING -> "TAG_String",
+    Tag.TAG_LIST -> "TAG_List",
+    Tag.TAG_COMPOUND -> "TAG_Compound",
+    Tag.TAG_INT_ARRAY -> "TAG_Int_Array",
+    Tag.TAG_LONG_ARRAY -> "TAG_Long_Array"
+  )
 
   object AccessContext {
     def remove(nbt: CompoundTag): Unit = {
@@ -362,37 +436,43 @@ object DebugCard {
 
     def withPlayer(f: (ServerPlayer) => Array[AnyRef]) = {
       checkAccess()
-      MinecraftServer.getServer.getConfigurationManager.func_152612_a(name) match {
-        case player: ServerPlayer => f(player)
+      Option(ServerLifecycleHooks.getCurrentServer).
+        flatMap(server => Option(server.getPlayerList.getPlayerByName(name))) match {
+        case Some(player) => f(player)
         case _ => result(Unit, "player is offline")
       }
     }
 
     @Callback(doc = """function():userdata -- Get the player's world object.""")
     def getWorld(context: Context, args: Arguments): Array[AnyRef] = {
-      withPlayer(player => result(new DebugCard.WorldValue(player.getEntityWorld)))
+      withPlayer(player => result(new DebugCard.WorldValue(player.level())))
     }
 
     @Callback(doc = """function():string -- Get the player's game type.""")
     def getGameType(context: Context, args: Arguments): Array[AnyRef] =
-      withPlayer(player => result(player.theItemInWorldManager.getGameType.getName))
+      // 1.7.10 的 `theItemInWorldManager.getGameType` →
+      // 1.21.1 的 `ServerPlayer#gameMode.getGameModeForPlayer`。
+      withPlayer(player => result(player.gameMode.getGameModeForPlayer.getName))
 
     @Callback(doc = """function(gametype:string) -- Set the player's game type (survival, creative, adventure).""")
     def setGameType(context: Context, args: Arguments): Array[AnyRef] =
       withPlayer(player => {
         val gametype = args.checkString(0)
-        player.setGameType(GameType.values.find(_.getName == gametype).getOrElse(GameType.SURVIVAL))
+        // 1.7.10 的 `setGameType` → 1.21.1 的 `setGameMode`；
+        // `GameType` 也从 `net.minecraft.world.WorldSettings.GameType` 挪到了 `net.minecraft.world.GameType`。
+        player.setGameMode(GameType.values.find(_.getName == gametype).getOrElse(GameType.SURVIVAL))
         null
       })
 
     @Callback(doc = """function():number, number, number -- Get the player's position.""")
     def getPosition(context: Context, args: Arguments): Array[AnyRef] =
-      withPlayer(player => result(player.posX, player.posY, player.posZ))
+      withPlayer(player => result(player.getX, player.getY, player.getZ))
 
     @Callback(doc = """function(x:number, y:number, z:number) -- Set the player's position.""")
     def setPosition(context: Context, args: Arguments): Array[AnyRef] =
       withPlayer(player => {
-        player.setPositionAndUpdate(args.checkDouble(0), args.checkDouble(1), args.checkDouble(2))
+        // 1.7.10 的 `setPositionAndUpdate` → 1.21.1 的 `teleportTo(x, y, z)`。
+        player.teleportTo(args.checkDouble(0), args.checkDouble(1), args.checkDouble(2))
         null
       })
 
@@ -434,19 +514,26 @@ object DebugCard {
     @Callback(doc = """function():number -- Gets the numeric id of the current dimension.""")
     def getDimensionId(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.provider.dimensionId)
+      // 1.7.10 的 `world.provider.dimensionId` 在 1.21.1 已无对应物，返回伪 ID（见 DebugCard.serverLevel）。
+      result(dimensionIdOf(world))
     }
 
     @Callback(doc = """function():string -- Gets the name of the current dimension.""")
     def getDimensionName(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.provider.getDimensionName)
+      // 1.7.10 的 `WorldProvider#getDimensionName` 在 1.21.1 已移除，
+      // 这里按维度 key 还原旧版显示名，未知维度回退到 key 本身。
+      result(dimensionNameOf(world))
     }
 
     @Callback(doc = """function():number -- Gets the seed of the world.""")
     def getSeed(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.getSeed)
+      // 1.7.10 的 `World#getSeed` 在 1.21.1 只在服务端世界（`ServerLevel#getSeed`）可用。
+      result(world match {
+        case server: ServerLevel => server.getSeed
+        case _ => 0L
+      })
     }
 
     @Callback(doc = """function():boolean -- Returns whether it is currently raining.""")
@@ -458,7 +545,8 @@ object DebugCard {
     @Callback(doc = """function(value:boolean) -- Sets whether it is currently raining.""")
     def setRaining(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      world.getWorldInfo.setRaining(args.checkBoolean(0))
+      // 1.7.10 的 `WorldInfo#setRaining` → 1.21.1 的 `ServerLevelData#setRaining`。
+      world.getLevelData.asInstanceOf[ServerLevelData].setRaining(args.checkBoolean(0))
       null
     }
 
@@ -471,33 +559,43 @@ object DebugCard {
     @Callback(doc = """function(value:boolean) -- Sets whether it is currently thundering.""")
     def setThundering(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      world.getWorldInfo.setThundering(args.checkBoolean(0))
+      world.getLevelData.asInstanceOf[ServerLevelData].setThundering(args.checkBoolean(0))
       null
     }
 
     @Callback(doc = """function():number -- Get the current world time.""")
     def getTime(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.getWorldTime)
+      // 1.7.10 的 `World#getWorldTime` → 1.21.1 的 `Level#getDayTime`。
+      result(world.getDayTime)
     }
 
     @Callback(doc = """function(value:number) -- Set the current world time.""")
     def setTime(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      world.setWorldTime(args.checkDouble(0).toLong)
+      // 1.7.10 的 `World#setWorldTime` → 1.21.1 的 `ServerLevel#setDayTime`。
+      world match {
+        case server: ServerLevel => server.setDayTime(args.checkDouble(0).toLong)
+        case _ => // 客户端世界没有可写的世界时间。
+      }
       null
     }
 
     @Callback(doc = """function():number, number, number -- Get the current spawn point coordinates.""")
     def getSpawnPoint(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.getWorldInfo.getSpawnX, world.getWorldInfo.getSpawnY, world.getWorldInfo.getSpawnZ)
+      // 1.7.10 的 `WorldInfo#getSpawnX/Y/Z` → 1.21.1 的 `Level#getSharedSpawnPos`。
+      val spawn = world.getSharedSpawnPos
+      result(spawn.getX, spawn.getY, spawn.getZ)
     }
 
     @Callback(doc = """function(x:number, y:number, z:number) -- Set the spawn point coordinates.""")
     def setSpawnPoint(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      world.getWorldInfo.setSpawnPosition(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
+      // 1.7.10 的 `WorldInfo#setSpawnPosition(x, y, z)` →
+      // 1.21.1 的 `WritableLevelData#setSpawn(BlockPos, angle)`。
+      world.getLevelData.asInstanceOf[ServerLevelData].setSpawn(
+        new BlockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2)), 0.0F)
       null
     }
 
@@ -507,7 +605,12 @@ object DebugCard {
       val (x, y, z) = (args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
       val sound = args.checkString(3)
       val range = args.checkInteger(4)
-      world.playSoundEffect(x, y, z, sound, range / 15 + 0.5F, 1.0F)
+      // 1.7.10 的 `World#playSoundEffect(x, y, z, name, volume, pitch)` 在 1.21.1 拆成
+      // 「按注册名查 SoundEvent」+「playSound」，这里按旧名做一次宽松匹配，未命中则忽略。
+      soundByName(sound) match {
+        case Some(event) => world.playSound(null, x + 0.5, y + 0.5, z + 0.5, event, SoundSource.BLOCKS, range / 15 + 0.5F, 1.0F)
+        case _ => // 未知音效名，忽略。
+      }
       null
     }
 
@@ -516,35 +619,42 @@ object DebugCard {
     @Callback(doc = """function(x:number, y:number, z:number):number -- Get the ID of the block at the specified coordinates.""")
     def getBlockId(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(Block.getIdFromBlock(world.getBlock(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))))
+      // 1.21.1 的方块是注册表对象，没有跨会话稳定的数字 ID，这里返回注册表原始序号
+      // （`Block.getIdFromBlock` 的等价物，仅在同一会话内有效）。
+      result(BuiltInRegistries.BLOCK.getId(blockAt(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))))
     }
 
     @Callback(doc = """function(x:number, y:number, z:number):number -- Get the metadata of the block at the specified coordinates.""")
     def getMetadata(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.getBlockMetadata(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2)))
+      // TODO(标签): 1.21.1 已移除方块 metadata，状态改由 BlockState 属性承载，
+      // 无法还原成单个数字；这里固定返回 0（与 ExtendedWorld.getBlockMetadata 一致）。
+      result(0)
     }
 
     @Callback(doc = """function(x:number, y:number, z:number):number -- Check whether the block at the specified coordinates is loaded.""")
     def isLoaded(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.blockExists(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2)))
+      // 1.7.10 的 `World#blockExists` → 1.21.1 的 `Level#isLoaded`。
+      result(world.isLoaded(blockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))))
     }
 
     @Callback(doc = """function(x:number, y:number, z:number):number -- Check whether the block at the specified coordinates has a tile entity.""")
     def hasTileEntity(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
       val (x, y, z) = (args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
-      val block = world.getBlock(x, y, z)
-      result(block != null && block.hasTileEntity(world.getBlockMetadata(x, y, z)))
+      // 1.7.10 的 `World#getTileEntity` → 1.21.1 的 `Level#getBlockEntity`。
+      result(world.getBlockEntity(blockPos(x, y, z)) != null)
     }
 
     @Callback(doc = """function(x:number, y:number, z:number):table -- Get the NBT of the block at the specified coordinates.""")
     def getTileNBT(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
       val (x, y, z) = (args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
-      world.getTileEntity(x, y, z) match {
-        case tileEntity: BlockEntity => result(toNbt(tileEntity.writeToNBT _).toTypedMap)
+      world.getBlockEntity(blockPos(x, y, z)) match {
+        // 1.7.10 的 `TileEntity#writeToNBT` → 1.21.1 的 `BlockEntity#saveWithFullMetadata`
+        // （1.21.1 需要注册表访问器来序列化物品等组件）。
+        case tileEntity: BlockEntity => result(tileEntity.saveWithFullMetadata(world.registryAccess()).toTypedMap)
         case _ => null
       }
     }
@@ -553,15 +663,17 @@ object DebugCard {
     def setTileNBT(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
       val (x, y, z) = (args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
-      world.getTileEntity(x, y, z) match {
+      world.getBlockEntity(blockPos(x, y, z)) match {
         case tileEntity: BlockEntity =>
-          typedMapToNbt(mapAsScalaMap(args.checkTable(3)).toMap) match {
+          typedMapToNbt(args.checkTable(3).asScala.toMap) match {
             case nbt: CompoundTag =>
-              tileEntity.readFromNBT(nbt)
-              tileEntity.markDirty()
-              world.markBlockForUpdate(x, y, z)
+              // 1.7.10 的 `TileEntity#readFromNBT` → 1.21.1 的 `loadWithComponents`；
+              // `markDirty` → `setChanged`。
+              tileEntity.loadWithComponents(nbt, world.registryAccess())
+              tileEntity.setChanged()
+              world.markBlockForUpdate(BlockPosition(x, y, z))
               result(true)
-            case nbt => result(Unit, s"nbt tag compound expected, got '${Tag.NBTTypes(nbt.getId)}'")
+            case nbt => result(Unit, s"nbt tag compound expected, got '${NbtTypeNames.getOrElse(nbt.getId, "UNKNOWN")}'")
           }
         case _ => result(Unit, "no tile entity")
       }
@@ -570,27 +682,33 @@ object DebugCard {
     @Callback(doc = """function(x:number, y:number, z:number):number -- Get the light opacity of the block at the specified coordinates.""")
     def getLightOpacity(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.getBlockLightOpacity(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2)))
+      // 1.7.10 的 `World#getBlockLightOpacity` → 1.21.1 的 `BlockState#getLightBlock`。
+      val pos = blockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
+      result(world.getBlockState(pos).getLightBlock(world, pos))
     }
 
     @Callback(doc = """function(x:number, y:number, z:number):number -- Get the light value (emission) of the block at the specified coordinates.""")
     def getLightValue(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.getBlockLightValue(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2)))
+      // 1.7.10 的 `World#getBlockLightValue` → 1.21.1 的 `BlockState#getLightEmission`。
+      val pos = blockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
+      result(world.getBlockState(pos).getLightEmission(world, pos))
     }
 
     @Callback(doc = """function(x:number, y:number, z:number):number -- Get whether the block at the specified coordinates is directly under the sky.""")
     def canSeeSky(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.canBlockSeeTheSky(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2)))
+      // 1.7.10 的 `World#canBlockSeeTheSky` → 1.21.1 的 `Level#canSeeSky`。
+      result(world.canSeeSky(blockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))))
     }
 
     @Callback(doc = """function(x:number, y:number, z:number, id:number or string, meta:number):number -- Set the block at the specified coordinates.""")
     def setBlock(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      val block = if (args.isInteger(3)) Block.getBlockById(args.checkInteger(3)) else Block.getBlockFromName(args.checkString(3))
-      val metadata = args.checkInteger(4)
-      result(world.setBlock(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2), block, metadata, 3))
+      // TODO(标签): 1.21.1 已移除方块 metadata，`meta` 参数被忽略
+      //（只使用 `Block#defaultBlockState`，与 ExtendedWorld.setBlock 的退化策略一致）。
+      val block = blockOf(args, 3)
+      result(world.setBlock(blockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2)), block.defaultBlockState(), 3))
     }
 
     @Callback(doc = """function(x1:number, y1:number, z1:number, x2:number, y2:number, z2:number, id:number or string, meta:number):number -- Set all blocks in the area defined by the two corner points (x1, y1, z1) and (x2, y2, z2).""")
@@ -598,12 +716,12 @@ object DebugCard {
       checkAccess()
       val (xMin, yMin, zMin) = (args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
       val (xMax, yMax, zMax) = (args.checkInteger(3), args.checkInteger(4), args.checkInteger(5))
-      val block = if (args.isInteger(6)) Block.getBlockById(args.checkInteger(6)) else Block.getBlockFromName(args.checkString(6))
-      val metadata = args.checkInteger(7)
+      // TODO(标签): 同 setBlock，`meta`（第 8 个参数）在 1.21.1 无对应物，被忽略。
+      val block = blockOf(args, 6)
       for (x <- math.min(xMin, xMax) to math.max(xMin, xMax)) {
         for (y <- math.min(yMin, yMax) to math.max(yMin, yMax)) {
           for (z <- math.min(zMin, zMax) to math.max(zMin, zMax)) {
-            world.setBlock(x, y, z, block, metadata, 3)
+            world.setBlock(blockPos(x, y, z), block.defaultBlockState(), 3)
           }
         }
       }
@@ -615,20 +733,29 @@ object DebugCard {
     @Callback(doc = """function(id:string, count:number, damage:number, nbt:string, x:number, y:number, z:number, side:number):boolean - Insert an item stack into the inventory at the specified location. NBT tag is expected in JSON format.""")
     def insertItem(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      val item = Item.itemRegistry.getObject(args.checkString(0)).asInstanceOf[Item]
-      if (item == null) {
+      // 1.7.10 的 `Item.itemRegistry.getObject(id)` → 1.21.1 的物品注册表。
+      val item = BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(args.checkString(0)))
+      if (item == null || item == Items.AIR) {
         throw new IllegalArgumentException("invalid item id")
       }
       val count = args.checkInteger(1)
       val damage = args.checkInteger(2)
       val tagJson = args.optString(3, "")
-      val tag = if (Strings.isNullOrEmpty(tagJson)) null else JsonToNBT.func_150315_a(tagJson).asInstanceOf[CompoundTag]
+      // 1.7.10 的 `JsonToNBT.func_150315_a` → 1.21.1 的 `TagParser.parseTag`。
+      val tag = if (Strings.isNullOrEmpty(tagJson)) null else TagParser.parseTag(tagJson)
       val position = BlockPosition(args.checkDouble(4), args.checkDouble(5), args.checkDouble(6), world)
       val side = args.checkSideAny(7)
       InventoryUtils.inventoryAt(position) match {
         case Some(inventory) =>
-          val stack = new ItemStack(item, count, damage)
-          stack.put(tag)
+          // 1.21.1 的 `ItemStack` 没有 damage 构造参数，旧 `damage` 值改写进
+          // `DataComponents.DAMAGE`（无 NBT 时也带上，与原实现总是设置 metadata 一致）。
+          val stack = new ItemStack(item, count)
+          if (damage != 0) {
+            stack.set(DataComponents.DAMAGE, Int.box(damage))
+          }
+          if (tag != null) {
+            stack.setTag(tag)
+          }
           result(InventoryUtils.insertIntoInventory(stack, inventory, Option(side)))
         case _ => result(Unit, "no inventory")
       }
@@ -641,10 +768,13 @@ object DebugCard {
       InventoryUtils.inventoryAt(position) match {
         case Some(inventory) =>
           val slot = args.checkSlot(inventory, 3)
-          val count = args.optInteger(4, inventory.getInventoryStackLimit)
-          val removed = inventory.decrStackSize(slot, count)
-          if (removed == null) result(0)
-          else result(removed.stackSize)
+          // 1.7.10 的 `IInventory#getInventoryStackLimit` → 1.21.1 的 `IItemHandler#getSlotLimit`。
+          val count = args.optInteger(4, inventory.getSlotLimit(slot))
+          // 1.7.10 的 `IInventory#decrStackSize` → 1.21.1 的 `IItemHandler#extractItem`
+          //（空槽返回 `ItemStack.EMPTY` 而非 `null`）。
+          val removed = inventory.extractItem(slot, count, false)
+          if (removed == null || removed.isEmpty) result(0)
+          else result(removed.getCount)
         case _ => result(Unit, "no inventory")
       }
     }
@@ -652,15 +782,20 @@ object DebugCard {
     @Callback(doc = """function(id:string, amount:number, x:number, y:number, z:number, side:number):boolean - Insert some fluid into the tank at the specified location.""")
     def insertFluid(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      val fluid = FluidRegistry.getFluid(args.checkString(0))
+      // 1.7.10 的 `FluidRegistry.getFluid(name)` → 1.21.1 的流体注册表（取 `FluidType`）。
+      val fluid = BuiltInRegistries.FLUID.get(ResourceLocation.tryParse(args.checkString(0))) match {
+        case f if f != null && f != Fluids.EMPTY => f.getFluidType
+        case _ => null
+      }
       if (fluid == null) {
         throw new IllegalArgumentException("invalid fluid id")
       }
       val amount = args.checkInteger(1)
       val position = BlockPosition(args.checkDouble(2), args.checkDouble(3), args.checkDouble(4), world)
-      val side = args.checkSideAny(5)
-      world.getTileEntity(position) match {
-        case handler: IFluidHandler => result(handler.fill(side, new FluidStack(fluid, amount), true))
+      // 1.21.1 的 `fill` 不再需要 side 参数（面过滤由能力提供方完成），
+      // 且用 `FluidAction` 取代旧的布尔 `doFill`。
+      FluidUtils.fluidHandlerAt(position) match {
+        case Some(handler) => result(handler.fill(new FluidStack(fluid, amount), IFluidHandler.FluidAction.EXECUTE))
         case _ => result(Unit, "no tank")
       }
     }
@@ -670,9 +805,12 @@ object DebugCard {
       checkAccess()
       val amount = args.checkInteger(0)
       val position = BlockPosition(args.checkDouble(1), args.checkDouble(2), args.checkDouble(3), world)
-      val side = args.checkSideAny(4)
-      world.getTileEntity(position) match {
-        case handler: IFluidHandler => result(handler.drain(side, amount, true))
+      // 1.21.1 的 `drain(maxDrain, action)` 返回 `FluidStack`，因此取抽出的量作为返回值
+      //（1.7.10 的 `drain` 同样返回实际抽出的量）。
+      FluidUtils.fluidHandlerAt(position) match {
+        case Some(handler) =>
+          val drained = handler.drain(amount, IFluidHandler.FluidAction.EXECUTE)
+          result(if (drained == null || drained.isEmpty) 0 else drained.getAmount)
         case _ => result(Unit, "no tank")
       }
     }
@@ -682,48 +820,107 @@ object DebugCard {
     override def load(nbt: CompoundTag): Unit = {
       super.load(nbt)
       ctx = AccessContext.load(nbt)
-      world = DimensionManager.getWorld(nbt.getInteger("dimension"))
+      // 1.7.10 存数字维度 ID；1.21.1 改存维度 key 字符串（见 DebugCard.serverLevel）。
+      world = if (nbt.contains("dimension")) {
+        DebugCard.serverLevelAt(ResourceLocation.tryParse(nbt.getString("dimension"))).orNull
+      } else null
     }
 
     override def save(nbt: CompoundTag): Unit = {
       super.save(nbt)
       ctx.foreach(_.save(nbt))
-      nbt.putInt("dimension", world.provider.dimensionId)
+      if (world != null) {
+        nbt.putString("dimension", world.dimension().location().toString)
+      }
+    }
+
+    // ----------------------------------------------------------------------- //
+
+    private def blockPos(x: Int, y: Int, z: Int) = new BlockPos(x, y, z)
+
+    private def blockAt(x: Int, y: Int, z: Int): Block =
+      world.getBlockState(blockPos(x, y, z)).getBlock
+
+    /**
+     * 旧接口允许用数字 ID 或注册名指定方块；1.21.1 分别对应注册表序号与注册名
+     *（1.7.10 的 `Block.getBlockById` / `Block.getBlockFromName`）。
+     */
+    private def blockOf(args: Arguments, index: Int): Block =
+      if (args.isInteger(index)) BuiltInRegistries.BLOCK.byId(args.checkInteger(index))
+      else BuiltInRegistries.BLOCK.get(ResourceLocation.tryParse(args.checkString(index)))
+
+    /**
+     * 1.7.10 的 `World#playSoundEffect` 接受音效名字符串；1.21.1 的音效是注册表对象，
+     * 这里按旧名（大驼峰 → 下划线小写）在注册表中做一次宽松匹配，未命中则返回 `None`。
+     */
+    private def soundByName(name: String): Option[SoundEvent] = {
+      val path = name.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase(java.util.Locale.ROOT)
+      val candidates = Seq(path, "entity." + path, "block." + path, "ambient." + path, "ui." + path)
+      candidates.iterator.
+        flatMap(candidate => Option(ResourceLocation.tryParse(candidate))).
+        flatMap(key => Option(BuiltInRegistries.SOUND_EVENT.get(key))).
+        nextOption()
+    }
+
+    /**
+     * 1.7.10 的 `WorldProvider#getDimensionName` 在 1.21.1 已移除，
+     * 这里按维度 key 还原三个原版维度的显示名，未知维度回退到 key 本身。
+     */
+    private def dimensionNameOf(level: Level): String = {
+      if (level == null) ""
+      else level.dimension().location().toString match {
+        case "minecraft:overworld" => "Overworld"
+        case "minecraft:the_nether" => "Nether"
+        case "minecraft:the_end" => "The End"
+        case other => other
+      }
     }
   }
 
-  class CommandSender(val host: EnvironmentHost, val underlying: ServerPlayer) extends FakePlayer(underlying.getEntityWorld.asInstanceOf[ServerLevel], underlying.getGameProfile) {
+  class CommandSender(val host: EnvironmentHost, val underlying: ServerPlayer) extends FakePlayer(underlying.level().asInstanceOf[ServerLevel], underlying.getGameProfile) {
     var messages: Option[String] = None
 
+    /**
+     * 1.7.10 里 `CommandSender` 既是假玩家又直接充当命令执行者（`ICommandSender`）；
+     * 1.21.1 的命令执行者改为 `CommandSourceStack`：这里基于底层玩家的命令源，
+     * 把位置、维度与本对象换成调试卡所在的位置，从而把命令输出截获到 [[messages]]。
+     */
+    private val commandSource: CommandSourceStack = underlying.createCommandSourceStack().
+      withLevel(host.world.asInstanceOf[ServerLevel]).
+      withPosition(BlockPosition(host).toVec3).
+      withCallback((_, success, result) => {
+        if (result > 0) result else if (success) 1 else 0
+      }).
+      withSource(this)
+
     def prepare(): Unit = {
-      val blockPos = BlockPosition(host)
-      posX = blockPos.x
-      posY = blockPos.y
-      posZ = blockPos.z
+      // 1.7.10 直接写 `posX/posY/posZ` 字段；1.21.1 用 `setPos`。
+      setPos(host.xPosition + 0.5, host.yPosition + 0.5, host.zPosition + 0.5)
       messages = None
     }
 
-    override def getCommandSenderName = underlying.getCommandSenderName
+    /** 等价于旧版 `getCommandSenderName`：底层玩家的档案名（命令输出里显示的名字）。 */
+    override def getScoreboardName: String = underlying.getScoreboardName
 
-    override def getEntityWorld = host.world
+    override def level(): Level = host.world
 
-    override def addChatMessage(message: Component): Unit = {
-      messages = Option(messages.fold("")(_ + "\n") + message.getUnformattedText)
+    /** 截获命令反馈（1.7.10 的 `addChatMessage`），供 `runCommand` 返回给 Lua。 */
+    override def sendSystemMessage(message: Component): Unit = {
+      messages = Option(messages.fold("")(_ + "\n") + message.getString)
     }
 
-    override def canCommandSenderUseCommand(level: Int, command: String) = {
-      val profile = underlying.getGameProfile
-      val server = underlying.mcServer
-      val config = server.getConfigurationManager
-      server.isSinglePlayer || (config.func_152596_g(profile) && (config.func_152603_m.func_152683_b(profile) match {
-        case entry: UserListOpsEntry => entry.func_152644_a >= level
-        case _ => server.getOpPermissionLevel >= level
-      }))
-    }
+    /**
+     * 1.7.10 手工查 OP 名单判断权限；1.21.1 的 `CommandSourceStack#hasPermission`
+     * 已经把单人 / OP 名单 / 权限等级统一处理掉了，直接委托给它。
+     */
+    def canCommandSenderUseCommand(level: Int, command: String): Boolean =
+      commandSource.hasPermission(level)
 
-    override def getPlayerCoordinates = BlockPosition(host).toChunkCoordinates
+    /** 旧版 `getPlayerCoordinates` 的等价物。 */
+    def getPlayerCoordinates: BlockPos = BlockPosition(host).toChunkCoordinates
 
-    override def func_145748_c_() = underlying.func_145748_c_()
+    /** 该假玩家用于执行命令的命令源栈。 */
+    def commandStack: CommandSourceStack = commandSource
   }
 
   class TestValue extends AbstractValue {

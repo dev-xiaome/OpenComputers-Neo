@@ -138,6 +138,9 @@ trait Agent extends traits.WorldControl with traits.InventoryControl with traits
       onWorldInteraction(context, delay)
     }
     def attack(player: Player, target: Entity) = {
+      // TODO(server.agent): `Player#attack` 内部只能用假玩家自己手持的物品，
+      // 无法像 `ServerPlayerGameMode` 那样显式传入 agent 的物品，因此攻击伤害与
+      // 工具损耗会作用在假玩家的手持物上，而不是机器人物品栏里选中的工具。
       beginConsumeDrops(target)
       player.attack(target)
       // Mine carts have to be hit quickly in succession to break, so we click

@@ -15,12 +15,11 @@ import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
-import net.minecraft.world.item.enchantment.Enchantment
-import net.minecraft.world.item.enchantment.EnchantmentHelper
+import net.minecraft.core.Holder
+import net.minecraft.world.item.enchantment.{Enchantment, EnchantmentHelper, ItemEnchantments}
 import net.minecraft.world.item.Items
 import net.minecraft.nbt.CompoundTag
 
-import scala.jdk.CollectionConverters._
 import scala.jdk.CollectionConverters._
 
 class UpgradeExperience(val host: EnvironmentHost with internal.Agent) extends prefab.ManagedEnvironment with DeviceInfo {
@@ -39,7 +38,8 @@ class UpgradeExperience(val host: EnvironmentHost with internal.Agent) extends p
     DeviceAttribute.Capacity -> "30"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   var experience = 0.0
 
@@ -81,27 +81,40 @@ class UpgradeExperience(val host: EnvironmentHost with internal.Agent) extends p
     if (level >= MaxLevel) {
       return result(Unit, "max level")
     }
+    // 1.21.1：`IItemHandler` 的空槽返回 `ItemStack.EMPTY` 而不是 `null`，
+    // 且 `ItemStack#stackSize` 变成 `getCount`。
     val stack = host.mainInventory.getStackInSlot(host.selectedSlot)
-    if (stack == null || stack.stackSize < 1) {
+    if (stack == null || stack.isEmpty || stack.getCount < 1) {
       return result(Unit, "no item")
     }
     var xp = 0
-    if (stack.getItem == Items.experience_bottle) {
-      xp += 3 + host.world.rand.nextInt(5) + host.world.rand.nextInt(5)
+    // 1.21.1：`Items.experience_bottle` → `Items.EXPERIENCE_BOTTLE`（物品字段全部大写），
+    // `Level#rand` → `Level#random`。
+    if (stack.is(Items.EXPERIENCE_BOTTLE)) {
+      xp += 3 + host.world.random.nextInt(5) + host.world.random.nextInt(5)
     }
     else {
-      for ((id: Int, level: Int) <- EnchantmentHelper.getEnchantments(stack)) {
-        val enchantment = Enchantment.enchantmentsList(id)
+      // 1.21.1：附魔改为数据组件 `ItemEnchantments`：
+      //   `EnchantmentHelper.getEnchantments(stack)`（返回 id → 等级 的 Map）
+      //   → `stack.getEnchantments`（返回 `ItemEnchantments`，可遍历 `Holder[Enchantment]` → 等级）；
+      //   `Enchantment.enchantmentsList(id)` 已移除，直接取 `Holder#value`；
+      //   `Enchantment#getMinEnchantability(level)` → `getMinCost(level)`。
+      val enchantments: ItemEnchantments = stack.getEnchantments
+      for (entry <- enchantments.entrySet.asScala) {
+        val holder: Holder[Enchantment] = entry.getKey
+        val enchantmentLevel: Int = entry.getIntValue
+        val enchantment = if (holder == null) null else holder.value()
         if (enchantment != null) {
-          xp += enchantment.getMinEnchantability(level)
+          xp += enchantment.getMinCost(enchantmentLevel)
         }
       }
       if (xp <= 0) {
         return result(Unit, "could not extract experience from item")
       }
     }
-    val consumed = host.mainInventory().decrStackSize(host.selectedSlot, 1)
-    if (consumed == null || consumed.stackSize < 1) {
+    // 1.21.1：`IInventory#decrStackSize(slot, n)` → `IItemHandler#extractItem(slot, n, simulate)`。
+    val consumed = host.mainInventory.extractItem(host.selectedSlot, 1, false)
+    if (consumed == null || consumed.isEmpty || consumed.getCount < 1) {
       return result(Unit, "could not consume item")
     }
     addExperience(xp * Settings.get.constantXpGrowth)
