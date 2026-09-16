@@ -33,7 +33,6 @@ class Raid(menu: container.Raid, playerInventory: Inventory, title: Component)
     guiGraphics.drawString(font,
       Localization.localizeImmediately(menu.raid.getInventoryName),
       8, 6, 0x404040, false)
-
     drawSplitString(guiGraphics, Localization.Raid.Warning, 8, 46, 0x404040, imageWidth - 16)
   }
 

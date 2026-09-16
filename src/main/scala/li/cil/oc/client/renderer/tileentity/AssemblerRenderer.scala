@@ -53,7 +53,9 @@ class AssemblerRenderer extends BlockEntityRenderer[Assembler] {
       RenderUtil.fullBright, overlay)
 
     // 侧面：原实现从「朝 +X」的姿态起，每画完一面绕 Y 轴转 90 度。
-    val indent = 6 / 16f + 0.005
+    // 注意显式标注 Float：`6 / 16f + 0.005` 里的字面量 0.005 是 Double，
+    // 不标注会把整个表达式推成 Double，进而让 `spriteU` 的参数类型不匹配。
+    val indent: Float = 6 / 16f + 0.005f
     val assemblingSprite = RenderUtil.sprite(Textures.Block.AssemblerSideAssembling)
     val sideSprite = RenderUtil.sprite(Textures.Block.AssemblerSideOn)
 

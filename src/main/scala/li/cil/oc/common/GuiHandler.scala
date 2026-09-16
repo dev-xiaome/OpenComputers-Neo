@@ -124,7 +124,7 @@ abstract class GuiHandler {
       // TODO(server.component.Server): 该组件尚未移植，等移植完成后可把
       //   `isRunningProvider` 改成 `() => serverComponent.machine != null && serverComponent.machine.isRunning`。
       case server: ServerInventory =>
-        new container.Server(windowId, player.getInventory, server, None, () => false)
+        new container.Server(windowId, player.getInventory, server, true, () => false, Some(rack), slot)
       case _ => null
     }
 
@@ -158,6 +158,14 @@ abstract class GuiHandler {
    */
   def openGui(id: Int, player: Player, world: Level, x: Int, y: Int, z: Int): Unit = {
     if (player == null || world == null) return
+    // 纯客户端界面（[[GuiType.Screen]] / [[GuiType.Waypoint]] / [[GuiType.Manual]]）
+    // 在 1.7.10 也走 `player.openGui`，然后由客户端 `IGuiHandler#getClientGuiElement`
+    // 造出 `GuiScreen`。1.21.1 没有这条通道：`MenuType` 只能表达「有服务端容器」的界面。
+    // 若在这里继续走 `openMenu`，工厂会返回 `null` 并让 `Player#openMenu` 在
+    // `menu.containerId` 上 NPE，所以必须先拦下来。
+    // TODO(client): 需要补一个「服务端 → 客户端，请开某个无容器界面」的自定义包
+    //   （`PacketType` 里目前没有对应项），届时在这里发包而不 return。
+    if (!hasServerMenu(id)) return
     GuiType.Categories.get(id) match {
       case Some(GuiType.Category.Block) =>
         val pos = new BlockPos(x, GuiType.extractY(y), z)
@@ -180,6 +188,17 @@ abstract class GuiHandler {
         // 纯客户端界面（手册 / 终端屏幕 / 路径点）没有服务端容器，由客户端自己开屏。
     }
   }
+
+  /**
+   * 该 id 是否存在**服务端容器**。
+   *
+   * [[getServerMenu]] 对「纯客户端界面」返回 `null`，而 `MenuProvider` 的工厂一旦返回
+   * `null` 就会让 `Player#openMenu` 崩在 `menu.containerId` 上。因此 [[openGui]] 需要
+   * 先问一次。这里用黑名单而不是「`getServerMenu` 能不能返回非 null」，
+   * 是因为后者会真的去 new 一个容器（会往菜单里加槽位、产生副作用）。
+   */
+  def hasServerMenu(id: Int): Boolean =
+    id != GuiType.Screen.id && id != GuiType.Waypoint.id && id != GuiType.Manual.id
 
   /**
    * 打开「主手物品」宿主界面（取代 1.7.10 的

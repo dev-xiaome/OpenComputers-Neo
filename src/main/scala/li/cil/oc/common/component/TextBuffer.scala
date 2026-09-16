@@ -1,7 +1,6 @@
 package li.cil.oc.common.component
 
 import com.google.common.base.Strings
-import net.neoforged.bus.api.SubscribeEvent
 import li.cil.oc.Constants
 import li.cil.oc._
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
@@ -15,6 +14,13 @@ import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
 import li.cil.oc.common._
+// 必须显式导入**同包**的 ComponentTracker：
+// 上一行的通配 import 会把父包 li.cil.oc.common.ComponentTracker（抽象类，另一套缓存，见其类注释）
+// 带进作用域；而 Scala 2 的名称绑定优先级里，「不同编译单元里的同包成员」（第 4 级）
+// **低于通配 import**（第 3 级），于是下面 6 处 ComponentTracker.add/remove/clear 会解析到
+// 父包那个类上并报 alue add is not a member of object ...。
+// 显式 import 是第 2 级，正好覆盖通配 import。
+import li.cil.oc.common.component.ComponentTracker
 import li.cil.oc.common.component.traits.VideoRamRasterizer
 import li.cil.oc.util
 import li.cil.oc.util.BlockPosition
@@ -22,6 +28,7 @@ import li.cil.oc.util.PackedColor
 import li.cil.oc.util.SideTracker
 import net.minecraft.world.entity.player.Player
 import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.level.ChunkEvent
 import net.neoforged.neoforge.event.level.LevelEvent
 
@@ -217,7 +224,8 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
       precisionMode = args.checkBoolean(0)
       result(oldValue)
     }
-    else result(Unit, "unsupported operation")
+    // Scala 2.13：`Unit` 只能作类型，作值必须写 `()`（1.7.10 的 `result((), ...)` 是旧写法）。
+    else result((), "unsupported operation")
   }
 
   // ----------------------------------------------------------------------- //
@@ -477,13 +485,36 @@ class TextBuffer(val host: EnvironmentHost) extends prefab.ManagedEnvironment wi
 object TextBuffer {
   var clientBuffers = mutable.ListBuffer.empty[TextBuffer]
 
+  /** 是否已注册过卸载监听器；保证 [[initialize]] 幂等。 */
+  private var initialized = false
+
+  /**
+   * 显式注册区块 / 世界卸载监听器；由 [[li.cil.oc.common.Proxy.init]] 调用一次。
+   *
+   * 1.7.10：这两个方法靠 `@SubscribeEvent` 注解，由
+   * `MinecraftForge.EVENT_BUS.register(TextBuffer)`（在 `client.Proxy#init` 里）交给总线扫描。
+   * 1.21.1：本工程**统一不用注解扫描**（NeoForge 对 Scala object 的注解扫描不可靠，
+   * 扫不到就是静默失效），全项目没有任何地方 `register(TextBuffer)`，所以这两个监听器
+   * 从来不会触发、`clientBuffers` 永不清理。这里改成显式 `addListener`，与
+   * [[li.cil.oc.common.EventHandler.initialize]] 里的写法一致。
+   *
+   * 事件类型与两个方法的签名严格对应（`ChunkEvent.Unload` / `LevelEvent.Unload`，
+   * 即 1.21.1 里 `net.neoforged.neoforge.event.level` 包下的那两个）。
+   */
+  def initialize(): Unit = this.synchronized {
+    if (initialized) return
+    initialized = true
+    NeoForge.EVENT_BUS.addListener((e: ChunkEvent.Unload) => onChunkUnload(e))
+    NeoForge.EVENT_BUS.addListener((e: LevelEvent.Unload) => onWorldUnload(e))
+  }
+
   /**
    * 区块卸载时丢弃该区块内的客户端缓冲。
    *
    * 1.21.1 迁移要点：`ChunkEvent.Unload#getChunk` 返回 `ChunkAccess`（可能没有坐标），
    * 因此改从 `getChunk#getPos` 取区块坐标；旧版的 `Chunk#isAtLocation(x, z)` 已移除。
+   * 注册方式见 [[initialize]]（不再是 `@SubscribeEvent`）。
    */
-  @SubscribeEvent
   def onChunkUnload(e: ChunkEvent.Unload): Unit = {
     val level = e.getLevel
     val chunk = e.getChunk
@@ -499,7 +530,7 @@ object TextBuffer {
     })
   }
 
-  @SubscribeEvent
+  /** 世界卸载时丢弃该世界的客户端缓冲。注册方式见 [[initialize]]。 */
   def onWorldUnload(e: LevelEvent.Unload): Unit = {
     // 1.21.1：`LevelEvent#getLevel` 返回 `LevelAccessor`，缓存只按真正的 `Level` 建立。
     e.getLevel match {
@@ -725,8 +756,15 @@ object TextBuffer {
      *
      * 1.21.1 迁移要点：`Minecraft.getMinecraft` / `thePlayer` / `getHeldItem`
      * 分别改为 `Minecraft.getInstance()` / `player` / `getMainHandItem`。
+     *
+     * 1.7.10 的客户端分支靠 `@SideOnly(Side.CLIENT)`；1.21.1 的 `RuntimeDistCleaner`
+     * 会直接剥离专用服务端上的 `net.minecraft.client.*` 类（对类级 `@OnlyIn` 更是直接抛异常），
+     * 所以这里改成**运行期**侧别判定：专用服务端上根本不解析下面的客户端类引用
+     * （常量池解析是惰性的），不会 `NoClassDefFoundError`，功能也不受影响 ——
+     * 调试器输出本来就只对本地玩家有意义。
      */
     private def debug(player: Player, message: String): Unit = {
+      if (!net.neoforged.fml.loading.FMLEnvironment.dist.isClient) return
       val minecraft = net.minecraft.client.Minecraft.getInstance
       val localPlayer = if (minecraft != null) minecraft.player else null
       if (localPlayer != null && api.Items.get(localPlayer.getMainHandItem) == Debugger) {

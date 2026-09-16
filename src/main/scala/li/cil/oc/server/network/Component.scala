@@ -32,7 +32,14 @@ import scala.language.reflectiveCalls
  *    （Scala 2.13 的 `scala.collection.Iterable` 不继承 `java.lang.Iterable`），
  *    本文件统一用 [[NodeCollections.toScala]] 转换。
  */
-trait Component extends network.Component with Node {
+// 注意：这里必须**全限定**本包的 `Node`（`li.cil.oc.server.network.Node`）。
+// 文件顶部的 `import li.cil.oc.api.network._` 会把 Java 接口 `api.network.Node`
+// 引入作用域，而 Scala 2 的名称绑定优先级里「不同编译单元里的同包成员」（第 4 级）
+// 低于通配 import（第 3 级），裸写 `Node` 会解析到那个**没有实现**的接口上 ——
+// 于是 `new Component {}` 报 "object creation impossible. Missing implementations
+// for 9 members of trait Node"（见 `Network.scala:608`）。
+// 本包的 `Node` 才提供 connect / disconnect / remove / neighbors / reachableNodes 等的实现。
+trait Component extends network.Component with li.cil.oc.server.network.Node {
   val name: String
 
   def visibility = _visibility
@@ -120,13 +127,18 @@ trait Component extends network.Component with Node {
     case Visibility.Neighbors => isNeighborOf(other)
   }
 
+  // 注意：这里必须匹配**真实的**机器类型，不能用上面的结构化类型 `HostMachine`。
+  // Scala 的 `case x: 结构化类型` 在运行期**恒为真**（`isInstanceOf` 对结构化类型不做
+  // 方法存在性检查），随后的反射调用 `getMethod("removeComponent", ...)` 会对任何
+  // 没有这两个方法的宿主（例如 `tileentity.Screen`）抛 `NoSuchMethodException` 并崩档。
+  // `server/machine` 移植完成后就应当换回真实类型匹配（原 TODO 说的正是这件事）。
   private def addTo(nodes: scala.collection.Iterable[ImmutableNode]) = nodes.foreach(_.host match {
-    case machine: HostMachine => machine.addComponent(this)
+    case machine: li.cil.oc.server.machine.Machine => machine.addComponent(this)
     case _ =>
   })
 
   private def removeFrom(nodes: scala.collection.Iterable[ImmutableNode]) = nodes.foreach(_.host match {
-    case machine: HostMachine => machine.removeComponent(this)
+    case machine: li.cil.oc.server.machine.Machine => machine.removeComponent(this)
     case _ =>
   })
 
@@ -153,14 +165,17 @@ trait Component extends network.Component with Node {
   // ----------------------------------------------------------------------- //
 
   override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
+    // 不能写 `super.load(nbt)`：线性化上游的 `api.network.Node` / `api.Persistable`
+    // 都是**抽象** Java 接口（没有 `default` 实现），Scala 2.13 比 2.11 严格，
+    // 会报 “method load in trait Persistable is accessed from super. It may not be
+    // abstract unless it is overridden by a member declared `abstract` and `override`”。
+    // 上游没有实现可调用，去掉调用语义完全等价。
     if (nbt.contains("visibility")) {
       _visibility = Visibility.values()(nbt.getInt("visibility"))
     }
   }
 
   override def save(nbt: CompoundTag): Unit = {
-    super.save(nbt)
     nbt.putInt("visibility", _visibility.ordinal())
   }
 
@@ -303,7 +318,9 @@ private[network] object ComponentArguments {
     override def checkAny(index: Int): AnyRef = {
       checkIndex(index)
       values(index) match {
-        case Unit | None => null
+        // Scala 2.13：`Unit` 伴生对象不能再作为模式使用，unit 值改用守卫判断。
+        case null | None => null
+        case arg if arg == () => null
         case arg => arg
       }
     }

@@ -232,12 +232,17 @@ class Drive(val capacity: Int, val platterCount: Int, val label: Label, host: Op
   private def offsetSector(offset: Int) = offset / sectorSize
 
   /**
-   * TODO(server): 磁盘访问音效通告。
+   * 磁盘访问音效 / 活动通告（与 1.7.10 的 `diskActivity` 逐行一致）。
    *
-   * 原实现调用 `li.cil.oc.server.PacketSender.sendFileSystemActivity(...)`（投递
-   * `FileSystemAccessEvent.Server` 事件 + 发送 `PacketType.FileSystemActivity` 包）。
-   * `server/PacketSender` 与 `common/network/message` 尚未移植，这里降级为空操作：
-   * 只影响客户端播放磁盘访问音效，不影响驱动器读写功能。
+   * 只有配置了音效名（`sound`）且已知宿主（`host`）时才发送，
+   * 由 [[li.cil.oc.server.PacketSender.sendFileSystemActivity]] 负责限流并投递
+   * `FileSystemAccessEvent.Server` 事件 + `PacketType.FileSystemActivity` 包。
+   * 客户端据此播放磁盘访问音效；服务端功能不依赖它。
    */
-  private def diskActivity(): Unit = ()
+  private def diskActivity(): Unit = {
+    (sound, host) match {
+      case (Some(s), Some(h)) => li.cil.oc.server.PacketSender.sendFileSystemActivity(node, h, s)
+      case _ =>
+    }
+  }
 }

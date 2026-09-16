@@ -54,17 +54,17 @@ trait TankWorldControl extends TankAware with WorldAware with SideRestricted {
                   val filled = internalTank.fill(drained, FluidAction.EXECUTE)
                   result(true, filled)
                 }
-                else result(Unit, "incompatible or no fluid")
+                else result((), "incompatible or no fluid")
               }
               else {
                 val transferred = internalTank.fill(handler.drain(amount, FluidAction.EXECUTE), FluidAction.EXECUTE)
                 result(transferred > 0, transferred)
               }
-            case _ => result(Unit, "incompatible or no fluid")
+            case _ => result((), "incompatible or no fluid")
           }
         }
-        else result(Unit, "tank is full")
-      case _ => result(Unit, "no tank selected")
+        else result((), "tank is full")
+      case _ => result((), "no tank selected")
     }
   }
 
@@ -85,14 +85,14 @@ trait TankWorldControl extends TankAware with WorldAware with SideRestricted {
                   internalTank.drain(filled, FluidAction.EXECUTE)
                   result(true, filled)
                 }
-                else result(Unit, "incompatible or no fluid")
+                else result((), "incompatible or no fluid")
               }
-              else result(Unit, "tank is empty")
-            case _ => result(Unit, "no space")
+              else result((), "tank is empty")
+            case _ => result((), "no space")
           }
         }
-        else result(Unit, "tank is empty")
-      case _ => result(Unit, "no tank selected")
+        else result((), "tank is empty")
+      case _ => result((), "no tank selected")
     }
   }
 

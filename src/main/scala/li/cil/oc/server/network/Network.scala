@@ -7,6 +7,7 @@ import li.cil.oc.api.network
 import li.cil.oc.api.network._
 import li.cil.oc.api.network.{Node => ImmutableNode}
 import li.cil.oc.common.tileentity
+import li.cil.oc.server.network.{Component => MutableComponent}
 import li.cil.oc.server.network.{ComponentConnector => MutableComponentConnector}
 import li.cil.oc.server.network.{Connector => MutableConnector}
 import li.cil.oc.server.network.{Node => MutableNode}
@@ -600,7 +601,11 @@ object Network extends api.detail.NetworkAPI {
 
     def withConnector() = withConnector(0)
 
-    def create() = if (isServer()) new Component with NodeVarargPart {
+    // 注意：必须用本包的 `Component`（`li.cil.oc.server.network.Component`）。
+    // 文件顶部的 `import li.cil.oc.api.network._` 会把同名 Java 接口 `Component` 引入作用域，
+    // 而通配 import 的优先级高于同包不同编译单元的成员，直接用 `Component` 会解析到接口上，
+    // 导致 "object creation impossible"。
+    def create() = if (isServer()) new MutableComponent with NodeVarargPart {
       val host = _host
       val reachability = _reachability
       val name = _name
@@ -699,7 +704,9 @@ object Network extends api.detail.NetworkAPI {
       }
       values.length * 2 + values.foldLeft(0)((acc, arg) => {
         acc + (arg match {
-          case null | Unit | None => 1
+          // Scala 2.13：`Unit` 伴生对象不能再作为模式使用，unit 值改用守卫判断。
+          case null | None => 1
+          case _ if arg == () => 1
           case _: java.lang.Boolean => 1
           case _: java.lang.Byte => 2 /* FIXME: Bytes are currently sent as shorts */
           case _: java.lang.Short => 2
@@ -725,7 +732,9 @@ object Network extends api.detail.NetworkAPI {
       nbt.putInt("ttl", ttl)
       nbt.putInt("dataLength", data.length)
       for (i <- data.indices) data(i) match {
-        case null | Unit | None =>
+        // Scala 2.13：`Unit` 伴生对象不能再作为模式使用，unit 值改用守卫判断。
+        case null | None =>
+        case _ if data(i) == () =>
         case value: java.lang.Boolean => nbt.putBoolean("data" + i, value)
         case value: java.lang.Byte => nbt.putShort("data" + i, value.shortValue)
         case value: java.lang.Short => nbt.putShort("data" + i, value)

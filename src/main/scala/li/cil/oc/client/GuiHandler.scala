@@ -1,7 +1,7 @@
 package li.cil.oc.client
 
 import li.cil.oc.common.container.MenuTypes
-import li.cil.oc.common.{GuiType, container, tileentity}
+import li.cil.oc.common.{GuiHandler => CommonGuiHandler, GuiType, container, tileentity}
 import net.minecraft.client.gui.screens.{MenuScreens, Screen}
 import net.minecraft.client.gui.screens.inventory.MenuAccess
 import net.minecraft.core.BlockPos
@@ -32,9 +32,9 @@ import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent
  *    `renderer.gui.BufferRenderer` / `TextBufferRenderCache`（文本缓冲区渲染子系统），
  *    这部分尚未移植，因此 [[getClientGuiElement]] 里对应分支返回 `null`。
  *  - 手册（`GuiType.Manual`）是纯客户端界面，已由 [[Manual]] 直接 `setScreen` 打开，
- *    不走本对象。
+ *    不走本对象；`gui.Manual`（屏幕类）依赖 `renderer/markdown` 子包，尚未进编译集。
  */
-object GuiHandler extends container.GuiHandler {
+object GuiHandler extends CommonGuiHandler {
   // ----------------------------------------------------------------------- //
   // 1.21.1 主链路：MenuType -> Screen
   // ----------------------------------------------------------------------- //
@@ -94,7 +94,11 @@ object GuiHandler extends container.GuiHandler {
   override def getClientGuiElement(id: Int, player: Player, world: Level, x: Int, y: Int, z: Int): AnyRef = {
     GuiType.Categories.get(id) match {
       case Some(GuiType.Category.None) =>
-        if (id == GuiType.Manual.id) new gui.Manual() else null
+        // TODO(client.gui.Manual): 手册是纯客户端界面，但它依赖
+        //   `renderer/markdown` 子包与 `renderer/font` 子包（文本缓冲区渲染子系统），
+        //   这些还没进编译集，所以这里无法 `new gui.Manual`。
+        //   开屏改由已移植的 `li.cil.oc.client.Manual`（`api.API.manual`）负责。
+        null
       case Some(GuiType.Category.Block) =>
         // 方块宿主：文本缓冲区类界面（屏幕 / 路径点）尚未移植，见类注释的降级说明。
         world.getBlockEntity(new BlockPos(x, GuiType.extractY(y), z)) match {

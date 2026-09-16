@@ -129,11 +129,13 @@ object PacketHandler {
     val setPower = p.readBoolean()
     p.player match {
       case player: ServerPlayer => player.containerMenu match {
-        case c: container.Server => c.server match {
-          case Some(server: Server) if server == readServer =>
-            trySetComputerPower(server.machine, setPower, player)
-          case _ => logForgedPacket(player)
-        }
+        // 1.7.10 比较的是 `container.Server#server` 与包里的服务器组件是否同一个。
+        // 1.21.1 的 `container.Server` 不再单独持有服务端组件参数（`common` 层不能引用
+        // `server.component`），但它的 `otherInventory`（== `serverInventory`）就是那个组件
+        // 本身 —— `server.component.Server` 实现了 `common.inventory.ServerInventory`，
+        // 因此这里直接对 `otherInventory` 做引用比较，语义与原实现完全一致。
+        case c: container.Server if c.otherInventory.asInstanceOf[AnyRef] eq readServer =>
+          trySetComputerPower(readServer.machine, setPower, player)
         case _ => logForgedPacket(player)
       }
       case _ => // Invalid packet.

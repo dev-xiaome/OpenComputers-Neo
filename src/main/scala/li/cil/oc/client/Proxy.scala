@@ -195,8 +195,16 @@ object Proxy {
     api.API.manual = Manual
 
     CommandHandler.initialize()
-    Icons.initialize()
+    // 槽位 / 等级图标的兼容初始化入口。1.21.1 里图标位置是纯计算出来的、精灵由图集
+    // 按需加载，因此 `gui.Icons.initialize` 是**空实现**；保留这次调用只是为了与
+    // 1.7.10 的 `Icons.init` 一一对应，将来若要预热图集就在这里做。
+    // 注意必须写全 `gui.Icons`：`Icons` 在**子包** `li.cil.oc.client.gui` 里，
+    // 而本对象在 `li.cil.oc.client`，子包成员不会自动进入同包作用域。
+    gui.Icons.initialize()
     Sound.initialize()
+    // util.Audio 是客户端专用（内部用 net.minecraft.client.* 与 ClientTickEvent），
+    // 因此只能在客户端侧初始化；它是幂等的。
+    li.cil.oc.util.Audio.initialize()
     PacketHandler.initialize()
     TextBufferRenderCache.initialize()
 

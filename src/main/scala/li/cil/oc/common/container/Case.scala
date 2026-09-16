@@ -19,10 +19,6 @@ import net.minecraft.world.entity.player.{Inventory, Player => MCPlayer}
 class Case(windowId: Int, playerInventory: Inventory, val computer: tileentity.Case)
   extends Player(windowId, MenuTypes.Case.value(), playerInventory, computer) {
 
-  /** 从客户端重建上下文构造（[[MenuTypes]] 的工厂用），见 [[Adapter]] 的同名构造器。 */
-  def this(ctx: MenuTypes.OpenContext, computer: tileentity.Case) =
-    this(ctx.windowId, ctx.inventory, computer)
-
   for (i <- 0 to (if (computer.tier >= Tier.Three) 2 else 1)) {
     val slot = InventorySlots.computer(computer.tier)(slots.size)
     addSlotToContainer(98, 16 + i * slotSize, slot.slot, slot.tier)

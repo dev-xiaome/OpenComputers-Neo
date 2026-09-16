@@ -12,7 +12,7 @@ import net.minecraft.world.entity.player.Inventory
  * `NBTTagCompound#getInteger` → `getInt`；`Hub#packetsPerCycleAvg` 由 `MovingAverage` 提供，
  * 仍然用 `apply()` 取值。
  */
-class Relay(windowId: Int, playerInventory: Inventory, relay: tileentity.Relay)
+class Relay(windowId: Int, playerInventory: Inventory, val relay: tileentity.Relay)
   extends Player(windowId, MenuTypes.Relay.value(), playerInventory, relay) {
 
   addSlotToContainer(151, 15, Slot.CPU)
@@ -30,6 +30,12 @@ class Relay(windowId: Int, playerInventory: Inventory, relay: tileentity.Relay)
   def packetsPerCycleAvg: Int = synchronizedData.getInt("packetsPerCycleAvg")
 
   def queueSize: Int = synchronizedData.getInt("queueSize")
+
+  /** 宿主的显示名（原 1.7.10 的 `relay.getInventoryName`）；见 [[DiskDrive.driveName]] 的说明。 */
+  def relayName: String = relay match {
+    case inventory: li.cil.oc.common.inventory.Inventory => inventory.getInventoryName
+    case _ => li.cil.oc.Settings.namespace + "container.Relay"
+  }
 
   override protected def detectCustomDataChanges(nbt: CompoundTag): Unit = {
     synchronizedData.putInt("relayDelay", relay.relayDelay)

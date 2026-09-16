@@ -115,20 +115,26 @@ object BufferRenderer {
    *
    * 调用方负责先 `pushPose` 并平移到内容区左上角、再做整体缩放（旧版同样如此）。
    *
-   * @return 是否真的绘制了内容
+   * ==降级说明==
+   * 1.7.10 的 `api.internal.TextBuffer#renderText()` 会先把内容烘焙进当前线程的
+   * 渲染数据，再由本对象取出单元数据交给字体图集绘制。1.21.1 里那条链路需要
+   * `common.component.TextBuffer`（`common/component` 尚未进编译集）暴露底层
+   * `util.TextBuffer`，`api.internal.TextBuffer` 接口并没有把它暴露出来，
+   * 因此这里只能退化为直接调用接口上的 `renderText()`：
+   *  - 它是接口方法，任何实现都能调，不会再出现「找不到成员」的编译错误；
+   *  - 内置实现（common 侧）目前是占位，调用它不会画出内容；
+   *  - 等 `common/component` 进编译集后，把这里换成
+   *    `TextBufferRenderCache.render(pose, buffers, buffer.data, ...)` 即可恢复完整渲染。
+   *
+   * @return 是否真的绘制了内容（降级路径恒为 `false`）
    */
   def drawText(pose: PoseStack, buffers: MultiBufferSource, screen: api.internal.TextBuffer): Boolean = {
     if (pose == null || buffers == null || screen == null) return false
-    screen match {
-      case buffer: li.cil.oc.common.component.TextBuffer =>
-        TextBufferRenderCache.render(pose, buffers, buffer.data, buffer.viewport._1, buffer.viewport._2)
-        true
-      case _ =>
-        // TODO(渲染): 1.21.1 的 api.internal.TextBuffer 不再暴露底层 util.TextBuffer
-        // 与颜色格式，非内置实现无法还原单元颜色（例如 OneBit 需要 format.inflate），
-        // 因此这里只做降级：不绘制，并返回 false。
-        false
-    }
+
+    // TODO(渲染): 等 `common.component.TextBuffer` 可用后，改为取 `data` + `viewport`
+    // 交给 TextBufferRenderCache，从而真正画出字形。
+    screen.renderText()
+    false
   }
 
   /**

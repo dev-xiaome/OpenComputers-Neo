@@ -235,7 +235,13 @@ trait ComponentInventory extends Inventory with network.Environment {
       val tag = dataTag(driver, stack)
       // Clear the tag compound before saving to get the same behavior as
       // in tile entities (otherwise entries have to be cleared manually).
-      for (key <- tag.getAllKeys.asScala) {
+      //
+      // 必须先用 `toSeq` 复制一份 key：1.21.1 的 `CompoundTag#getAllKeys` 返回的是
+      // 内部 `HashMap` 的 **keySet 视图**（1.7.10 的 `func_150296_c` 也是，但当时的
+      // 遍历写法侥幸没触发），边遍历边 `remove` 会抛 `ConcurrentModificationException`，
+      // 结果是组件数据在保存时被整份丢弃（日志里表现为
+      // "An item component of type '...' threw an error while saving"）。
+      for (key <- tag.getAllKeys.asScala.toSeq) {
         tag.remove(key)
       }
       component.save(tag)

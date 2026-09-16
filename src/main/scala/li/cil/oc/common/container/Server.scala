@@ -13,22 +13,27 @@ import net.minecraft.world.entity.player.{Inventory, Player => MCPlayer}
  *  - `Container` → `AbstractContainerMenu`（构造器多 `windowId` + [[MenuTypes]] 的 `MenuType`）；
  *  - `getInventory.size` → `slots.size`；`canInteractWith` → `stillValid`。
  *
+ * ==两种宿主：物品形态与机架形态==
+ * 1.7.10 的构造参数是 `(container, serverInventory, rack: Option[Rack], slot: Int)`：
+ * `rack` 有值就表示「这台服务器插在机架里」，界面由此决定是否显示电源键，
+ * 以及在「物品被移出机架」时自动关屏。1.21.1 里屏幕只能拿到容器，
+ * 因此这两个值挂在容器的 [[rack]] / [[rackSlot]] 上（由 [[MenuTypes]] 的客户端工厂填）。
+ *
  * ==降级说明==
- * 1.7.10 的构造参数是 `server: Option[li.cil.oc.server.component.Server]`，
- * 用来查询 `s.machine.isRunning`。`li.cil.oc.server.component` 尚未移植
- * （当前编译集里只有 `server/component/FileSystem.scala`），容器层不能引用它，因此：
- *  - `server` 的存在性保留下来（类型放宽为 `Option[AnyRef]`，用于 [[stillValid]] 分支），
- *    真正的服务端组件对象仍可由调用方原样传入；
- *  - 「机器是否在运行」改由 [[isRunningProvider]] 回调提供。
+ * 1.7.10 还会传入 `server: Option[li.cil.oc.server.component.Server]` 用来查询
+ * `s.machine.isRunning`。`li.cil.oc.server.component` 尚未移植，容器层不能引用它，
+ * 因此改成 [[isInRack]] + [[isRunningProvider]] 两个显式参数。
  *
  * TODO(server.component): `server/component` 移植完成后，把 `isRunningProvider` 的实参写成
- * `() => serverComponent.machine.isRunning`（或在容器里直接持有 `server.component.Server`）。
+ * `() => serverComponent.machine != null && serverComponent.machine.isRunning`。
  */
 class Server(windowId: Int,
              playerInventory: Inventory,
              val serverInventory: ServerInventory,
-             val server: Option[AnyRef] = None,
-             val isRunningProvider: () => Boolean = () => false)
+             val isInRack: Boolean = false,
+             val isRunningProvider: () => Boolean = () => false,
+             val rack: Option[tileentity.Rack] = None,
+             val rackSlot: Int = 0)
   extends Player(windowId, MenuTypes.Server.value(), playerInventory, serverInventory) {
 
   for (i <- 0 to 1) {
@@ -65,28 +70,24 @@ class Server(windowId: Int,
   // Show the player's inventory.
   addPlayerInventorySlots(8, 84)
 
+  /** 从客户端重建上下文构造（[[MenuTypes]] 的工厂用）。 */
+  def this(ctx: MenuTypes.OpenContext,
+           serverInventory: ServerInventory,
+           isInRack: Boolean,
+           isRunningProvider: () => Boolean,
+           rack: Option[tileentity.Rack],
+           rackSlot: Int) =
+    this(ctx.windowId, ctx.inventory, serverInventory, isInRack, isRunningProvider, rack, rackSlot)
+
   override def stillValid(player: MCPlayer): Boolean = {
-    if (server.isDefined) super.stillValid(player)
+    // 机架形态：宿主在机架里，距离判定交给父类（通过 `otherInventory` 的距离语义）；
+    // 物品形态：宿主就是玩家手里的那份堆叠，只要还是同一个玩家就有效。
+    if (isInRack) super.stillValid(player)
     else player == playerInventory.player
   }
 
   var isRunning = false
   var isItem = true
-
-  /**
-   * 服务端所在的机架与槽位（物品形态时为 `None` / 0）。
-   *
-   * 1.7.10 里这两个值是屏幕的构造参数（`client.gui.Server(playerInventory, serverInventory, rack, slot)`）；
-   * 1.21.1 的屏幕只能拿到容器，因此改由 [[MenuTypes]] 的客户端工厂在重建容器时
-   * 从载荷里读出来挂到这里，"物品被从机架里取走就关屏" 与 "点电源键" 两条逻辑
-   * 都从容器上取。
-   */
-  var rack: Option[tileentity.Rack] = None
-
-  var rackSlot: Int = 0
-
-  /** 服务端组件（[[li.cil.oc.server.component.Server]]）尚未移植，见类注释的降级说明。 */
-  def hasServer: Boolean = server.isDefined
 
   override def updateCustomData(nbt: CompoundTag): Unit = {
     super.updateCustomData(nbt)
@@ -96,7 +97,7 @@ class Server(windowId: Int,
 
   override protected def detectCustomDataChanges(nbt: CompoundTag): Unit = {
     super.detectCustomDataChanges(nbt)
-    if (server.isDefined) nbt.putBoolean("isRunning", isRunningProvider())
+    if (isInRack) nbt.putBoolean("isRunning", isRunningProvider())
     else nbt.putBoolean("isItem", true)
   }
 }

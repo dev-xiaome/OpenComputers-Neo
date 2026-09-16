@@ -43,5 +43,11 @@ class Tablet(windowId: Int,
     case _ => net.minecraft.world.item.ItemStack.EMPTY
   }
 
+  /** 宿主的显示名（原 1.7.10 的 `tablet.getInventoryName`）；见 [[DiskDrive.driveName]] 的说明。 */
+  def tabletName: String = otherInventory match {
+    case inventory: li.cil.oc.common.inventory.Inventory => inventory.getInventoryName
+    case _ => li.cil.oc.Settings.namespace + "container.Tablet"
+  }
+
   override def stillValid(player: MCPlayer): Boolean = player == playerInventory.player
 }

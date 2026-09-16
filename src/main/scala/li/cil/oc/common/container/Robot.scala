@@ -28,13 +28,16 @@ import net.neoforged.neoforge.items.IItemHandler
  *    `getStack` 越界时返回 `ItemStack.EMPTY`（1.7.10 返回 `null`，1.21.1 的槽位协议不接受 `null`）；
  *  - `@SideOnly(Dist.CLIENT)` 删除。
  */
-class Robot(windowId: Int, playerInventory: Inventory, robot: tileentity.Robot)
+class Robot(windowId: Int, playerInventory: Inventory, val robot: tileentity.Robot)
   extends Player(windowId, MenuTypes.Robot.value(), playerInventory, robot) {
 
   val hasScreen = robot.componentEnvironments.exists {
     case Some(_: api.internal.TextBuffer) => true
     case _ => false
   }
+
+  /** 从客户端重建上下文构造（[[MenuTypes]] 的工厂用），见 [[Adapter]] 的同名构造器。 */
+
   private val withScreenHeight = 256
   private val noScreenHeight = 108
   val deltaY = if (hasScreen) 0 else withScreenHeight - noScreenHeight

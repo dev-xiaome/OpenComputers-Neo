@@ -31,21 +31,21 @@ class Printer(menu: container.Printer, playerInventory: Inventory, title: Compon
   imageWidth = 176
   imageHeight = 166
 
-  private val materialBar = addWidget(new ProgressBar(40, 21) {
+  private val materialBar = addWidgetToContainer(new ProgressBar(40, 21) {
     override def width: Int = 62
 
     override def height: Int = 12
 
     override def barTexture = Textures.guiPrinterMaterial
   })
-  private val inkBar = addWidget(new ProgressBar(40, 53) {
+  private val inkBar = addWidgetToContainer(new ProgressBar(40, 53) {
     override def width: Int = 62
 
     override def height: Int = 12
 
     override def barTexture = Textures.guiPrinterInk
   })
-  private val progressBar = addWidget(new ProgressBar(105, 20) {
+  private val progressBar = addWidgetToContainer(new ProgressBar(105, 20) {
     override def width: Int = 46
 
     override def height: Int = 46

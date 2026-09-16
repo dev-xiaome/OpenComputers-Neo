@@ -4,28 +4,26 @@ import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.nanomachines.Controller
-import li.cil.oc.client.Textures
 import li.cil.oc.common.EventHandler
 import li.cil.oc.common.nanomachines.ControllerImpl
 import li.cil.oc.util.PlayerUtils
-import net.minecraft.client.Minecraft
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.entity.player.Player
-import net.neoforged.fml.loading.FMLEnvironment
-import net.neoforged.neoforge.client.event.RenderGuiEvent
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.entity.player.PlayerEvent
 import net.neoforged.neoforge.event.tick.PlayerTickEvent
 
 /**
- * 纳米机器：控制器生命周期（创建 / 重建 / 卸载）与 HUD 电量条。
+ * 纳米机器：控制器生命周期（创建 / 重建 / 卸载）。
+ *
+ * ==与客户端部分的分工==
+ * 1.7.10 里 HUD 电量条是 `NanomachinesHandler.Client` 子对象；1.21.1 要求 `common` 包
+ * 不能有对 `client` 包的编译期引用（否则整个 `client` 会被拖进编译集），因此 HUD 已整体
+ * 搬到 `li.cil.oc.client.NanomachineHud`（由 `li.cil.oc.client.ClientListeners` 注册），
+ * 本对象只保留**双端通用**的控制器生命周期。
  *
  * 1.21.1 迁移要点：
- *  - `@SubscribeEvent` → 显式 `addListener`；客户端 HUD 放在 [[Client]] 子对象里，
- *    只有物理客户端才注册。
- *  - `RenderGameOverlayEvent.Post`（带 `ElementType.TEXT` 判定）→
- *    `RenderGuiEvent.Post` + `GuiGraphics`：`ScaledResolution` → `GuiGraphics#guiWidth/guiHeight`，
- *    `Tessellator` + `bindTexture` → `GuiGraphics#blit`。
+ *  - `@SubscribeEvent` → 显式 `addListener`。
  *  - `LivingEvent.LivingUpdateEvent` → `PlayerTickEvent.Pre`。
  *  - `PlayerEvent.SaveToFile` / `LoadFromFile` 在 1.21.1 已被移除（玩家数据由
  *    `PlayerDataStorage` 统一处理）。原实现把控制器状态写进玩家目录下的 `ocnm` 文件，
@@ -34,57 +32,8 @@ import net.neoforged.neoforge.event.tick.PlayerTickEvent
  *  - 因此不再需要 `NbtIo` 文件读写。
  */
 object NanomachinesHandler {
-  /** 注册监听器；由主类（或 [[EventHandlers]]）调用一次。 */
-  def initialize(): Unit = {
-    Common.initialize()
-    if (FMLEnvironment.dist.isClient) Client.initialize()
-  }
-
-  /** HUD：只在物理客户端注册。 */
-  object Client {
-    def initialize(): Unit = {
-      NeoForge.EVENT_BUS.addListener((e: RenderGuiEvent.Post) => onRenderGameOverlay(e))
-    }
-
-    def onRenderGameOverlay(e: RenderGuiEvent.Post): Unit = {
-      val mc = Minecraft.getInstance
-      val player = mc.player
-      if (player == null) return
-      api.Nanomachines.getController(player) match {
-        case controller: Controller =>
-          val graphics = e.getGuiGraphics
-          val sizeX = 8
-          val sizeY = 12
-          val width = graphics.guiWidth()
-          val height = graphics.guiHeight()
-          val (x, y) = Settings.get.nanomachineHudPos
-          val left =
-            math.min(width - sizeX,
-              if (x < 0) width / 2 - 91 - 12
-              else if (x < 1) width * x
-              else x)
-          val top =
-            math.min(height - sizeY,
-              if (y < 0) height - 39
-              else if (y < 1) y * height
-              else y)
-          val size = controller.getLocalBufferSize
-          val fill = if (size <= 0) 0.0 else controller.getLocalBuffer / size
-
-          graphics.blit(Textures.overlayNanomachines, left.toInt, top.toInt, 0f, 0f, sizeX, sizeY, sizeX, sizeY)
-
-          // 电量条自下往上填充（与 1.7.10 版本一致）。
-          val barHeight = math.max(0, math.min(sizeY, (sizeY * fill).toInt))
-          if (barHeight > 0) {
-            graphics.blit(Textures.overlayNanomachinesBar,
-              left.toInt, top.toInt + sizeY - barHeight,
-              0f, (sizeY - barHeight).toFloat,
-              sizeX, barHeight, sizeX, sizeY)
-          }
-        case _ => // 没有可显示的内容。
-      }
-    }
-  }
+  /** 注册监听器；由 [[EventHandlers]] 调用一次。 */
+  def initialize(): Unit = Common.initialize()
 
   /** 服务端 / 客户端通用的控制器生命周期。 */
   object Common {

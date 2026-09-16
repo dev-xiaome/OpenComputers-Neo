@@ -301,13 +301,13 @@ class Rack(menu: container.Rack, playerInventory: Inventory, title: Component)
     // `mouseX` / `mouseY` 已经是界面相对坐标（见类注释）。
     if (mouseX >= 122 && mouseY >= 20 && mouseX < 158 && mouseY < 20 + 5 * 11) {
       val tooltip = new java.util.ArrayList[String]()
-      tooltip.addAll(asJavaCollection(Localization.Rack.OrientationTooltip.linesIterator.toSeq))
+      tooltip.addAll(toJava(Localization.Rack.OrientationTooltip.linesIterator.toSeq))
       copiedDrawHoveringText(tooltip, mouseX, mouseY, font)
     }
 
     if (relayButton != null && relayButton.hoveredState) {
       val tooltip = new java.util.ArrayList[String]()
-      tooltip.addAll(asJavaCollection(Localization.Rack.RelayModeTooltip.linesIterator.toSeq))
+      tooltip.addAll(toJava(Localization.Rack.RelayModeTooltip.linesIterator.toSeq))
       copiedDrawHoveringText(tooltip, mouseX, mouseY, font)
     }
   }

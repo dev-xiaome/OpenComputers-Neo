@@ -73,6 +73,6 @@ trait InventoryWorldControlMk2 extends InventoryAware with WorldAware with SideR
       // TODO(server): 1.21.1 的 IItemHandler 没有 `isUseableByPlayer` 的等价查询，
       // 旧版对“该物品栏是否可被此玩家使用”的检查退化为只检查交互权限。
       case Some(target) if mayInteract(blockPos, fromSide) => f(target)
-      case _ => result(Unit, "no inventory")
+      case _ => result((), "no inventory")
     }
 }

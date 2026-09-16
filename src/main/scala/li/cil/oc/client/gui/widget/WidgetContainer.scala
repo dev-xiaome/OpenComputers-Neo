@@ -18,7 +18,7 @@ import scala.collection.mutable
 trait WidgetContainer {
   protected val widgets = mutable.ArrayBuffer.empty[Widget]
 
-  def addWidget[T <: Widget](widget: T): T = {
+  def addWidgetToContainer[T <: Widget](widget: T): T = {
     widgets += widget
     widget.owner = this
     widget

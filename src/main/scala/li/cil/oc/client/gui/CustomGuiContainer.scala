@@ -156,6 +156,21 @@ abstract class CustomGuiContainer[C <: AbstractContainerMenu](
   /** 原版贴图的默认位置；子类可覆写（原 1.7.10 用 `bindTexture` 临时切换）。 */
   protected def texture: ResourceLocation = li.cil.oc.client.Textures.guiBackground
 
+  /**
+   * 把 Scala 的字符串序列转成 `java.util.List`，供 `tooltip.addAll(...)` 使用。
+   *
+   * 1.7.10 里这一步是 `scala.collection.convert.WrapAsJava._` 提供的隐式
+   * `asJavaCollection`；Scala 2.13 把它移到了 `scala.jdk.CollectionConverters`，
+   * 但**本工程用的 2.13.14 运行时里没有 `asJavaCollection` 这个名字**
+   * （只有 `asJava` 这组隐式），因此这里统一走 [[scala.jdk.CollectionConverters]] 的
+   * `Seq#asJava` 扩展，并保留 `asJavaCollection` 这个旧名字给搬运过来的界面代码用。
+   */
+  protected def toJava(lines: Iterable[String]): util.List[String] = {
+    val list = new util.ArrayList[String]()
+    lines.foreach(line => list.add(if (line == null) "" else line))
+    list
+  }
+
   /** 在屏幕绝对坐标 `(x, y)` 画带阴影的文字，等价 1.7.10 的 `fontRendererObj.drawStringWithShadow`。 */
   protected def drawStringWithShadow(guiGraphics: GuiGraphics, text: String, x: Int, y: Int, color: Int): Unit =
     guiGraphics.drawString(font, if (text == null) "" else text, x, y, color, true)

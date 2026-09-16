@@ -215,13 +215,22 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
         // 只会打开容器、没有可见界面（不影响服务器机器本身的运行）。
         // 1.7.10 把机架坐标与插槽压进 `y`（`GuiType.embedSlot`）；1.21.1 改为把
         // 宿主坐标 + 插槽写进菜单载荷，因此改用 `MenuOpening.openRackSlot`。
+        // 容器侧还需要「哪台机架 + 第几格」（`isInRack` / `rack` / `rackSlot`），
+        // 与 [[li.cil.oc.common.container.MenuTypes]] 中 `Server` 的机架分支保持一致。
         val rackPos = rack match {
           case blockEntity: net.minecraft.world.level.block.entity.BlockEntity => blockEntity.getBlockPos
           case _ => new net.minecraft.core.BlockPos(
             math.floor(rack.xPosition).toInt, math.floor(rack.yPosition).toInt, math.floor(rack.zPosition).toInt)
         }
+        val rackBlockEntity = rack match {
+          case blockEntity: li.cil.oc.common.tileentity.Rack => Option(blockEntity)
+          case _ => None
+        }
         MenuOpening.openRackSlot(player, rackPos, slot, Component.empty())((windowId, playerInventory) =>
-          new li.cil.oc.common.container.Server(windowId, playerInventory, this, Some(this), () => machine.isRunning))
+          new li.cil.oc.common.container.Server(
+            windowId, playerInventory, this,
+            isInRack = true, isRunningProvider = () => machine.isRunning,
+            rack = rackBlockEntity, rackSlot = slot))
       }
     }
     true

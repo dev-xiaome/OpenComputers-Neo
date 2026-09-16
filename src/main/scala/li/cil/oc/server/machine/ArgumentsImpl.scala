@@ -19,7 +19,9 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
   def checkAny(index: Int) = {
     checkIndex(index, "value")
     args(index) match {
-      case Unit | None => null
+      // Scala 2.13：`Unit` 不能再当作模式/值使用（Unit companion object is not allowed）。
+      // 原语义是把「nil」统一成 null：null、None，以及装箱后的 unit 值 `()`。
+      case null | None | _: scala.runtime.BoxedUnit => null
       case arg => arg
     }
   }
@@ -188,21 +190,22 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
     else checkByteArray(index)
   }
 
-  // Java 侧签名是原始类型 `Map checkTable(int)`，这里显式返回 `Any`，
-  // 让 Scala Map / mutable.Map / java.util.Map 都能原样返回。
-  def checkTable(index: Int): AnyRef = {
+  // Java 接口签名是原始类型 `Map checkTable(int)`，Scala 侧必须返回 `java.util.Map`
+  // （返回 `AnyRef` 会触发 "incompatible type in overriding"）。
+  // Lua 表格在 Scala 侧可能是不可变 / 可变 Map，这里统一转成 Java Map 视图。
+  def checkTable(index: Int): util.Map[_, _] = {
     checkIndex(index, "table")
     args(index) match {
       case value: java.util.Map[_, _] => value
-      case value: Map[_, _] => value
-      case value: mutable.Map[_, _] => value
+      case value: Map[_, _] => value.asJava
+      case value: mutable.Map[_, _] => value.asJava
       case value => throw typeError(index, value, "table")
     }
   }
 
   def optTable(index: Int, default: util.Map[_, _]) = {
     if (!isDefined(index)) default
-    else checkTable(index).asInstanceOf[util.Map[_, _]]
+    else checkTable(index)
   }
 
   def checkItemStack(index: Int) = {
@@ -302,8 +305,8 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
   }.toArray
 
   /**
-   * 统一的表格取值：`checkTable` 可能返回 `java.util.Map`、Scala 不可变 `Map`
-   * 或 `mutable.Map`（对应 Lua 表格的三种表示），这里收敛成一个查表函数。
+   * 统一的表格取值：`checkTable` 现在总是返回 `java.util.Map`（Scala 的 Map 已在
+   * `checkTable` 里转成 Java 视图），这里保留对 Scala Map 的兼容分支以防万一。
    */
   private def tableGet(table: Any, key: Any): Any = table match {
     case value: java.util.Map[_, _] => value.asInstanceOf[java.util.Map[Any, Any]].get(key)
@@ -328,7 +331,7 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
       s"bad argument #${index + 1} (${typeName(have)} has no integer representation)")
 
   private def typeName(value: AnyRef): String = value match {
-    case null | Unit | None => "nil"
+    case null | None | _: scala.runtime.BoxedUnit => "nil"
     case _: java.lang.Boolean => "boolean"
     case _: java.lang.Byte => "integer"
     case _: java.lang.Short => "integer"

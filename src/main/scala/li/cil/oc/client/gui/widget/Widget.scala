@@ -11,7 +11,7 @@ import net.minecraft.client.gui.GuiGraphics
  *    因此绘制上下文必须显式传递。
  *  - 坐标语义不变：`x` / `y` 是相对宿主窗口左上角（[[WidgetContainer.windowX]] /
  *    [[WidgetContainer.windowY]]）的偏移，具体平移由子类在 [[draw]] 里自己做。
- *  - `owner` 由 [[WidgetContainer.addWidget]] 赋值；只有被添加到容器后的组件才会被绘制。
+ *  - `owner` 由 [[WidgetContainer.addWidgetToContainer]] 赋值；只有被添加到容器后的组件才会被绘制。
  */
 abstract class Widget {
   var owner: WidgetContainer = _

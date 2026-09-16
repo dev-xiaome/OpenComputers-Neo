@@ -124,7 +124,7 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
       // 1.7.10 的 `DimensionManager.getWorld(id)` → 见 DebugCard.serverLevel（1.21.1 无数字维度 ID）。
       DebugCard.serverLevel(serverOf(host.world), args.checkInteger(0)) match {
         case Some(level) => result(new DebugCard.WorldValue(level))
-        case _ => result(Unit, "no such dimension")
+        case _ => result((), "no such dimension")
       }
     }
     else result(new DebugCard.WorldValue(host.world))
@@ -164,7 +164,7 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
     val worldServer = if (args.count() > 3) DebugCard.serverLevel(serverOf(host.world), args.checkInteger(3)).orNull else host.world
     val world = worldServer match {
       case level: Level => level
-      case _ => return result(Unit, "no such dimension")
+      case _ => return result((), "no such dimension")
     }
 
     val position: BlockPosition = new BlockPosition(x, y, z, Option(world))
@@ -250,7 +250,7 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
         node.connect(other)
         result(true)
       case _ =>
-        result(Unit, "no node found at this position")
+        result((), "no node found at this position")
     }
   }
 
@@ -442,7 +442,7 @@ object DebugCard {
       Option(ServerLifecycleHooks.getCurrentServer).
         flatMap(server => Option(server.getPlayerList.getPlayerByName(name))) match {
         case Some(player) => f(player)
-        case _ => result(Unit, "player is offline")
+        case _ => result((), "player is offline")
       }
     }
 
@@ -677,9 +677,9 @@ object DebugCard {
               tileEntity.setChanged()
               world.markBlockForUpdate(BlockPosition(x, y, z))
               result(true)
-            case nbt => result(Unit, s"nbt tag compound expected, got '${NbtTypeNames.getOrElse(nbt.getId, "UNKNOWN")}'")
+            case nbt => result((), s"nbt tag compound expected, got '${NbtTypeNames.getOrElse(nbt.getId, "UNKNOWN")}'")
           }
-        case _ => result(Unit, "no tile entity")
+        case _ => result((), "no tile entity")
       }
     }
 
@@ -761,7 +761,7 @@ object DebugCard {
             stack.setTag(tag)
           }
           result(InventoryUtils.insertIntoInventory(stack, inventory, Option(side)))
-        case _ => result(Unit, "no inventory")
+        case _ => result((), "no inventory")
       }
     }
 
@@ -779,7 +779,7 @@ object DebugCard {
           val removed = inventory.extractItem(slot, count, false)
           if (removed == null || removed.isEmpty) result(0)
           else result(removed.getCount)
-        case _ => result(Unit, "no inventory")
+        case _ => result((), "no inventory")
       }
     }
 
@@ -801,7 +801,7 @@ object DebugCard {
       // 且用 `FluidAction` 取代旧的布尔 `doFill`。
       FluidUtils.fluidHandlerAt(position) match {
         case Some(handler) => result(handler.fill(new FluidStack(fluid, amount), IFluidHandler.FluidAction.EXECUTE))
-        case _ => result(Unit, "no tank")
+        case _ => result((), "no tank")
       }
     }
 
@@ -816,7 +816,7 @@ object DebugCard {
         case Some(handler) =>
           val drained = handler.drain(amount, IFluidHandler.FluidAction.EXECUTE)
           result(if (drained == null || drained.isEmpty) 0 else drained.getAmount)
-        case _ => result(Unit, "no tank")
+        case _ => result((), "no tank")
       }
     }
 

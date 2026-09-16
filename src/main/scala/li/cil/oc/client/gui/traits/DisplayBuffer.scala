@@ -29,15 +29,16 @@ import net.minecraft.client.gui.screens.Screen
  *    这里按它们**当前公开的签名**调用（`BufferRenderer.init(TextureManager)`）。
  *
  * ==为什么要顺带混入 [[WidgetContainer]]==
- * 本 trait 继承了 [[Screen]]。Scala 的线性化是「先出现者优先」，而
- * `class X extends DynamicGuiContainer with DisplayBuffer` 的线性化里，
- * 由本 trait 带进来的 `Screen` 会排在 `CustomGuiContainer` 那一支（含
- * [[WidgetContainer]]）**前面**，于是同名成员 `addWidget` 会被
- * `Screen#addWidget`（它要求 `T <: GuiEventListener with NarratableEntry`）抢走，
- * 导致 `addWidget(new ProgressBar(...))` 编译不过。
- * 这里把 [[WidgetContainer]] 一起混进来，使它在同一个线性化位置上出现在
- * `Screen` 之前，从而让小组件版的 `addWidget` 稳定胜出。
- * 运行期不受影响：两者的 JVM 方法描述符不同，原版内部依旧走 `Screen#addWidget`。
+ * 本 trait 继承 [[Screen]]，而屏幕界面（`Case` / `Robot` / `Drone` / …）还需要
+ * [[WidgetContainer]] 提供的 `widgets` / `windowX` / `windowY` / [[WidgetContainer.drawWidgets]]，
+ * 所以这里把它一起混进来。
+ *
+ * 注意一个已踩过的坑：`Screen` 在 1.21.1 里**也有**一个 `addWidget`（把原版控件加进屏幕，
+ * `T <: GuiEventListener with NarratableEntry`）。它与 `WidgetContainer` 的小组件版本同名、
+ * 泛型边界不同，但 Scala 2.13 会把它判定为「同一个成员的两个定义」，
+ * 于是每个界面类都报 `inherits conflicting members`（2.11 放过了这种写法）。
+ * 因此 [[WidgetContainer]] 的入口已改名为 [[WidgetContainer.addWidgetToContainer]]，
+ * 两者不再相撞；`Screen#addWidget` 保持原样，继续由原版内部使用。
  */
 trait DisplayBuffer extends Screen with WidgetContainer {
   protected def bufferX: Int

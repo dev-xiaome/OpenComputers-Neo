@@ -76,7 +76,7 @@ class Server(menu: container.Server, playerInventory: Inventory, title: Componen
       8, 6, 0x404040, false)
     if (powerButton != null && powerButton.hoveredState) {
       val tooltip = new java.util.ArrayList[String]()
-      tooltip.addAll(asJavaCollection(
+      tooltip.addAll(toJava(
         (if (menu.isRunning) Localization.Computer.TurnOff else Localization.Computer.TurnOn)
           .linesIterator.toSeq))
       copiedDrawHoveringText(tooltip, mouseX, mouseY, font)

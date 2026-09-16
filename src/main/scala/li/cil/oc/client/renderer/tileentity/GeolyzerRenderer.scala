@@ -13,21 +13,24 @@ import net.minecraft.client.renderer.{MultiBufferSource, RenderType}
  *  - `TileEntitySpecialRenderer` 换成 `BlockEntityRenderer`，**无参构造**。
  *  - `glTranslated(x + 0.5, y + 0.5, z + 0.5)` 换成 `pose.translate(0.5, 0.5, 0.5)`
  *    （1.21.1 的 `PoseStack` 入场原点已经是方块角）。
- *  - 原实现靠 `glScaled(1.0025, -1.0025, 1.0025)` 把覆盖层顶出方块表面避开 z-fighting；
- *    这里用 `pose.scale` 保留同样的 1.0025 外扩量。
+ *  - `glScaled(1.0025, -1.0025, 1.0025)` 换成 `pose.scale(s, -s, s)`，**y 轴必须保持取负**：
+ *    原来的顶面光效写在局部 y = 0、按「y 被镜像」的空间书写，去掉负号会把光效画到方块
+ *    底面，而且三角形绕序反过来被背面剔除（光效直接看不见）。
  *  - `RenderState.disableLighting/makeItBlend/setBlendAlpha`、`glPushAttrib/glPopAttrib`
- *    整体删除；自发光改由 `RenderUtil.fullBright` 写进顶点。
+ *    整体删除；`setBlendAlpha(1)` 本来就等于不透明，自发光改由 `RenderUtil.fullBright`
+ *    写进顶点光照。
  *  - `Textures.Geolyzer.iconTopOn`（`IIcon`）换成 `Textures.Block.GeolyzerTopOn`
  *    加 `RenderUtil.sprite`（可能为 `null`，`drawSpriteQuad` 内部已判空）。
  *
  * ==UV 与 RenderType 的取舍==
- *  - `geolyzertopon`（16x224）是方块图集里的**动画贴图**，所以只能配
+ *  - `geolyzertopon`（16x224，纵向 14 帧动画）是方块图集里的**动画贴图**，所以只能配
  *    `RenderType.cutout()`（方块图集加方块顶点格式），不能用指向独立贴图文件的
  *    `entityCutout` 那类 RenderType。
- *  - 它带二值 alpha，故用 `cutout()` 而非 `solid()`（后者不做 alpha 测试，
- *    透明像素会渲染成黑块）。
- *  - 整张贴图铺满顶面，直接用 `drawSpriteQuad` 就是对 1.7.10
- *    `icon.getMinU/getMaxU`（按当前帧返回）写法的直译。
+ *  - 它带二值 alpha（逐像素核验过：只有 0 与 255），故用 `cutout()` 而非 `solid()`
+ *    （后者不做 alpha 测试，透明像素会渲染成黑块）；也与原来的 `makeItBlend` 观感一致。
+ *  - 顶面的四角 UV 顺序在 1.7.10 里本来就是 `drawQuad` 认识的标准顺序，四角坐标可以
+ *    逐字照抄；`getMinU/getMaxU` 只覆盖当前动画帧，与
+ *    `TextureAtlasSprite#getU0/getU1` 语义相同。
  *
  * ==注意==
  *  - 原实现对**任何**地形分析仪都画这层光效（不看方块状态）；1.21.1 保持一致，
@@ -46,12 +49,12 @@ class GeolyzerRenderer extends BlockEntityRenderer[tileentity.Geolyzer] {
     val topOn = RenderUtil.sprite(Textures.Block.GeolyzerTopOn)
 
     pose.pushPose()
-    // 前后各一次 0.5 平移互相抵消，只剩「绕方块中心缩放」。
+    // 与原实现逐句对应：0.5 平移 / 等比缩放（y 取负）/ -0.5 平移（缩放中心回到方块中心）。
     pose.translate(0.5, 0.5, 0.5)
-    pose.scale(OverlayScale, OverlayScale, OverlayScale)
+    pose.scale(OverlayScale, -OverlayScale, OverlayScale)
     pose.translate(-0.5, -0.5, -0.5)
 
-    // 顶面（局部 y = 0）；顶点顺序与原来的 addVertexWithUV 完全一致。
+    // 顶面（局部 y = 0，y 取负后落到方块顶面）；顶点顺序与原来的 addVertexWithUV 完全一致。
     RenderUtil.drawSpriteQuad(pose, vc, topOn,
       0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, RenderUtil.fullBright, overlay)
 

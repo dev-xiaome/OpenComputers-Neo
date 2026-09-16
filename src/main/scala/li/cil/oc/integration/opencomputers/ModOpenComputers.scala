@@ -389,7 +389,16 @@ object ModOpenComputers extends ModProxy {
 
   private def blacklistHost(host: Class[_], itemNames: String*): Unit = {
     for (itemName <- itemNames) {
-      api.IMC.blacklistHost(itemName, host, api.Items.get(itemName).createItemStack(1))
+      val info = api.Items.get(itemName)
+      if (info == null) {
+        // 1.7.10 里这些物品一定都存在，所以原实现直接链式调用；1.21.1 有个别物品
+        // 尚未移植（例如拴绳升级），若在此抛 NPE 会**中断整个 `initialize()`**，
+        // 导致它后面的扳手 / 墨水 / 程序位置映射等注册全部丢失。这里跳过并记日志。
+        li.cil.oc.OpenComputers.log.debug(s"Skipping component blacklist entry for unregistered item '$itemName'.")
+      }
+      else {
+        api.IMC.blacklistHost(itemName, host, info.createItemStack(1))
+      }
     }
   }
 

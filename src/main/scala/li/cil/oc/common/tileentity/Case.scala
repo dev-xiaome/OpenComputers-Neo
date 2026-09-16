@@ -93,8 +93,9 @@ class Case(pos: BlockPos, state: BlockState)
   override def tick(): Unit = {
     if (isServer && isCreative && world.getGameTime % Settings.get.tickFrequency == 0) {
       // Creative case, make it generate power.
-      // TODO(server.machine): 机器层移植前 `machine` 可能为 null（见 traits.Computer），这里做空值保护。
-      if (machine != null) {
+      // TODO(server.machine): 机器层移植前 `machine` 与其 `node` 都可能为 null
+      // （见 traits.Computer），这里两层都做空值保护。
+      if (machine != null && machine.node != null) {
         machine.node.asInstanceOf[Connector].changeBuffer(Double.PositiveInfinity)
       }
     }

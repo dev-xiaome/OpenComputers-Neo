@@ -41,7 +41,7 @@ class Assembler(menu: container.Assembler, playerInventory: Inventory, title: Co
 
   protected var runButton: ImageButton = _
 
-  private val progress: ProgressBar = addWidget(new ProgressBar(28, 92))
+  private val progress: ProgressBar = addWidgetToContainer(new ProgressBar(28, 92))
 
   override def init(): Unit = {
     super.init()
@@ -99,7 +99,7 @@ class Assembler(menu: container.Assembler, playerInventory: Inventory, title: Co
         tooltip.add(Localization.Assembler.Run)
         info.foreach {
           case (valid, _, warnings) if valid && warnings.length > 0 =>
-            tooltip.addAll(asJavaCollection(warnings.map(_.getString).toSeq))
+            tooltip.addAll(toJava(warnings.map(_.getString).toSeq))
           case _ =>
         }
         copiedDrawHoveringText(tooltip, mouseX, mouseY, font)

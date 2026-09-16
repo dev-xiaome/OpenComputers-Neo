@@ -70,18 +70,21 @@ class Proxy {
     api.API.items = Registry
     api.API.fileSystem = li.cil.oc.server.fs.FileSystem
 
-    // TODO(server.driver): 原为 `api.API.driver = driver.Registry`。`server/driver`（约 30 文件）
-    //   尚未纳入 `scala_ported_packages`，common 层引用它会编译失败；该包编译通过后请在本行下面补：
-    //   `api.API.driver = li.cil.oc.server.driver.Registry`
-    // TODO(server.machine): 原为 `api.API.machine = machine.Machine`（`li.cil.oc.server.machine.Machine`）。
-    //   同上，等 `server/machine`（含 Lua）进入编译集后补上。
-    // TODO(common.nanomachines): 原为 `api.API.nanomachines = nanomachines.Nanomachines`。
-    //   该包在编译集里但仍在施工（`common/nanomachines/Nanomachines.scala` 等尚未收敛），
-    //   等其编译通过后补上。
-    // TODO(server.network): 原为 `api.API.network = network.Network`（`li.cil.oc.server.network.Network`）。
-    //   等该包进入编译集后补上；在此之前 `api.Network` 相关 API 会返回 null。
+    // API 的四个「实现槽位」必须**在两侧都**指向 `server.*` 的实现（1.7.10 的
+    // `common.Proxy.preInit` 本来就是这么写的，客户端也共用同一份实现 —— 组件解析、
+    // 物品数据反序列化在客户端同样要走 `api.API.driver`）。
+    //
+    // 曾经因为「common 层不能引用 server 包」的分层约定把这几行挪到了
+    // `server.Proxy.preInit`，结果是客户端侧（走 `client.Proxy`，它不继承本类）
+    // 这四个字段永远是 null。现在 `server/**` 已在编译集里，直接放在这里最稳，
+    // 且与 `server.Proxy.preInit` 里的重复赋值是幂等的。
+    api.API.driver = li.cil.oc.server.driver.Registry
+    api.API.machine = li.cil.oc.server.machine.Machine
+    api.API.network = li.cil.oc.server.network.Network
+    api.API.nanomachines = li.cil.oc.common.nanomachines.Nanomachines
+
     // TODO(client.manual): 原为 `api.API.manual = Manual`（`li.cil.oc.client.Manual`，客户端专用）。
-    //   随 `client` 包一起移植时接上。
+    //   随 `client` 包一起移植时接上（见 `client/Proxy.clientSetup` 里的同名赋值）。
 
     val settings = Settings.get
     if (settings != null) {
@@ -92,12 +95,13 @@ class Proxy {
       OpenComputers.log.debug("Settings not loaded yet; API.config will stay unset until OpenComputers.loadSettings runs.")
     }
 
-    // TODO(server.machine): Lua 架构注册。原为
-    //   `LuaStateFactory`（原生 Lua，按 docs/PROGRESS.md 第 7 条暂不移植）+
-    //   `api.Machine.add(classOf[LuaJLuaArchitecture])`
-    //   + `api.Machine.LuaArchitecture = if (Settings.get.forceLuaJ) ... else api.Machine.architectures.head`。
-    //   `li.cil.oc.server.machine.luaj.LuaJLuaArchitecture` 属于尚未移植的 `server/machine`，
-    //   等它进入编译集后在这段注释的位置接上（LuaJ 依赖已经在 build.gradle 里接好）。
+    // Lua 架构：原为 `LuaStateFactory`（原生 Lua，按 `docs/PROGRESS.md` 第 7 条不移植）
+    // + `api.Machine.add(classOf[LuaJLuaArchitecture])` + 选默认架构。
+    // `api.Machine.add` 必须在**注册表冻结之前**（也就是这里的 mod 构造期）完成。
+    api.Machine.add(classOf[li.cil.oc.server.machine.luaj.LuaJLuaArchitecture])
+    api.Machine.LuaArchitecture =
+      if (settings != null && settings.forceLuaJ) classOf[li.cil.oc.server.machine.luaj.LuaJLuaArchitecture]
+      else api.Machine.architectures().iterator().next()
   }
 
   // ----------------------------------------------------------------------- //
@@ -115,6 +119,22 @@ class Proxy {
 
     OpenComputers.log.debug("Initializing loot disks.")
     Loot.init()
+
+    // 运行期监听器的接线（1.7.10 的 `Proxy.init` 里是一串
+    // `MinecraftForge.EVENT_BUS.register(...)` / `FMLCommonHandler.instance.bus.register(...)`；
+    // 1.21.1 统一改成各处理器自己暴露的显式 `initialize()`，因为它对本类
+    // （主类当前实例化的就是 `common.Proxy`）而言是**唯一保证会被调用**的位置）：
+    //  - [[li.cil.oc.common.ComponentTrackerRegistry]]：世界卸载时清空
+    //    [[li.cil.oc.common.ComponentTracker]] 按维度缓存的组件表。
+    //    原先只有 `server.Proxy.init` 与 `common.event.EventHandlers.initialize` 两条链路
+    //    会调用它继承来的 `initialize()`，而这两条链路当前都没被主类跑到，于是缓存永不清理
+    //    （内存泄漏 + 悬垂引用）。注册入口单独放在 `ComponentTrackerRegistry` 里
+    //    （不能用 `ComponentTracker` 这个名字，见该文件的类注释），覆盖服务端 / 客户端两侧实例。
+    //  - [[li.cil.oc.common.component.TextBuffer]]：区块 / 世界卸载时清理 `clientBuffers`。
+    //    原先这两个方法只有 `@SubscribeEvent` 注解，而本工程不做注解扫描，从未被注册过。
+    // 两者都幂等，与 `server.Proxy.init` / `client.ClientListeners` 里的同类调用重复执行也安全。
+    ComponentTrackerRegistry.initialize()
+    li.cil.oc.common.component.TextBuffer.initialize()
     // TODO(loot): `Loot` 还需要挂到 NeoForge 事件总线上才能收到 `LevelEvent.Load`
     //   （用于读取存档目录 `opencomputers_neo/loot/loot.properties` 里的自定义战利品磁盘）：
     //   请在主类里加 `NeoForge.EVENT_BUS.register(Loot)`，或由 `common/EventHandler` 转发。

@@ -26,7 +26,7 @@ trait WorldTankAnalytics extends WorldAware with SideRestricted {
         case info: FluidUtils.TankInfo => result(Option(info.fluid).fold(0)(_.getAmount))
         case _ => result(allTankInfo(handler).map(info => Option(info.fluid).fold(0)(_.getAmount)).sum)
       }
-      case _ => result(Unit, "no tank")
+      case _ => result((), "no tank")
     }
   }
 
@@ -38,7 +38,7 @@ trait WorldTankAnalytics extends WorldAware with SideRestricted {
         case info: FluidUtils.TankInfo => result(info.capacity)
         case _ => result(allTankInfo(handler).map(_.capacity).foldLeft(0)((max, capacity) => math.max(max, capacity)))
       }
-      case _ => result(Unit, "no tank")
+      case _ => result((), "no tank")
     }
   }
 
@@ -50,19 +50,19 @@ trait WorldTankAnalytics extends WorldAware with SideRestricted {
         case info: FluidUtils.TankInfo => result(info)
         case _ =>
           val infos = allTankInfo(handler)
-          if (infos.isEmpty) result(Unit, "no tank") else result(infos)
+          if (infos.isEmpty) result((), "no tank") else result(infos)
       }
-      case _ => result(Unit, "no tank")
+      case _ => result((), "no tank")
     }
   }
-  else result(Unit, "not enabled in config")
+  else result((), "not enabled in config")
 
   @Callback(doc = """function(side:number):number -- Get the number of tanks available on the specified side.""")
   def getTankCount(context: Context, args: Arguments): Array[AnyRef] = {
     val facing = checkSideForAction(args, 0)
     FluidUtils.fluidHandlerAt(position.offset(facing)) match {
       case Some(handler) => result(handler.getTanks)
-      case _ => result(Unit, "no tank")
+      case _ => result((), "no tank")
     }
   }
 

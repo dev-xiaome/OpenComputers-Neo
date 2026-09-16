@@ -8,7 +8,6 @@ import li.cil.oc.api.detail.ItemInfo
 import li.cil.oc.api.internal.Rack
 import li.cil.oc.api.internal.Server
 import li.cil.oc.api.machine.MachineHost
-import li.cil.oc.client.renderer.PetRenderer
 import li.cil.oc.common.component.TerminalServer
 import li.cil.oc.common.item.data.MicrocontrollerData
 import li.cil.oc.common.item.data.RobotData
@@ -35,9 +34,6 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.chunk.LevelChunk
 import net.neoforged.bus.api.EventPriority
-import net.neoforged.fml.loading.FMLEnvironment
-import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent
-import net.neoforged.neoforge.client.event.ClientTickEvent
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.common.util.FakePlayer
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent
@@ -62,8 +58,11 @@ import scala.concurrent.Future
  *    `NeoForge.EVENT_BUS.addListener`：NeoForge 对 Scala object 的注解扫描不可靠，
  *    注解一旦没被扫到就是静默失效。
  *  - `TickEvent.Phase.START / END` 拆成 `ServerTickEvent.Pre / Post` 两个监听器。
- *  - 客户端专用监听器（客户端 tick、连接服务器）挪到 [[Client]] 子对象，只在物理客户端注册；
- *    否则在专用服务端上注册时会因为找不到 `ClientTickEvent` 等客户端类而崩溃。
+ *  - 客户端专用监听器（客户端 tick、连接服务器、宠物渲染器 / 声音循环复位）已整体搬到
+ *    `li.cil.oc.client.ClientListeners`，只在物理客户端由
+ *    [[li.cil.oc.common.ClientHooks.initializeClientListeners]] 软引用注册：
+ *    `common` 包不能有对 `client` 包的编译期引用，否则整个 `client` 包会被拖进
+ *    增量编译集（详见 `common/ClientHooks.scala` 的说明）。
  *  - `cpw.mods.fml.common.gameevent.PlayerEvent.*` → `net.neoforged.neoforge.event.entity.player.PlayerEvent.*`，
  *    getter 名统一改为 `getEntity`。
  *  - `EntityJoinWorldEvent` → [[net.neoforged.neoforge.event.entity.EntityJoinLevelEvent]]。
@@ -407,11 +406,12 @@ object EventHandler {
   }
 
   /**
-   * 注册所有监听器；由主类在 mod 初始化时调用一次。
+   * 注册**服务端 / 双端通用**的监听器；由 [[li.cil.oc.common.event.EventHandlers]] 调用一次。
    *
-   * 客户端专用监听器放在 [[Client]] 里，只有物理客户端才注册：专用服务端上
-   * `NeoForge.EVENT_BUS` 是同一个总线，直接注册带客户端事件参数的监听器会抛
-   * `NoClassDefFoundError`。
+   * 客户端专用监听器不在本方法里注册（1.7.10 里它们在 `Client` 子对象中）：
+   * 1.21.1 的增量编译集不允许 `common` 包出现对 `client` 包的编译期引用，因此它们已搬到
+   * `li.cil.oc.client.ClientListeners`，由
+   * [[li.cil.oc.common.ClientHooks.initializeClientListeners]] 在物理客户端上软引用注册。
    */
   def initialize(): Unit = {
     NeoForge.EVENT_BUS.addListener((e: ServerTickEvent.Pre) => onServerTickStart())
@@ -427,24 +427,9 @@ object EventHandler {
     NeoForge.EVENT_BUS.addListener((e: ChunkEvent.Unload) => onChunkUnload(e))
     NeoForge.EVENT_BUS.addListener((e: EntityLeaveLevelEvent) => onEntityLeaveLevel(e))
 
-    if (FMLEnvironment.dist.isClient) Client.initialize()
-  }
-
-  /** 仅客户端注册的监听器。 */
-  object Client {
-    def initialize(): Unit = {
-      NeoForge.EVENT_BUS.addListener((e: ClientTickEvent.Pre) => onClientTick())
-      NeoForge.EVENT_BUS.addListener((e: ClientPlayerNetworkEvent.LoggingIn) => clientLoggedIn())
-    }
-
-    def clientLoggedIn(): Unit = {
-      PetRenderer.isInitialized = false
-      PetRenderer.hidden.clear()
-      Loot.disksForClient.clear()
-      Loot.disksForCyclingClient.clear()
-
-      client.Sound.startLoop(null, "computer_running", 0f, 0)
-      scheduleServer(() => client.Sound.stopLoop(null))
-    }
+    // 客户端专属监听器（客户端 tick、登录清理、宠物渲染器 / 声音循环复位）已整体搬到
+    // `li.cil.oc.client.ClientListeners`：`common` 包不能有对 `client` 包的编译期引用，
+    // 否则整个 `client` 包会被拖进增量编译集。注册由
+    // [[li.cil.oc.common.ClientHooks.initializeClientListeners]] 在物理客户端上软引用完成。
   }
 }

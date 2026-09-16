@@ -180,7 +180,9 @@ private[oc] object Registry extends api.detail.DriverAPI {
       memo.get(valueRef)
     }
     else valueRef match {
-      case null | Unit | None => null
+      // Scala 2.13：`Unit` 伴生对象不能再作为模式使用，unit 值改用守卫判断。
+      case null | None => null
+      case _ if valueRef == () => null
 
       case arg: java.lang.Boolean => arg
       case arg: java.lang.Byte => arg

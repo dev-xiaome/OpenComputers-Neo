@@ -37,12 +37,22 @@ object GuiHandler extends CommonGuiHandler {
    *
    * 对应 1.7.10 `common.GuiHandler` 里的
    * `case server: Server => new container.Server(player.inventory, server, Some(server), () => server.machine != null && server.machine.isRunning)`。
+   *
+   * 1.21.1 的 [[li.cil.oc.common.container.Server]] 不再单独持有服务端组件参数
+   * （`common` 层不能引用 `server.component`），改为 `isInRack` / `isRunningProvider` /
+   * `rack` / `rackSlot` 四个显式参数，这里把它们一次填全：
+   *  - `isInRack = true`：界面据此显示电源键、并在「物品被移出机架」时自动关屏；
+   *  - `rack` / `rackSlot`：客户端重建容器时也要有同样的值，服务端这边先填好；
+   *  - `isRunningProvider`：接上 `machine.isRunning`，电源按钮的状态才是对的。
    */
   override protected def rackServerMenu(windowId: Int, player: Player, rack: tileentity.Rack, slot: Int): AbstractContainerMenu =
     rack.getMountable(slot) match {
       case server: component.Server =>
-        new container.Server(windowId, player.getInventory, server, Option(server),
-          () => server.machine != null && server.machine.isRunning)
+        new container.Server(windowId, player.getInventory, server,
+          isInRack = true,
+          isRunningProvider = () => server.machine != null && server.machine.isRunning,
+          rack = Option(rack),
+          rackSlot = slot)
       case _ => null
     }
 }

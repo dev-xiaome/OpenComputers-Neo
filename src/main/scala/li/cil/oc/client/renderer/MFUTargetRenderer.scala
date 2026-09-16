@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.{ByteBufferBuilder, VertexConsumer}
 import li.cil.oc.Constants
 import li.cil.oc.Settings
 import li.cil.oc.api
+import li.cil.oc.util.ItemNBT
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.{LevelRenderer, MultiBufferSource, RenderType}
 import net.minecraft.world.item.ItemStack
@@ -84,9 +85,9 @@ object MFUTargetRenderer {
     val stack: ItemStack = player.getMainHandItem
     if (stack == null || stack.isEmpty) return
     if (mfu == null || api.Items.get(stack) != mfu) return
-    if (!stack.hasTag()) return
 
-    val data = stack.getTag()
+    // 1.21.1：`ItemStack` 不再直接持有 `CompoundTag`，统一走 `ItemNBT`（数据组件）。
+    val data = ItemNBT.get(stack)
     if (data == null) return
 
     val coordKey = Settings.namespace + "coord"

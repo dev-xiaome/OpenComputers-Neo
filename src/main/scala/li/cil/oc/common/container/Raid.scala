@@ -9,7 +9,7 @@ import net.minecraft.world.entity.player.Inventory
  *
  * 1.21.1 迁移：`Container` → `AbstractContainerMenu`（构造器多 `windowId` + [[MenuTypes]] 的 `MenuType`）。
  */
-class Raid(windowId: Int, playerInventory: Inventory, raid: tileentity.Raid)
+class Raid(windowId: Int, playerInventory: Inventory, val raid: tileentity.Raid)
   extends Player(windowId, MenuTypes.Raid.value(), playerInventory, raid) {
 
   addSlotToContainer(60, 23, Slot.HDD, Tier.Three)

@@ -48,8 +48,24 @@ class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
   li.cil.oc.common.PacketHandler.initialize(modBus)
 
   // 具体物品 / 方块 / API 对象接线（必须在注册表事件之前）。
-  private val proxy = new li.cil.oc.common.Proxy
+  //
+  // **必须是 `server.Proxy`**：1.7.10 里 `common.Proxy` 自己就引用了 `server.*` 的实现类，
+  // 所以 API 接线与 `Mods.init()` 都在这一层；本工程为保持分层曾把这些挪到 `server.Proxy`，
+  // 而用 `common.Proxy` 的话 `Mods.init()` 永远不会执行 —— 结果是**一个驱动都不注册**，
+  // 机箱里认不出任何组件、电脑开不了机。`server.Proxy` 在两侧都适用（客户端也需要驱动表
+  // 来解析从服务端同步过来的组件数据）。
+  private val proxy = new li.cil.oc.server.Proxy
   proxy.preInit()
+
+  // 客户端接线（对应 1.7.10 的 `@SidedProxy(clientSide = "li.cil.oc.client.Proxy")`）。
+  // 这里注册：菜单→屏幕工厂（`RegisterMenuScreensEvent`）、方块实体/实体渲染器、
+  // 按键绑定、物品渲染器扩展，以及方块/物品染色（`client.Proxy.initialize` 内部会调
+  // `ColorHandlers.initialize(modBus)`）。
+  // **必须在 mod 构造期调用**，因为这些监听器要在对应事件触发之前挂上。
+  // 专用服务端上不能调用：里面引用了 `net.minecraft.client.*`，会被 `RuntimeDistCleaner` 剥离。
+  if (net.neoforged.fml.loading.FMLEnvironment.dist.isClient) {
+    li.cil.oc.client.ClientSetup.initialize(modBus)
+  }
 
   // 战利品磁盘需要世界加载事件来读取存档目录里的自定义磁盘。
   NeoForge.EVENT_BUS.register(li.cil.oc.common.Loot)

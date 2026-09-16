@@ -85,7 +85,7 @@ trait WorldInventoryAnalytics extends WorldAware with SideRestricted with Networ
     val facing = checkSideForAction(args, 0)
     withInventory(facing, inventory => result(inventory.getStackInSlot(args.checkSlot(inventory, 1))))
   }
-  else result(Unit, "not enabled in config")
+  else result((), "not enabled in config")
 
   @Callback(doc = """function(side:number):userdata -- Get a description of all stacks in the inventory on the specified side of the device.""")
   def getAllStacks(context: Context, args: Arguments): Array[AnyRef] = if (Settings.get.allowItemStackInspection) {
@@ -98,7 +98,7 @@ trait WorldInventoryAnalytics extends WorldAware with SideRestricted with Networ
         result(new ItemStackArrayValue(stacks))
       })
   }
-  else result(Unit, "not enabled in config")
+  else result((), "not enabled in config")
 
   @Callback(doc = """function(side:number):string -- Get the the name of the inventory on the specified side of the device.""")
   def getInventoryName(context: Context, args: Arguments): Array[AnyRef] = if (Settings.get.allowItemStackInspection) {
@@ -114,13 +114,13 @@ trait WorldInventoryAnalytics extends WorldAware with SideRestricted with Networ
       case BlockInventorySource(position, _) => blockAt(position) match {
         // 1.21.1 的方块名是 Component（`Block#getName`），旧版是 `getUnlocalizedName`。
         case Some(block) => result(block.getName.getString)
-        case _ => result(Unit, "Unknown")
+        case _ => result((), "Unknown")
       }
       case EntityInventorySource(entity, _) => result(EntityType.getKey(entity.getType).toString)
-      case _ => result(Unit, "Unknown")
+      case _ => result((), "Unknown")
     })
   }
-  else result(Unit, "not enabled in config")
+  else result((), "not enabled in config")
 
   @Callback(doc = """function(side:number, slot:number, dbAddress:string, dbSlot:number):boolean -- Store an item stack description in the specified slot of the database with the specified address.""")
   def store(context: Context, args: Arguments): Array[AnyRef] = {
@@ -147,7 +147,7 @@ trait WorldInventoryAnalytics extends WorldAware with SideRestricted with Networ
   private def withInventorySource(side: Direction, f: InventorySource => Array[AnyRef]) =
     InventoryUtils.inventorySourceAt(position.offset(side)) match {
       case Some(is) if mayInteract(side, is) => f(is)
-      case _ => result(Unit, "no inventory")
+      case _ => result((), "no inventory")
     }
 
   private def withInventory(side: Direction, f: IItemHandler => Array[AnyRef]) =

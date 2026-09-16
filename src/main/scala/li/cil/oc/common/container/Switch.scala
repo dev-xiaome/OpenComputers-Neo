@@ -12,13 +12,16 @@ import net.minecraft.world.entity.player.Inventory
  * + [[MenuTypes]] 的 `MenuType`）；`getInteger` → `getInt`。
  */
 // TODO Remove in 1.7
-class Switch(windowId: Int, playerInventory: Inventory, switch: tileentity.Switch)
+class Switch(windowId: Int, playerInventory: Inventory, val switch: tileentity.Switch)
   extends Player(windowId, MenuTypes.Switch.value(), playerInventory, switch) {
 
   addSlotToContainer(151, 15, Slot.CPU)
   addSlotToContainer(151, 34, Slot.Memory)
   addSlotToContainer(151, 53, Slot.HDD)
   addPlayerInventorySlots(8, 84)
+
+  /** 宿主的显示名（原 1.7.10 的 `switch.getInventoryName`）；见 [[DiskDrive.driveName]] 的说明。 */
+  def switchName: String = switch.getInventoryName
 
   def relayDelay: Int = synchronizedData.getInt("relayDelay")
 

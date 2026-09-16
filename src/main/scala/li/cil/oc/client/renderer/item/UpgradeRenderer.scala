@@ -6,7 +6,7 @@ import li.cil.oc.api
 import li.cil.oc.api.driver.item.UpgradeRenderer.MountPointName
 import li.cil.oc.api.event.RobotRenderEvent.MountPoint
 import li.cil.oc.client.Textures
-import li.cil.oc.integration.opencomputers.Item
+import li.cil.oc.util.ItemNBT
 import net.minecraft.client.renderer.{MultiBufferSource, RenderType}
 import net.minecraft.client.renderer.texture.OverlayTexture
 import net.minecraft.resources.ResourceLocation
@@ -76,7 +76,9 @@ object UpgradeRenderer {
     }
     else if (descriptor == generatorUpgrade) {
       // 原实现：`Item.dataTag(stack).getInteger("remainingTicks") > 0` 时取贴图右半边。
-      val frontOffset = if (Item.dataTag(stack).getInt("remainingTicks") > 0) 0.5f else 0f
+      // 1.21.1：`integration.opencomputers.Item.dataTag` 依赖尚未移植的集成层，
+      // 这里直接走数据组件版的 `ItemNBT`（语义完全一致）。
+      val frontOffset = if (ItemNBT.getOrCreate(stack).getInt("remainingTicks") > 0) 0.5f else 0f
       drawSimpleBlock(poseStack, buffer, Textures.Model.UpgradeGenerator, mountPoint, frontOffset, packedLight)
     }
     else if (descriptor == inventoryUpgrade) {

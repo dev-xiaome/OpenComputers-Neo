@@ -45,17 +45,17 @@ object MenuOpening {
    */
   def openBlock(player: MCPlayer, pos: BlockPos, title: Component)
                (factory: (Int, Inventory) => AbstractContainerMenu): Unit =
-    open(player, title, buf => MenuHostPayload.writeBlock(buf, pos), factory)
+    open(player, title, buf => MenuHostPayload.writeBlock(buf, pos)) { factory }
 
   /** 打开一个「实体宿主」的容器（无人机）。 */
   def openEntity(player: MCPlayer, entityId: Int, title: Component)
                 (factory: (Int, Inventory) => AbstractContainerMenu): Unit =
-    open(player, title, buf => MenuHostPayload.writeEntity(buf, entityId), factory)
+    open(player, title, buf => MenuHostPayload.writeEntity(buf, entityId)) { factory }
 
   /** 打开一个「机架插槽里的可插拔组件」的容器。 */
   def openRackSlot(player: MCPlayer, pos: BlockPos, slot: Int, title: Component)
                   (factory: (Int, Inventory) => AbstractContainerMenu): Unit =
-    open(player, title, buf => MenuHostPayload.writeRackSlot(buf, pos, slot), factory)
+    open(player, title, buf => MenuHostPayload.writeRackSlot(buf, pos, slot)) { factory }
 
   /**
    * 打开一个「主手物品宿主」的容器（数据库升级 / 服务器 / 软盘驱动器 / 平板）。
@@ -65,12 +65,12 @@ object MenuOpening {
    */
   def openItemInHand(player: MCPlayer, stack: ItemStack, title: Component)
                     (factory: (Int, Inventory) => AbstractContainerMenu): Unit =
-    open(player, title, buf => MenuHostPayload.writeItemInHand(buf, if (stack == null) ItemStack.EMPTY else stack), factory)
+    open(player, title, buf => MenuHostPayload.writeItemInHand(buf, if (stack == null) ItemStack.EMPTY else stack)) { factory }
 
   /** 打开界面，但不附带任何宿主信息（工厂侧会收到 [[MenuHostPayload.Invalid]]）。 */
   def openInvalid(player: MCPlayer, title: Component)
                  (factory: (Int, Inventory) => AbstractContainerMenu): Unit =
-    open(player, title, buf => MenuHostPayload.writeInvalid(buf), factory)
+    open(player, title, buf => MenuHostPayload.writeInvalid(buf)) { factory }
 
   // ----------------------------------------------------------------------- //
   // 实现

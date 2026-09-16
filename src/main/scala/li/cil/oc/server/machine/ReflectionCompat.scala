@@ -121,9 +121,13 @@ private[machine] object ReflectFilesystem {
         return None
     }
     try {
+      // 第二个参数必须是**声明类型** `api.fs.Label`，不能写 `ReadOnlyLabel`：
+      // `Class#getConstructor` 要求精确匹配，而构造器的形参类型是 `Label`
+      // （`ReadOnlyLabel` 只是它的一个实例类型），写窄了会 `NoSuchMethodException`，
+      // 结果是 `/tmp` 的 tmpfs 静默不可用。
       val ctor = componentClass.getConstructor(
         classOf[li.cil.oc.api.fs.FileSystem],
-        readOnlyLabelClass,
+        classOf[li.cil.oc.api.fs.Label],
         classOf[Option[_]],
         classOf[Option[_]],
         classOf[Int])

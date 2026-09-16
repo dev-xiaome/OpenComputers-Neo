@@ -3,7 +3,9 @@ package li.cil.oc.client.renderer.tileentity
 import com.mojang.blaze3d.vertex.{PoseStack, VertexConsumer}
 import li.cil.oc.api.event.RackMountableRenderEvent
 import li.cil.oc.client.Textures
-import li.cil.oc.common.event.RackMountableRenderHandler
+// 1.21.1：机架覆盖层处理器整体搬到了 `client` 包（`common` 不能编译期引用 `client`，
+// 见 `li.cil.oc.common.ClientHooks` 的说明），因此这里引用客户端的那一份。
+import li.cil.oc.client.RackMountableRenderHandler
 import li.cil.oc.common.tileentity.Rack
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer
 import net.minecraft.client.renderer.{MultiBufferSource, RenderType}

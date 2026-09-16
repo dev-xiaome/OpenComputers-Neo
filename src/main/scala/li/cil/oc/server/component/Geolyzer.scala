@@ -131,13 +131,13 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
     }
 
     if (!node.tryChangeBuffer(-Settings.get.geolyzerScanCost))
-      return result(Unit, "not enough energy")
+      return result((), "not enough energy")
 
     val event = new GeolyzerEvent.Scan(host, options, minX, minY, minZ, maxX, maxY, maxZ)
     // 1.21.1：`MinecraftForge.EVENT_BUS` → `NeoForge.EVENT_BUS`。
     NeoForge.EVENT_BUS.post(event)
     // 1.21.1 的事件没有 `Event.Result`，取消状态统一看 `ICancellableEvent#isCanceled`。
-    if (event.isCanceled) result(Unit, "scan was canceled")
+    if (event.isCanceled) result((), "scan was canceled")
     else result(event.data)
   }
 
@@ -173,15 +173,15 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
     val options = args.optTable(1, Map.empty[AnyRef, AnyRef].asJava)
 
     if (!node.tryChangeBuffer(-Settings.get.geolyzerScanCost))
-      return result(Unit, "not enough energy")
+      return result((), "not enough energy")
 
     val globalPos = BlockPosition(host).offset(globalSide)
     val event = new Analyze(host, options, globalPos.x, globalPos.y, globalPos.z)
     NeoForge.EVENT_BUS.post(event)
-    if (event.isCanceled) result(Unit, "scan was canceled")
+    if (event.isCanceled) result((), "scan was canceled")
     else result(event.data)
   }
-  else result(Unit, "not enabled in config")
+  else result((), "not enabled in config")
 
   @Callback(doc = """function(side:number, dbAddress:string, dbSlot:number):boolean -- Store an item stack representation of the block on the specified side in a database component.""")
   def store(computer: Context, args: Arguments): Array[AnyRef] = {
@@ -192,7 +192,7 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
     }
 
     if (!node.tryChangeBuffer(-Settings.get.geolyzerScanCost))
-      return result(Unit, "not enough energy")
+      return result((), "not enough energy")
 
     val blockPos = BlockPosition(host).offset(globalSide)
     // 1.21.1：方块不再有 metadata / damage 概念，
@@ -201,7 +201,7 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
     // `block.damageDropped(metadata)` 已随 metadata 移除，等价物是默认 damage 0。
     val block = host.world.getBlock(blockPos)
     val item = block.asItem()
-    if (item == null || item == Items.AIR) result(Unit, "block has no registered item representation")
+    if (item == null || item == Items.AIR) result((), "block has no registered item representation")
     else {
       val stack = new ItemStack(item, 1)
       DatabaseAccess.withDatabase(node, args.checkString(1), database => {

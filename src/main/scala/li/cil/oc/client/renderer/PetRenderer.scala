@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack
 import com.mojang.math.Axis
 import li.cil.oc.client.renderer.tileentity.RobotRenderer
 import net.minecraft.client.Minecraft
+import net.minecraft.client.renderer.texture.OverlayTexture
 import net.minecraft.world.entity.Entity
 import net.neoforged.neoforge.client.event.{ClientTickEvent, RenderPlayerEvent}
 import net.neoforged.neoforge.common.NeoForge
@@ -138,10 +139,12 @@ object PetRenderer {
       pose.translate(0f, hover, 0f)
 
       // 原 `RobotRenderer.renderChassis(null, offset, isRunningOverride = true)`。
-      // `RobotRenderer` 由另一个代理移植；其公开签名保持为
-      // `renderChassis(robot: tileentity.Robot = null, offset: Double = 0,
-      // isRunningOverride: Boolean = false)`。
-      RobotRenderer.renderChassis(null, offset, isRunningOverride = true)
+      // 1.21.1 的顶点必须写进 `MultiBufferSource`，而 `RenderPlayerEvent.Pre` 正好
+      // 提供 `getMultiBufferSource()` / `getPackedLight()`，因此这里改调
+      // 带完整渲染上下文的重载（旧 3 参数签名已降级为空实现）。
+      RobotRenderer.renderChassisWithContext(
+        pose, e.getMultiBufferSource, e.getPackedLight, OverlayTexture.NO_OVERLAY,
+        null, offset, true)
 
       pose.popPose()
     }

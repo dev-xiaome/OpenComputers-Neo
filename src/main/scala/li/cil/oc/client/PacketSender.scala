@@ -1,9 +1,7 @@
 package li.cil.oc.client
 
 import li.cil.oc.Settings
-import li.cil.oc.common.CompressedPacketBuilder
-import li.cil.oc.common.PacketType
-import li.cil.oc.common.SimplePacketBuilder
+import li.cil.oc.common.{CompressedPacketBuilder, PacketType, SimplePacketBuilder}
 import li.cil.oc.common.entity.Drone
 import li.cil.oc.common.tileentity._
 import li.cil.oc.common.tileentity.traits.Computer
@@ -19,7 +17,7 @@ import net.minecraft.world.level.block.entity.BlockEntity
  *
  * ==1.21.1 迁移要点==
  *  - 包体格式完全沿用 [[li.cil.oc.common.PacketBuilder]]（首字节包类型 + `DataOutputStream`
- *    负载，`CompressedPacketBuilder` 额外套 Deflater 流），因此写包代码一行都不用改，
+ *    负载；`CompressedPacketBuilder` 额外套 Deflater 流），因此写包代码一行都不用改，
  *    变化的只有 `Minecraft` 侧 API 与「维度不再有数字 id」。
  *  - `Minecraft.getMinecraft` → `Minecraft.getInstance()`；`thePlayer` → `player`。
  *  - 提示音：1.7.10 的 `getSoundHandler.playSound(new PositionedSoundRecord(...))` →

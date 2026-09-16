@@ -63,16 +63,16 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends pr
   def insert(context: Context, args: Arguments): Array[AnyRef] = {
     val count = args.optInteger(0, 64)
     val stack = host.mainInventory.getStackInSlot(host.selectedSlot)
-    if (stack == null || stack.isEmpty) return result(Unit, "selected slot is empty")
+    if (stack == null || stack.isEmpty) return result((), "selected slot is empty")
     if (!AbstractFurnaceBlockEntity.isFuel(stack)) {
-      return result(Unit, "selected slot does not contain fuel")
+      return result((), "selected slot does not contain fuel")
     }
     val container: ItemStack = stack.getCraftingRemainingItem
     val inQueue: ItemStack = inventory match {
       case Some(q) if q != null && !q.isEmpty =>
         // 旧实现分两步比较「物品 + 损伤值」与 NBT；1.21.1 的 components 已涵盖两者。
         if (!ItemStack.isSameItemSameComponents(q, stack)) {
-          return result(Unit, "different fuel type already queued")
+          return result((), "different fuel type already queued")
         }
         q
       case _ => null
@@ -82,7 +82,7 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends pr
       case _ => stack.getMaxStackSize
     }
     if (space == 0) {
-      return result(Unit, "queue is full")
+      return result((), "queue is full")
     }
     val previousSelectedFuel: ItemStack = stack.copy
     val insertLimit: Int = math.min(stack.getCount, math.min(space, count))

@@ -64,7 +64,8 @@ trait VideoRamRasterizer {
             count += 1
           }
         }
-      case _ => Unit
+      // Scala 2.13：`Unit` 只能作类型，作值必须写 `()`。
+      case _ => ()
     }
     count
   }

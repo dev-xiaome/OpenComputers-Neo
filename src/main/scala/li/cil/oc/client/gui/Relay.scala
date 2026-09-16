@@ -80,20 +80,20 @@ class Relay(menu: container.Relay, playerInventory: Inventory, title: Component)
   override protected def drawSecondaryForegroundLayer(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
     super.drawSecondaryForegroundLayer(guiGraphics, mouseX, mouseY)
     guiGraphics.drawString(font,
-      Localization.localizeImmediately(menu.otherInventory.getInventoryName),
+      Localization.localizeImmediately(menu.relayName),
       8, 6, 0x404040, false)
 
     guiGraphics.drawString(font, Localization.Switch.TransferRate, 14, 20, 0x404040, false)
     guiGraphics.drawString(font, Localization.Switch.PacketsPerCycle, 14, 39, 0x404040, false)
     guiGraphics.drawString(font, Localization.Switch.QueueSize, 14, 58, 0x404040, false)
 
-    guiGraphics.drawString(font, transferRate(format, menu.relayDelay), 108, 20, 0x404040, false)
+    guiGraphics.drawString(font, Relay.transferRate(format, menu.relayDelay), 108, 20, 0x404040, false)
     guiGraphics.drawString(font,
       menu.packetsPerCycleAvg + " / " + menu.relayAmount,
-      108, 39, thresholdBasedColor(menu.packetsPerCycleAvg, math.ceil(menu.relayAmount / 2f).toInt, menu.relayAmount), false)
+      108, 39, Relay.thresholdBasedColor(menu.packetsPerCycleAvg, math.ceil(menu.relayAmount / 2f).toInt, menu.relayAmount), false)
     guiGraphics.drawString(font,
       menu.queueSize + " / " + menu.maxQueueSize,
-      108, 58, thresholdBasedColor(menu.queueSize, menu.maxQueueSize / 2, menu.maxQueueSize), false)
+      108, 58, Relay.thresholdBasedColor(menu.queueSize, menu.maxQueueSize / 2, menu.maxQueueSize), false)
   }
 }
 

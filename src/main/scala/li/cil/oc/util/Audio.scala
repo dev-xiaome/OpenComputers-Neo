@@ -7,7 +7,6 @@ import li.cil.oc.Settings
 import net.minecraft.client.Minecraft
 import net.minecraft.client.resources.sounds.SimpleSoundInstance
 import net.minecraft.sounds.{SoundEvents, SoundSource}
-import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.neoforge.client.event.ClientTickEvent
 import net.neoforged.neoforge.common.NeoForge
 import org.lwjgl.BufferUtils
@@ -136,6 +135,32 @@ object Audio {
     }
   }
 
+  /** 是否已注册过客户端 tick 监听器；保证 [[initialize]] 幂等。 */
+  private var initialized = false
+
+  /**
+   * 显式注册客户端 tick 监听器（用于回收播放完毕的 OpenAL source）。
+   *
+   * 1.7.10：`FMLCommonHandler.instance.bus.register(this)` + `@SubscribeEvent`
+   * （对象初始化时就注册，由总线扫描）。
+   * 1.21.1：本工程统一不用注解扫描，全项目也没有任何地方 `register(Audio)`；
+   * 而 `Audio` 只被 `client.PacketHandler` 引用，也就是说原实现要等到「第一次播放提示音」
+   * 触发 `Audio` 的 object 初始化时才会注册 —— 在那之前的 tick 事件不会回收已播完的
+   * source（OpenAL source / buffer 泄漏）。
+   *
+   * 因此改成显式、尽早、幂等的入口：需要**别人**在
+   * `li.cil.oc.client.Proxy.clientSetup()` 里加一行 `Audio.initialize()`
+   * （那里已经有 `Sound.initialize()` / `PacketHandler.initialize()`）。
+   *
+   * 注意本对象整体是客户端专用的（引用 `net.minecraft.client.*` 与
+   * `neoforge.client.event.ClientTickEvent`），只能从客户端侧调用。
+   */
+  def initialize(): Unit = this.synchronized {
+    if (initialized) return
+    initialized = true
+    NeoForge.EVENT_BUS.addListener((e: ClientTickEvent.Post) => onTick(e))
+  }
+
   def update(): Unit = {
     if (!disableAudio) {
       sources.synchronized(sources --= sources.filter(_.checkFinished))
@@ -215,9 +240,11 @@ object Audio {
     }
   }
 
-  NeoForge.EVENT_BUS.register(this)
-
-  @SubscribeEvent
+  // 1.7.10 在这里是 `FMLCommonHandler.instance.bus.register(this)`：对象一被初始化就注册。
+  // 1.21.1 改成显式的 [[initialize]]（由 `client.Proxy.clientSetup` 调用），
+  // 原因见该方法的注释：挂在 object 初始化上会导致「注册时机过晚」。
+  // 监听器在 [[initialize]] 里用 `addListener` 显式注册，所以这里不再需要
+  // `@SubscribeEvent` 注解（本工程不做注解扫描）。
   def onTick(e: ClientTickEvent.Post): Unit = {
     update()
   }

@@ -38,13 +38,13 @@ trait TankInventoryControl extends WorldAware with InventoryAware with TankAware
   def getFluidInTankInSlot(context: Context, args: Arguments): Array[AnyRef] = if (Settings.get.allowItemStackInspection) {
     withFluidInfo(optSlot(args, 0), (fluid, _) => result(if (fluid.isEmpty) FluidStack.EMPTY else fluid))
   }
-  else result(Unit, "not enabled in config")
+  else result((), "not enabled in config")
 
   @Callback(doc = """function([tank:number]):table -- Get a description of the fluid in the tank in the specified slot or the selected slot.""")
   def getFluidInInternalTank(context: Context, args: Arguments): Array[AnyRef] = if (Settings.get.allowItemStackInspection) {
     result(getTank(optTank(args, 0)).map(internalTankFluid).filterNot(_.isEmpty).orNull)
   }
-  else result(Unit, "not enabled in config")
+  else result((), "not enabled in config")
 
   @Callback(doc = """function([amount:number]):boolean -- Transfers fluid from a tank in the selected inventory slot to the selected tank.""")
   def drain(context: Context, args: Arguments): Array[AnyRef] = {
@@ -55,13 +55,13 @@ trait TankInventoryControl extends WorldAware with InventoryAware with TankAware
           case Some(from) =>
             val contents = from.getFluidInTank(0)
             if (contents == null || contents.isEmpty) {
-              result(Unit, "item is empty or not a fluid container")
+              result((), "item is empty or not a fluid container")
             }
             else {
               val space = internalTankCapacity(into) - internalTankAmount(into)
               val toMove = math.min(math.min(amount, contents.getAmount), space)
               if (toMove <= 0) {
-                result(Unit, "tank is full")
+                result((), "tank is full")
               }
               else {
                 // 现在物品的流体能力可能直接改写传入的 ItemStack，也可能只在 getContainer 里
@@ -71,12 +71,12 @@ trait TankInventoryControl extends WorldAware with InventoryAware with TankAware
                   map(_.drain(contents.copyWithAmount(toMove), FluidAction.EXECUTE)).
                   getOrElse(FluidStack.EMPTY)
                 if (drained == null || drained.isEmpty) {
-                  result(Unit, "incompatible or no fluid")
+                  result((), "incompatible or no fluid")
                 }
                 else {
                   val accepted = into.fill(drained, FluidAction.EXECUTE)
                   if (accepted <= 0) {
-                    result(Unit, "incompatible fluid")
+                    result((), "incompatible fluid")
                   }
                   else {
                     replaceSelectedWith(fluidHandlerFor(work).map(_.getContainer).orNull)
@@ -85,9 +85,9 @@ trait TankInventoryControl extends WorldAware with InventoryAware with TankAware
                 }
               }
             }
-          case _ => result(Unit, "item is empty or not a fluid container")
+          case _ => result((), "item is empty or not a fluid container")
         }
-      case _ => result(Unit, "no tank")
+      case _ => result((), "no tank")
     }
   }
 
@@ -100,13 +100,13 @@ trait TankInventoryControl extends WorldAware with InventoryAware with TankAware
           case Some(_) =>
             val drained = from.drain(amount, FluidAction.SIMULATE)
             if (drained == null || drained.isEmpty) {
-              result(Unit, "tank is empty")
+              result((), "tank is empty")
             }
             else {
               val work = stackCopyOf(inventory.getStackInSlot(selectedSlot))
               val transferred = fluidHandlerFor(work).map(_.fill(drained, FluidAction.EXECUTE)).getOrElse(0)
               if (transferred <= 0) {
-                result(Unit, "incompatible or no fluid")
+                result((), "incompatible or no fluid")
               }
               else {
                 from.drain(transferred, FluidAction.EXECUTE)
@@ -114,9 +114,9 @@ trait TankInventoryControl extends WorldAware with InventoryAware with TankAware
                 result(true, transferred)
               }
             }
-          case _ => result(Unit, "item is full or not a fluid container")
+          case _ => result((), "item is full or not a fluid container")
         }
-      case _ => result(Unit, "no tank")
+      case _ => result((), "no tank")
     }
   }
 
@@ -155,6 +155,6 @@ trait TankInventoryControl extends WorldAware with InventoryAware with TankAware
       case Some(handler) =>
         val fluid = handler.getFluidInTank(0)
         f(if (fluid == null) FluidStack.EMPTY else fluid, handler.getTankCapacity(0))
-      case _ => result(Unit, "item is not a fluid container")
+      case _ => result((), "item is not a fluid container")
     }
 }

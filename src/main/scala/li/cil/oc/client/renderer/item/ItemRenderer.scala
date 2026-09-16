@@ -11,6 +11,7 @@ import li.cil.oc.common.init.Registry
 import li.cil.oc.common.item.data.PrintData
 import li.cil.oc.util.Color
 import li.cil.oc.util.ExtendedAABB._
+import li.cil.oc.util.ItemNBT
 import net.minecraft.ChatFormatting
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.Font
@@ -98,7 +99,8 @@ object ItemRenderer {
    */
   private[item] def floppyLabel(stack: ItemStack): String = {
     if (stack == null || stack.isEmpty) return "disk"
-    val nbt = stack.getTag()
+    // 1.21.1：`ItemStack` 不再直接持有 `CompoundTag`，统一走 `ItemNBT`（数据组件）。
+    val nbt = ItemNBT.get(stack)
     if (nbt != null) {
       val dataKey = Settings.namespace + "data"
       if (nbt.contains(dataKey)) {
@@ -149,17 +151,18 @@ object ItemRenderer {
     val g = (tint >> 8) & 0xFF
     val b = tint & 0xFF
 
-    val u0 = sprite.getU0
-    val u1 = sprite.getU1
-    val v0 = sprite.getV0
-    val v1 = sprite.getV1
+    // `AABB` 的坐标在 1.21.1 是 Double，精灵的 UV 是 Float，故这里显式转成 Float。
+    val u0 = sprite.getU0.toFloat
+    val u1 = sprite.getU1.toFloat
+    val v0 = sprite.getV0.toFloat
+    val v1 = sprite.getV1.toFloat
 
-    def u(t: Float): Float = u0 + t * (u1 - u0)
+    def u(t: Double): Float = (u0 + t * (u1 - u0)).toFloat
 
-    def v(t: Float): Float = v0 + t * (v1 - v0)
+    def v(t: Double): Float = (v0 + t * (v1 - v0)).toFloat
 
     /** 原 `getInterpolatedV(16 - y * 16)`：V 轴翻转。 */
-    def vf(y: Float): Float = v0 + (1f - y) * (v1 - v0)
+    def vf(y: Double): Float = (v0 + (1f - y) * (v1 - v0)).toFloat
 
     def vertex(x: Double, y: Double, z: Double, tu: Float, tv: Float, nx: Float, ny: Float, nz: Float): Unit = {
       vc.addVertex(poseStack.last(), x.toFloat, y.toFloat, z.toFloat)

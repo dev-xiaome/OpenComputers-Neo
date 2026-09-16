@@ -105,7 +105,7 @@ class DiskDriveMountable(val rack: api.internal.Rack, val slot: Int) extends pre
   @Callback(doc = "function(): string -- Return the internal floppy disk address")
   def media(context: Context, args: Arguments): Array[AnyRef] = {
     if (filesystemNode.isEmpty)
-      result(Unit, "drive is empty")
+      result((), "drive is empty")
     else
       result(filesystemNode.head.address)
   }
@@ -132,15 +132,20 @@ class DiskDriveMountable(val rack: api.internal.Rack, val slot: Int) extends pre
   }
 
   /**
-   * 原 `IInventory#isUseableByPlayer`。
+   * 原 `IInventory#isUseableByPlayer` 的等价判定。
    *
-   * TODO(server.component/Server): `api.internal.Rack` 上**没有** `isUseableByPlayer`
-   * （它只在 `common.tileentity.traits.Inventory` 里，属于方块实体实现细节，
-   * 而这里拿到的是 API 接口）。因此无法再转发给机架，改为等价的距离判定
-   * （与原实现最终走到的 `traits.Inventory#isUseableByPlayer` 完全相同：距离平方 ≤ 64）。
-   * 注意 `server/component/Server.scala` 第 123 行有同一处未修的错误，属于别人的文件，未改动。
+   * 1.21.1 的 `api.internal.Rack` 没有 `isUseableByPlayer`（它只存在于
+   * `common.tileentity.traits.Inventory`，那个方法属于方块实体实现细节，
+   * 1.21.1 又已把 `IInventory` 换成了 `IItemHandler`，而 `IItemHandler`
+   * 本身根本没有「玩家是否在可用范围内」这一查询）。
+   *
+   * 因此这里不再是覆写，改为普通方法，语义与上游最终走到的
+   * `traits.Inventory#isUseableByPlayer` 完全一致：距离平方 ≤ 64（即 8 格）。
+   *
+   * TODO(server.component): 玩家可用范围属于 `IItemHandler` 之外的语义，
+   * 若将来要精确还原（例如机架被移动时的距离判定），需要在 API 层补查询入口。
    */
-  override def isUseableByPlayer(player: Player): Boolean =
+  def isUseableByPlayer(player: Player): Boolean =
     player.distanceToSqr(rack.xPosition, rack.yPosition, rack.zPosition) <= 64
 
   // ----------------------------------------------------------------------- //

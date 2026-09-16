@@ -28,7 +28,7 @@ class Switch(menu: container.Switch, playerInventory: Inventory, title: Componen
   override protected def drawSecondaryForegroundLayer(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
     super.drawSecondaryForegroundLayer(guiGraphics, mouseX, mouseY)
     guiGraphics.drawString(font,
-      Localization.localizeImmediately(menu.otherInventory.getInventoryName),
+      Localization.localizeImmediately(menu.switchName),
       8, 6, 0x404040, false)
 
     guiGraphics.drawString(font, Localization.Switch.TransferRate, 14, 20, 0x404040, false)

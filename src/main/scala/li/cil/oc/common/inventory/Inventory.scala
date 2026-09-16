@@ -5,6 +5,7 @@ import li.cil.oc.util.ExtendedNBT
 import li.cil.oc.util.ExtendedNBT._
 import net.minecraft.nbt.{CompoundTag, Tag}
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.items.IItemHandlerModifiable
 
 /**
  * 以 `Array[Option[ItemStack]]` 为后端的物品栏（对应 1.7.10 的 `common.inventory.Inventory`）。
@@ -20,7 +21,7 @@ import net.minecraft.world.item.ItemStack
  * 注意：`updateItems(slot, null)` 保留「传 `null` 表示清空槽位」的语义——数据库的幽灵槽位
  * （数量为 0 的 `ItemStack`）需要被原样保存，不能用 `ItemStack.EMPTY` 代替。
  */
-trait Inventory extends SimpleInventory {
+trait Inventory extends SimpleInventory with IItemHandlerModifiable {
   def items: Array[Option[ItemStack]]
 
   /** 写入某个槽位；传 `null` 表示清空（与原实现一致）。 */
@@ -106,6 +107,16 @@ trait Inventory extends SimpleInventory {
    * 保留「先 updateItems(null) → onItemRemoved → onItemAdded」的顺序：组件层依赖它来
    * 先卸载旧组件、再安装新组件。
    */
+  /**
+   * IItemHandlerModifiable 要求的写入入口。
+   *
+   * 1.7.10 的 IInventory 本身就是可写的（setInventorySlotContents），所以 OC 的所有
+   * 物品栏都实现它。1.21.1 把可写性拆成了独立的 IItemHandlerModifiable，而原版的
+   * SlotItemHandler#set 会**强制转型**成它 —— 不实现就会在客户端同步槽位内容时抛
+   * ClassCastException: ... cannot be cast to IItemHandlerModifiable，界面直接崩。
+   */
+  override def setStackInSlot(slot: Int, stack: ItemStack): Unit = setInventorySlotContents(slot, stack)
+
   def setInventorySlotContents(slot: Int, stack: ItemStack): Unit = {
     if (isValidSlot(slot)) {
       if (stack == null && items(slot).isEmpty) {

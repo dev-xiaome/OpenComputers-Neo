@@ -59,7 +59,7 @@ abstract class UpgradeSign extends prefab.ManagedEnvironment with DeviceInfo {
   protected def getValue(tileEntity: Option[SignBlockEntity]): Array[AnyRef] = {
     tileEntity match {
       case Some(sign) => result(signTextOf(sign))
-      case _ => result(Unit, "no sign")
+      case _ => result((), "no sign")
     }
   }
 
@@ -77,7 +77,7 @@ abstract class UpgradeSign extends prefab.ManagedEnvironment with DeviceInfo {
         val components: Array[Component] = lines.map(line => Component.literal(line))
 
         if (!canChangeSign(player, sign, components)) {
-          return result(Unit, "not allowed")
+          return result((), "not allowed")
         }
 
         // `SignText` 不可变，每次 `setMessage` 都返回新实例。
@@ -92,7 +92,7 @@ abstract class UpgradeSign extends prefab.ManagedEnvironment with DeviceInfo {
         NeoForge.EVENT_BUS.post(new SignChangeEvent.Post(sign, components))
 
         result(signTextOf(sign))
-      case _ => result(Unit, "no sign")
+      case _ => result((), "no sign")
     }
   }
 

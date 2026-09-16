@@ -22,7 +22,7 @@ import net.minecraft.world.entity.player.Inventory
 class Disassembler(menu: container.Disassembler, playerInventory: Inventory, title: Component)
   extends DynamicGuiContainer[container.Disassembler](menu, playerInventory, title) {
 
-  val progress: ProgressBar = addWidget(new ProgressBar(18, 65))
+  val progress: ProgressBar = addWidgetToContainer(new ProgressBar(18, 65))
 
   override protected def drawSecondaryForegroundLayer(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
     super.drawSecondaryForegroundLayer(guiGraphics, mouseX, mouseY)

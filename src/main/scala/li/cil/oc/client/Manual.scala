@@ -159,8 +159,12 @@ object Manual extends ManualAPI {
   }
 
   override def navigate(path: String): Unit = {
+    // TODO(client.gui.Manual): 原实现是「手册屏幕已经打开时直接把新页面压进屏幕」：
+    //   `Minecraft.getInstance().screen match { case manual: gui.Manual => manual.pushPage(path) ... }`
+    // `client/gui/Manual.scala`（屏幕类）尚未进编译集，因此这里无法对它做类型匹配。
+    // 退化为「只更新历史」：再次打开手册时会看到新页面。
+    // 等 `gui.Manual` 可用后，把上面的类型匹配恢复即可（本对象其余部分无需改动）。
     Minecraft.getInstance().screen match {
-      case manual: gui.Manual => manual.pushPage(path)
       case _ => history.push(new History(path))
     }
   }

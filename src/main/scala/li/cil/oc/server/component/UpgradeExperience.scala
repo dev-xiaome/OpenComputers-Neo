@@ -79,13 +79,13 @@ class UpgradeExperience(val host: EnvironmentHost with internal.Agent) extends p
   @Callback(doc = """function():boolean -- Tries to consume an enchanted item to add experience to the upgrade.""")
   def consume(context: Context, args: Arguments): Array[AnyRef] = {
     if (level >= MaxLevel) {
-      return result(Unit, "max level")
+      return result((), "max level")
     }
     // 1.21.1：`IItemHandler` 的空槽返回 `ItemStack.EMPTY` 而不是 `null`，
     // 且 `ItemStack#stackSize` 变成 `getCount`。
     val stack = host.mainInventory.getStackInSlot(host.selectedSlot)
     if (stack == null || stack.isEmpty || stack.getCount < 1) {
-      return result(Unit, "no item")
+      return result((), "no item")
     }
     var xp = 0
     // 1.21.1：`Items.experience_bottle` → `Items.EXPERIENCE_BOTTLE`（物品字段全部大写），
@@ -109,13 +109,13 @@ class UpgradeExperience(val host: EnvironmentHost with internal.Agent) extends p
         }
       }
       if (xp <= 0) {
-        return result(Unit, "could not extract experience from item")
+        return result((), "could not extract experience from item")
       }
     }
     // 1.21.1：`IInventory#decrStackSize(slot, n)` → `IItemHandler#extractItem(slot, n, simulate)`。
     val consumed = host.mainInventory.extractItem(host.selectedSlot, 1, false)
     if (consumed == null || consumed.isEmpty || consumed.getCount < 1) {
-      return result(Unit, "could not consume item")
+      return result((), "could not consume item")
     }
     addExperience(xp * Settings.get.constantXpGrowth)
     result(true)

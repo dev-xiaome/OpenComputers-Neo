@@ -65,10 +65,10 @@ class InternetCard extends prefab.ManagedEnvironment with DeviceInfo {
     checkOwner(context)
     val address = args.checkString(0)
     if (!Settings.get.internetAccessAllowed()) {
-      return result(Unit, "internet access is unavailable")
+      return result((), "internet access is unavailable")
     }
     if (!Settings.get.httpEnabled) {
-      return result(Unit, "http requests are unavailable")
+      return result((), "http requests are unavailable")
     }
     if (connections.size >= Settings.get.maxConnections) {
       throw new IOException("too many open connections")
@@ -81,7 +81,7 @@ class InternetCard extends prefab.ManagedEnvironment with DeviceInfo {
     }.toMap
     else Map.empty[String, String]
     if (!Settings.get.httpHeadersEnabled && headers.nonEmpty) {
-      return result(Unit, "http request headers are unavailable")
+      return result((), "http request headers are unavailable")
     }
     val method = if (args.isString(3)) Option(args.checkString(3)) else None
     val request = new InternetCard.HTTPRequest(this, checkAddress(address), post, headers, method)
@@ -98,10 +98,10 @@ class InternetCard extends prefab.ManagedEnvironment with DeviceInfo {
     val address = args.checkString(0)
     val port = args.optInteger(1, -1)
     if (!Settings.get.internetAccessAllowed()) {
-      return result(Unit, "internet access is unavailable")
+      return result((), "internet access is unavailable")
     }
     if (!Settings.get.tcpEnabled) {
-      return result(Unit, "tcp connections are unavailable")
+      return result((), "tcp connections are unavailable")
     }
     if (connections.size >= Settings.get.maxConnections) {
       throw new IOException("too many open connections")
@@ -285,7 +285,7 @@ object InternetCard {
       if (checkConnected()) {
         val buffer = ByteBuffer.allocate(n)
         val read = channel.read(buffer)
-        if (read == -1) result(Unit)
+        if (read == -1) result()
         else {
           setupSelector()
           // 1.21.1（Scala 2.13）：`ArrayOps#view(from, until)` 已被移除，改用 `Arrays.copyOfRange`。
@@ -450,7 +450,7 @@ object InternetCard {
     def response(context: Context, args: Arguments): Array[AnyRef] = this.synchronized {
       response match {
         case Some((code, message, headers)) => result(code, message, headers)
-        case _ => result(Unit)
+        case _ => result()
       }
     }
 
@@ -458,7 +458,7 @@ object InternetCard {
     def read(context: Context, args: Arguments): Array[AnyRef] = this.synchronized {
       val n = math.min(Settings.get.maxReadBuffer, math.max(0, args.optInteger(0, Int.MaxValue)))
       if (checkResponse()) {
-        if (eof && queue.isEmpty) result(Unit)
+        if (eof && queue.isEmpty) result()
         else {
           val buffer = ByteBuffer.allocate(n)
           var read = 0

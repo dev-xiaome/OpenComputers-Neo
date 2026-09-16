@@ -27,6 +27,8 @@ class Drone(windowId: Int, playerInventory: Inventory, val drone: entity.Drone)
 
   val deltaY = 0
 
+  /** 从客户端重建上下文构造（[[MenuTypes]] 的工厂用），见 [[Adapter]] 的同名构造器。 */
+
   for (i <- 0 to 1) {
     val y = 8 + i * slotSize - deltaY
     for (j <- 0 to 3) {

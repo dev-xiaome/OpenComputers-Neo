@@ -9,7 +9,6 @@ import net.minecraft.world.entity.player.Inventory
 import net.minecraft.network.chat.Component
 
 import scala.jdk.CollectionConverters._
-
 /**
  * 机箱界面（原 1.7.10 的 `li.cil.oc.client.gui.Case`）。
  *
@@ -56,7 +55,7 @@ class Case(menu: container.Case, playerInventory: Inventory, title: Component)
       8, 6, 0x404040, false)
     if (powerButton != null && powerButton.hoveredState) {
       val tooltip = new java.util.ArrayList[String]()
-      tooltip.addAll(asJavaCollection(
+      tooltip.addAll(toJava(
         (if (menu.computer.isRunning) Localization.Computer.TurnOff else Localization.Computer.TurnOn)
           .linesIterator.toSeq))
       copiedDrawHoveringText(tooltip, mouseX - leftPos, mouseY - topPos, font)

@@ -1,11 +1,10 @@
-package li.cil.oc.common.event
+package li.cil.oc.client
 
 import com.mojang.blaze3d.vertex.PoseStack
 import com.mojang.math.Axis
 import li.cil.oc.Constants
 import li.cil.oc.api
 import li.cil.oc.api.event.RackMountableRenderEvent
-import li.cil.oc.client.Textures
 import li.cil.oc.client.renderer.tileentity.RenderUtil
 import li.cil.oc.common.item.data.StackSerializer
 import li.cil.oc.util.BlockPosition
@@ -22,6 +21,17 @@ import net.neoforged.neoforge.common.NeoForge
 /**
  * 机架挂载物的动态渲染：磁盘驱动器的盘片、服务器 / 终端服务器的指示灯。
  *
+ * ==为什么在 `client` 包里（原为 `common.event.RackMountableRenderHandler`）==
+ * 本处理器是**纯渲染**代码：它用 [[Textures]]、`Minecraft#getItemRenderer`、
+ * `PoseStack` / `MultiBufferSource`，并且监听 `RackMountableRenderEvent`。
+ * 1.21.1 要求 `common` 包不能有对 `client` 包的编译期引用
+ * （否则整个 `client` 包会被拖进编译集，见 [[li.cil.oc.common.ClientHooks]]），
+ * 因此整体搬到 `client` 包，由 [[ClientListeners]] 注册。
+ *
+ * **引用方注意**：`client.renderer.tileentity.RackRenderer` 里原来的
+ * `import li.cil.oc.common.event.RackMountableRenderHandler` 需要改成
+ * `import li.cil.oc.client.RackMountableRenderHandler`（对象名保持不变，调用点写法不变）。
+ *
  * 1.21.1 迁移要点：
  *  - `@SubscribeEvent` → 显式 `addListener`；本处理器只在物理客户端注册。
  *  - 渲染不再有全局 `Tessellator` / `RenderManager`：覆盖层写进
@@ -32,10 +42,8 @@ import net.neoforged.neoforge.common.NeoForge
  *    [[setRenderContext]] 把当前渲染上下文交给本处理器。
  *  - `ItemStack.loadItemStackFromNBT` → [[li.cil.oc.common.item.data.StackSerializer.loadItemStack]]。
  *  - `NBT.TAG_STRING` → `Tag.TAG_STRING`。
- *
- * TODO(渲染): `client.renderer.tileentity.RackRenderer` 移植为 `BlockEntityRenderer` 时，
- * 请务必在 post 事件前调用 `RackMountableRenderHandler.setRenderContext(...)`，
- * 否则本处理器会跳过所有覆盖层绘制。
+ *  - 贴图常量名对齐 [[Textures]] 的现状：`Textures.blockRackXxx` → `Textures.Block.RackXxx`，
+ *    `Textures.Rack.diskDrive/server/terminal` → `Textures.Block.RackDiskDrive/RackServer/RackTerminal`。
  */
 object RackMountableRenderHandler {
   lazy val DiskDriveMountable = api.Items.get(Constants.ItemName.DiskDriveMountable)
@@ -63,7 +71,7 @@ object RackMountableRenderHandler {
   /** 清除渲染上下文（渲染结束后调用，避免持有已失效的缓冲区）。 */
   def clearRenderContext(): Unit = renderContext = null
 
-  /** 注册监听器；由主类（或 [[EventHandlers]]）调用一次。 */
+  /** 注册监听器；由 [[ClientListeners]] 调用一次。 */
   def initialize(): Unit = {
     if (FMLEnvironment.dist.isClient) {
       NeoForge.EVENT_BUS.addListener((e: RackMountableRenderEvent.BlockEntity) => onRackMountableRendering(e))
@@ -103,7 +111,7 @@ object RackMountableRenderHandler {
         RenderState.disableLighting()
         RenderState.makeItBlend()
 
-        e.renderOverlay(buffer, Textures.blockRackDiskDriveActivity)
+        e.renderOverlay(buffer, Textures.Block.RackDiskDriveActivity)
 
         RenderState.enableLighting()
       }
@@ -114,18 +122,18 @@ object RackMountableRenderHandler {
       RenderState.makeItBlend()
 
       if (e.data.getBoolean("isRunning")) {
-        e.renderOverlay(buffer, Textures.blockRackServerOn)
+        e.renderOverlay(buffer, Textures.Block.RackServerOn)
       }
       if (e.data.getBoolean("hasErrored") && RenderUtil.shouldShowErrorLight(e.rack.hashCode * (e.mountable + 1))) {
-        e.renderOverlay(buffer, Textures.blockRackServerError)
+        e.renderOverlay(buffer, Textures.Block.RackServerError)
       }
       if (System.currentTimeMillis() - e.data.getLong("lastFileSystemAccess") < 400 &&
         e.rack.world().getRandom.nextDouble() > 0.1) {
-        e.renderOverlay(buffer, Textures.blockRackServerActivity)
+        e.renderOverlay(buffer, Textures.Block.RackServerActivity)
       }
       if ((System.currentTimeMillis() - e.data.getLong("lastNetworkActivity") < 300 &&
         System.currentTimeMillis() % 200 > 100) && e.data.getBoolean("isRunning")) {
-        e.renderOverlay(buffer, Textures.blockRackServerNetworkActivity)
+        e.renderOverlay(buffer, Textures.Block.RackServerNetworkActivity)
       }
 
       RenderState.enableLighting()
@@ -135,13 +143,13 @@ object RackMountableRenderHandler {
       RenderState.disableLighting()
       RenderState.makeItBlend()
 
-      e.renderOverlay(buffer, Textures.blockRackTerminalServerOn)
+      e.renderOverlay(buffer, Textures.Block.RackTerminalServerOn)
       val countConnected = e.data.getList("keys", Tag.TAG_STRING).size()
 
       if (countConnected > 0) {
         val u0 = 7 / 16f
         val u1 = u0 + (2 * countConnected - 1) / 16f
-        e.renderOverlay(buffer, Textures.blockRackTerminalServerPresence, u0, u1)
+        e.renderOverlay(buffer, Textures.Block.RackTerminalServerPresence, u0, u1)
       }
 
       RenderState.enableLighting()
@@ -151,15 +159,15 @@ object RackMountableRenderHandler {
   def onRackMountableRendering(e: RackMountableRenderEvent.Block): Unit = {
     if (DiskDriveMountable == api.Items.get(e.rack.getStackInSlot(e.mountable))) {
       // 磁盘驱动器。
-      e.setFrontTextureOverride(Textures.Rack.diskDrive)
+      e.setFrontTextureOverride(Textures.Block.RackDiskDrive)
     }
     else if (Servers.contains(api.Items.get(e.rack.getStackInSlot(e.mountable)))) {
       // 服务器。
-      e.setFrontTextureOverride(Textures.Rack.server)
+      e.setFrontTextureOverride(Textures.Block.RackServer)
     }
     else if (TerminalServer == api.Items.get(e.rack.getStackInSlot(e.mountable))) {
       // 终端服务器。
-      e.setFrontTextureOverride(Textures.Rack.terminal)
+      e.setFrontTextureOverride(Textures.Block.RackTerminal)
     }
   }
 }

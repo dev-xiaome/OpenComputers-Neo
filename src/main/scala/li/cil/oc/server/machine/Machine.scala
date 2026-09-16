@@ -343,7 +343,9 @@ class Machine(val host: MachineHost) extends prefab.ManagedEnvironment with mach
         }
         else {
           signals.enqueue(new Machine.Signal(name, args.map {
-            case null | Unit | None => null
+            // Scala 2.13：`Unit` 不能再当作模式使用；原语义是「nil」，
+            // 即 null、None 以及装箱后的 unit 值 `()`。
+            case null | None | _: scala.runtime.BoxedUnit => null
             case arg: Map[_, _] if arg.isEmpty || arg.head._1.isInstanceOf[String] && arg.head._2.isInstanceOf[String] => arg
             case arg: mutable.Map[_, _] if arg.isEmpty || arg.head._1.isInstanceOf[String] && arg.head._2.isInstanceOf[String] => arg.toMap
             case arg: java.util.Map[_, _] => {

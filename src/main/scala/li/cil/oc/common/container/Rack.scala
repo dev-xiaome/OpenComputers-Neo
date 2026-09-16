@@ -26,7 +26,7 @@ import net.minecraft.world.entity.player.Inventory
  */
 class Rack(windowId: Int, playerInventory: Inventory, val rack: tileentity.Rack)
   extends Player(windowId, MenuTypes.Rack.value(), playerInventory, rack) {
-  addSlotToContainer(20, 23, Slot.RackMountable)
+
   addSlotToContainer(20, 43, Slot.RackMountable)
   addSlotToContainer(20, 63, Slot.RackMountable)
   addSlotToContainer(20, 83, Slot.RackMountable)

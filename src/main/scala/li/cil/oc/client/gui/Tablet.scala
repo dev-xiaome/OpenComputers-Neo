@@ -5,7 +5,6 @@ import li.cil.oc.common.container
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Inventory
-
 /**
  * 平板电脑界面（原 1.7.10 的 `li.cil.oc.client.gui.Tablet`）。
  *
@@ -34,7 +33,7 @@ class Tablet(menu: container.Tablet, playerInventory: Inventory, title: Componen
   override protected def drawSecondaryForegroundLayer(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
     super.drawSecondaryForegroundLayer(guiGraphics, mouseX, mouseY)
     guiGraphics.drawString(font,
-      Localization.localizeImmediately(menu.tablet.getInventoryName),
+      Localization.localizeImmediately(menu.tabletName),
       8, 6, 0x404040, false)
   }
 }

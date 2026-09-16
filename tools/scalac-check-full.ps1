@@ -1,11 +1,11 @@
-﻿param(
+param(
     [string]$Project = 'D:\Workspace\Mods\1.21.1\OpenComputers Neo',
     [string]$Packages = '',
     [string]$Log = ''
 )
 
 $ErrorActionPreference = 'Stop'
-$out = Join-Path $env:TEMP 'oc-scalac-out'
+$out = Join-Path $env:TEMP ("oc-scalac-out-$PID")
 if (Test-Path $out) { Remove-Item -Recurse -Force $out }
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
@@ -49,7 +49,7 @@ foreach ($g in $globs) {
     }
     else {
         $p = Join-Path $src ($g -replace '/', '\')
-        if (Test-Path $p) { $files.Add($p) }
+        if ((Test-Path $p) -and (-not $files.Contains($p))) { $files.Add($p) }
     }
 }
 Write-Output ("sources: {0}, classpath entries: {1}" -f $files.Count, $jars.Count)
@@ -61,7 +61,7 @@ $compilerCp = "$scalaJars;$scalaLib;$scalaRef"
 
 $scalaArgs = @('-d', $out, '-release', '21', '-encoding', 'UTF-8', '-nowarn', '-Xmaxerrs', '4000') + ($files | ForEach-Object { $_.Substring($Project.Length + 1) })
 $log = if ($Log -ne '') { $Log } else { Join-Path $env:TEMP 'oc-scalac-check.log' }
-$argFile = Join-Path $env:TEMP 'oc-scalac-args.txt'
+$argFile = Join-Path $env:TEMP ("oc-scalac-args-$PID.txt")
 [System.IO.File]::WriteAllLines($argFile, [string[]]$scalaArgs, (New-Object System.Text.UTF8Encoding($false)))
 Remove-Item $log -Force -ErrorAction SilentlyContinue
 $ErrorActionPreference = 'Continue'
@@ -73,3 +73,18 @@ $errs = 0
 if (Test-Path $log) { $errs = (Select-String -Path $log -Pattern ': error:').Count }
 Write-Output ("scalac exit: {0}, errors: {1}, log: {2}" -f $code, $errs, $log)
 if ($errs -gt 0) { Select-String -Path $log -Pattern ': error:' | Select-Object -First 40 | ForEach-Object { $_.Line } }
+
+# IMPORTANT: scalac runs in phases (parser -> namer -> typer -> refchecks -> ...).
+# As soon as one phase reports errors, every later phase is SKIPPED. So a log with
+# only a couple of parser/typer errors means refchecks never ran and the error
+# count above is meaningless -- most Scala 2.13 strictness errors are refchecks
+# errors ("Unit companion object is not allowed in source", "overrides nothing",
+# "inherits conflicting members", "incompatible type in overriding", ...).
+# Detect that situation explicitly instead of trusting the count.
+if (Test-Path $log) {
+    $phaseBlockers = (Select-String -Path $log -Pattern "unclosed comment|';' expected|error: not found:|error: type mismatch|is not a member of").Count
+    if ($phaseBlockers -gt 0) {
+        Write-Output ("WARNING: {0} parser/typer error(s) present -> refchecks did NOT run." -f $phaseBlockers)
+        Write-Output "         The list above is NOT the real backlog. Fix these first, then re-run."
+    }
+}
