@@ -65,75 +65,79 @@ object MenuTypes {
   // ----------------------------------------------------------------------- //
 
   val Adapter: MenuHolder[Adapter] = registerBlock("adapter") {
-    case (ctx, t: tileentity.Adapter) => new Adapter(ctx.windowId, ctx.inventory, t)
+    case t: tileentity.Adapter => new Adapter(t)
   }
   val Assembler: MenuHolder[Assembler] = registerBlock("assembler") {
-    case (ctx, t: tileentity.Assembler) => new Assembler(ctx.windowId, ctx.inventory, t)
+    case t: tileentity.Assembler => new Assembler(t)
   }
   val Case: MenuHolder[Case] = registerBlock("case") {
-    case (ctx, t: tileentity.Case) => new Case(ctx.windowId, ctx.inventory, t)
+    case t: tileentity.Case => new Case(t)
   }
   val Charger: MenuHolder[Charger] = registerBlock("charger") {
-    case (ctx, t: tileentity.Charger) => new Charger(ctx.windowId, ctx.inventory, t)
+    case t: tileentity.Charger => new Charger(t)
   }
-  val Database: MenuHolder[Database] = registerItem("database") {
-    case ctx if !ctx.itemOrEmpty.isEmpty => new Database(ctx.windowId, ctx.inventory, new inv.DatabaseInventory {
+  val Database: MenuHolder[Database] = registerItem("database") { ctx =>
+    if (ctx.itemOrEmpty.isEmpty) null
+    else new Database(ctx, new inv.DatabaseInventory {
       override def container: ItemStack = ctx.itemOrEmpty
     })
   }
   val Disassembler: MenuHolder[Disassembler] = registerBlock("disassembler") {
-    case (ctx, t: tileentity.Disassembler) => new Disassembler(ctx.windowId, ctx.inventory, t)
+    case t: tileentity.Disassembler => new Disassembler(t)
   }
-  val DiskDrive: MenuHolder[DiskDrive] = register("diskdrive", ctx => ctx.op match {
-    case MenuHostPayload.Block => ctx.blockEntity match {
-      case t: tileentity.DiskDrive => new DiskDrive(ctx.windowId, ctx.inventory, t)
+  val DiskDrive: MenuHolder[DiskDrive] = register("diskdrive") { ctx =>
+    ctx.op match {
+      case MenuHostPayload.Block => ctx.blockEntity match {
+        case t: tileentity.DiskDrive => new DiskDrive(ctx, t)
+        case _ => null
+      }
+      // 机架插槽里的磁盘驱动器与方块形态共用同一个 `MenuType`
+      // （服务端 `GuiType.DiskDriveMountableInRack` 走的也是 `container.DiskDrive`）。
+      case MenuHostPayload.RackSlot => ctx.rackMountable match {
+        case drive: inv.DiskDriveMountableInventory => new DiskDrive(ctx, drive)
+        case _ => null
+      }
       case _ => null
     }
-    // 机架插槽里的磁盘驱动器与方块形态共用同一个 `MenuType`
-    // （服务端 `GuiType.DiskDriveMountableInRack` 走的也是 `container.DiskDrive`）。
-    case MenuHostPayload.RackSlot => ctx.rackMountable match {
-      case drive: inv.DiskDriveMountableInventory => new DiskDrive(ctx.windowId, ctx.inventory, drive)
-      case _ => null
-    }
-    case _ => null
-  })
+  }
   val Drone: MenuHolder[Drone] = registerEntity("drone") {
-    case (ctx, d: common.entity.Drone) => new Drone(ctx.windowId, ctx.inventory, d)
+    case d: common.entity.Drone => new Drone(d)
   }
   val Printer: MenuHolder[Printer] = registerBlock("printer") {
-    case (ctx, t: tileentity.Printer) => new Printer(ctx.windowId, ctx.inventory, t)
+    case t: tileentity.Printer => new Printer(t)
   }
   val Rack: MenuHolder[Rack] = registerBlock("rack") {
-    case (ctx, t: tileentity.Rack) => new Rack(ctx.windowId, ctx.inventory, t)
+    case t: tileentity.Rack => new Rack(t)
   }
   val Raid: MenuHolder[Raid] = registerBlock("raid") {
-    case (ctx, t: tileentity.Raid) => new Raid(ctx.windowId, ctx.inventory, t)
+    case t: tileentity.Raid => new Raid(t)
   }
   val Relay: MenuHolder[Relay] = registerBlock("relay") {
-    case (ctx, t: tileentity.Relay) => new Relay(ctx.windowId, ctx.inventory, t)
+    case t: tileentity.Relay => new Relay(t)
   }
   val Robot: MenuHolder[Robot] = registerBlock("robot") {
-    case (ctx, t: tileentity.RobotProxy) => new Robot(ctx.windowId, ctx.inventory, t.robot)
+    case t: tileentity.RobotProxy => new Robot(t)
   }
-  val Server: MenuHolder[Server] = register("server", ctx => ctx.op match {
-    case MenuHostPayload.ItemInHand if !ctx.itemOrEmpty.isEmpty =>
-      new Server(ctx.windowId, ctx.inventory, new inv.ServerInventory {
-        override def container: ItemStack = ctx.itemOrEmpty
-      })
-    // 机架插槽里的服务器与物品形态共用同一个 `MenuType`
-    // （服务端 `GuiType.ServerInRack` 走的也是 `container.Server`）。
-    case MenuHostPayload.RackSlot => ctx.rackMountable match {
-      case server: inv.ServerInventory =>
-        val menu = new Server(ctx.windowId, ctx.inventory, server, None, () => false)
-        // 屏幕需要「哪台机架 + 第几格」来做电源键与「物品被取走就关屏」。
-        menu.rack = ctx.rack
-        menu.rackSlot = ctx.key
-        menu
+  val Server: MenuHolder[Server] = register("server") { ctx =>
+    ctx.op match {
+      case MenuHostPayload.ItemInHand if !ctx.itemOrEmpty.isEmpty =>
+        new Server(ctx, new inv.ServerInventory {
+          override def container: ItemStack = ctx.itemOrEmpty
+        })
+      // 机架插槽里的服务器与物品形态共用同一个 `MenuType`
+      // （服务端 `GuiType.ServerInRack` 走的也是 `container.Server`）。
+      case MenuHostPayload.RackSlot => ctx.rackMountable match {
+        case inventory: inv.ServerInventory =>
+          // 屏幕需要「哪台机架 + 第几格」来做电源键与「物品被取走就关屏」。
+          new Server(ctx, inventory, None, () => false, ctx.rack, ctx.key)
+        case _ => null
+      }
       case _ => null
     }
-    case _ => null
-  })  val Switch: MenuHolder[Switch] = registerBlock("switch") {
-    case (ctx, t: tileentity.Switch) => new Switch(ctx.windowId, ctx.inventory, t)
+  }
+
+  val Switch: MenuHolder[Switch] = registerBlock("switch") {
+    case t: tileentity.Switch => new Switch(t)
   }
   val Tablet: MenuHolder[Tablet] = registerItem("tablet") {
     // TODO(common.inventory + server.component.Tablet): 平板的容器需要「平板内部物品栏
@@ -160,17 +164,23 @@ object MenuTypes {
   // ----------------------------------------------------------------------- //
 
   /**
-   * 打开界面时必须回传的上下文。
+   * 打开 / 重建容器时必须回传的上下文。
    *
-   * `windowId` 与 `inventory` 来自客户端的 `MenuType#create`，
-   * 其余字段来自 [[MenuHostPayload]] 写下的载荷。
+   * `windowId` 与 `inventory` 来自**客户端**的 `MenuType#create`（服务端重建时
+   * 传的是 `0` 与玩家物品栏，见各容器的便捷构造器），其余字段来自
+   * [[MenuHostPayload]] 写下的载荷。
+   *
+   * 之所以公开：它同时也是 `common/container` 下各容器的便捷构造器参数，
+   * 让「服务端新建容器」与「客户端重建容器」共用同一份构造代码
+   * （见 `MenuTypes.register` 的类注释）。
    */
-  private final class OpenContext(val windowId: Int,
-                                  val inventory: Inventory,
-                                  val op: Int,
-                                  val pos: BlockPos,
-                                  val key: Int,
-                                  val stack: ItemStack) {
+  final class OpenContext(val windowId: Int,
+                          val inventory: Inventory,
+                          val op: Int,
+                          val pos: BlockPos,
+                          val key: Int,
+                          val stack: ItemStack) {
+
     def level: Level = inventory.player.level()
 
     def blockEntity: AnyRef = if (level == null || pos == null) null else level.getBlockEntity(pos)
@@ -193,51 +203,63 @@ object MenuTypes {
     def itemOrEmpty: ItemStack = if (stack == null) ItemStack.EMPTY else stack
   }
 
-  /** 登记一个「方块实体宿主」的容器。 */
+  /**
+   * 登记一个「方块实体宿主」的容器。
+   *
+   * `resolve` 拿到宿主方块实体，返回具体容器，或用 `case _` 兜底返回 `null`
+   * （宿主类型不匹配 / 方块实体已消失）。
+   */
   private def registerBlock[T <: Player](name: String)
-                                        (resolve: PartialFunction[(OpenContext, AnyRef), T]): MenuHolder[T] =
-    register[T](name, ctx =>
+                                        (resolve: PartialFunction[AnyRef, T]): MenuHolder[T] =
+    register[T](name, ctx => {
+      lazy val host = ctx.blockEntity
       if (ctx.op != MenuHostPayload.Block) null
-      else resolve.applyOrElse((ctx, ctx.blockEntity), (_: (OpenContext, AnyRef)) => null))
+      else resolve.applyOrElse(host, (_: AnyRef) => null)
+    })
 
   /** 登记一个「实体宿主」的容器。 */
   private def registerEntity[T <: Player](name: String)
-                                         (resolve: PartialFunction[(OpenContext, AnyRef), T]): MenuHolder[T] =
-    register[T](name, ctx =>
+                                         (resolve: PartialFunction[AnyRef, T]): MenuHolder[T] =
+    register[T](name, ctx => {
+      lazy val host = ctx.entity
       if (ctx.op != MenuHostPayload.Entity) null
-      else resolve.applyOrElse((ctx, ctx.entity), (_: (OpenContext, AnyRef)) => null))
+      else resolve.applyOrElse(host, (_: AnyRef) => null)
+    })
 
   /** 登记一个「主手物品宿主」的容器。 */
   private def registerItem[T <: Player](name: String)
-                                       (resolve: PartialFunction[OpenContext, T]): MenuHolder[T] =
-    register[T](name, ctx =>
-      if (ctx.op != MenuHostPayload.ItemInHand) null
-      else resolve.applyOrElse(ctx, (_: OpenContext) => null))
+                                       (resolve: OpenContext => T): MenuHolder[T] =
+    register[T](name, ctx => if (ctx.op != MenuHostPayload.ItemInHand) null else resolve(ctx))
 
   /** 真正调用 [[Registry.registerMenu]] 的地方。 */
   private def register[T <: Player](name: String,
                                     resolve: OpenContext => T): MenuHolder[T] =
-    Registry.registerMenu(name, new Supplier[MenuType[T]] {
+    Registry.registerMenu[T](name, new Supplier[MenuType[T]] {
       override def get(): MenuType[T] = IMenuTypeExtension.create[T](new IContainerFactory[T] {
         override def create(windowId: Int, inventory: Inventory, data: RegistryFriendlyByteBuf): T = {
-          if (data == null) null
-          else MenuHostPayload.readOp(data) match {
-            case Some(MenuHostPayload.Block) =>
-              resolve(new OpenContext(windowId, inventory, MenuHostPayload.Block,
-                MenuHostPayload.readBlockPos(data), 0, ItemStack.EMPTY))
-            case Some(MenuHostPayload.Entity) =>
-              resolve(new OpenContext(windowId, inventory, MenuHostPayload.Entity,
-                null, MenuHostPayload.readEntityId(data), ItemStack.EMPTY))
-            case Some(MenuHostPayload.RackSlot) =>
-              val pos = MenuHostPayload.readBlockPos(data)
-              val slot = MenuHostPayload.readSlot(data)
-              resolve(new OpenContext(windowId, inventory, MenuHostPayload.RackSlot, pos, slot, ItemStack.EMPTY))
-            case Some(MenuHostPayload.ItemInHand) =>
-              resolve(new OpenContext(windowId, inventory, MenuHostPayload.ItemInHand,
-                null, 0, MenuHostPayload.readItem(data)))
-            case _ => null
-          }
+          val ctx = readContext(windowId, inventory, data)
+          if (ctx == null) null else resolve(ctx)
         }
       })
     })
+
+  /** 按载荷里的操作码把「客户端重建容器所需的上下文」解出来。 */
+  private def readContext(windowId: Int, inventory: Inventory, data: RegistryFriendlyByteBuf): OpenContext =
+    if (data == null) null
+    else MenuHostPayload.readOp(data) match {
+      case Some(MenuHostPayload.Block) =>
+        new OpenContext(windowId, inventory, MenuHostPayload.Block,
+          MenuHostPayload.readBlockPos(data), 0, ItemStack.EMPTY)
+      case Some(MenuHostPayload.Entity) =>
+        new OpenContext(windowId, inventory, MenuHostPayload.Entity,
+          null, MenuHostPayload.readEntityId(data), ItemStack.EMPTY)
+      case Some(MenuHostPayload.RackSlot) =>
+        val pos = MenuHostPayload.readBlockPos(data)
+        val slot = MenuHostPayload.readSlot(data)
+        new OpenContext(windowId, inventory, MenuHostPayload.RackSlot, pos, slot, ItemStack.EMPTY)
+      case Some(MenuHostPayload.ItemInHand) =>
+        new OpenContext(windowId, inventory, MenuHostPayload.ItemInHand,
+          null, 0, MenuHostPayload.readItem(data))
+      case _ => null
+    }
 }

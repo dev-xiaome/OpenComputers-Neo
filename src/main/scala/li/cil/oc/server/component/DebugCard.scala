@@ -462,7 +462,8 @@ object DebugCard {
       withPlayer(player => {
         val gametype = args.checkString(0)
         // 1.7.10 的 `setGameType` → 1.21.1 的 `setGameMode`；
-        // `GameType` 也从 `net.minecraft.world.WorldSettings.GameType` 挪到了 `net.minecraft.world.GameType`。
+        // `GameType` 也从 `net.minecraft.world.WorldSettings.GameType` 挪到了
+        // `net.minecraft.world.level.GameType`（1.21.1）。
         player.setGameMode(GameType.values.find(_.getName == gametype).getOrElse(GameType.SURVIVAL))
         null
       })

@@ -89,6 +89,10 @@ object Proxy {
         override def accept(event: RegisterKeyMappingsEvent): Unit = KeyBindings.register(event)
       })
 
+    // 方块 / 物品染色（机箱分级色、屏幕、线缆、变色石）。
+    // 注意必须传 **mod 总线**，且只能在客户端调用（ColorHandlers 引用了 net.minecraft.client.*）。
+    ColorHandlers.initialize(modBus)
+
     // 客户端 setup：API 接线 + 各子系统的运行期监听器。
     modBus.addListener(EventPriority.NORMAL, false, classOf[FMLClientSetupEvent],
       new java.util.function.Consumer[FMLClientSetupEvent] {

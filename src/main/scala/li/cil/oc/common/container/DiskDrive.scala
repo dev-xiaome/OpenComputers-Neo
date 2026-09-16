@@ -16,4 +16,16 @@ class DiskDrive(windowId: Int, playerInventory: Inventory, val drive: IItemHandl
 
   addSlotToContainer(80, 35, Slot.Floppy)
   addPlayerInventorySlots(8, 84)
+
+  /**
+   * 宿主的显示名（原 1.7.10 的 `drive.getInventoryName`）。
+   *
+   * 1.21.1 里宿主是 [[net.neoforged.neoforge.items.IItemHandler]]，它**没有**名字；
+   * OC 的方块实体与幽灵物品栏都额外实现了 `common.inventory.Inventory`，
+   * 名字在那一层。这里做一次类型匹配，取不到时退化成默认名。
+   */
+  def driveName: String = drive match {
+    case inventory: li.cil.oc.common.inventory.Inventory => inventory.getInventoryName
+    case _ => li.cil.oc.Settings.namespace + "container.DiskDrive"
+  }
 }

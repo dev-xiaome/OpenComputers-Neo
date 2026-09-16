@@ -24,7 +24,7 @@ class DiskDrive(menu: container.DiskDrive, playerInventory: Inventory, title: Co
     // 1.21.1 里宿主统一实现 `common.inventory.Inventory`，名字仍然从它上面取，
     // 因此屏幕不需要区分「方块形态」与「机架/物品形态」。
     guiGraphics.drawString(font,
-      Localization.localizeImmediately(menu.otherInventory.getInventoryName),
+      Localization.localizeImmediately(menu.driveName),
       8, 6, 0x404040, false)
   }
 }
