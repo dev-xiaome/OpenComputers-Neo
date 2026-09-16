@@ -12,6 +12,9 @@ import li.cil.oc.api.prefab.ItemStackTabIconRenderer
 import li.cil.oc.api.prefab.ResourceContentProvider
 import li.cil.oc.common.item.Delegator
 import li.cil.oc.common.item.RedstoneCard
+// 1.7.10 里这五个是 `li.cil.oc.common.nanomachines.provider.*`（通过 `common.event._` 间接可见），
+// 移植后必须显式 import。
+import li.cil.oc.common.nanomachines.provider.{DisintegrationProvider, HungryProvider, MagnetProvider, ParticleProvider, PotionProvider}
 import li.cil.oc.common.template._
 import li.cil.oc.integration.ModProxy
 import li.cil.oc.integration.Mods

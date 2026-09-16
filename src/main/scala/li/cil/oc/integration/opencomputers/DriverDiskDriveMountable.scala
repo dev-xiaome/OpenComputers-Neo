@@ -25,7 +25,8 @@ object DriverDiskDriveMountable extends Item with HostAware {
 
   override def dataTag(stack: ItemStack): CompoundTag = {
     if (!stack.hasTag()) {
-      stack.put(new CompoundTag())
+      // 1.21.1：`ItemStack` 没有 `put`，NBT 走 `li.cil.oc` 的隐式类 → `setTag`。
+      stack.setTag(new CompoundTag())
     }
     stack.getTag()
   }

@@ -1,5 +1,5 @@
 {
-    "parent":  "minecraft:block/cube",
+    "parent":  "opencomputers_neo:block/tinted_cube",
     "textures":  {
                      "particle":  "opencomputers_neo:block/cablepart",
                      "down":  "opencomputers_neo:block/cablepart",

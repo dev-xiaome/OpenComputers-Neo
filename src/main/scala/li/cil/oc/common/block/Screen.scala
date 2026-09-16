@@ -35,8 +35,8 @@ import net.minecraft.world.phys.BlockHitResult
  *    方块实体要从方块实例反查等级（见 `tileentity.Screen`）。
  *  - `ModColoredLights.setLightLevel(this, 5, 5, 5)` → 构造属性 `lightLevel(_ => 5)`，
  *    见 [[Screen.properties]]。TODO(integration.coloredlights): 彩色光源集成移植后补上彩色发光。
- *  - `getRenderColor(metadata)` → [[SimpleBlockHooks.tintColor]]（按等级着色，真正生效还需客户端
- *    注册 `BlockColor`）。
+ *  - `getRenderColor(metadata)` → [[SimpleBlockHooks.tintColor]]（按等级着色，客户端由
+ *    [[li.cil.oc.client.ColorHandlers]] 注册 `BlockColor` / `ItemColor` 后生效）。
  *  - `isSideSolid`（原「正面不算实心」）：1.21.1 由碰撞形状 + 面坚固判定取代，不再覆写。
  *  - `onBlockActivated` → [[SimpleBlockHooks.useBlock]]，内部转发到 [[rightClick]]
  *    （保留原签名，`common.block.Keyboard` 也用它触发屏幕点击）。
@@ -70,6 +70,13 @@ import net.minecraft.world.phys.BlockHitResult
  *  `bml`, `bmm`, `bmr`, `btl`, `btm`, `btr`, `bvb`, `bvb2`, `bvm`, `bvt`,
  *  `f`, `f2`, `fbl`, `fbl2`, `fbm`, `fbm2`, `fbr`, `fbr2`, `fhb`, `fhb2`, `fhm`, `fhm2`, `fht`, `fht2`,
  *  `fml`, `fmm`, `fmr`, `ftl`, `ftm`, `ftr`, `fvb`, `fvb2`, `fvm`, `fvt`。
+ *
+ *  1.21.1 当前的静态模型（`models/block/screen1|2|3.json`，继承
+ *  `opencomputers_neo:block/tinted_cube` 以获得 `tintindex`）只做**兜底外观**：
+ *  面贴图按「放在地上、正面朝南」的单方块屏幕（`screen.pitch == DOWN` 分支）取值 ——
+ *  正面（南）= `screen/f2`，背面（北 / 西 / 东）= `screen/b2`，上面（朝上）= `screen/b`。
+ *  多方块拼接与朝向变化后的贴图选择（原 `Icons` + `getIcon`）仍待客户端实现，
+ *  见下面的 TODO。
  *  TODO(客户端): 这些贴图的选择逻辑（原 `Icons` + `getIcon`）需要客户端在渲染时按方块实体状态
  *  （`width` / `height` / `localPosition` / 朝向）决定，等 TESR / 状态化模型移植后恢复。
  */

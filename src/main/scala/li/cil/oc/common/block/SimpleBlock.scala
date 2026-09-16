@@ -90,9 +90,13 @@ trait SimpleBlockHooks { self: Block =>
   /**
    * 原 `colorMultiplier` / `getRenderColor`。
    *
-   * TODO(客户端): 1.21.1 的染色要在客户端通过 `RegisterColorHandlersEvent.Block` 注册
-   * `BlockColor`（`BlockColor#getColor(state, level, pos, tintIndex)`），而 `li.cil.oc.client`
-   * 尚未移植，模型也还没有 `tintindex`，因此这里只保留钩子。
+   * 1.21.1 的染色在客户端完成：[[li.cil.oc.client.ColorHandlers]] 通过
+   * `RegisterColorHandlersEvent.Block` 注册 `BlockColor`，其 `getColor` 直接调用本钩子。
+   * 因此**只有**模型里带 `tintindex` 的面会被染色（见 `models/block/tinted_cube.json`）。
+   *
+   * 注意 1.7.10 的调用链是「方块实体混入 `traits.Colored` → 优先取方块实体颜色，
+   * 否则取 `getRenderColor(metadata)`」；这个优先级由客户端处理器复刻
+   * （线缆就是靠它按方块实体颜色实时变色）。
    */
   def tintColor(state: BlockState, level: BlockGetter, pos: BlockPos, tintIndex: Int): Int = 0xFFFFFF
 

@@ -1,5 +1,12 @@
 {
+    "parent":  "opencomputers_neo:block/tinted_cube",
     "textures":  {
-                     "particle":  "opencomputers_neo:block/genericside"
+                     "particle":  "opencomputers_neo:block/screen/f2",
+                     "down":  "opencomputers_neo:block/screen/b2",
+                     "up":  "opencomputers_neo:block/screen/b",
+                     "north":  "opencomputers_neo:block/screen/b2",
+                     "south":  "opencomputers_neo:block/screen/f2",
+                     "west":  "opencomputers_neo:block/screen/b2",
+                     "east":  "opencomputers_neo:block/screen/b2"
                  }
 }

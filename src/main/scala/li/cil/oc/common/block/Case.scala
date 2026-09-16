@@ -32,8 +32,13 @@ import net.minecraft.world.phys.BlockHitResult
  *    内部物品的掉落处理（见 [[playerDestroyBlock]]）。要真正「禁止破坏」，需要
  *    `SimpleBlock` 额外把 `IBlockExtension#onDestroyedByPlayer` / `canEntityDestroy`
  *    转发成钩子（`SimpleBlock.scala` 由另一位 agent 负责，这里不改）。
- *  - `getRenderColor(metadata)` → [[SimpleBlockHooks.tintColor]]（真正生效还需客户端注册
- *    `BlockColor`，见 `li.cil.oc.client` 的 TODO）。
+ *  - `getRenderColor(metadata)` → [[SimpleBlockHooks.tintColor]]，客户端由
+ *    [[li.cil.oc.client.ColorHandlers]] 注册 `BlockColor` / `ItemColor` 后生效：
+ *    1-3 级与创造机箱的贴图是同一套灰阶贴图（`casetop` / `caseback` / `casefront` /
+ *    `caseside`），颜色**全部**来自 `tintColor`（`Color.byTier`：1 级浅灰、2 级黄、
+ *    3 级青、创造品红）；对应的模型 `models/block/case*.json` 必须继承
+ *    `opencomputers_neo:block/tinted_cube` 才能让 `tintindex: 0`（即 `tintColor`
+ *    的返回值）作用到各个面。
  *  - `getIcon` / `iconsOn`（运行时指示灯贴图）/ `registerBlockIcons` / `customTextures` 全部删除。
  *
  * 纹理（原 `customTextures` 面序 DOWN, UP, NORTH, SOUTH, WEST, EAST）：

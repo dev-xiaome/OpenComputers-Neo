@@ -16,11 +16,18 @@ import li.cil.oc.{OpenComputers, Settings}
  * `FMLLoadCompleteEvent` 里显式选择代理：
  *
  * {{{
+ *   // li.cil.oc.OpenComputersNeo 的构造期（注册表事件之前）
  *   private val proxy: li.cil.oc.common.Proxy =
- *     if (FMLEnvironment.dist == Dist.CLIENT) new li.cil.oc.server.Proxy  // TODO(client): 之后换 client.Proxy
+ *     if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT)
+ *       new li.cil.oc.server.Proxy   // TODO(client): 之后换 li.cil.oc.client.Proxy
  *     else new li.cil.oc.server.Proxy
  *   proxy.preInit()
  * }}}
+ *
+ * **注意**：主类目前写的是 `new li.cil.oc.common.Proxy`，那样
+ * `api.API.driver/machine/network/nanomachines` 都不会被赋值、`Mods.init()` 也不会执行，
+ * 结果是驱动 / 组件 / 网络 API 全线不可用（GUI 打不开的一半原因就在这里）。
+ * 必须改成上面这段「按侧选代理」，细节见仓库任务汇报。
  *
  * 本类在 [[li.cil.oc.common.Proxy]] 的三段之外补齐**服务端专有**的接线：
  *  - `preInit`：把 API 的 driver / machine / network / nanomachines 指向 `server.*` 的实现，
@@ -71,6 +78,19 @@ class Proxy extends CommonProxy {
 
     // 服务端组件跟踪表：世界卸载时清空按维度缓存的组件。
     ComponentTracker.initialize()
+
+    // 容器的「自定义数据」投递回调（1.7.10 是 `ServerPacketSender.sendContainerUpdate`）。
+    // `common.container.Player` 不能引用 `server` 包，所以把回调留成了空操作，
+    // 必须在这里接上 —— 否则进度条 / 机架节点映射 / 服务器运行状态之类
+    // 只靠自定义 NBT 同步的 GUI 数据永远不会发给客户端。
+    li.cil.oc.common.container.Player.customDataSync =
+      (menu, nbt, player) => PacketSender.sendContainerUpdate(menu, nbt, player)
+    OpenComputers.log.debug("Wired container custom data sync to the server packet sender.")
+
+    // 服务端命令（1.7.10 在 `FMLServerStartingEvent` 里 `CommandHandler.register(e)`）：
+    // 1.21.1 改为挂 `RegisterCommandsEvent` 监听，Brigadier 的 `CommandDispatcher`
+    // 由 NeoForge 在开服时传进来。
+    command.CommandHandler.initialize()
   }
 
   override def postInit(): Unit = {

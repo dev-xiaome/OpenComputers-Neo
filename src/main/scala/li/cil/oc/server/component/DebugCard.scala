@@ -15,10 +15,11 @@ import li.cil.oc.api.network.SidedEnvironment
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractValue
+import li.cil.oc.common.item.data.DebugCardData
 import li.cil.oc.server.PacketSender
 import li.cil.oc.server.network.DebugNetwork
 import li.cil.oc.server.network.DebugNetwork.DebugNode
-import li.cil.oc.server.component.DebugCard.{AccessContext, CommandSender, serverOf}
+import li.cil.oc.server.component.DebugCard.{CommandSender, serverOf}
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.ExtendedBlock._
@@ -26,19 +27,21 @@ import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.ExtendedWorld._
 import li.cil.oc.util.FluidUtils
 import li.cil.oc.util.InventoryUtils
+import li.cil.oc.util.ItemStackNBTExtensions._
 import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.core.component.DataComponents
 import net.minecraft.core.registries.{BuiltInRegistries, Registries}
+import net.minecraft.commands.{CommandResultCallback, CommandSourceStack}
 import net.minecraft.nbt.{CompoundTag, Tag, TagParser}
 import net.minecraft.network.chat.Component
 import net.minecraft.resources.{ResourceKey, ResourceLocation}
 import net.minecraft.server.MinecraftServer
 import net.minecraft.server.level.{ServerLevel, ServerPlayer}
 import net.minecraft.sounds.{SoundEvent, SoundSource}
-import net.minecraft.world.{GameType, Level}
 import net.minecraft.world.entity.{Entity, LivingEntity}
 import net.minecraft.world.entity.vehicle.AbstractMinecart
 import net.minecraft.world.item.{Item, ItemStack, Items}
+import net.minecraft.world.level.{GameType, Level}
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.material.Fluids
@@ -46,7 +49,7 @@ import net.minecraft.world.level.storage.ServerLevelData
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.common.util.{FakePlayer, FakePlayerFactory}
 import net.neoforged.neoforge.event.level.BlockEvent
-import net.neoforged.neoforge.fluids.{FluidStack, FluidType}
+import net.neoforged.neoforge.fluids.FluidStack
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.neoforge.server.ServerLifecycleHooks
 
@@ -66,7 +69,9 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
   private var remoteNodePosition: Option[(Int, Int, Int)] = None
 
   // Player this card is bound to (if any) to use for permissions.
-  implicit var access: Option[AccessContext] = None
+  // 1.21.1：`AccessContext` 已并入 `li.cil.oc.Settings`（`common/item/data/DebugCardData`
+  // 同样直接使用它，见那里的说明），这里不再自定义一份，避免出现两个互不兼容的同名类型。
+  implicit var access: Option[Settings.AccessContext] = None
 
   def player = access.map(_.player)
 
@@ -221,8 +226,11 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
       var value = 0
       for (command <- commands) {
         // 1.7.10 的 `MinecraftServer.getServer.getCommandManager` →
-        // 1.21.1 的 `MinecraftServer#getCommands#executeCommand`。
-        value = serverOf(host.world).map(_.getCommands.executeCommand(CommandSender, command.toString)).getOrElse(0)
+        // 1.21.1 的 `MinecraftServer#getCommands`。`Commands` 上已没有返回 int 的
+        // `executeCommand`：带 `/` 前缀的旧写法对应 `performPrefixedCommand`（无返回值），
+        // 执行结果由 `CommandSender` 的 `CommandResultCallback` 记录在 `lastResult` 里。
+        serverOf(host.world).foreach(_.getCommands.performPrefixedCommand(CommandSender.commandStack, command.toString))
+        value = CommandSender.lastResult
       }
       result(value, CommandSender.messages.orNull)
     }
@@ -291,7 +299,9 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
     checkAccess()
     val destination = args.checkString(0)
     DebugNetwork.getEndpoint(destination).filter(_ != this).foreach{endpoint =>
-      val packet = Network.newPacket(node.address, destination, 0, args.drop(1).toArray)
+      // 1.21.1 的 `Arguments` 不再继承 Scala 的 `Seq`，没有 `drop`；
+      // 先转成数组再丢弃第一个参数（目的地址）。
+      val packet = Network.newPacket(node.address, destination, 0, args.toArray.drop(1))
       endpoint.receivePacket(packet)
     }
     result()
@@ -337,7 +347,7 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
 
   override def load(nbt: CompoundTag): Unit = {
     super.load(nbt)
-    access = AccessContext.load(nbt)
+    access = loadAccess(nbt)
     if (nbt.contains(Settings.namespace + "remoteX")) {
       val x = nbt.getInt(Settings.namespace + "remoteX")
       val y = nbt.getInt(Settings.namespace + "remoteY")
@@ -359,7 +369,7 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
 }
 
 object DebugCard {
-  def checkAccess()(implicit ctx: Option[AccessContext]): Unit =
+  def checkAccess()(implicit ctx: Option[Settings.AccessContext]): Unit =
     for (msg <- Settings.get.debugCardAccess.checkAccess(ctx))
       throw new Exception(msg)
 
@@ -405,31 +415,15 @@ object DebugCard {
     Tag.TAG_LONG_ARRAY -> "TAG_Long_Array"
   )
 
-  object AccessContext {
-    def remove(nbt: CompoundTag): Unit = {
-      nbt.remove(Settings.namespace + "player")
-      nbt.remove(Settings.namespace + "accessNonce")
-    }
+  /**
+   * 1.21.1：原 `DebugCard.AccessContext` 已并入 [[li.cil.oc.Settings.AccessContext]]
+   * （`common/item/data/DebugCardData` 也直接使用它）。这里直接复用 `DebugCardData`
+   * 上的辅助方法，语义与旧实现完全一致，避免两份实现漂移。
+   */
+  private def loadAccess(nbt: CompoundTag): Option[Settings.AccessContext] =
+    DebugCardData.loadAccess(nbt)
 
-    def load(nbt: CompoundTag): Option[AccessContext] = {
-      if (nbt.contains(Settings.namespace + "player"))
-        Some(AccessContext(
-          nbt.getString(Settings.namespace + "player"),
-          nbt.getString(Settings.namespace + "accessNonce")
-        ))
-      else
-        None
-    }
-  }
-
-  case class AccessContext(player: String, nonce: String) {
-    def save(nbt: CompoundTag): Unit = {
-      nbt.putString(Settings.namespace + "player", player)
-      nbt.putString(Settings.namespace + "accessNonce", nonce)
-    }
-  }
-
-  class PlayerValue(var name: String)(implicit var ctx: Option[AccessContext]) extends prefab.AbstractValue {
+  class PlayerValue(var name: String)(implicit var ctx: Option[Settings.AccessContext]) extends prefab.AbstractValue {
     def this() = this("")(None) // For loading.
 
     // ----------------------------------------------------------------------- //
@@ -495,7 +489,7 @@ object DebugCard {
 
     override def load(nbt: CompoundTag): Unit = {
       super.load(nbt)
-      ctx = AccessContext.load(nbt)
+      ctx = DebugCard.loadAccess(nbt)
       name = nbt.getString("name")
     }
 
@@ -506,7 +500,7 @@ object DebugCard {
     }
   }
 
-  class WorldValue(var world: Level)(implicit var ctx: Option[AccessContext]) extends prefab.AbstractValue {
+  class WorldValue(var world: Level)(implicit var ctx: Option[Settings.AccessContext]) extends prefab.AbstractValue {
     def this() = this(null)(None) // For loading.
 
     // ----------------------------------------------------------------------- //
@@ -755,8 +749,7 @@ object DebugCard {
           }
           if (tag != null) {
             stack.setTag(tag)
-          }
-          result(InventoryUtils.insertIntoInventory(stack, inventory, Option(side)))
+          }          result(InventoryUtils.insertIntoInventory(stack, inventory, Option(side)))
         case _ => result(Unit, "no inventory")
       }
     }
@@ -782,9 +775,10 @@ object DebugCard {
     @Callback(doc = """function(id:string, amount:number, x:number, y:number, z:number, side:number):boolean - Insert some fluid into the tank at the specified location.""")
     def insertFluid(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      // 1.7.10 的 `FluidRegistry.getFluid(name)` → 1.21.1 的流体注册表（取 `FluidType`）。
+      // 1.7.10 的 `FluidRegistry.getFluid(name)` → 1.21.1 的流体注册表。
+      // 注意：`FluidStack` 在 1.21.1 接受的是 `Fluid`（或其 `Holder`），不是 `FluidType`。
       val fluid = BuiltInRegistries.FLUID.get(ResourceLocation.tryParse(args.checkString(0))) match {
-        case f if f != null && f != Fluids.EMPTY => f.getFluidType
+        case f if f != null && f != Fluids.EMPTY => f
         case _ => null
       }
       if (fluid == null) {
@@ -819,7 +813,7 @@ object DebugCard {
 
     override def load(nbt: CompoundTag): Unit = {
       super.load(nbt)
-      ctx = AccessContext.load(nbt)
+      ctx = DebugCard.loadAccess(nbt)
       // 1.7.10 存数字维度 ID；1.21.1 改存维度 key 字符串（见 DebugCard.serverLevel）。
       world = if (nbt.contains("dimension")) {
         DebugCard.serverLevelAt(ResourceLocation.tryParse(nbt.getString("dimension"))).orNull
@@ -884,19 +878,29 @@ object DebugCard {
      * 1.7.10 里 `CommandSender` 既是假玩家又直接充当命令执行者（`ICommandSender`）；
      * 1.21.1 的命令执行者改为 `CommandSourceStack`：这里基于底层玩家的命令源，
      * 把位置、维度与本对象换成调试卡所在的位置，从而把命令输出截获到 [[messages]]。
+     *
+     * 注意：`CommandSourceStack.withCallback` 有两个重载（单个 `CommandResultCallback` 与
+     * 「回调 + 合并函数」），直接写 lambda 会让 Scala 无法推断参数类型，因此显式构造匿名类。
      */
     private val commandSource: CommandSourceStack = underlying.createCommandSourceStack().
       withLevel(host.world.asInstanceOf[ServerLevel]).
       withPosition(BlockPosition(host).toVec3).
-      withCallback((_, success, result) => {
-        if (result > 0) result else if (success) 1 else 0
+      withCallback(new CommandResultCallback {
+        override def onResult(success: Boolean, result: Int): Unit = {
+          // 保留旧行为：命令成功但无返回值时视作 1，失败视作 0。
+          lastResult = if (result > 0) result else if (success) 1 else 0
+        }
       }).
       withSource(this)
+
+    /** 最近一次命令的执行结果（旧版 `executeCommand` 的返回值）。 */
+    var lastResult: Int = 0
 
     def prepare(): Unit = {
       // 1.7.10 直接写 `posX/posY/posZ` 字段；1.21.1 用 `setPos`。
       setPos(host.xPosition + 0.5, host.yPosition + 0.5, host.zPosition + 0.5)
       messages = None
+      lastResult = 0
     }
 
     /** 等价于旧版 `getCommandSenderName`：底层玩家的档案名（命令输出里显示的名字）。 */

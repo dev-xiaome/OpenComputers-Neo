@@ -38,10 +38,17 @@ import scala.reflect.ClassTag
  *    `new tileentity.Cable(pos, state)`；
  *  - 整套图标系统删除（原 `Textures.Cable.iconCap` 是线缆端帽贴图）。
  *
- * 纹理（原 `customTextures` 面序 DOWN, UP, NORTH, SOUTH, WEST, EAST）：
- * 六面都是 `CablePart`（端帽贴图为 `CableCap`，需要线缆专用的烘焙模型/渲染器才能还原，
- * TODO(客户端): `li.cil.oc.client` 移植后补上线缆模型；FMP / Immibis 微方块版本的面剔除
- * 也依赖它）。
+ *  纹理（原 `customTextures` 面序 DOWN, UP, NORTH, SOUTH, WEST, EAST）：
+ *  六面都是 `CablePart`（端帽贴图为 `CableCap`，需要线缆专用的烘焙模型/渲染器才能还原，
+ *  TODO(客户端): `li.cil.oc.client` 移植后补上线缆模型；FMP / Immibis 微方块版本的面剔除
+ *  也依赖它）。
+ *
+ *  ==染色==
+ *  线缆的贴图（`cablepart`）是灰阶的，颜色来自**方块实体的 `traits.Colored#color`**：
+ *  客户端 [[li.cil.oc.client.ColorHandlers]] 注册的 `BlockColor` 会在这里取
+ *  [[tileentity.Cable]] 的颜色，取不到（未被网络同步等）时退回 [[Color.LightGray]]。
+ *  因此 `models/block/cable.json` 也必须继承 `opencomputers_neo:block/tinted_cube`（`tintindex`）。
+ *  物品形态的颜色存在堆叠的 `ItemColorizer` 颜色里（见 `block.Item` / `tileentity.Cable`）。
  *
  * ==FMP（ForgeMultipart）集成整块删除==
  * 1.7.10 的 `Cable` 通过 `integration.fmp.CablePart` 支持「把线缆变成 FMP 微方块」，

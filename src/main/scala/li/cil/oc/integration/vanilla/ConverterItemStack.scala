@@ -57,14 +57,20 @@ object ConverterItemStack extends api.driver.Converter {
         val entry = entries.next()
         val enchantment = entry.getKey
         val level = entry.getIntValue
+        // 1.21.1：附魔改成**数据驱动**（`Registries.ENCHANTMENT` 是动态注册表），
+        // `BuiltInRegistries.ENCHANTMENT` 已被删除，也没有数字 id 了，
+        // 因此这里只用注册名（`ResourceKey#location`）。
+        val key = enchantment.unwrapKey()
+        val name = if (key.isPresent) key.get().location().toString else "unknown"
         val map = mutable.Map[String, Any](
-          "name" -> BuiltInRegistries.ENCHANTMENT.getKey(enchantment.value()).toString,
+          "name" -> name,
           "label" -> Enchantment.getFullname(enchantment, level).getString,
           "level" -> level
         )
-        if (Settings.get.insertIdsInConverters) {
-          map += "id" -> BuiltInRegistries.ENCHANTMENT.getId(enchantment.value())
-        }
+        // TODO(port): 1.7.10 在 `insertIdsInConverters` 打开时还会输出数字附魔 id
+        // （`Enchantment.enchantmentsList` 的下标）。1.21.1 的附魔是动态注册表条目，
+        // 不存在稳定的数字 id，因此这里不再输出 `id` 字段。若 Lua 侧依赖它，
+        // 只能改用上面的注册名字符串。
         enchantments += map
       }
       if (enchantments.nonEmpty) {

@@ -46,8 +46,11 @@ abstract class DriverCPU extends Item with api.driver.item.MutableProcessor with
 
   override def supportedComponents(stack: ItemStack) = Settings.get.cpuComponentSupport(cpuTier(stack))
 
-  // 1.21.1：`api.Machine.architectures` 返回 `java.util.Collection`，要 `asScala` 才能用 Scala 集合操作。
-  override def allArchitectures = api.Machine.architectures.asScala.toList
+  // 1.21.1：`api.Machine.architectures` 与 `MutableProcessor#allArchitectures` 都是
+  // `java.util.Collection`（1.7.10 里前者是 `java.util.List`、后者由隐式转换接住），
+  // 因此这里直接返回 API 的集合 —— `server.machine.Machine` 返回的本就是只读副本。
+  override def allArchitectures: java.util.Collection[Class[_ <: api.machine.Architecture]] =
+    api.Machine.architectures
 
   override def architecture(stack: ItemStack): Class[_ <: api.machine.Architecture] = {
     if (stack.hasTag()) {

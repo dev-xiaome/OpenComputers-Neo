@@ -1,8 +1,9 @@
 package li.cil.oc.integration.vanilla
 
+import li.cil.oc.api
 import li.cil.oc.api.driver.{EnvironmentProvider, NamedBlock, SidedBlock}
 import li.cil.oc.api.machine.{Arguments, Callback, Context}
-import li.cil.oc.api.network.{ManagedEnvironment, Network, Visibility}
+import li.cil.oc.api.network.{ManagedEnvironment, Visibility}
 import li.cil.oc.util.ResultWrapper.result
 import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.world.item.ItemStack
@@ -33,7 +34,9 @@ object DriverNoteBlock extends SidedBlock {
     if (worksWith(world, x, y, z, side)) new Environment(world, new BlockPos(x, y, z)) else null
 
   final class Environment(val level: Level, val position: BlockPos) extends li.cil.oc.api.prefab.ManagedEnvironment with NamedBlock {
-    setNode(Network.newNode(this, Visibility.Network).withComponent("note_block").create())
+    // 1.7.10 里 `Network.newNode` 来自 `li.cil.oc.api.Network`（工厂类），
+    // 这里必须写全限定名 —— `li.cil.oc.api.network.Network`（接口）会遮蔽它。
+    setNode(api.Network.newNode(this, Visibility.Network).withComponent("note_block").create())
 
     override def preferredName = "note_block"
 
