@@ -1,18 +1,32 @@
 # 移植进度
 
-> **当前状态（提交 `93801f1` 之后）**
-> - ✅ 编译通过并已接入编译集：`li.cil.oc.api`（Java 160 文件）、`util`、`common/{Tier,GuiType,Sound,Slot,Reflection,ToolDurabilityProviders,init,item}`、
->   网络层、`server/fs`（12 文件）+ `server/component/FileSystem.scala`
-> - 🔄 施工中：`common/block`(41) + `common/tileentity`(63) + `common/inventory`(10)。完成后把
->   `li/cil/oc/common/block/**,li/cil/oc/common/tileentity/**,li/cil/oc/common/inventory/**` 加进
->   `gradle.properties` 的 `scala_ported_packages` 即可转绿。
-> - ⬜ 未开始：`common/{component,event,template,recipe,container,nanomachines,entity,command,launch}`、
->   `common/Proxy.scala`、`common/EventHandler.scala`、`common/IMC.scala`、`common/Loot.scala`、`common/SaveHandler.scala`、
->   `server/{machine,component,network,driver,agent,command}`、`client/**`
-> - ⚠️ 当前 `gradlew build` 是**红的**，唯一原因是 `Registry.Blocks.initBlocks()` 引用的 `common/block`/`common/tileentity`
->   还不在编译集里（其余 164 个文件用 `tools/scalac-check.ps1` 已验证 0 错误）。
-> - ⚠️ 第三方能量 trait（`common/tileentity/traits/power/{AppliedEnergistics2,Factorization,Galacticraft,IndustrialCraft2*,Mekanism,RedstoneFlux,RotaryCraft}`）
->   属于其它模组集成，等 `PowerAcceptor.scala` 收尾后应**删除**，只保留 `Common.scala`。
+> **当前状态（工作区干净，`gradlew compileScala` 绿色）**
+>
+> **已可运行**：`gradlew runClient` 能通过注册阶段、进入世界（日志有 `Greetings, user! Booting OpenComputers Neo.`
+> → `Loaded settings` → `Sound engine started`）。启动期已修掉 6 个崩溃点：
+> 1. 注册期读 `Settings`（配置已前置到 `OpenComputersNeo` 构造期）
+> 2. 创造模式标签页重复 `accept` 同一堆叠（`Registry.addCreativeTabEntries` 已去重）
+> 3. `CPULike.tooltipExtended` 向 `Tooltip.get` 传 null → NPE
+> 4. `HardDiskDrive.displayName` 无限递归 → StackOverflow
+> 5. `APUCreative` 等级传成 `Tier.Four` → 数组越界（已改回 `Tier.Three`）
+> 6. Scala trait 读 `BlockEntity.worldPosition`（protected）→ `IllegalAccessError`（改用 `getBlockPos`）
+>
+> 另已修本地化键：`SimpleItem#getDescriptionId` → `"item.oc." + name + ".name"`，
+> `SimpleBlock#getDescriptionId` → `"tile.oc." + name + ".name"`（**不改资源文件**，直接复用 1.7.10 风格的 lang json 键）。
+>
+> **编译集（`gradle.properties` 的 `scala_ported_packages`）**：api/util/common（除 `event`/`GuiHandler`/`EventHandler`）/server-fs
+> —— `common/event/**`、`common/GuiHandler.scala`、`common/EventHandler.scala` 因引用未移植的 `client.*`/`server.component.*`
+> 暂时排除，等这两块完成后加回。
+>
+> **并行施工中（子代理因额度中断，需要重派）**：
+> - `server/component/**`（约 50 文件：CPU/GPU/内存/硬盘/网卡/升级/机器人/平板）
+> - `server/{Proxy,PacketHandler,PacketSender,ComponentTracker,GuiHandler,PetVisibility,agent/**,command/**}` + `integration/**`
+>   （注意 `integration/vanilla/**` 项目里还没有，需从 `mod_src\...\src\main\scala\li\cil\oc\integration\vanilla\` 复制；
+>    且 `src/main/scala` 下的 `.java` **不会被编译**，要放到 `src/main/java` 下）
+> - `client/**`（渲染 / GUI / 键位；`client/renderer/font/FontParserHex.java` 目前被 build.gradle 排除，依赖 gnu.trove）
+>
+> **下一步**：重派上述 3 个代理 → 完成后把对应包加进 `scala_ported_packages` → `gradlew build` 转绿 →
+> `gradlew runClient` 验证「创造模式标签页可见 + 放下方块 + 打开物品栏悬停不崩」。
 
 > 恢复步骤：读本文件 → `git log --oneline` → 把已完成包补进 `gradle.properties` 的 `scala_ported_packages` →
 > `.\gradlew.bat build --console=plain` 清错 → `.\tools\normalize-assets.ps1` 兜底资源大小写 → `.\gradlew.bat runClient` 验证。
