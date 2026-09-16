@@ -234,7 +234,10 @@ object FontUtils {
       val time = System.currentTimeMillis()
       // 1.21.1：资源命名空间已改为 OpenComputers（见 docs/PORTING.md），
       // 直接用无绝对路径的类路径资源名，避免写死命名空间。
-      val font = getClass.getResourceAsStream("/font.hex")
+      // 1.7.10 用的是 "/assets/opencomputers/font.hex"（完整资源路径）。
+      // 移植时曾被改成无前缀的 "/font.hex" —— 那在 classpath 根下并不存在，
+      // 结果是字形宽度覆盖表被静默跳过（日志里的 "Unable to locate font.hex"）。
+      val font = getClass.getResourceAsStream("/assets/" + li.cil.oc.Settings.resourceDomain + "/font.hex")
       if (font == null) {
         OpenComputers.log.error("Unable to locate font.hex on the classpath; glyph width overrides skipped.")
       } else try {

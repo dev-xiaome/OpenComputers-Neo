@@ -180,31 +180,52 @@ abstract class CustomGuiContainer[C <: AbstractContainerMenu](
    *
    * 1.21.1 的 tooltip 边框 / 背景 / 换行由原版统一处理，因此这里只需要把行交给
    * [[GuiGraphics#renderComponentTooltip]]。
+   *
+   * ==为什么必须显式抵消 pose 平移（机箱电源按钮 tooltip 跑到窗口右边的根因）==
+   *  - 1.7.10 的 `drawHoveringText(list, x, y, font)` 是**自己手绘**背景与文字的，
+   *    画在哪个位置完全由传入的 `x` / `y` 决定；
+   *  - 1.21.1 的 [[GuiGraphics#renderComponentTooltip]] 画在**当前 PoseStack** 上：
+   *    实际屏幕位置 = 传入坐标 + 当前 pose 的平移量
+   *    （见 `GuiGraphics#renderTooltipInternal`，它只 `pushPose` 加一层 z 偏移，
+   *    不会重置已有的平移）。
+   *  - OC 的 tooltip 都是在 [[DynamicGuiContainer.renderLabels]] 里发起的，而
+   *    `AbstractContainerScreen#render` 在调用 `renderLabels` 之前执行了
+   *    `pose.translate(leftPos, topPos, 0)`、并且要到整个 `render` 收尾才 `popPose`。
+   *    于是 tooltip 会**再叠加一次**界面左上角偏移，表现为整个提示框被推到窗口
+   *    右下（x 超出屏幕宽时还会被原版的贴边逻辑压到最右边）。
+   *
+   * 这里在绘制前把这次平移抵消掉，使传入的 `x` / `y` 真正等于屏幕绝对坐标
+   * —— 与 1.7.10 以及原版 tooltip 的语义一致，同时原版的贴边判断也能基于正确坐标。
    */
   protected def drawHoveringText(lines: util.List[Component], x: Int, y: Int, font: Font): Unit = {
     if (lines != null && !lines.isEmpty) {
       currentGuiGraphics match {
-        case Some(graphics) => graphics.renderComponentTooltip(font, lines, x, y)
+        case Some(graphics) =>
+          val pose = graphics.pose()
+          pose.pushPose()
+          pose.translate(-leftPos.toFloat, -topPos.toFloat, 0f)
+          graphics.renderComponentTooltip(font, lines, x, y)
+          pose.popPose()
         case _ =>
       }
     }
   }
 
   /**
-   * 1.7.10 风格的 tooltip 重载：`x` / `y` 是**相对界面左上角**的坐标
-   * （原实现的调用点写的都是 `mouseX - guiLeft, mouseY - guiTop`）。
+   * 1.7.10 风格的 tooltip 重载（行内是 String），坐标语义与 [[drawHoveringText]] 相同：
+   * `x` / `y` 是**屏幕绝对坐标**（原版 tooltip 与 1.7.10 `drawHoveringText` 都是这个语义）。
    *
-   * 这里统一转成屏幕绝对坐标再交给原版，避免每个界面各自记得加上 `leftPos`。
    * 行内的 String 会被转成 [[Component#literal]]。
    *
-   * **注意**：tooltip 传进来的是「界面内坐标」，这里统一加上 `leftPos` / `topPos`
-   * 转成屏幕绝对坐标；调用点不要自己再加一遍（否则 tooltip 会出现两倍偏移）。
+   * **注意**：调用点直接传 `mouseX` / `mouseY` 即可，不要再自己加 `leftPos` / `topPos`，
+   * 也不要再自己减一次（1.7.10 的调用点写的是 `mouseX - guiLeft`，那是为了配合当时
+   * `GL11.glTranslatef(guiLeft, guiTop)` 之后的绘制矩阵，1.21.1 不需要）。
    */
   protected def copiedDrawHoveringText(lines: util.List[String], x: Int, y: Int, font: Font): Unit = {
     if (lines != null && !lines.isEmpty) {
       val components = new util.ArrayList[Component](lines.size())
       lines.forEach(line => components.add(Component.literal(if (line == null) "" else line)))
-      drawHoveringText(components, x + leftPos, y + topPos, font)
+      drawHoveringText(components, x, y, font)
     }
   }
 

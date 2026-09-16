@@ -161,12 +161,29 @@ object RenderUtil {
    * 传入的位置会先经 [spriteLocation] 规范化，因此 [[li.cil.oc.client.Textures]]
    * 里那些沿用 1.7.10 写法的「完整贴图文件路径」也能直接查到精灵。
    */
+  /**
+   * 图集查不到贴图时回退到的那个精灵的位置（`minecraft:missingno`，即紫黑方格）。
+   *
+   * 1.21.1 的 `Minecraft#getTextureAtlas` 返回的是
+   * `Function<ResourceLocation, TextureAtlasSprite>`，拿不到 `TextureAtlas` 本体，
+   * 因此这里用「再查一次 missingno 并比较引用」的方式判断精灵是否缺失
+   * （`TextureAtlas#getSprite` 内部就是 `texturesByName.getOrDefault(location, missingSprite)`，
+   * 命中缓存时返回的必然是同一个实例）。
+   */
+  private val missingnoLocation: ResourceLocation = ResourceLocation.withDefaultNamespace("missingno")
+
   def sprite(rl: ResourceLocation): TextureAtlasSprite = {
     if (rl == null) return null
     val mc = Minecraft.getInstance
     if (mc == null) return null
     val atlas = mc.getTextureAtlas(TextureAtlas.LOCATION_BLOCKS)
-    if (atlas == null) null else atlas.apply(spriteLocation(rl))
+    if (atlas == null) return null
+    val sprite = atlas.apply(spriteLocation(rl))
+    // 图集里没有这张贴图时返回 `null`，让调用方跳过绘制。
+    // 否则渲染出来的是 `missingno` —— 实机里刺眼的**紫黑方格**，
+    // 这曾是「机箱正面一闪一闪」「GUI 槽位背景紫黑」的直接观感来源。
+    // 与其把「贴图缺失」画成错误方块，不如什么都不画。
+    if (sprite == null || (sprite eq atlas.apply(missingnoLocation))) null else sprite
   }
 
   /**

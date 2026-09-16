@@ -1,43 +1,46 @@
 {
-  "computer_running": {
-    "category": "block",
-    "sounds": [
-      {"name": "computer_running", "stream": true}
-    ]
-  },
-  "floppy_access": {
-    "category": "block",
-    "sounds": [
-      "floppy_access1",
-      "floppy_access2",
-      "floppy_access3",
-      "floppy_access4",
-      "floppy_access5",
-      "floppy_access6"
-    ]
-  },
-  "floppy_eject": {
-    "category": "block",
-    "sounds": [
-      "floppy_eject"
-    ]
-  },
-  "floppy_insert": {
-    "category": "block",
-    "sounds": [
-      "floppy_insert"
-    ]
-  },
-  "hdd_access": {
-    "category": "block",
-    "sounds": [
-      "hdd_access1",
-      "hdd_access2",
-      "hdd_access3",
-      "hdd_access4",
-      "hdd_access5",
-      "hdd_access6",
-      "hdd_access7"
-    ]
-  }
+    "computer_running":  {
+                             "category":  "block",
+                             "sounds":  [
+                                            {
+                                                "name":  "opencomputers_neo:computer_running",
+                                                "stream":  true
+                                            }
+                                        ]
+                         },
+    "floppy_access":  {
+                          "category":  "block",
+                          "sounds":  [
+                                         "opencomputers_neo:floppy_access1",
+                                         "opencomputers_neo:floppy_access2",
+                                         "opencomputers_neo:floppy_access3",
+                                         "opencomputers_neo:floppy_access4",
+                                         "opencomputers_neo:floppy_access5",
+                                         "opencomputers_neo:floppy_access6"
+                                     ]
+                      },
+    "floppy_eject":  {
+                         "category":  "block",
+                         "sounds":  [
+                                        "opencomputers_neo:floppy_eject"
+                                    ]
+                     },
+    "floppy_insert":  {
+                          "category":  "block",
+                          "sounds":  [
+                                         "opencomputers_neo:floppy_insert"
+                                     ]
+                      },
+    "hdd_access":  {
+                       "category":  "block",
+                       "sounds":  [
+                                      "opencomputers_neo:hdd_access1",
+                                      "opencomputers_neo:hdd_access2",
+                                      "opencomputers_neo:hdd_access3",
+                                      "opencomputers_neo:hdd_access4",
+                                      "opencomputers_neo:hdd_access5",
+                                      "opencomputers_neo:hdd_access6",
+                                      "opencomputers_neo:hdd_access7"
+                                  ]
+                   }
 }

@@ -155,6 +155,9 @@ trait ComponentInventory extends Inventory with network.Environment {
   override def getSlotLimit(slot: Int): Int = 1
 
   override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = if (slot >= 0 && slot < componentEnvironments.length && isComponentSlot(slot, stack)) {
+    // TODO(diag): 临时诊断日志，用于定位「电脑识别不到组件」，问题解决后请删除。
+    li.cil.oc.OpenComputers.log.info(
+      s"[OC-DIAG] onItemAdded slot=$slot item=${if (stack == null) "null" else stack.getItem.toString} driver=${Driver.driverFor(stack) != null}")
     Option(Driver.driverFor(stack)).foreach(driver =>
       Option(driver.createEnvironment(stack, host)) match {
         case Some(component) => this.synchronized {

@@ -304,7 +304,13 @@ object Registry extends ItemAPI {
    */
   def registerBlockItem[T <: Block](name: String, block: DeferredBlock[T], hidden: Boolean): DeferredItem[BlockItem] = {
     val holder = items.register(registryName(name), new Supplier[BlockItem] {
-      override def get(): BlockItem = new BlockItem(block.value(), new Item.Properties())
+      // 必须用 `li.cil.oc.common.block.Item` 而不是原版 `BlockItem`：
+      // 1.7.10 的**放置朝向**（`setFromEntityPitchAndYaw` + 修正非法 pitch +
+      // `invertRotation`，让正面朝向放置它的玩家）是在 `ItemBlock#placeBlockAt` 里统一做的，
+      // 移植版把这段搬进了 [[li.cil.oc.common.block.Item#place]]。若这里 new 的是原版
+      // `BlockItem`，那段代码永远不会执行 —— 所有可旋转方块（屏幕 / 机箱 / 磁盘驱动器 …）
+      // 的 `pitch` / `yaw` 会永远停在默认值，外观与交互面全部固定朝南。
+      override def get(): BlockItem = new li.cil.oc.common.block.Item(block.value(), new Item.Properties())
     })
     blockItemHolders += name -> holder
     if (hidden) hiddenInCreativeTab += name else creativeOrder += name
@@ -864,6 +870,12 @@ object Registry extends ItemAPI {
       reg(ItemName.DiskDriveMountable, () => new item.DiskDriveMountable(single()))
       reg(ItemName.Tablet, () => new item.Tablet(single()))
       reg(ItemName.Drone, () => new item.Drone(single()))
+      // 分析器（Analyzer）：1.7.10 同样在 `Items.init` 里注册
+      // （`Recipes.addSubItem(new item.Analyzer(multi), Constants.ItemName.Analyzer, "oc:analyzer")`）。
+      // 移植时漏了这一行，导致创造模式标签页里找不到它；副作用还有
+      // `ModOpenComputers.blacklistHost` 会因为 `api.Items.get("analyzer")` 为 null
+      // 而跳过一条黑名单（日志里的 "Skipping component blacklist entry for unregistered item 'analyzer'"）。
+      reg(ItemName.Analyzer, () => new item.Analyzer(single()))
 
       // ------------------------------------------------------------------ //
       // 升级

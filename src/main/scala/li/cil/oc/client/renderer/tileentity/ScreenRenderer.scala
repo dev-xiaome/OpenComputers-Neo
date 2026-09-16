@@ -91,6 +91,14 @@ class ScreenRenderer(context: BlockEntityRendererProvider.Context) extends Block
     // 只有多方块屏幕的原点负责绘制，其余方块由包围盒覆盖。
     if (!screen.isOrigin) return
 
+    // 屏幕的边框贴图覆盖层：它同时承担「拼接」（按 width/height/localPosition 换贴图）
+    // 与「朝向」（按 pitch/yaw 决定每个世界面贴哪张图）两件事，属于**方块外观**，
+    // 因此不受下面的文本渲染距离与朝向剔除影响 —— 否则从背面看或离远了看，
+    // 屏幕又会退化成静态模型的单块贴图，拼接和朝向都时有时无。
+    // 必须在这里（还没 push + translate(0.5, ...)）画：覆盖层是按每个方块的
+    // 局部坐标写顶点的，此刻 pose 的入场原点正好是本方块角。
+    drawScreenOverlay(screen, pose, buffer, overlay)
+
     val distance = playerDistanceSq(screen) / math.min(screen.width, screen.height)
     if (distance > maxRenderDistanceSq) return
 
@@ -108,11 +116,6 @@ class ScreenRenderer(context: BlockEntityRendererProvider.Context) extends Block
     if (screenFacing.getStepX * px + screenFacing.getStepY * py + screenFacing.getStepZ * pz < 0) return
 
     RenderState.checkError(getClass.getName + ".render: checks")
-
-    // 多方块屏幕的边框贴图覆盖层。
-    // 必须在这里（还没 push + translate(0.5, ...)）画：覆盖层是按整屏中每个方块的
-    // 局部坐标写顶点的，此刻 pose 的入场原点正好是本方块角。
-    drawMultiBlockOverlay(screen, pose, buffer, overlay)
 
     pose.pushPose()
     pose.translate(0.5, 0.5, 0.5)
@@ -528,31 +531,36 @@ class ScreenRenderer(context: BlockEntityRendererProvider.Context) extends Block
   }
 
   /**
-   * 给多方块屏幕的每个方块、每个朝外的面铺上按拼接位置选出的贴图。
+   * 给屏幕的每个方块、每个朝外的面铺上按「拼接位置 + 朝向」选出的贴图。
    *
-   * ==为什么必须补这一层==
-   * 1.7.10 的屏幕贴图是**按位置动态选择**的：`BlockScreen#getIcon(world, x, y, z, worldSide, localSide)`
-   * 读取方块实体的 `width` / `height` / `localPosition`，把「单块」「左中」「上中」「角」
-   * 等不同贴图填进方块模型，玩家因此能一眼看出若干屏幕拼成了一块大屏。
+   * ==为什么必须由渲染器补这一层（两个问题一起解决）==
+   * 1.7.10 的屏幕外观是**完全数据驱动**的：`BlockScreen#getIcon(world, x, y, z, worldSide, localSide)`
+   * 读取方块实体的 `width` / `height` / `localPosition` / `pitch` / `yaw`，
+   * 再决定「这一个世界面该贴哪张图」。也就是说：
+   *  - 相邻屏幕拼成大屏时，边框贴图会按位置换成「左中 / 上中 / 角 / 中间」；
+   *  - 屏幕转个方向后，贴图会跟着转到新的世界面上。
    *
-   * 1.21.1 的方块外观是**烘焙模型**（`models/block/screen1.json` 等），而 blockstate 里
-   * 没有任何属性可以表达「本方块在这块大屏里的哪个位置」，静态模型永远只显示单块屏幕的贴图
-   * （正面 `screen/f2`），于是几块屏幕挨在一起看上去仍是各自独立的小屏 —— 这正是
-   * 用户反馈的「拼不起来」。
+   * 1.21.1 的方块外观是**烘焙模型**（`models/block/screen1.json` 等），blockstate 里既没有
+   * 「拼接位置」也没有「朝向」属性，静态模型永远只把单块屏幕的贴图画在朝南那一面。于是：
+   *  - 几块屏幕挨在一起，看上去仍是各自独立的小屏（用户反馈的「拼不起来」）；
+   *  - 屏幕转方向后外观纹丝不动（用户反馈的「固定朝向」）。
    *
-   * 这里用方块实体渲染器在多方块屏幕上重画一层边框贴图（相对方块表面外扩
-   * [overlayEpsilon] 以压过静态模型），选择规则见 [multiBlockIcon]。
-   * 只处理 `width > 1 || height > 1` 的屏幕：单方块屏幕的静态模型本来就是对的。
+   * 这里用方块实体渲染器把 1.7.10 的 `getIcon` 规则重放一遍：遍历多方块里的每个方块，
+   * 对每个世界面用 `toLocal` 求出**局部面**，据此选出贴图，再贴在**那个世界面**上
+   * （相对方块表面外扩 [overlayEpsilon] 以压过静态模型）。因为六个面都会被覆盖，
+   * 静态模型朝南的那份贴图不会露出来，效果上等同于原来的动态图标。
+   *
+   * 单方块屏幕同样走这条路径（[singleBlockIcon]）：水平且未旋转时选出的贴图与静态模型
+   * 完全一致，外观不变；拼接或换朝向后才跟着变。
    */
-  private def drawMultiBlockOverlay(origin: Screen, pose: PoseStack, buffer: MultiBufferSource, overlay: Int): Unit = {
-    if (origin.width <= 1 && origin.height <= 1) return
-    val level = origin.getLevel
+  private def drawScreenOverlay(screen: Screen, pose: PoseStack, buffer: MultiBufferSource, overlay: Int): Unit = {
+    val level = screen.getLevel
     if (level == null) return
 
     // 同一个多方块里的所有方块位置：用来跳过屏幕内部的接缝面。
-    val members = origin.screens
+    val members = screen.screens
     val positions = members.map(_.getBlockPos).toSet
-    val originPos = origin.getBlockPos
+    val originPos = screen.getBlockPos
 
     // 整块大屏共用一个顶点消费者：`cutout` 与原版方块模型的切割阶段一致
     // （这些贴图带二值 alpha），深度测试会自然处理与模型本体的前后关系。
@@ -567,7 +575,7 @@ class ScreenRenderer(context: BlockEntityRendererProvider.Context) extends Block
       for (worldSide <- Direction.values()) {
         // 该方向上的邻居也属于本多方块时，这个面在屏幕内部，不需要画。
         if (!positions.contains(pos.relative(worldSide))) {
-          val sprite = RenderUtil.sprite(multiBlockIcon(member, member.toLocal(worldSide)))
+          val sprite = RenderUtil.sprite(iconFor(member, member.toLocal(worldSide)))
           if (sprite != null) {
             pose.pushPose()
             pose.translate(dx.toDouble, dy.toDouble, dz.toDouble)
@@ -576,6 +584,31 @@ class ScreenRenderer(context: BlockEntityRendererProvider.Context) extends Block
           }
         }
       }
+    }
+  }
+
+  /** 单方块屏幕与多方块屏幕的贴图选择入口（对应 1.7.10 `getIcon` 的两个分支）。 */
+  private def iconFor(screen: Screen, localSide: Direction): ResourceLocation =
+    if (screen.width > 1 || screen.height > 1) multiBlockIcon(screen, localSide)
+    else singleBlockIcon(screen, localSide)
+
+  /**
+   * 1.7.10 `common.block.Screen#getIcon` 的**单方块分支**（原 `case screen: tileentity.Screen`）：
+   * 水平屏幕用 `f2` / `b2` / `b` / `b2`（无环境光遮蔽的那一份），
+   * 俯仰为天 / 地时用 `f` / `b` / `b2` / `b2`。
+   */
+  private def singleBlockIcon(screen: Screen, localSide: Direction): ResourceLocation = {
+    // 注意：这里的局部变量不能叫 `f` / `b` / `t` / `s` —— 那会和 `ScreenIcons` 里的
+    // 同名字段撞上，Scala 会把右侧的 `b` 解析成正在定义的这个变量（递归值）而报错。
+    val (frontIcon, backIcon, topIcon, otherIcon) = screen.pitch match {
+      case Direction.NORTH => (ScreenIcons.f2, ScreenIcons.b2, ScreenIcons.b, ScreenIcons.b2)
+      case _ => (ScreenIcons.f, ScreenIcons.b, ScreenIcons.b2, ScreenIcons.b2)
+    }
+    localSide match {
+      case Direction.SOUTH => frontIcon
+      case Direction.NORTH => backIcon
+      case Direction.DOWN | Direction.UP => topIcon
+      case _ => otherIcon
     }
   }
 

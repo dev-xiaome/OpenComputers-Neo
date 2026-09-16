@@ -53,9 +53,13 @@ configurations {
     ocRunLibs
 }
 
-// 尚未移植的 1.7.10 Java 源码（客户端字体解析器依赖 gnu.trove 与旧版 Minecraft API）。
-// 客户端阶段移植完成后请删掉这一行。
-sourceSets.main.java.exclude 'li/cil/oc/client/renderer/font/FontParserHex.java'
+// 注意：`FontParserHex.java` 早已重写成 1.21.1 版（只依赖 Mojang / LWJGL，不再依赖 gnu.trove），
+// 这里**不能**再排除它。
+//
+// 曾有一行 `sourceSets.main.java.exclude 'li/cil/oc/client/renderer/font/FontParserHex.java'`，
+// 它排除的是 `src/main/java` 下的那个文件（不是 `src/main/scala` 下的，那里根本没有这个文件），
+// 结果这个类**从未被编译过** —— `DynamicFontRenderer` 一直是靠上一次构建残留的 `.class`
+// 在工作，一旦 `gradlew clean` 就会报 `not found: type FontParserHex`。已删除该行。
 dependencies {
     ocRunLibs "org.scala-lang:scala-library:${scala_version}"
     ocRunLibs "com.typesafe:config:${typesafe_config_version}"
@@ -107,8 +111,18 @@ tasks.named('compileScala', ScalaCompile) {
             '-deprecation',
             '-feature',
             '-encoding', 'UTF-8',
+            // Scala 2.13 默认**单线程**生成字节码（后端阶段能占整个编译时间的很大一块）。
+            // 这里按 CPU 核数并行化后端，674 个源文件的编译时间能明显下降。
+            // 上限取 8，避免在超多核机器上把内存打爆。
+            // 注意：这里必须显式 `.toString()`。
+            // `additionalParameters` 的元素类型是 `String`，而 `"${...}"` 是 Groovy 的
+            // `GString`（不是 `String`），直接放进去会在内部 `arraycopy` 到 `String[]` 时抛
+            // "arraycopy: element type mismatch"，表现为编译莫名其妙地失败。
+            '-Ybackend-parallelism', Math.min(Runtime.runtime.availableProcessors(), 8).toString(),
     ]
     options.encoding = 'UTF-8'
+    // scalac 单独开堆，避免和 Gradle daemon 抢内存导致反复 GC。
+    scalaCompileOptions.forkOptions.memoryMaximumSize = '2g'
 }
 
 neoForge {

@@ -206,6 +206,9 @@ class Machine(val host: MachineHost) extends prefab.ManagedEnvironment with mach
       onHostChanged()
       processAddedComponents()
       verifyComponents()
+      // TODO(diag): 临时诊断日志，用于定位「电脑报未安装CPU」，问题解决后请删除。
+      li.cil.oc.OpenComputers.log.info(
+        s"[OC-DIAG] Machine.start: arch=${architecture != null} maxComponents=$maxComponents componentCount=$componentCount hasMemory=$hasMemory components=${_components.size} added=${addedComponents.size}")
       if (!Settings.get.ignorePower && node.globalBuffer < cost) {
         // No beep! We have no energy after all :P
         crash("gui.Error.NoEnergy")

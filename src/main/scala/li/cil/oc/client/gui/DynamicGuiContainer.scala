@@ -27,7 +27,8 @@ import scala.jdk.CollectionConverters._
  * ==1.21.1 迁移要点==
  *  - `renderBg` / `renderLabels` / `render` 的签名换成
  *    [[net.minecraft.client.gui.GuiGraphics]] 版本；
- *  - `drawSecondaryForegroundLayer` 增加 `GuiGraphics` 参数（mouseX / mouseY 仍然相对界面左上角）；
+ *  - `drawSecondaryForegroundLayer` 增加 `GuiGraphics` 参数（mouseX / mouseY 是**屏幕绝对坐标**，
+ *    与 1.7.10 的 `drawGuiContainerForegroundLayer` 一致；需要界面内坐标请自行减去 `leftPos` / `topPos`）；
  *  - 槽位图标从 `IIcon` 换成 [[ResourceLocation]] + 图集精灵
  *    （见 [[Icons]] 与 `common.container.ComponentSlot#tierIcon`）；
  *  - 空槽位的等级图标**不再手动画**：1.21.1 的 `AbstractContainerScreen#renderSlot`

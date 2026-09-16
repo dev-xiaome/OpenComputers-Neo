@@ -106,9 +106,22 @@ class Screen(val tier: Int, properties: BlockBehaviour.Properties = Screen.prope
 
   override def onBlockPlacedBy(state: BlockState, level: Level, pos: BlockPos, placer: LivingEntity, stack: ItemStack): Unit = {
     super.onBlockPlacedBy(state, level, pos, placer, stack)
-    // 放置后立即检查一次多方块合并（原 `delayUntilCheckForMultiBlock = 0`）。
     level.getBlockEntity(pos) match {
-      case screen: tileentity.Screen => screen.delayUntilCheckForMultiBlock = 0
+      case screen: tileentity.Screen =>
+        // 放置后立即检查一次多方块合并（原 `delayUntilCheckForMultiBlock = 0`）。
+        screen.delayUntilCheckForMultiBlock = 0
+
+        // ==朝向（`pitch` / `yaw`）刻意**不在这里**设置==
+        // 1.7.10 由 `ItemBlock#placeBlockAt` 对**所有** `Rotatable` 方块统一处理：
+        //   `setFromEntityPitchAndYaw(player)` → 修正非法 pitch → `invertRotation()`。
+        // 本移植版对应的代码在 [[li.cil.oc.common.block.Item#place]]，而
+        // `Registry#registerBlockItem` 现在已经改为实例化那个类（不再用原版 `BlockItem`），
+        // 所以这里**不需要也不可以**再补一次：`BlockItem#place` 内部已经触发了
+        // `setPlacedBy`（即本方法），而 `common.block.Item#place` 是在它**之后**执行的，
+        // 再调一次 `invertRotation()` 会让屏幕朝向反过来。
+        //
+        // （`Keyboard.onBlockPlacedBy` 里那个补丁仍然保留：它只设 pitch/yaw、不调
+        // `invertRotation`，重复设置是幂等的。）
       case _ =>
     }
   }

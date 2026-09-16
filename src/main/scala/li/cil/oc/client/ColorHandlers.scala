@@ -98,6 +98,20 @@ object ColorHandlers {
     Constants.BlockName.Cable,
     Constants.BlockName.ChameliumBlock)
 
+  /**
+   * 可染色的「存储类」物品（软盘 / 硬盘）的注册名。
+   *
+   * 1.7.10 给软盘准备了 **16 张按染料命名的贴图**（`FloppyDisk#icon` 读 `oc:color`
+   * 去选 `icons(0..15)`）；1.21.1 只有一张灰阶贴图，因此改为按 `oc:color` 染色。
+   * 不注册这一段的话，**OpenOS 软盘和空白软盘看起来完全一样（都是灰的）**，
+   * 玩家没法分辨哪张是可启动的系统盘。
+   */
+  private val dyeableStorageNames: Seq[String] = Seq(
+    Constants.ItemName.Floppy,
+    Constants.ItemName.HDDTier1,
+    Constants.ItemName.HDDTier2,
+    Constants.ItemName.HDDTier3)
+
   private def registerBlockColors(event: RegisterColorHandlersEvent.Block): Unit = {
     // `Registry.getBlock` 内部就是 `DeferredHolder#value`；本事件在注册表冻结之后才触发，
     // 所以这里能拿到真实方块实例。取不到的（例如常量与注册名不一致）直接跳过，
@@ -150,10 +164,14 @@ object ColorHandlers {
    * 线缆一种情况：颜色存在堆叠的 NBT 里（[[ItemColorizer]]），没写着色时是 [[Color.LightGray]]。
    */
   private def registerItemColors(event: RegisterColorHandlersEvent.Item): Unit = {
-    val items = coloredBlockNames
+    val blockItems = coloredBlockNames
       .map(name => Registry.getItem(name))
       .filter(_ != null)
-      .toArray
+
+    // 可染色的「存储类」物品（软盘 / 硬盘），见 [[dyeableStorageNames]] 的说明。
+    val dyeableItems = dyeableStorageNames.map(Registry.getItem).filter(_ != null)
+
+    val items = (blockItems ++ dyeableItems).distinct.toArray
 
     if (items.isEmpty) return
 
@@ -168,6 +186,15 @@ object ColorHandlers {
     if (isCableItem(stack)) {
       // 原 `block.Item#getColorFromItemStack`：线缆按堆叠里保存的颜色绘制，否则浅灰。
       return if (ItemColorizer.hasColor(stack)) ItemColorizer.getColor(stack) else Color.LightGray
+    }
+
+    // 软盘 / 硬盘：颜色存在 `oc:color`（染料索引 0-15，与原版 `FloppyDisk#icon` 读的是同一个键），
+    // 未写着色时用 `dyes(8)`（浅灰），与原版 `icons(8)` 的默认值一致。
+    if (dyeableStorageNames.map(Registry.getItem).exists(i => i != null && (i eq stack.getItem))) {
+      val tag = li.cil.oc.util.ItemNBT.get(stack)
+      val key = li.cil.oc.Settings.namespace + "color"
+      val index = if (tag != null && tag.contains(key)) (tag.getInt(key) max 0 min 15) else 8
+      return Color.byOreName(Color.dyes(index))
     }
 
     stack.getItem match {

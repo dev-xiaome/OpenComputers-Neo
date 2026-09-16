@@ -58,7 +58,13 @@ class Case(menu: container.Case, playerInventory: Inventory, title: Component)
       tooltip.addAll(toJava(
         (if (menu.computer.isRunning) Localization.Computer.TurnOff else Localization.Computer.TurnOn)
           .linesIterator.toSeq))
-      copiedDrawHoveringText(tooltip, mouseX - leftPos, mouseY - topPos, font)
+      // 1.7.10 这里传的是 `mouseX - guiLeft, mouseY - guiTop`：当时的 tooltip 是在
+      // `GL11.glTranslatef(guiLeft, guiTop)` 之后的绘制矩阵里**手绘**的，所以要传界面内坐标。
+      // 1.21.1 的 tooltip 由原版统一绘制，坐标语义是**屏幕绝对坐标**
+      // （界面平移已由 [[CustomGuiContainer.drawHoveringText]] 内部抵消），
+      // 因此这里直接传 `mouseX` / `mouseY`；再减一次 `leftPos` / `topPos` 会让提示框
+      // 偏到界面左上方。
+      copiedDrawHoveringText(tooltip, mouseX, mouseY, font)
     }
   }
 
