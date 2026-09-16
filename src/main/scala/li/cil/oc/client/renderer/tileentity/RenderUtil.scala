@@ -157,22 +157,69 @@ object RenderUtil {
    * TODO(渲染): 图集尚未加载完成时返回 `null`（调用方需要判空）。
    * 1.7.10 的 `IIcon` 在贴图注册事件里一次性拿好，1.21.1 改成按需查询，
    * 因此资源包重载后拿到的一定是新精灵，不需要额外的失效逻辑。
+   *
+   * 传入的位置会先经 [spriteLocation] 规范化，因此 [[li.cil.oc.client.Textures]]
+   * 里那些沿用 1.7.10 写法的「完整贴图文件路径」也能直接查到精灵。
    */
   def sprite(rl: ResourceLocation): TextureAtlasSprite = {
     if (rl == null) return null
     val mc = Minecraft.getInstance
     if (mc == null) return null
     val atlas = mc.getTextureAtlas(TextureAtlas.LOCATION_BLOCKS)
-    if (atlas == null) null else atlas.apply(rl)
+    if (atlas == null) null else atlas.apply(spriteLocation(rl))
   }
 
-  /** 命名空间为 `opencomputers_neo` 的方块贴图位置。 */
+  /**
+   * 把「贴图文件路径」规范化为「图集精灵路径」。
+   *
+   * ==为什么需要这一步==
+   * 1.7.10 的 `IIcon` 由 `TextureStitchEvent` 注册，注册字符串形如
+   * `opencomputers:blocks/casefronton`（相对 `assets/<namespace>/textures/`）。
+   * 1.21.1 没有贴图注册事件，`TextureAtlas#apply`（即 `getSprite`）用的键是
+   * **相对 `textures/` 目录、且不带 `.png` 后缀**的路径 —— 原版自己的空槽位图标
+   * 就是 `minecraft:item/empty_armor_slot_boots`，对应
+   * `assets/minecraft/textures/item/empty_armor_slot_boots.png`。
+   *
+   * 而 [[li.cil.oc.client.Textures]] 里的常量大多沿用 1.7.10 的「完整文件路径」
+   * 写法（`opencomputers_neo:textures/block/casefronton`）。直接把它交给图集查询
+   * 只会得到 `missingno` —— 也就是实机里看到的紫黑方格，所以这里统一做一次转换：
+   * 去掉 `textures/` 前缀与 `.png` 后缀。
+   *
+   * ==为什么是「转换」而不是「让常量改成精灵路径」==
+   * 同一批常量还有少数地方（`RenderType#entityCutout*`、`RackMountableRenderEvent`
+   * 的覆盖层）需要的是**完整贴图文件路径**，两种语义互相冲突。放在这里做一次规范化
+   * 可以让两边都保持可用：精灵查询走本方法，文件绑定走
+   * [[li.cil.oc.client.Textures.blockFile]] 之类的显式方法。
+   */
+  private def spriteLocation(rl: ResourceLocation): ResourceLocation = {
+    var path = rl.getPath
+    if (path.startsWith("textures/")) path = path.substring("textures/".length)
+    if (path.endsWith(".png")) path = path.substring(0, path.length - 4)
+    if (path == rl.getPath) rl
+    else ResourceLocation.fromNamespaceAndPath(rl.getNamespace, path)
+  }
+
+  /** 命名空间为 `opencomputers_neo` 的方块贴图精灵位置（相对 `textures/`，无扩展名）。 */
   def blockTexture(name: String): ResourceLocation =
     ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "block/" + name)
 
-  /** 命名空间为 `opencomputers_neo` 的模型贴图位置。 */
+  /**
+   * 命名空间为 `opencomputers_neo` 的模型贴图精灵位置（相对 `textures/`，无扩展名）。
+   *
+   * 注意：`textures/model/` 目录**不在**原版方块图集（`minecraft:blocks`）自动收录的
+   * `textures/block/` 与 `textures/item/` 之下，因此这几个贴图不能用图集精灵的方式取；
+   * 升级物品渲染器实际是走 `RenderType#entityCutoutNoCull` 独立绑定贴图文件
+   * （见 [[li.cil.oc.client.Textures.Model]]）。本方法只用于确实需要精灵的场景。
+   */
   def modelTexture(name: String): ResourceLocation =
     ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "model/" + name)
+
+  /**
+   * 方块贴图的完整文件路径，供 `RenderType#entityCutout*`、
+   * `RackMountableRenderEvent#renderOverlay` 等需要独立绑定贴图文件的场合使用。
+   */
+  def blockFile(name: String): ResourceLocation =
+    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/block/" + name + ".png")
 
   // ----------------------------------------------------------------------- //
   // 光照

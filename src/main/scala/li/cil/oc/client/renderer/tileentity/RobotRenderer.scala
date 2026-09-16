@@ -419,7 +419,10 @@ object RobotRenderer {
     val sprite = RenderUtil.sprite(Textures.Block.Robot)
     if (sprite == null) return
 
-    val vc = buffer.getBuffer(RenderType.entityCutoutNoCull(Textures.Block.Robot))
+    // 本渲染器的 UV 全部是 0..1 的「贴图内相对坐标」（原 1.7.10 用 bindTexture 绑定独立贴图），
+    // 所以这里必须让 RenderType 绑定**独立贴图文件**，而不是方块图集：
+    // 绑图集的话 UV 就得换成精灵的绝对坐标，两者不能混用。
+    val vc = buffer.getBuffer(RenderType.entityCutoutNoCull(Textures.blockFile("robot")))
 
     pose.pushPose()
     // 原实现：不运行时下盖下移一点，让上盖的「缝隙」露出来。

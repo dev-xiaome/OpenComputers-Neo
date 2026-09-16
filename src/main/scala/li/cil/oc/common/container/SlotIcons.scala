@@ -28,9 +28,25 @@ object SlotIcons {
   /** 图标所在图集（原版方块图集）。 */
   val atlas: ResourceLocation = InventoryMenu.BLOCK_ATLAS
 
+  /**
+   * `textures/item/icons/` 下真实存在的图标名（与 1.7.10 `TextureStitchEvent` 注册的那一批一致）：
+   * `Slot.All` 的 12 个槽位类型 + `na` + `tier0..tier2`。
+   *
+   * 之所以要显式列出：1.7.10 的 `Icons.get` 未命中时返回 `null`，GUI 便不画背景；
+   * 而 1.21.1 这条通道无法表达「不画」——`getNoItemIcon` 返回的精灵若指向不存在的路径，
+   * `TextureAtlas#apply` 会回退成 `missingno`，也就是紫黑方格。所以未知名（例如
+   * `Slot.None` / `Slot.Any` 这类没有专属图标的槽位）一律回退到真实存在的 `na`。
+   */
+  private val available = Set(
+    "card", "component_bus", "container", "cpu", "eeprom", "floppy", "hdd",
+    "memory", "rack_mountable", "tablet", "tool", "upgrade",
+    "na", "tier0", "tier1", "tier2")
+
   /** 按槽位类型取图标（原 `Icons.get(slotType: String)`）。 */
-  def get(slotType: String): ResourceLocation =
-    sprite(if (slotType == null || slotType.isEmpty) "none" else slotType)
+  def get(slotType: String): ResourceLocation = {
+    val name = if (slotType == null || slotType.isEmpty) "na" else slotType
+    sprite(if (available.contains(name)) name else "na")
+  }
 
   /**
    * 按等级取图标（原 `Icons.get(tier: Int)`）。
@@ -53,6 +69,15 @@ object SlotIcons {
   def background(tier: Int): Pair[ResourceLocation, ResourceLocation] =
     Pair.of(atlas, get(tier))
 
+  /**
+   * 拼出图集里的精灵位置。
+   *
+   * **必须带 `item/` 前缀**：1.21.1 的方块图集配置
+   * （`assets/minecraft/atlases/blocks.json`，NeoForge 内置）对 `textures/item/` 下的贴图
+   * 使用 `prefix: "item/"`，所以 `textures/item/icons/tier1.png` 对应的精灵名是
+   * `opencomputers_neo:item/icons/tier1`。少这个前缀时 `TextureAtlas#apply` 会回退到
+   * missingno —— 表现就是 GUI 里所有组件槽位背景变成**紫黑方格**。
+   */
   private def sprite(name: String): ResourceLocation =
-    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "icons/" + name)
+    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "item/icons/" + name)
 }

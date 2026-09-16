@@ -28,8 +28,30 @@ object Textures {
   private def block(name: String): ResourceLocation =
     ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/block/" + name)
 
+  /**
+   * 模型贴图的**完整文件路径**（`textures/model/<name>.png`）。
+   *
+   * 注意这里的语义与 [[block]] 的下游用法不同：`Textures.Model` 下的三个常量只被
+   * `RenderType#entityCutoutNoCull` 使用（独立绑定一张贴图，UV 用 0..1 的贴图内相对坐标，
+   * 见 `client.renderer.item.UpgradeRenderer#drawSimpleBlock`），因此必须是带
+   * `textures/` 前缀与 `.png` 后缀的完整路径。图集精灵查询走的是另一套路径规则
+   * （见 [[li.cil.oc.client.renderer.tileentity.RenderUtil.sprite]] 的规范化）。
+   */
   private def model(name: String): ResourceLocation =
-    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/model/" + name)
+    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/model/" + name + ".png")
+
+  /**
+   * 方块贴图的**完整文件路径**（`textures/block/<name>.png`，`<name>` 可含子目录）。
+   *
+   * 1.7.10 的 `bindTexture` 与 1.21.1 的 `RenderType#entityCutout*` /
+   * `RackMountableRenderEvent#renderOverlay` 都需要这种「完整文件路径」，
+   * 而方块图集查询需要的是相对 `textures/`、不带扩展名的「精灵路径」。
+   * 两者的差别是实机里紫黑方格（`missingno`）的常见来源，因此这里显式分开命名：
+   *  - 精灵查询：把 [[Block]] 下的常量交给 `RenderUtil.sprite`（内部会规范化）；
+   *  - 独立贴图绑定：用本方法。
+   */
+  def blockFile(name: String): ResourceLocation =
+    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/block/" + name + ".png")
 
   // ----------------------------------------------------------------------- //
   // 字体

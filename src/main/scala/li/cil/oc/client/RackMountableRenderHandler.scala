@@ -111,7 +111,11 @@ object RackMountableRenderHandler {
         RenderState.disableLighting()
         RenderState.makeItBlend()
 
-        e.renderOverlay(buffer, Textures.Block.RackDiskDriveActivity)
+        // 注意（紫黑方格根因）：`RackMountableRenderEvent#renderOverlay` 内部用的是
+        // `RenderType.entityCutout(texture)` 并写出 0..1 的贴图内 UV，
+        // 也就是要**完整贴图文件路径**（含 `textures/` 前缀与 `.png`）。
+        // `Textures.Block.Xxx` 是给图集精灵查询用的路径，直接传进去只会得到 missingno。
+        e.renderOverlay(buffer, Textures.blockFile("diskdrivemountableactivity"))
 
         RenderState.enableLighting()
       }
@@ -122,18 +126,18 @@ object RackMountableRenderHandler {
       RenderState.makeItBlend()
 
       if (e.data.getBoolean("isRunning")) {
-        e.renderOverlay(buffer, Textures.Block.RackServerOn)
+        e.renderOverlay(buffer, Textures.blockFile("serverfronton"))
       }
       if (e.data.getBoolean("hasErrored") && RenderUtil.shouldShowErrorLight(e.rack.hashCode * (e.mountable + 1))) {
-        e.renderOverlay(buffer, Textures.Block.RackServerError)
+        e.renderOverlay(buffer, Textures.blockFile("serverfronterror"))
       }
       if (System.currentTimeMillis() - e.data.getLong("lastFileSystemAccess") < 400 &&
         e.rack.world().getRandom.nextDouble() > 0.1) {
-        e.renderOverlay(buffer, Textures.Block.RackServerActivity)
+        e.renderOverlay(buffer, Textures.blockFile("serverfrontactivity"))
       }
       if ((System.currentTimeMillis() - e.data.getLong("lastNetworkActivity") < 300 &&
         System.currentTimeMillis() % 200 > 100) && e.data.getBoolean("isRunning")) {
-        e.renderOverlay(buffer, Textures.Block.RackServerNetworkActivity)
+        e.renderOverlay(buffer, Textures.blockFile("serverfrontnetworkactivity"))
       }
 
       RenderState.enableLighting()
@@ -143,13 +147,13 @@ object RackMountableRenderHandler {
       RenderState.disableLighting()
       RenderState.makeItBlend()
 
-      e.renderOverlay(buffer, Textures.Block.RackTerminalServerOn)
+      e.renderOverlay(buffer, Textures.blockFile("terminalserverfronton"))
       val countConnected = e.data.getList("keys", Tag.TAG_STRING).size()
 
       if (countConnected > 0) {
         val u0 = 7 / 16f
         val u1 = u0 + (2 * countConnected - 1) / 16f
-        e.renderOverlay(buffer, Textures.Block.RackTerminalServerPresence, u0, u1)
+        e.renderOverlay(buffer, Textures.blockFile("terminalserverfrontpresence"), u0, u1)
       }
 
       RenderState.enableLighting()
@@ -157,17 +161,18 @@ object RackMountableRenderHandler {
   }
 
   def onRackMountableRendering(e: RackMountableRenderEvent.Block): Unit = {
+    // 同 `BlockEntity` 分支：正面覆盖贴图同样要求完整贴图文件路径。
     if (DiskDriveMountable == api.Items.get(e.rack.getStackInSlot(e.mountable))) {
       // 磁盘驱动器。
-      e.setFrontTextureOverride(Textures.Block.RackDiskDrive)
+      e.setFrontTextureOverride(Textures.blockFile("diskdrivemountable"))
     }
     else if (Servers.contains(api.Items.get(e.rack.getStackInSlot(e.mountable)))) {
       // 服务器。
-      e.setFrontTextureOverride(Textures.Block.RackServer)
+      e.setFrontTextureOverride(Textures.blockFile("serverfront"))
     }
     else if (TerminalServer == api.Items.get(e.rack.getStackInSlot(e.mountable))) {
       // 终端服务器。
-      e.setFrontTextureOverride(Textures.Block.RackTerminal)
+      e.setFrontTextureOverride(Textures.blockFile("terminalserverfront"))
     }
   }
 }

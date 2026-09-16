@@ -1,6 +1,6 @@
 package li.cil.oc.client.renderer.tileentity
 
-import com.mojang.blaze3d.vertex.PoseStack
+import com.mojang.blaze3d.vertex.{PoseStack, VertexConsumer}
 import li.cil.oc.Constants
 import li.cil.oc.Settings
 import li.cil.oc.api
@@ -10,8 +10,10 @@ import li.cil.oc.common.tileentity.Screen
 import li.cil.oc.util.RenderState
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.blockentity.{BlockEntityRenderer, BlockEntityRendererProvider}
-import net.minecraft.client.renderer.{MultiBufferSource, RenderType}
+import net.minecraft.client.renderer.texture.TextureAtlasSprite
+import net.minecraft.client.renderer.{LevelRenderer, MultiBufferSource, RenderType}
 import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.phys.AABB
 
 /**
@@ -89,19 +91,28 @@ class ScreenRenderer(context: BlockEntityRendererProvider.Context) extends Block
     // 只有多方块屏幕的原点负责绘制，其余方块由包围盒覆盖。
     if (!screen.isOrigin) return
 
-    val distance = playerDistanceSq(screen) / math.max(screen.width, screen.height)
+    val distance = playerDistanceSq(screen) / math.min(screen.width, screen.height)
     if (distance > maxRenderDistanceSq) return
 
-    // 粗略判断本机玩家是否能看到屏幕正面：屏幕朝外的法线与「玩家 -> 屏幕中心」的夹角。
+    // 粗略判断本机玩家是否能看到屏幕正面：屏幕朝向的反方向与「相机 -> 屏幕」向量的夹角。
+    // 1.7.10 里渲染回调拿到的 x/y/z 是「方块坐标 - 相机坐标」（指向屏幕），条件写作
+    //   `facing.getOpposite · (方块 - 玩家) < 0 → 不画`，也就是「玩家在屏幕背面时剔除」。
+    // 而原移植版把向量写成了 `玩家 - 方块`，符号正好反了 —— 结果玩家站在**正面**时
+    // 反而被剔除，屏幕上的内容永远看不到（实机表现就是「屏幕拼不起来 / 一直空着」）。
     val player = Minecraft.getInstance.player
     if (player == null) return
     val screenFacing = screen.facing.getOpposite
-    val px = player.getX - (screen.getBlockPos.getX + 0.5)
-    val py = player.getY - (screen.getBlockPos.getY + 0.5)
-    val pz = player.getZ - (screen.getBlockPos.getZ + 0.5)
+    val px = screen.getBlockPos.getX + 0.5 - player.getX
+    val py = screen.getBlockPos.getY + 0.5 - player.getY
+    val pz = screen.getBlockPos.getZ + 0.5 - player.getZ
     if (screenFacing.getStepX * px + screenFacing.getStepY * py + screenFacing.getStepZ * pz < 0) return
 
     RenderState.checkError(getClass.getName + ".render: checks")
+
+    // 多方块屏幕的边框贴图覆盖层。
+    // 必须在这里（还没 push + translate(0.5, ...)）画：覆盖层是按整屏中每个方块的
+    // 局部坐标写顶点的，此刻 pose 的入场原点正好是本方块角。
+    drawMultiBlockOverlay(screen, pose, buffer, overlay)
 
     pose.pushPose()
     pose.translate(0.5, 0.5, 0.5)
@@ -282,5 +293,317 @@ class ScreenRenderer(context: BlockEntityRendererProvider.Context) extends Block
       e * e
     }
     else 0
+  }
+
+  // ----------------------------------------------------------------------- //
+  // 多方块屏幕的边框贴图
+  // ----------------------------------------------------------------------- //
+
+  /**
+   * 多方块屏幕的贴图位置表，与 1.7.10 `common.block.Screen.Icons` 一一对应
+   * （都在 `assets/opencomputers_neo/textures/block/screen/` 下）。
+   *
+   * 命名规则：
+   *  - 首字母 `f` / `b`：正面（front）/ 背面（back）；
+   *  - 第二字母 `h` / `v`：水平边 / 垂直边；`t` / `m` / `b`：上 / 中 / 下；
+   *    `l` / `m` / `r`：左 / 中 / 右；
+   *  - 结尾 `t` / `m` / `b` 与 `l` / `m` / `r` 同上；后缀 `2` 表示「单方块 / 无环境光遮蔽」的那一份。
+   *
+   * 1.7.10 里这些是 `IIcon`，由 `TextureStitchEvent` 从 `textures/blocks/screen/` 注册并缓存；
+   * 1.21.1 没有贴图注册事件，所以这里只保存**位置**，绘制时再用 [RenderUtil.sprite] 取精灵。
+   */
+  private object ScreenIcons {
+    val b = screenTex("b")
+    val b2 = screenTex("b2")
+    val bbl = screenTex("bbl")
+    val bbl2 = screenTex("bbl2")
+    val bbm = screenTex("bbm")
+    val bbm2 = screenTex("bbm2")
+    val bbr = screenTex("bbr")
+    val bbr2 = screenTex("bbr2")
+    val bhb = screenTex("bhb")
+    val bhb2 = screenTex("bhb2")
+    val bhm = screenTex("bhm")
+    val bhm2 = screenTex("bhm2")
+    val bht = screenTex("bht")
+    val bht2 = screenTex("bht2")
+    val bml = screenTex("bml")
+    val bmm = screenTex("bmm")
+    val bmr = screenTex("bmr")
+    val btl = screenTex("btl")
+    val btm = screenTex("btm")
+    val btr = screenTex("btr")
+    val bvb = screenTex("bvb")
+    val bvb2 = screenTex("bvb2")
+    val bvm = screenTex("bvm")
+    val bvt = screenTex("bvt")
+    val f = screenTex("f")
+    val f2 = screenTex("f2")
+    val fbl = screenTex("fbl")
+    val fbl2 = screenTex("fbl2")
+    val fbm = screenTex("fbm")
+    val fbm2 = screenTex("fbm2")
+    val fbr = screenTex("fbr")
+    val fbr2 = screenTex("fbr2")
+    val fhb = screenTex("fhb")
+    val fhb2 = screenTex("fhb2")
+    val fhm = screenTex("fhm")
+    val fhm2 = screenTex("fhm2")
+    val fht = screenTex("fht")
+    val fht2 = screenTex("fht2")
+    val fml = screenTex("fml")
+    val fmm = screenTex("fmm")
+    val fmr = screenTex("fmr")
+    val ftl = screenTex("ftl")
+    val ftm = screenTex("ftm")
+    val ftr = screenTex("ftr")
+    val fvb = screenTex("fvb")
+    val fvb2 = screenTex("fvb2")
+    val fvm = screenTex("fvm")
+    val fvt = screenTex("fvt")
+
+    // 下面这些「阵列」的排法与 1.7.10 完全相同：把上面 15 张贴图按
+    // 「上边 / 左边 / 角 / 中间」等语义排成 15 元数组，供 [multiBlockIcon] 按下标取值。
+    // 注意 1.7.10 原文里 `fv2 = Array(fvt, fvm, fvb2)`（第二项不是 `fvm2`）与
+    // `sud = Array(bvt, bvm, bvb2)`，属于原实现的既有写法，这里照抄以保持一致。
+    val fh = Array(fht, fhm, fhb)
+    val fv = Array(fvt, fvm, fvb)
+    val bh = Array(bht, bhm, bhb)
+    val bv = Array(bvt, bvm, bvb)
+    val fth = Array(ftl, ftm, ftr)
+    val fmh = Array(fml, fmm, fmr)
+    val fbh = Array(fbl, fbm, fbr)
+    val bth = Array(btl, btm, btr)
+    val bmh = Array(bml, bmm, bmr)
+    val bbh = Array(bbl, bbm, bbr)
+    val ftv = Array(ftl, fml, fbl)
+    val fmv = Array(ftm, fmm, fbm)
+    val fbv = Array(ftr, fmr, fbr)
+    val btv = Array(btl, bml, bbl)
+    val bmv = Array(btm, bmm, bbm)
+    val bbv = Array(btr, bmr, bbr)
+    val fh2 = Array(fht2, fhm2, fhb2)
+    val fv2 = Array(fvt, fvm, fvb2)
+    val bh2 = Array(bht2, bhm2, bhb2)
+    val bv2 = Array(bvt, bvm, bvb2)
+    val fbh2 = Array(fbl2, fbm2, fbr2)
+    val bbh2 = Array(bbl2, bbm2, bbr2)
+
+    val fud = fh2 ++ fv2 ++ fth ++ fmh ++ fbh2
+    val bud = bh2.reverse ++ bv2 ++ bth.reverse ++ bmh.reverse ++ bbh2.reverse
+    val fsn = fh ++ fv ++ fth ++ fmh ++ fbh
+    val few = fv ++ fh ++ ftv ++ fmv ++ fbv
+    val bsn = bh ++ bv ++ bth ++ bmh ++ bbh
+    val bew = bv ++ bh ++ btv ++ bmv ++ bbv
+
+    val sud = Array(bvt, bvm, bvb2)
+    val sse = Array(bhb2, bhm2, bht2)
+    val snw = Array(bht2, bhm2, bhb2)
+    val th = Array(bhb, bhm, bht)
+    val tv = Array(bvb, bvm, bvt)
+  }
+
+  /** 取 `textures/block/screen/` 下某张贴图在图集里的精灵位置。 */
+  private def screenTex(name: String): ResourceLocation = RenderUtil.blockTexture("screen/" + name)
+
+  /** 边框贴图相对方块表面的外扩量，用来压过方块模型避免 z-fighting。 */
+  private val overlayEpsilon = 0.002
+
+  /**
+   * 逐行复刻 1.7.10 `common.block.Screen#getIcon` 的**多方块分支**：
+   * 按方块在整屏里的位置（[Screen#localPosition]）与该面的局部朝向挑一张贴图。
+   *
+   * 原实现在 `yaw` 取值非法时会 `throw new AssertionError`；1.21.1 的 `Direction`
+   * 只可能是 6 个合法方向（没有 `UNKNOWN`），因此那些分支退化为「不做换算」。
+   */
+  private def multiBlockIcon(screen: Screen, localSide: Direction): ResourceLocation = {
+    import ScreenIcons._
+    val right = screen.width - 1
+    val bottom = screen.height - 1
+    val (px, py) = screen.localPosition
+
+    // 把「屏幕局部坐标」换算成「贴图坐标」：俯仰 / 偏航不同，贴图阵列的方向也不同。
+    val (lx, ly) = screen.pitch match {
+      case Direction.NORTH => (px, py)
+      case Direction.UP => screen.yaw match {
+        case Direction.SOUTH => (px, py)
+        case Direction.NORTH => (right - px, bottom - py)
+        case Direction.EAST => (right - px, py)
+        case Direction.WEST => (px, bottom - py)
+        case _ => (px, py)
+      }
+      case Direction.DOWN => screen.yaw match {
+        case Direction.SOUTH => (px, bottom - py)
+        case Direction.NORTH => (right - px, py)
+        case Direction.EAST => (right - px, bottom - py)
+        case Direction.WEST => (px, py)
+        case _ => (px, py)
+      }
+      case _ => (px, py)
+    }
+
+    // 正面与背面、左右与上下可以用同一套下标规则，只是贴图集合不同。
+    localSide match {
+      case Direction.SOUTH | Direction.NORTH =>
+        val (ud, sn, ew) =
+          if (localSide == Direction.SOUTH) (fud, fsn, few) else (bud, bsn, bew)
+        val Array(ht, hm, hb, vt, vm, vb, tl, tm, tr, ml, mm, mr, bl, bm, br) = screen.pitch match {
+          case Direction.NORTH => ud
+          case _ => screen.yaw match {
+            case Direction.SOUTH | Direction.NORTH => sn
+            case Direction.EAST | Direction.WEST => ew
+            case _ => sn
+          }
+        }
+        if (screen.height == 1) {
+          if (lx == 0) ht
+          else if (lx == right) hb
+          else hm
+        }
+        else if (screen.width == 1) {
+          if (ly == 0) vb
+          else if (ly == bottom) vt
+          else vm
+        }
+        else {
+          if (lx == 0) {
+            if (ly == 0) bl
+            else if (ly == bottom) tl
+            else ml
+          }
+          else if (lx == right) {
+            if (ly == 0) br
+            else if (ly == bottom) tr
+            else mr
+          }
+          else {
+            if (ly == 0) bm
+            else if (ly == bottom) tm
+            else mm
+          }
+        }
+
+      case Direction.EAST | Direction.WEST =>
+        val (ud, sn, ew) =
+          if (localSide == Direction.EAST) (sud, sse, snw) else (sud, snw, sse)
+        val Array(t, m, b) = screen.pitch match {
+          case Direction.NORTH => ud
+          case _ => screen.yaw match {
+            case Direction.SOUTH | Direction.EAST => sn
+            case Direction.NORTH | Direction.WEST => ew
+            case _ => sn
+          }
+        }
+        if (screen.height == 1) b2
+        else if (ly == 0) b
+        else if (ly == bottom) t
+        else m
+
+      case Direction.UP | Direction.DOWN =>
+        val (sn, ew) =
+          if ((localSide == Direction.UP) ^ (screen.pitch == Direction.DOWN)) (snw, sse) else (sse, snw)
+        val Array(t, m, b) = screen.pitch match {
+          case Direction.NORTH => screen.yaw match {
+            case Direction.SOUTH => th
+            case Direction.NORTH => bh
+            case Direction.EAST => bv
+            case Direction.WEST => tv
+            case _ => th
+          }
+          case _ => screen.yaw match {
+            case Direction.SOUTH | Direction.WEST => sn
+            case Direction.NORTH | Direction.EAST => ew
+            case _ => sn
+          }
+        }
+        if (screen.width == 1) {
+          if (screen.pitch == Direction.NORTH) b else b2
+        }
+        else if (lx == 0) b
+        else if (lx == right) t
+        else m
+
+      case _ => b2
+    }
+  }
+
+  /**
+   * 给多方块屏幕的每个方块、每个朝外的面铺上按拼接位置选出的贴图。
+   *
+   * ==为什么必须补这一层==
+   * 1.7.10 的屏幕贴图是**按位置动态选择**的：`BlockScreen#getIcon(world, x, y, z, worldSide, localSide)`
+   * 读取方块实体的 `width` / `height` / `localPosition`，把「单块」「左中」「上中」「角」
+   * 等不同贴图填进方块模型，玩家因此能一眼看出若干屏幕拼成了一块大屏。
+   *
+   * 1.21.1 的方块外观是**烘焙模型**（`models/block/screen1.json` 等），而 blockstate 里
+   * 没有任何属性可以表达「本方块在这块大屏里的哪个位置」，静态模型永远只显示单块屏幕的贴图
+   * （正面 `screen/f2`），于是几块屏幕挨在一起看上去仍是各自独立的小屏 —— 这正是
+   * 用户反馈的「拼不起来」。
+   *
+   * 这里用方块实体渲染器在多方块屏幕上重画一层边框贴图（相对方块表面外扩
+   * [overlayEpsilon] 以压过静态模型），选择规则见 [multiBlockIcon]。
+   * 只处理 `width > 1 || height > 1` 的屏幕：单方块屏幕的静态模型本来就是对的。
+   */
+  private def drawMultiBlockOverlay(origin: Screen, pose: PoseStack, buffer: MultiBufferSource, overlay: Int): Unit = {
+    if (origin.width <= 1 && origin.height <= 1) return
+    val level = origin.getLevel
+    if (level == null) return
+
+    // 同一个多方块里的所有方块位置：用来跳过屏幕内部的接缝面。
+    val members = origin.screens
+    val positions = members.map(_.getBlockPos).toSet
+    val originPos = origin.getBlockPos
+
+    // 整块大屏共用一个顶点消费者：`cutout` 与原版方块模型的切割阶段一致
+    // （这些贴图带二值 alpha），深度测试会自然处理与模型本体的前后关系。
+    val vc = buffer.getBuffer(RenderType.cutout())
+
+    for (member <- members) {
+      val pos = member.getBlockPos
+      val dx = pos.getX - originPos.getX
+      val dy = pos.getY - originPos.getY
+      val dz = pos.getZ - originPos.getZ
+      val light = LevelRenderer.getLightColor(level, pos)
+      for (worldSide <- Direction.values()) {
+        // 该方向上的邻居也属于本多方块时，这个面在屏幕内部，不需要画。
+        if (!positions.contains(pos.relative(worldSide))) {
+          val sprite = RenderUtil.sprite(multiBlockIcon(member, member.toLocal(worldSide)))
+          if (sprite != null) {
+            pose.pushPose()
+            pose.translate(dx.toDouble, dy.toDouble, dz.toDouble)
+            drawFace(pose, vc, worldSide, sprite, light, overlay)
+            pose.popPose()
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * 在方块某个朝向的**外表面**贴一整张精灵。
+   *
+   * 顶点顺序统一为「从该面外侧看：左下 -> 右下 -> 右上 -> 左上」，与
+   * [RenderUtil.drawSpriteQuad] 的约定（第一个顶点取精灵的 `U0` / `V1`，即贴图左下）
+   * 一致，因此贴图既不会上下颠倒也不会左右镜像 —— 这套映射必须与 Minecraft 烘焙模型
+   * （`CubeFace`）的 UV 约定对齐，否则拼出来的边框会错位或镜像。
+   */
+  private def drawFace(pose: PoseStack, vc: VertexConsumer, side: Direction,
+                       sprite: TextureAtlasSprite, light: Int, overlay: Int): Unit = {
+    val lo = -overlayEpsilon
+    val hi = 1.0 + overlayEpsilon
+    side match {
+      case Direction.SOUTH => // +Z 面：u 沿 +X，v 沿 -Y。
+        RenderUtil.drawSpriteQuad(pose, vc, sprite, 0, 0, hi, 1, 0, hi, 1, 1, hi, 0, 1, hi, light, overlay)
+      case Direction.NORTH => // -Z 面：u 沿 -X，v 沿 -Y。
+        RenderUtil.drawSpriteQuad(pose, vc, sprite, 1, 0, lo, 0, 0, lo, 0, 1, lo, 1, 1, lo, light, overlay)
+      case Direction.EAST => // +X 面：u 沿 -Z，v 沿 -Y。
+        RenderUtil.drawSpriteQuad(pose, vc, sprite, hi, 0, 1, hi, 0, 0, hi, 1, 0, hi, 1, 1, light, overlay)
+      case Direction.WEST => // -X 面：u 沿 +Z，v 沿 -Y。
+        RenderUtil.drawSpriteQuad(pose, vc, sprite, lo, 0, 0, lo, 0, 1, lo, 1, 1, lo, 1, 0, light, overlay)
+      case Direction.UP => // +Y 面：u 沿 +X，v 沿 +Z。
+        RenderUtil.drawSpriteQuad(pose, vc, sprite, 0, hi, 1, 1, hi, 1, 1, hi, 0, 0, hi, 0, light, overlay)
+      case Direction.DOWN => // -Y 面：u 沿 +X，v 沿 -Z。
+        RenderUtil.drawSpriteQuad(pose, vc, sprite, 0, lo, 0, 1, lo, 0, 1, lo, 1, 0, lo, 1, light, overlay)
+    }
   }
 }

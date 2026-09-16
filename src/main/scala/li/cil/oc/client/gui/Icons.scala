@@ -38,9 +38,22 @@ object Icons {
    */
   def initialize(): Unit = ()
 
+  /**
+   * `textures/item/icons/` 下真实存在的图标名（与 [[li.cil.oc.common.container.SlotIcons]] 保持一致）。
+   *
+   * 1.7.10 的 `Icons.get` 未命中时返回 `null`（GUI 便不画背景）；1.21.1 的精灵查询
+   * 无法表达「不画」（找不到就是 missingno 紫黑方格），所以未知名一律回退真实存在的 `na`。
+   */
+  private val available = Set(
+    "card", "component_bus", "container", "cpu", "eeprom", "floppy", "hdd",
+    "memory", "rack_mountable", "tablet", "tool", "upgrade",
+    "na", "tier0", "tier1", "tier2")
+
   /** 按槽位类型取图标位置（原 `Icons.get(slotType: String)`，原返回 `IIcon`）。 */
-  def get(slotType: String): ResourceLocation =
-    sprite(if (slotType == null || slotType.isEmpty) "none" else slotType)
+  def get(slotType: String): ResourceLocation = {
+    val name = if (slotType == null || slotType.isEmpty) "na" else slotType
+    sprite(if (available.contains(name)) name else "na")
+  }
 
   /**
    * 按等级取图标位置（原 `Icons.get(tier: Int)`，原返回 `IIcon`）。
@@ -55,6 +68,23 @@ object Icons {
     case _ => sprite("na")
   }
 
+  /**
+   * 把图标名拼成**图集内**的精灵位置。
+   *
+   * 注意这里必须带 `item/` 前缀：1.21.1 的方块图集（[[InventoryMenu.BLOCK_ATLAS]]）由
+   * `assets/minecraft/atlases/blocks.json` 配置，它对 `textures/item/` 目录下的所有贴图
+   * 使用 `"prefix": "item/"`。因此
+   * `assets/opencomputers_neo/textures/item/icons/cpu.png` 在
+   * 图集里的精灵位置是 `opencomputers_neo:item/icons/cpu`，写成 `opencomputers_neo:icons/cpu`
+   * 会查不到而回退成 missingno（黑紫方格）。
+   *
+   * 这也是 1.7.10 的语义：原 `Icons.onItemIconRegister` 只在
+   * `TextureStitchEvent` 的 `getTextureType == 1`（**物品**图集）里注册
+   * `":icons/" + name`，1.7.10 的 `registerIcon` 会自动补上 `textures/items/` 前缀。
+   *
+   * 规则必须与 [[li.cil.oc.common.container.SlotIcons]] 完全一致（那边是容器层
+   * `Slot#setBackground` / `getNoItemIcon` 用的），改动其中一边时请同步另一边。
+   */
   private def sprite(name: String): ResourceLocation =
-    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "icons/" + name)
+    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "item/icons/" + name)
 }

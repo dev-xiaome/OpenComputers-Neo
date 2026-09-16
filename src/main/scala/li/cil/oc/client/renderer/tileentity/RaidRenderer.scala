@@ -16,8 +16,12 @@ import org.joml.Quaternionf
  *    顶点 UV 直接用 0 到 1 的原始坐标，说明它们不在方块图集里）。1.21.1 因此用
  *    `RenderType.entityTranslucent(...)` 而不是 `RenderType.translucent()`（后者取方块图集）。
  *  - 注意：`Textures.Block.Xxx` 现在还带着历史遗留的 `textures/` 前缀
- *    （那是 1.7.10 `bindTexture` 时代的写法），1.21.1 的 `ResourceLocation`
- *    不再包含它，所以这里用 [[RenderUtil.blockTexture]] 生成正确的贴图位置。
+ *    （那是 1.7.10 `bindTexture` 时代的写法）。1.21.1 里这条路径有两种下游语义，
+ *    必须区分清楚，否则实机里会看到紫黑方格（`missingno`）：
+ *    图集精灵查询要「相对 `textures/`、不带扩展名」的路径；
+ *    而本类需要的是**独立绑定贴图文件**（`RenderType#entityTranslucent` + 0..1 相对 UV），
+ *    所以要显式用 [[RenderUtil.blockFile]] 拿到
+ *    `opencomputers_neo:textures/block/raidfronterror.png` 这样的完整文件路径。
  *  - `glTranslated(-0.5, 0.5, 0.505)` 加 `glScaled(1, -1, 1)` 的最终几何是
  *    「贴在方块正面外 0.005、以方块中心为原点、y 从 -0.5 到 0.5 的面片」，
  *    这里直接把该结果写进顶点坐标，不使用负缩放（负缩放会翻转三角形绕序）。
@@ -29,8 +33,8 @@ class RaidRenderer extends BlockEntityRenderer[Raid] {
 
   // 延迟创建：渲染器由 `client.Proxy` 在客户端初始化阶段构造，
   // 那时 `Settings` 可能还没读完配置。
-  private lazy val errorRenderType = RenderType.entityTranslucent(RenderUtil.blockTexture("raidfronterror"))
-  private lazy val activityRenderType = RenderType.entityTranslucent(RenderUtil.blockTexture("raidfrontactivity"))
+  private lazy val errorRenderType = RenderType.entityTranslucent(RenderUtil.blockFile("raidfronterror"))
+  private lazy val activityRenderType = RenderType.entityTranslucent(RenderUtil.blockFile("raidfrontactivity"))
 
   override def render(t: Raid, partialTicks: Float, pose: PoseStack,
                       buffer: MultiBufferSource, light: Int, overlay: Int): Unit = {

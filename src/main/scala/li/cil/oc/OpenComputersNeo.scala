@@ -30,6 +30,11 @@ import org.apache.logging.log4j.Logger
 class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
   OpenComputersNeo.log.info("Greetings, user! Booting OpenComputers Neo.")
 
+  // 版本号的**唯一来源**是 `gradle.properties` 的 `mod_version`：它经
+  // `neoforge.mods.toml` 的 `${mod_version}` 展开进 mod 元数据，在这里读回来并交给
+  // `OpenComputers.Version`。以后改版本号只需要改 `gradle.properties` 一行。
+  OpenComputers.setVersion(container.getModInfo.getVersion.toString)
+
   // 配置必须**最先**加载：注册期（`RegisterEvent`）就会读 `Settings` 里的数值
   // （例如全息投影亮度、软盘容量），晚于注册会抛 `Settings.get()` 为 null。
   OpenComputers.loadSettings(FMLPaths.CONFIGDIR.get().resolve("opencomputers_neo.conf").toFile)
@@ -102,7 +107,15 @@ class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
 object OpenComputersNeo {
   final val MODID = "opencomputers_neo"
   final val NAME = "OpenComputers Neo"
-  final val VERSION = "1.0.0"
+
+  /**
+   * 模组版本。
+   *
+   * 单一来源是 `gradle.properties` 的 `mod_version`（→ `neoforge.mods.toml` 的
+   * `${mod_version}` → 主类构造期注入 [[OpenComputers.setVersion]]）。
+   * 这里只是转发，**不要再硬编码版本字符串**。
+   */
+  def VERSION: String = OpenComputers.Version
 
   val log: Logger = LogManager.getLogger(NAME)
 }

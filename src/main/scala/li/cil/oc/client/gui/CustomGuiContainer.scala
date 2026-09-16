@@ -254,6 +254,23 @@ abstract class CustomGuiContainer[C <: AbstractContainerMenu](
    */
   override def render(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int, partialTick: Float): Unit = {
     currentGuiGraphics = Some(guiGraphics)
+
+    // 1.7.10 里每个 GUI 绘制点之前都会把顶点颜色重置成不透明白色 —— 例如
+    // `DynamicGuiContainer.drawGuiContainerBackgroundLayer` 开头的 `GL11.glColor4f(1, 1, 1, 1)`、
+    // `Case.drawSecondaryBackgroundLayer` 开头的 `GL11.glColor3f(1, 1, 1)`
+    // （原注释写着 "Required under Linux."，说明这是必需的、而不是可选的）。
+    //
+    // 1.21.1 没有固定管线颜色，等价物是 [[GuiGraphics#setColor]]：它内部转发到
+    // `RenderSystem.setShaderColor`，也就是所有 `position_tex` 类着色器的 `ColorModulator`
+    // uniform —— GUI 贴图的 `blit` 正是用它调制的。
+    // 如果不重置，任何把着色器颜色留在非白色状态的渲染器（方块实体渲染器 / 实体渲染器 /
+    // 物品渲染扩展等，`RenderSystem.setShaderColor` 是全局状态且不会自动还原）都会把
+    // GUI 贴图整体染色，表现就是「GUI 贴图没有颜色 / 灰白」。
+    //
+    // 这里在 GUI 渲染入口统一重置一次，覆盖 `renderBg`（底图 + 槽位）与 `renderLabels`；
+    // 白色本来就是 1.21.1 GUI 渲染的默认值，因此渲染结束后不需要再恢复。
+    guiGraphics.setColor(1f, 1f, 1f, 1f)
+
     super.render(guiGraphics, mouseX, mouseY, partialTick)
     drawWidgets(guiGraphics)
     currentGuiGraphics = None
