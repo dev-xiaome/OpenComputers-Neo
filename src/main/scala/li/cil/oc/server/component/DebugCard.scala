@@ -358,7 +358,7 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
 
   override def save(nbt: CompoundTag): Unit = {
     super.save(nbt)
-    access.foreach(saveAccess(_, nbt))
+    access.foreach(ctx => DebugCard.saveAccess(ctx, nbt))
     remoteNodePosition.foreach {
       case (x, y, z) =>
         nbt.putInt(Settings.namespace + "remoteX", x)

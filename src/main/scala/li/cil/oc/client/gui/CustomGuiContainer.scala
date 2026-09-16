@@ -161,27 +161,35 @@ abstract class CustomGuiContainer[C <: AbstractContainerMenu](
     guiGraphics.drawString(font, if (text == null) "" else text, x, y, color, true)
 
   /**
-   * 在屏幕绝对坐标 `(x, y)` 画 tooltip，等价 1.7.10 的 `drawHoveringText`。
+   * 在**屏幕绝对坐标** `(x, y)` 画 tooltip，等价 1.7.10 的 `drawHoveringText`。
    *
    * 1.21.1 的 tooltip 边框 / 背景 / 换行由原版统一处理，因此这里只需要把行交给
-   * [[GuiGraphics#renderComponentTooltip]]。传进来的 String 行会被逐行转成
-   * [[Component#literal]]，以兼容 1.7.10 风格调用点。
+   * [[GuiGraphics#renderComponentTooltip]]。
    */
-  protected def copiedDrawHoveringText(lines: util.List[String], x: Int, y: Int, font: Font): Unit = {
-    if (lines != null && !lines.isEmpty) {
-      val components = new util.ArrayList[Component](lines.size())
-      lines.forEach(line => components.add(Component.literal(if (line == null) "" else line)))
-      drawHoveringText(components, x, y, font)
-    }
-  }
-
-  /** 在屏幕绝对坐标 `(x, y)` 画 tooltip（[[Component]] 版本）。 */
   protected def drawHoveringText(lines: util.List[Component], x: Int, y: Int, font: Font): Unit = {
     if (lines != null && !lines.isEmpty) {
       currentGuiGraphics match {
         case Some(graphics) => graphics.renderComponentTooltip(font, lines, x, y)
         case _ =>
       }
+    }
+  }
+
+  /**
+   * 1.7.10 风格的 tooltip 重载：`x` / `y` 是**相对界面左上角**的坐标
+   * （原实现的调用点写的都是 `mouseX - guiLeft, mouseY - guiTop`）。
+   *
+   * 这里统一转成屏幕绝对坐标再交给原版，避免每个界面各自记得加上 `leftPos`。
+   * 行内的 String 会被转成 [[Component#literal]]。
+   *
+   * **注意**：tooltip 传进来的是「界面内坐标」，这里统一加上 `leftPos` / `topPos`
+   * 转成屏幕绝对坐标；调用点不要自己再加一遍（否则 tooltip 会出现两倍偏移）。
+   */
+  protected def copiedDrawHoveringText(lines: util.List[String], x: Int, y: Int, font: Font): Unit = {
+    if (lines != null && !lines.isEmpty) {
+      val components = new util.ArrayList[Component](lines.size())
+      lines.forEach(line => components.add(Component.literal(if (line == null) "" else line)))
+      drawHoveringText(components, x + leftPos, y + topPos, font)
     }
   }
 

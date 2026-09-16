@@ -1,122 +1,118 @@
 package li.cil.oc.client.gui
 
-import java.lang.Iterable
 import java.text.DecimalFormat
-import java.util
 
-import codechicken.nei.VisiblityData
-import codechicken.nei.api.INEIGuiHandler
-import codechicken.nei.api.TaggedInventoryArea
-import net.neoforged.fml.common.Optional
 import li.cil.oc.Localization
 import li.cil.oc.client.Textures
 import li.cil.oc.common.container
-import li.cil.oc.common.tileentity
-import li.cil.oc.integration.Mods
-import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.inventory.GuiContainer
-import net.minecraft.client.renderer.Tessellator
+import net.minecraft.client.gui.GuiGraphics
+import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Inventory
-import net.minecraft.world.item.ItemStack
-import org.lwjgl.opengl.GL11
-import org.lwjgl.util.Rectangle
 
-@Optional.Interface(iface = "codechicken.nei.api.INEIGuiHandler", modid = Mods.IDs.NotEnoughItems)
-class Relay(playerInventory: Inventory, val relay: tileentity.Relay) extends DynamicGuiContainer(new container.Relay(playerInventory, relay)) with INEIGuiHandler {
+/**
+ * 中继器界面（原 1.7.10 的 `li.cil.oc.client.gui.Relay`）。
+ *
+ * ==这个界面的特殊之处：界面右侧有一块「外挂标签页」==
+ * 升级槽位画在标准界面矩形（[[CustomGuiContainer.imageWidth]]）之外，
+ * 因此 1.7.10 不得不在鼠标交互时**临时**把 `xSize` 撑大，否则原版会把
+ * 「落在界面外的槽位」上的点击当成丢弃物品。1.21.1 沿用同一套做法，
+ * 只是把 `mouseClicked` / `mouseMovedOrUp` 换成对应的 1.21.1 回调：
+ *  - `mouseClicked(mouseX: Int, mouseY: Int, button: Int)` →
+ *    [[net.minecraft.client.gui.screens.Screen#mouseClicked(double, double, int)]]；
+ *  - `mouseMovedOrUp` 在 1.21.1 里被拆成
+ *    `mouseReleased` / `mouseDragged`，两者都要覆盖才能保持原来的手感。
+ *
+ * ==NEI 联动整体删除==
+ * 1.7.10 里本类混入了 `codechicken.nei.api.INEIGuiHandler`
+ * （隐藏物品面板被标签页遮住的区域）。NEI 没有 1.21.1 版本，
+ * 因此 `modifyVisiblity` / `getItemSpawnSlots` / `getInventoryAreas` /
+ * `handleDragNDrop` / `hideItemPanelSlot` 全部删除。
+ *
+ * ==1.21.1 迁移要点==
+ *  - `Tessellator` + `glColor4f` 画标签页底图 → 一次
+ *    [[net.minecraft.client.gui.GuiGraphics#blit(ResourceLocation, int, int, float, float, int, int, int, int)]]；
+ *  - `drawSecondaryForegroundLayer(mouseX, mouseY)` 增加 `GuiGraphics` 参数；
+ *  - `20f / relayDelay` 在这种情况下会得到 `Infinity`，原实现的 `DecimalFormat`
+ *    会直接抛异常，这里用 [[transferRate]] 做了保护。
+ */
+class Relay(menu: container.Relay, playerInventory: Inventory, title: Component)
+  extends DynamicGuiContainer[container.Relay](menu, playerInventory, title) {
+
   private val format = new DecimalFormat("#.##hz")
 
-  private val tabPosition = new Rectangle(xSize, 10, 23, 26)
+  /** 外挂标签页的位置（相对界面左上角）。 */
+  private val tabX = imageWidth
+  private val tabY = 10
+  private val tabWidth = 23
+  private val tabHeight = 26
 
-  override protected def drawSecondaryBackgroundLayer(): Unit = {
-    super.drawSecondaryBackgroundLayer()
-
-    // Tab background.
-    GL11.glColor4f(1, 1, 1, 1)
-    Minecraft.getMinecraft.getTextureManager.bindTexture(Textures.guiUpgradeTab)
-    val x = windowX + tabPosition.getX
-    val y = windowY + tabPosition.getY
-    val w = tabPosition.getWidth
-    val h = tabPosition.getHeight
-    val t = Tessellator.instance
-    t.startDrawingQuads()
-    t.addVertexWithUV(x, y + h, zLevel, 0, 1)
-    t.addVertexWithUV(x + w, y + h, zLevel, 1, 1)
-    t.addVertexWithUV(x + w, y, zLevel, 1, 0)
-    t.addVertexWithUV(x, y, zLevel, 0, 0)
-    t.draw()
+  override protected def drawSecondaryBackgroundLayer(guiGraphics: GuiGraphics): Unit = {
+    super.drawSecondaryBackgroundLayer(guiGraphics)
+    // 1.7.10 的 `Tessellator` 手写四边形，这里等价于一次 blit。
+    guiGraphics.blit(Textures.guiUpgradeTab, leftPos + tabX, topPos + tabY,
+      0f, 0f, tabWidth, tabHeight, tabWidth, tabHeight)
   }
 
-  override def mouseClicked(mouseX: Int, mouseY: Int, button: Int): Unit = {
-    // So MC doesn't throw away the item in the upgrade slot when we're trying to pick it up...
-    val originalWidth = xSize
+  /**
+   * 鼠标交互时把界面宽度临时撑大到「标准界面 + 标签页」。
+   *
+   * 原版用 `imageWidth` 判定「鼠标是否在界面内」，落在界面外的槽位点击会被
+   * 当成丢弃。1.7.10 的做法是临时改 `xSize`，这里原样保留。
+   */
+  private def withTabWidth[T](body: => T): T = {
+    val originalWidth = imageWidth
     try {
-      xSize += tabPosition.getWidth
-      super.mouseClicked(mouseX, mouseY, button)
+      imageWidth = originalWidth + tabWidth
+      body
     }
-    finally {
-      xSize = originalWidth
-    }
+    finally imageWidth = originalWidth
   }
 
-  override def mouseMovedOrUp(mouseX: Int, mouseY: Int, button: Int): Unit = {
-    // So MC doesn't throw away the item in the upgrade slot when we're trying to pick it up...
-    val originalWidth = xSize
-    try {
-      xSize += tabPosition.getWidth
-      super.mouseMovedOrUp(mouseX, mouseY, button)
-    }
-    finally {
-      xSize = originalWidth
-    }
+  override def mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean =
+    withTabWidth(super.mouseClicked(mouseX, mouseY, button))
+
+  override def mouseReleased(mouseX: Double, mouseY: Double, button: Int): Boolean =
+    withTabWidth(super.mouseReleased(mouseX, mouseY, button))
+
+  override def mouseDragged(mouseX: Double, mouseY: Double, button: Int, dragX: Double, dragY: Double): Boolean =
+    withTabWidth(super.mouseDragged(mouseX, mouseY, button, dragX, dragY))
+
+  override protected def drawSecondaryForegroundLayer(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
+    super.drawSecondaryForegroundLayer(guiGraphics, mouseX, mouseY)
+    guiGraphics.drawString(font,
+      Localization.localizeImmediately(menu.otherInventory.getInventoryName),
+      8, 6, 0x404040, false)
+
+    guiGraphics.drawString(font, Localization.Switch.TransferRate, 14, 20, 0x404040, false)
+    guiGraphics.drawString(font, Localization.Switch.PacketsPerCycle, 14, 39, 0x404040, false)
+    guiGraphics.drawString(font, Localization.Switch.QueueSize, 14, 58, 0x404040, false)
+
+    guiGraphics.drawString(font, transferRate(format, menu.relayDelay), 108, 20, 0x404040, false)
+    guiGraphics.drawString(font,
+      menu.packetsPerCycleAvg + " / " + menu.relayAmount,
+      108, 39, thresholdBasedColor(menu.packetsPerCycleAvg, math.ceil(menu.relayAmount / 2f).toInt, menu.relayAmount), false)
+    guiGraphics.drawString(font,
+      menu.queueSize + " / " + menu.maxQueueSize,
+      108, 58, thresholdBasedColor(menu.queueSize, menu.maxQueueSize / 2, menu.maxQueueSize), false)
   }
+}
 
-  override def drawSecondaryForegroundLayer(mouseX: Int, mouseY: Int) = {
-    super.drawSecondaryForegroundLayer(mouseX, mouseY)
-    fontRendererObj.drawString(
-      Localization.localizeImmediately(relay.getInventoryName),
-      8, 6, 0x404040)
+object Relay {
+  /**
+   * 把「多少 tick 中继一次」换算成 Hz 文本。
+   *
+   * 1.7.10 直接写 `format.format(20f / relayDelay)`；但客户端在收到第一次
+   * 自定义数据同步之前 `relayDelay` 是 0，`20f / 0` 是 `Infinity`，
+   * `DecimalFormat` 会抛 `NumberFormatException` 把整个界面打崩。
+   * 这里在 delay <= 0 时退化成 `0hz`。
+   */
+  def transferRate(format: DecimalFormat, relayDelay: Int): String =
+    if (relayDelay <= 0) format.format(0f) else format.format(20f / relayDelay)
 
-    fontRendererObj.drawString(
-      Localization.Switch.TransferRate,
-      14, 20, 0x404040)
-    fontRendererObj.drawString(
-      Localization.Switch.PacketsPerCycle,
-      14, 39, 0x404040)
-    fontRendererObj.drawString(
-      Localization.Switch.QueueSize,
-      14, 58, 0x404040)
-
-    fontRendererObj.drawString(
-      format.format(20f / inventoryContainer.relayDelay),
-      108, 20, 0x404040)
-    fontRendererObj.drawString(
-      inventoryContainer.packetsPerCycleAvg + " / " + inventoryContainer.relayAmount,
-      108, 39, thresholdBasedColor(inventoryContainer.packetsPerCycleAvg, math.ceil(inventoryContainer.relayAmount / 2f).toInt, inventoryContainer.relayAmount))
-    fontRendererObj.drawString(
-      inventoryContainer.queueSize + " / " + inventoryContainer.maxQueueSize,
-      108, 58, thresholdBasedColor(inventoryContainer.queueSize, inventoryContainer.maxQueueSize / 2, inventoryContainer.maxQueueSize))
-  }
-
-  private def thresholdBasedColor(value: Int, yellow: Int, red: Int) = {
+  /** 按阈值给数值上色（原实现里的私有小工具，两个界面共用）。 */
+  def thresholdBasedColor(value: Int, yellow: Int, red: Int): Int = {
     if (value < yellow) 0x009900
     else if (value < red) 0x999900
     else 0x990000
-  }
-
-  @Optional.Method(modid = Mods.IDs.NotEnoughItems)
-  override def modifyVisiblity(gui: GuiContainer, currentVisibility: VisiblityData): VisiblityData = null
-
-  @Optional.Method(modid = Mods.IDs.NotEnoughItems)
-  override def getItemSpawnSlots(gui: GuiContainer, stack: ItemStack): Iterable[Integer] = null
-
-  @Optional.Method(modid = Mods.IDs.NotEnoughItems)
-  override def getInventoryAreas(gui: GuiContainer): util.List[TaggedInventoryArea] = null
-
-  @Optional.Method(modid = Mods.IDs.NotEnoughItems)
-  override def handleDragNDrop(gui: GuiContainer, mouseX: Int, mouseY: Int, stack: ItemStack, button: Int): Boolean = false
-
-  @Optional.Method(modid = Mods.IDs.NotEnoughItems)
-  override def hideItemPanelSlot(gui: GuiContainer, x: Int, y: Int, w: Int, h: Int): Boolean = {
-    new Rectangle(x - windowX, y - windowY, w, h).intersects(tabPosition)
   }
 }

@@ -30,5 +30,18 @@ class Tablet(windowId: Int,
 
   addPlayerInventorySlots(8, 84)
 
+  /**
+   * 「代表平板本体」的那一份堆叠，供界面混入 `traits.LockedHotbar` 时锁住对应槽位。
+   *
+   * 1.7.10 里界面直接读 `tablet.stack`（`TabletWrapper` 暴露的字段）；1.21.1 的
+   * `TabletWrapper` 已降级，改由容器回答这个问题。默认返回
+   * [[li.cil.oc.common.inventory.ItemStackInventory#container]]（平板物品栏背后的
+   * 那一份堆叠），宿主不是物品栏形态时返回 [[net.minecraft.world.item.ItemStack#EMPTY]]。
+   */
+  def lockedStack: net.minecraft.world.item.ItemStack = otherInventory match {
+    case itemStackInventory: li.cil.oc.common.inventory.ItemStackInventory => itemStackInventory.container
+    case _ => net.minecraft.world.item.ItemStack.EMPTY
+  }
+
   override def stillValid(player: MCPlayer): Boolean = player == playerInventory.player
 }

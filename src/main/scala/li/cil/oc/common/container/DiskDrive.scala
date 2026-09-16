@@ -11,7 +11,7 @@ import net.neoforged.neoforge.items.IItemHandler
  * 宿主参数由 `IInventory` 放宽为 [[net.neoforged.neoforge.items.IItemHandler]] ——
  * 方块形态传 `tileentity.DiskDrive`，物品形态传 `DiskDriveMountableInventory`，两者都是 `IItemHandler`。
  */
-class DiskDrive(windowId: Int, playerInventory: Inventory, drive: IItemHandler)
+class DiskDrive(windowId: Int, playerInventory: Inventory, val drive: IItemHandler)
   extends Player(windowId, MenuTypes.DiskDrive.value(), playerInventory, drive) {
 
   addSlotToContainer(80, 35, Slot.Floppy)

@@ -7,101 +7,124 @@ import li.cil.oc.client.{PacketSender => ClientPacketSender}
 import li.cil.oc.common.container
 import li.cil.oc.common.container.ComponentSlot
 import li.cil.oc.common.template.AssemblerTemplates
-import li.cil.oc.common.tileentity
-import net.minecraft.client.gui.GuiButton
+import net.minecraft.client.gui.GuiGraphics
+import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Inventory
 import net.minecraft.world.inventory.Slot
-import net.minecraft.network.chat.Component
-import org.lwjgl.opengl.GL11
 
 import scala.jdk.CollectionConverters._
-import scala.jdk.CollectionConverters._
 
-class Assembler(playerInventory: Inventory, val assembler: tileentity.Assembler) extends DynamicGuiContainer(new container.Assembler(playerInventory, assembler)) {
-  xSize = 176
-  ySize = 192
+/**
+ * 装配机界面（原 1.7.10 的 `li.cil.oc.client.gui.Assembler`）。
+ *
+ * 界面功能：放一张模板（外壳 / 软盘 / EEPROM …），装配机会按模板校验槽位，
+ * 校验通过后「运行」按钮亮起，点击即开始装配，进度条显示装配进度。
+ *
+ * ==1.21.1 迁移要点==
+ *  - `initGui()` → `init()`；`add(buttonList, button)` → `addRenderableWidget`（见 [[addButton]]）；
+ *  - `inventorySlots.inventorySlots`（1.7.10 的双层写法）→ `inventorySlots`（本身就是 `IndexedSeq[Slot]`）；
+ *  - `slot.getHasStack` → `slot.hasItem`；`slot.getStack` → `slot.getItem`；
+ *  - `Component#getUnformattedText` → `Component#getString`；
+ *  - `func_146115_a` → [[ImageButton.hoveredState]]；
+ *  - `func_146978_c(...)` → [[isHovering]]；
+ *  - `drawHoveringText(tooltip: java.util.List[String], ...)`（1.7.10 里被本类**重载**过）
+ *    在这里统一走 [[copiedDrawHoveringText]]，避免与 [[CustomGuiContainer.drawHoveringText]]
+ *    的 `Component` 版本产生歧义。
+ */
+class Assembler(menu: container.Assembler, playerInventory: Inventory, title: Component)
+  extends DynamicGuiContainer[container.Assembler](menu, playerInventory, title) {
 
-  for (slot <- inventorySlots.inventorySlots) slot match {
-    case component: ComponentSlot => component.changeListener = Option(onSlotChanged)
-    case _ =>
-  }
-
-  private def onSlotChanged(slot: Slot): Unit = {
-    runButton.enabled = canBuild
-    runButton.toggled = !runButton.enabled
-    info = validate
-  }
+  imageWidth = 176
+  imageHeight = 192
 
   var info: Option[(Boolean, Component, Array[Component])] = None
 
   protected var runButton: ImageButton = _
 
-  private val progress = addWidget(new ProgressBar(28, 92))
+  private val progress: ProgressBar = addWidget(new ProgressBar(28, 92))
 
-  private def validate = AssemblerTemplates.select(inventoryContainer.getSlot(0).getStack).map(_.validate(inventoryContainer.otherInventory))
+  override def init(): Unit = {
+    super.init()
 
-  private def canBuild = !inventoryContainer.isAssembling && validate.exists(_._1)
+    // 槽位内容变化时重新校验模板（原实现在构造器里挂监听）。
+    for (slot <- inventorySlots) slot match {
+      case component: ComponentSlot => component.changeListener = Option(onSlotChanged)
+      case _ =>
+    }
 
-  protected override def actionPerformed(button: GuiButton): Unit = {
-    if (button.id == 0 && canBuild) {
-      ClientPacketSender.sendRobotAssemblerStart(assembler)
+    runButton = new ImageButton(0, leftPos + 7, topPos + 89, 18, 18, Textures.guiButtonRun, canToggle = true)
+    addButton(runButton)
+    runButton.actionPerformed = _ => onRunButton()
+    refreshRunButton()
+  }
+
+  private def onSlotChanged(slot: Slot): Unit = refreshRunButton()
+
+  private def refreshRunButton(): Unit = {
+    if (runButton != null) {
+      runButton.enabled = canBuild
+      runButton.toggled = !runButton.enabled
+    }
+    info = validate
+  }
+
+  /** 原 `validate`：按模板校验当前槽位。 */
+  private def validate: Option[(Boolean, Component, Array[Component])] =
+    AssemblerTemplates.select(menu.getSlot(0).getItem).map(_.validate(menu.otherInventory))
+
+  private def canBuild: Boolean = !menu.isAssembling && validate.exists(_._1)
+
+  /** 原 `actionPerformed(button)`：点「运行」时通知服务端开始装配。 */
+  protected def onRunButton(): Unit = {
+    refreshRunButton()
+    if (canBuild) {
+      ClientPacketSender.sendRobotAssemblerStart(menu.assembler)
     }
   }
 
-  override def initGui(): Unit = {
-    super.initGui()
-    runButton = new ImageButton(0, guiLeft + 7, guiTop + 89, 18, 18, Textures.guiButtonRun, canToggle = true)
-    add(buttonList, runButton)
-  }
-
-  override def drawSecondaryForegroundLayer(mouseX: Int, mouseY: Int) = {
-    GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS) // Me lazy... prevents NEI render glitch.
-    if (!inventoryContainer.isAssembling) {
+  override protected def drawSecondaryForegroundLayer(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
+    if (!menu.isAssembling) {
       val message =
-        if (!inventoryContainer.getSlot(0).getHasStack) {
+        if (!menu.getSlot(0).hasItem) {
           Localization.Assembler.InsertTemplate
         }
         else info match {
-          case Some((_, value, _)) if value != null => value.getUnformattedText
-          case _ if inventoryContainer.getSlot(0).getHasStack => Localization.Assembler.CollectResult
+          case Some((_, value, _)) if value != null => value.getString
+          case _ if menu.getSlot(0).hasItem => Localization.Assembler.CollectResult
           case _ => ""
         }
-      fontRendererObj.drawString(message, 30, 94, 0x404040)
-      if (runButton.func_146115_a) {
-        val tooltip = new java.util.ArrayList[String]
+      guiGraphics.drawString(font, message, 30, 94, 0x404040, false)
+      if (runButton != null && runButton.hoveredState) {
+        val tooltip = new java.util.ArrayList[String]()
         tooltip.add(Localization.Assembler.Run)
         info.foreach {
-          case (valid, _, warnings) => if (valid && warnings.length > 0) {
-            tooltip.addAll(warnings.map(_.getUnformattedText).toList)
-          }
+          case (valid, _, warnings) if valid && warnings.length > 0 =>
+            tooltip.addAll(asJavaCollection(warnings.map(_.getString).toSeq))
+          case _ =>
         }
-        drawHoveringText(tooltip, mouseX - guiLeft, mouseY - guiTop, fontRendererObj)
+        copiedDrawHoveringText(tooltip, mouseX, mouseY, font)
       }
     }
-    else if (func_146978_c(progress.x, progress.y, progress.width, progress.height, mouseX, mouseY)) {
-      val tooltip = new java.util.ArrayList[String]
-      val timeRemaining = formatTime(inventoryContainer.assemblyRemainingTime)
-      tooltip.add(Localization.Assembler.Progress(inventoryContainer.assemblyProgress, timeRemaining))
-      copiedDrawHoveringText(tooltip, mouseX - guiLeft, mouseY - guiTop, fontRendererObj)
+    else if (isHovering(progress.x, progress.y, progress.width, progress.height, mouseX, mouseY)) {
+      val tooltip = new java.util.ArrayList[String]()
+      val timeRemaining = formatTime(menu.assemblyRemainingTime)
+      tooltip.add(Localization.Assembler.Progress(menu.assemblyProgress, timeRemaining))
+      copiedDrawHoveringText(tooltip, mouseX, mouseY, font)
     }
-    GL11.glPopAttrib()
   }
 
-  private def formatTime(seconds: Int) = {
+  private def formatTime(seconds: Int): String = {
     // Assembly times should not / rarely exceed one hour, so this is good enough.
     if (seconds < 60) f"0:$seconds%02d"
     else f"${seconds / 60}:${seconds % 60}%02d"
   }
 
-  override def drawGuiContainerBackgroundLayer(dt: Float, mouseX: Int, mouseY: Int): Unit = {
-    GL11.glColor3f(1, 1, 1) // Required under Linux.
-    mc.renderEngine.bindTexture(Textures.guiRobotAssembler)
-    drawTexturedModalRect(guiLeft, guiTop, 0, 0, xSize, ySize)
-    if (inventoryContainer.isAssembling) progress.level = inventoryContainer.assemblyProgress / 100.0
+  override protected def drawSecondaryBackgroundLayer(guiGraphics: GuiGraphics): Unit = {
+    guiGraphics.blit(Textures.guiRobotAssembler, leftPos, topPos, 0, 0, imageWidth, imageHeight)
+    if (menu.isAssembling) progress.level = menu.assemblyProgress / 100.0
     else progress.level = 0
-    drawWidgets()
-    drawInventorySlots()
   }
 
-  override protected def drawDisabledSlot(slot: ComponentSlot) {}
+  /** 装配机不画「槽位不可用」的占位图标（与原实现一致）。 */
+  override protected def drawDisabledSlot(guiGraphics: GuiGraphics, slot: ComponentSlot): Unit = {}
 }

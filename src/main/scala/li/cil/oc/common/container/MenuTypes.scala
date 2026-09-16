@@ -84,9 +84,19 @@ object MenuTypes {
   val Disassembler: MenuHolder[Disassembler] = registerBlock("disassembler") {
     case (ctx, t: tileentity.Disassembler) => new Disassembler(ctx.windowId, ctx.inventory, t)
   }
-  val DiskDrive: MenuHolder[DiskDrive] = registerBlock("diskdrive") {
-    case (ctx, t: tileentity.DiskDrive) => new DiskDrive(ctx.windowId, ctx.inventory, t)
-  }
+  val DiskDrive: MenuHolder[DiskDrive] = register("diskdrive", ctx => ctx.op match {
+    case MenuHostPayload.Block => ctx.blockEntity match {
+      case t: tileentity.DiskDrive => new DiskDrive(ctx.windowId, ctx.inventory, t)
+      case _ => null
+    }
+    // 机架插槽里的磁盘驱动器与方块形态共用同一个 `MenuType`
+    // （服务端 `GuiType.DiskDriveMountableInRack` 走的也是 `container.DiskDrive`）。
+    case MenuHostPayload.RackSlot => ctx.rackMountable match {
+      case drive: inv.DiskDriveMountableInventory => new DiskDrive(ctx.windowId, ctx.inventory, drive)
+      case _ => null
+    }
+    case _ => null
+  })
   val Drone: MenuHolder[Drone] = registerEntity("drone") {
     case (ctx, d: common.entity.Drone) => new Drone(ctx.windowId, ctx.inventory, d)
   }
@@ -105,12 +115,24 @@ object MenuTypes {
   val Robot: MenuHolder[Robot] = registerBlock("robot") {
     case (ctx, t: tileentity.RobotProxy) => new Robot(ctx.windowId, ctx.inventory, t.robot)
   }
-  val Server: MenuHolder[Server] = registerItem("server") {
-    case ctx if !ctx.itemOrEmpty.isEmpty => new Server(ctx.windowId, ctx.inventory, new inv.ServerInventory {
-      override def container: ItemStack = ctx.itemOrEmpty
-    })
-  }
-  val Switch: MenuHolder[Switch] = registerBlock("switch") {
+  val Server: MenuHolder[Server] = register("server", ctx => ctx.op match {
+    case MenuHostPayload.ItemInHand if !ctx.itemOrEmpty.isEmpty =>
+      new Server(ctx.windowId, ctx.inventory, new inv.ServerInventory {
+        override def container: ItemStack = ctx.itemOrEmpty
+      })
+    // 机架插槽里的服务器与物品形态共用同一个 `MenuType`
+    // （服务端 `GuiType.ServerInRack` 走的也是 `container.Server`）。
+    case MenuHostPayload.RackSlot => ctx.rackMountable match {
+      case server: inv.ServerInventory =>
+        val menu = new Server(ctx.windowId, ctx.inventory, server, None, () => false)
+        // 屏幕需要「哪台机架 + 第几格」来做电源键与「物品被取走就关屏」。
+        menu.rack = ctx.rack
+        menu.rackSlot = ctx.key
+        menu
+      case _ => null
+    }
+    case _ => null
+  })  val Switch: MenuHolder[Switch] = registerBlock("switch") {
     case (ctx, t: tileentity.Switch) => new Switch(ctx.windowId, ctx.inventory, t)
   }
   val Tablet: MenuHolder[Tablet] = registerItem("tablet") {
@@ -155,6 +177,18 @@ object MenuTypes {
 
     /** 实体宿主：载荷里存的是实体 id。 */
     def entity: AnyRef = if (level == null) null else level.getEntity(key)
+
+    /** 机架宿主（[[MenuHostPayload.RackSlot]] 专用）。 */
+    def rack: Option[tileentity.Rack] = blockEntity match {
+      case r: tileentity.Rack => Some(r)
+      case _ => None
+    }
+
+    /** 机架插槽里的可插拔组件（[[MenuHostPayload.RackSlot]] 专用）。 */
+    def rackMountable: AnyRef = blockEntity match {
+      case r: tileentity.Rack => r.getMountable(key)
+      case _ => null
+    }
 
     def itemOrEmpty: ItemStack = if (stack == null) ItemStack.EMPTY else stack
   }

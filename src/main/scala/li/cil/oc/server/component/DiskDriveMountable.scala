@@ -236,7 +236,14 @@ class DiskDriveMountable(val rack: api.internal.Rack, val slot: Int) extends pre
       // Screen 工厂重建界面（`client` 层尚未移植，因此目前只会打开容器、没有界面）。
       // 这里直接构造与 `GuiHandler#getServerMenu` 中 `DiskDriveMountableInRack` 分支
       // 完全相同的容器，保证接线后行为一致。
-      MenuOpening.open(player, Component.empty())((windowId, playerInventory) =>
+      // 1.7.10 把机架坐标与插槽压进 `y`（`GuiType.embedSlot`）；1.21.1 改为把
+      // 宿主坐标 + 插槽写进菜单载荷，因此改用 `MenuOpening.openRackSlot`。
+      val rackPos = rack match {
+        case blockEntity: net.minecraft.world.level.block.entity.BlockEntity => blockEntity.getBlockPos
+        case _ => new net.minecraft.core.BlockPos(
+          math.floor(rack.xPosition).toInt, math.floor(rack.yPosition).toInt, math.floor(rack.zPosition).toInt)
+      }
+      MenuOpening.openRackSlot(player, rackPos, slot, Component.empty())((windowId, playerInventory) =>
         new li.cil.oc.common.container.DiskDrive(windowId, playerInventory, this))
       true
     }

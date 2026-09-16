@@ -2,6 +2,7 @@ package li.cil.oc.common.container
 
 import li.cil.oc.common.InventorySlots
 import li.cil.oc.common.inventory.ServerInventory
+import li.cil.oc.common.tileentity
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.entity.player.{Inventory, Player => MCPlayer}
 
@@ -25,7 +26,7 @@ import net.minecraft.world.entity.player.{Inventory, Player => MCPlayer}
  */
 class Server(windowId: Int,
              playerInventory: Inventory,
-             serverInventory: ServerInventory,
+             val serverInventory: ServerInventory,
              val server: Option[AnyRef] = None,
              val isRunningProvider: () => Boolean = () => false)
   extends Player(windowId, MenuTypes.Server.value(), playerInventory, serverInventory) {
@@ -71,6 +72,21 @@ class Server(windowId: Int,
 
   var isRunning = false
   var isItem = true
+
+  /**
+   * 服务端所在的机架与槽位（物品形态时为 `None` / 0）。
+   *
+   * 1.7.10 里这两个值是屏幕的构造参数（`client.gui.Server(playerInventory, serverInventory, rack, slot)`）；
+   * 1.21.1 的屏幕只能拿到容器，因此改由 [[MenuTypes]] 的客户端工厂在重建容器时
+   * 从载荷里读出来挂到这里，"物品被从机架里取走就关屏" 与 "点电源键" 两条逻辑
+   * 都从容器上取。
+   */
+  var rack: Option[tileentity.Rack] = None
+
+  var rackSlot: Int = 0
+
+  /** 服务端组件（[[li.cil.oc.server.component.Server]]）尚未移植，见类注释的降级说明。 */
+  def hasServer: Boolean = server.isDefined
 
   override def updateCustomData(nbt: CompoundTag): Unit = {
     super.updateCustomData(nbt)

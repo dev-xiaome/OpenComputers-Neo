@@ -132,6 +132,16 @@ class ImageButton(val id: Int, x: Int, y: Int, w: Int, h: Int,
     handled
   }
 
-  /** 原 1.7.10 `GuiButton#actionPerformed` 的等价回调。 */
-  protected def actionPerformed(button: ImageButton): Unit = ()
+  /**
+   * 点击回调（原 1.7.10 `GuiButton#actionPerformed`）。
+   *
+   * 1.7.10 里界面通过 `new ImageButton(...) { override def actionPerformed(button) = ... }`
+   * 覆写它；Scala 的匿名类覆写对 `var` 不适用，因此 1.21.1 改成
+   * 「挂一个函数字段」：`button.actionPerformed = _ => ...`。
+   * 仍然保留了可覆写的方法 [[onActionPerformed]] 供子类使用。
+   */
+  var actionPerformed: ImageButton => Unit = onActionPerformed
+
+  /** 原 1.7.10 `GuiButton#actionPerformed` 的等价回调；默认什么都不做。 */
+  protected def onActionPerformed(button: ImageButton): Unit = ()
 }

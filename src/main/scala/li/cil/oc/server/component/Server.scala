@@ -213,7 +213,14 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
         // `GuiHandler#getServerMenu` 中 `ServerInRack` 分支相同的容器。
         // TODO(client): 客户端界面仍由 `MenuType` 的 Screen 工厂重建，`client` 层移植前
         // 只会打开容器、没有可见界面（不影响服务器机器本身的运行）。
-        MenuOpening.open(player, Component.empty())((windowId, playerInventory) =>
+        // 1.7.10 把机架坐标与插槽压进 `y`（`GuiType.embedSlot`）；1.21.1 改为把
+        // 宿主坐标 + 插槽写进菜单载荷，因此改用 `MenuOpening.openRackSlot`。
+        val rackPos = rack match {
+          case blockEntity: net.minecraft.world.level.block.entity.BlockEntity => blockEntity.getBlockPos
+          case _ => new net.minecraft.core.BlockPos(
+            math.floor(rack.xPosition).toInt, math.floor(rack.yPosition).toInt, math.floor(rack.zPosition).toInt)
+        }
+        MenuOpening.openRackSlot(player, rackPos, slot, Component.empty())((windowId, playerInventory) =>
           new li.cil.oc.common.container.Server(windowId, playerInventory, this, Some(this), () => machine.isRunning))
       }
     }

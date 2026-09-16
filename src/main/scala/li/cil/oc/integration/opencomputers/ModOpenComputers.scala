@@ -335,18 +335,21 @@ object ModOpenComputers extends ModProxy {
   /**
    * mod 事件总线（1.7.10 的 `FMLCommonHandler.instance.bus`）。
    *
-   * `ModProxy#initialize()` 没有参数，所以这里从 `ModLoadingContext` 反查当前容器；
-   * 取不到时返回 `None`（只跳过需要 mod 总线的那部分接线，不会崩）。
+   * `ModProxy#initialize()` 没有参数，所以这里按 mod id 从 `ModList` 反查本模组的
+   * `ModContainer#getEventBus`（它随时可用，不依赖「当前正在构造哪个 mod」）。
+   *
+   * 注意**不要**用 `ModLoadingContext.get().getActiveContainer`：NeoForge 21.1 里
+   * 该字段为空时会回退到 **minecraft** 容器（见 `ModLoadingContext#getActiveContainer`），
+   * 于是会把 OC 的 mod 总线监听器挂到原版的事件总线上 —— 静默挂错地方。
    *
    * TODO(port): 更干净的做法是给 `ModProxy#initialize` 加一个 `IEventBus` 参数，
-   * 由 `server.Proxy.init` 把总线传下来；在此之前先用这里反查。
+   * 由 `server.Proxy` 把主类收到的总线传下来。
    */
-  private def modBus: Option[net.neoforged.bus.api.IEventBus] = try {
-    Option(net.neoforged.fml.ModLoadingContext.get().getActiveContainer).map(_.getEventBus)
-  }
-  catch {
-    case _: Throwable => None
-  }
+  private def modBus: Option[net.neoforged.bus.api.IEventBus] =
+    net.neoforged.fml.ModList.get().getModContainerById(OpenComputers.ID) match {
+      case container if container.isPresent => Option(container.get().getEventBus)
+      case _ => None
+    }
 
   def useWrench(player: Player, x: Int, y: Int, z: Int, changeDurability: Boolean): Boolean = {
     // 1.21.1：`getHeldItem` → `getMainHandItem`；`getEntityWorld` → `level()`。

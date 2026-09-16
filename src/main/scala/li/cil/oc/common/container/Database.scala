@@ -11,7 +11,7 @@ import net.minecraft.world.entity.player.{Inventory, Player => MCPlayer}
  *  - `getSizeInventory` → [[net.neoforged.neoforge.items.IItemHandler#getSlots]]；
  *  - `canInteractWith` → `stillValid`。
  */
-class Database(windowId: Int, playerInventory: Inventory, databaseInventory: DatabaseInventory)
+class Database(windowId: Int, playerInventory: Inventory, val databaseInventory: DatabaseInventory)
   extends Player(windowId, MenuTypes.Database.value(), playerInventory, databaseInventory) {
 
   val rows = math.sqrt(databaseInventory.getSlots).ceil.toInt
