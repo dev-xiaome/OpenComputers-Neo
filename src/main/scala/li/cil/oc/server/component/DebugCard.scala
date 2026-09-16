@@ -347,7 +347,7 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
 
   override def load(nbt: CompoundTag): Unit = {
     super.load(nbt)
-    access = loadAccess(nbt)
+    access = DebugCard.loadAccess(nbt)
     if (nbt.contains(Settings.namespace + "remoteX")) {
       val x = nbt.getInt(Settings.namespace + "remoteX")
       val y = nbt.getInt(Settings.namespace + "remoteY")
@@ -358,7 +358,7 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
 
   override def save(nbt: CompoundTag): Unit = {
     super.save(nbt)
-    access.foreach(_.save(nbt))
+    access.foreach(saveAccess(_, nbt))
     remoteNodePosition.foreach {
       case (x, y, z) =>
         nbt.putInt(Settings.namespace + "remoteX", x)
@@ -422,6 +422,15 @@ object DebugCard {
    */
   private def loadAccess(nbt: CompoundTag): Option[Settings.AccessContext] =
     DebugCardData.loadAccess(nbt)
+
+  /**
+   * 等价于旧 `AccessContext#save(nbt)`。`Settings.AccessContext` 是纯 case class，
+   * 自身没有 `save`；而 `DebugCardData` 里的隐式转换在本包中不可用，因此就地写出。
+   */
+  def saveAccess(ctx: Settings.AccessContext, nbt: CompoundTag): Unit = {
+    nbt.putString(Settings.namespace + "player", ctx.player)
+    nbt.putString(Settings.namespace + "accessNonce", ctx.nonce)
+  }
 
   class PlayerValue(var name: String)(implicit var ctx: Option[Settings.AccessContext]) extends prefab.AbstractValue {
     def this() = this("")(None) // For loading.
@@ -495,7 +504,7 @@ object DebugCard {
 
     override def save(nbt: CompoundTag): Unit = {
       super.save(nbt)
-      ctx.foreach(_.save(nbt))
+      ctx.foreach(DebugCard.saveAccess(_, nbt))
       nbt.putString("name", name)
     }
   }
@@ -749,7 +758,8 @@ object DebugCard {
           }
           if (tag != null) {
             stack.setTag(tag)
-          }          result(InventoryUtils.insertIntoInventory(stack, inventory, Option(side)))
+          }
+          result(InventoryUtils.insertIntoInventory(stack, inventory, Option(side)))
         case _ => result(Unit, "no inventory")
       }
     }
@@ -822,7 +832,7 @@ object DebugCard {
 
     override def save(nbt: CompoundTag): Unit = {
       super.save(nbt)
-      ctx.foreach(_.save(nbt))
+      ctx.foreach(DebugCard.saveAccess(_, nbt))
       if (world != null) {
         nbt.putString("dimension", world.dimension().location().toString)
       }

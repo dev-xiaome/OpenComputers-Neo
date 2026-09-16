@@ -2,7 +2,6 @@ package li.cil.oc.common
 
 import li.cil.oc.common.inventory.{DatabaseInventory, DiskDriveMountableInventory, ServerInventory}
 import li.cil.oc.common.item.Delegator
-import li.cil.oc.server.component.{DiskDriveMountable, Server}
 import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Player
@@ -25,12 +24,18 @@ import net.minecraft.world.level.Level
  *  - `player.getHeldItem` → `player.getMainHandItem`；`stack.hasTagCompound` → `stack.hasTag`
  *    （由 `li.cil.oc` 包对象的隐式类补回）。
  *
+ * ==打开链路==
+ * 1.7.10 的 `player.openGui` 在 1.21.1 不存在，取而代之的是
+ * [[openGui]] / [[openItemGui]] / [[openDroneGui]]，它们：
+ *  1. 用 [[li.cil.oc.common.container.MenuOpening]] 造一个会写「宿主载荷」的 `MenuProvider`；
+ *  2. 由 `MenuType` 的工厂在**客户端**用同一份载荷重建容器；
+ *  3. 客户端的屏幕由 [[li.cil.oc.client.GuiHandler.registerScreens]] 配对。
+ * 三者必须成对维护：改一处载荷格式就要同步 [[li.cil.oc.common.container.MenuTypes]]。
+ *
  * ==降级说明==
  *  - `GuiType.TabletInner`（平板内层界面）：原实现依赖 `item.Tablet.get(stack, player)`
  *    返回的 `TabletWrapper`，而 `TabletWrapper` 已随 `common/item/Tablet.scala` 一起降级
  *    （现在只有 `Tablet.getId` / `TabletData`），因此这里返回 `null` 并留下 TODO。
- *  - `GuiType.Drive`/`Terminal`/`Screen`/`Waypoint`/`Manual` 等只在客户端有界面的 id
- *    原本就不在本类里，客户端重建走 `MenuType` 的工厂。
  */
 abstract class GuiHandler {
   /**
@@ -46,7 +51,8 @@ abstract class GuiHandler {
   def getServerMenu(id: Int, windowId: Int, player: Player, world: Level, x: Int, y: Int, z: Int): AbstractContainerMenu = {
     GuiType.Categories.get(id) match {
       case Some(GuiType.Category.Block) =>
-        world.getBlockEntity(new BlockPos(x, GuiType.extractY(y), z)) match {
+        val pos = new BlockPos(x, GuiType.extractY(y), z)
+        world.getBlockEntity(pos) match {
           case t: tileentity.Adapter if id == GuiType.Adapter.id =>
             new container.Adapter(windowId, player.getInventory, t)
           case t: tileentity.Assembler if id == GuiType.Assembler.id =>
@@ -70,22 +76,9 @@ abstract class GuiHandler {
           case t: tileentity.Rack if id == GuiType.Rack.id =>
             new container.Rack(windowId, player.getInventory, t)
           case t: tileentity.Rack if id == GuiType.ServerInRack.id =>
-            val slot = GuiType.extractSlot(y)
-            t.getMountable(slot) match {
-              // `server.component.Server` 本身就是 `ServerInventory`，
-              // 并且实现了 `api.machine.MachineHost`，可直接作为宿主物品栏传进去。
-              case server: Server =>
-                new container.Server(windowId, player.getInventory, server, Option(server),
-                  () => server.machine != null && server.machine.isRunning)
-              case _ => null
-            }
+            rackServerMenu(windowId, player, t, GuiType.extractSlot(y))
           case t: tileentity.Rack if id == GuiType.DiskDriveMountableInRack.id =>
-            val slot = GuiType.extractSlot(y)
-            t.getMountable(slot) match {
-              case drive: DiskDriveMountable =>
-                new container.DiskDrive(windowId, player.getInventory, drive)
-              case _ => null
-            }
+            rackDiskDriveMenu(windowId, player, t, GuiType.extractSlot(y))
           case t: tileentity.Switch if id == GuiType.Switch.id =>
             new container.Switch(windowId, player.getInventory, t)
           case _ => null
@@ -112,15 +105,36 @@ abstract class GuiHandler {
               override def container: ItemStack = stack
             })
           case Some(_: item.Tablet) if id == GuiType.TabletInner.id =>
-            // TODO(common.item): 原实现是 `new container.Tablet(player.inventory, item.Tablet.get(stack, player))`，
-            // 依赖已删除的 `TabletWrapper`（提供内部物品栏 + 槽位类型/等级）。
-            // 等 `common/item/Tablet.scala` 给出等价数据（`TabletData` 里有 items/tier）后再补上。
+            // TODO(common.item + common.inventory): 原实现是
+            //   `new container.Tablet(player.inventory, item.Tablet.get(stack, player))`，
+            //   依赖已删除的 `TabletWrapper`（提供内部物品栏 + 槽位类型/等级）。
+            //   等 `TabletData` 给出等价数据、且 `common/inventory/TabletCaseInventory`
+            //   移植完成后，按 `Database` / `Server` 的同样套路补上。
             null
           case _ => null
         }
       case _ => null
     }
   }
+
+  /** 机架插槽里的服务器（原 `GuiType.ServerInRack` 分支）。 */
+  protected def rackServerMenu(windowId: Int, player: Player, rack: tileentity.Rack, slot: Int): AbstractContainerMenu =
+    rack.getMountable(slot) match {
+      // 机架里的服务器组件本身就是 `ServerInventory`，直接作为宿主物品栏传进去。
+      // TODO(server.component.Server): 该组件尚未移植，等移植完成后可把
+      //   `isRunningProvider` 改成 `() => serverComponent.machine != null && serverComponent.machine.isRunning`。
+      case server: ServerInventory =>
+        new container.Server(windowId, player.getInventory, server, None, () => false)
+      case _ => null
+    }
+
+  /** 机架插槽里的磁盘驱动器（原 `GuiType.DiskDriveMountableInRack` 分支）。 */
+  protected def rackDiskDriveMenu(windowId: Int, player: Player, rack: tileentity.Rack, slot: Int): AbstractContainerMenu =
+    rack.getMountable(slot) match {
+      case drive: DiskDriveMountableInventory =>
+        new container.DiskDrive(windowId, player.getInventory, drive)
+      case _ => null
+    }
 
   /**
    * 客户端界面工厂。
@@ -130,15 +144,54 @@ abstract class GuiHandler {
    */
   def getClientGuiElement(id: Int, player: Player, world: Level, x: Int, y: Int, z: Int): AnyRef = null
 
+  // ----------------------------------------------------------------------- //
+  // 打开界面（服务端）
+  // ----------------------------------------------------------------------- //
+
   /**
    * 在服务端按 [[GuiType]] id 打开界面（取代 1.7.10 的 `player.openGui`）。
    *
-   * 注意：客户端重建容器需要 `MenuType` 的工厂参数（方块坐标 / 实体 id / 物品堆叠），
-   * 目前 [[li.cil.oc.common.container.MenuTypes]] 里的工厂还是占位实现，
-   * 详见该文件的说明。
+   * 会按 `id` 的类别自动选择载荷格式：
+   *  - [[GuiType.Category.Block]] → 方块坐标（机架的两种内嵌界面会额外带上槽位号）；
+   *  - [[GuiType.Category.Entity]] → 实体 id；
+   *  - [[GuiType.Category.Item]] → 主手物品堆叠。
    */
   def openGui(id: Int, player: Player, world: Level, x: Int, y: Int, z: Int): Unit = {
-    container.MenuOpening.open(player, Component.empty())((windowId, _) =>
-      getServerMenu(id, windowId, player, world, x, y, z))
+    if (player == null || world == null) return
+    GuiType.Categories.get(id) match {
+      case Some(GuiType.Category.Block) =>
+        val pos = new BlockPos(x, GuiType.extractY(y), z)
+        val slot = GuiType.extractSlot(y)
+        val rackSubGui = id == GuiType.ServerInRack.id || id == GuiType.DiskDriveMountableInRack.id
+        if (rackSubGui) {
+          container.MenuOpening.openRackSlot(player, pos, slot, Component.empty())((windowId, inventory) =>
+            getServerMenu(id, windowId, player, world, x, y, z))
+        }
+        else {
+          container.MenuOpening.openBlock(player, pos, Component.empty())((windowId, inventory) =>
+            getServerMenu(id, windowId, player, world, x, y, z))
+        }
+      case Some(GuiType.Category.Entity) =>
+        container.MenuOpening.openEntity(player, x, Component.empty())((windowId, inventory) =>
+          getServerMenu(id, windowId, player, world, x, y, z))
+      case Some(GuiType.Category.Item) =>
+        openItemGui(id, player)
+      case _ =>
+        // 纯客户端界面（手册 / 终端屏幕 / 路径点）没有服务端容器，由客户端自己开屏。
+    }
+  }
+
+  /**
+   * 打开「主手物品」宿主界面（取代 1.7.10 的
+   * `player.openGui(OpenComputers, GuiType.Database.id, ...)` 等调用）。
+   *
+   * 物品栏内容通过载荷快照传给客户端，客户端重建的是**幽灵物品栏**：
+   * 槽位只表示「这一格里能放什么」，真正的物品仍然在玩家背包里那份堆叠的 NBT 上。
+   */
+  def openItemGui(id: Int, player: Player): Unit = {
+    if (player == null) return
+    val stack = player.getMainHandItem
+    container.MenuOpening.openItemInHand(player, stack, Component.empty())((windowId, inventory) =>
+      getServerMenu(id, windowId, player, player.level(), 0, 0, 0))
   }
 }

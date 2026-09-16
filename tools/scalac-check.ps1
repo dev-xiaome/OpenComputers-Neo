@@ -1,4 +1,4 @@
-param(
+﻿param(
     [string]$Project = 'D:\Workspace\Mods\1.21.1\OpenComputers Neo',
     [string]$Packages = '',
     [string]$Log = ''
@@ -53,6 +53,17 @@ foreach ($g in $globs) {
     }
 }
 Write-Output ("sources: {0}, classpath entries: {1}" -f $files.Count, $jars.Count)
+
+# 显式列出「按 glob 展开后一个文件都没匹配到」的条目：否则 glob 写错会静默漏编译。
+foreach ($g in $globs) {
+    $g = $g.Trim()
+    if ($g -eq '') { continue }
+    $pattern = Join-Path $src ($g -replace '/', '\')
+    if ($g.EndsWith('/**')) { $pattern = Join-Path $pattern '*.scala' }
+    if (-not (Get-ChildItem -Path $pattern -File -Recurse -ErrorAction SilentlyContinue)) {
+        Write-Output ("WARNING: glob matched no file: {0}" -f $g)
+    }
+}
 
 $scalaJars = (Get-ChildItem $cache -Recurse -File -Filter 'scala-compiler-2.13.14.jar' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
 $scalaLib = (Get-ChildItem $cache -Recurse -File -Filter 'scala-library-2.13.14.jar' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName

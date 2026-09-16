@@ -99,8 +99,9 @@ object ColorHandlers {
     Constants.BlockName.ChameliumBlock)
 
   private def registerBlockColors(event: RegisterColorHandlersEvent.Block): Unit = {
-    // 用 `DeferredHolder#value` 而不是 `getBlock`：注册期已经完成，这里能拿到真实实例；
-    // 取不到的（例如常量与注册名不一致）直接跳过，不影响其它方块。
+    // `Registry.getBlock` 内部就是 `DeferredHolder#value`；本事件在注册表冻结之后才触发，
+    // 所以这里能拿到真实方块实例。取不到的（例如常量与注册名不一致）直接跳过，
+    // 不影响其它方块。
     val blocks: Array[Block] = coloredBlockNames
       .map(name => Registry.getBlock(name))
       .filter(_ != null)

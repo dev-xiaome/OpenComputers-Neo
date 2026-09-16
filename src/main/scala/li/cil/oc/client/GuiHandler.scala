@@ -1,54 +1,46 @@
 package li.cil.oc.client
 
-import li.cil.oc.Localization
-import li.cil.oc.Settings
-import li.cil.oc.api
 import li.cil.oc.common.container.MenuTypes
-import li.cil.oc.common.inventory.{DatabaseInventory, DiskDriveMountableInventory, ServerInventory}
-import li.cil.oc.common.item.Delegator
-import li.cil.oc.common.{GuiType, component, entity, item, tileentity, GuiHandler => CommonGuiHandler}
-import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.screens.MenuScreens
+import li.cil.oc.common.{GuiType, container, tileentity}
+import net.minecraft.client.gui.screens.{MenuScreens, Screen}
 import net.minecraft.client.gui.screens.inventory.MenuAccess
-import net.minecraft.client.gui.screens.Screen
 import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.{Inventory, Player}
 import net.minecraft.world.inventory.{AbstractContainerMenu, MenuType}
-import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
-import net.minecraft.world.level.block.entity.BlockEntity
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent
 
 /**
- * 客户端界面工厂 / 注册表。
+ * 客户端界面注册表。
  *
  * ==1.21.1 与 1.7.10 的结构性差异==
  * 1.7.10 只有一条链路：服务端 `IGuiHandler#getServerGuiElement` 建 `Container`，
- * 客户端 `IGuiHandler#getClientGuiElement`（就是本对象）按 `guiId` + 坐标 new 一个 `GuiContainer`。
+ * 客户端 `IGuiHandler#getClientGuiElement` 按 `guiId` + 坐标 new 一个 `GuiContainer`。
  * 1.21.1 拆成两条：
  *  - **容器界面**：`MenuType` 在客户端由 `MenuScreens.ScreenConstructor` 重建屏幕，
- *    注册入口是 [[registerScreens]]（由 `client.Proxy` 挂在 `RegisterMenuScreensEvent` 上）。
+ *    注册入口是 [[registerScreens]]（由 [[Proxy.initialize]] 挂在 `RegisterMenuScreensEvent` 上）。
  *    屏幕构造器固定为 `(menu, playerInventory, title)`，宿主（方块实体 / 实体 / 物品）
- *    通过 `menu.otherInventory` 取回，不再由本对象 new。
- *  - **无容器界面**（手册、终端屏幕、软盘驱动器、路径点）：1.7.10 里也走 `getClientGuiElement`，
+ *    通过容器实例本身取回（见 [[li.cil.oc.common.container.MenuTypes]] 的客户端工厂），
+ *    不再由本对象 new。
+ *  - **无容器界面**（手册、终端屏幕、路径点）：1.7.10 里也走 `getClientGuiElement`，
  *    但 1.21.1 必须由服务端发一个自定义包、客户端收到后 `Minecraft#setScreen`。
  *    [[getClientGuiElement]] 保留为「按 id 造屏幕」的纯函数，供将来那条包处理链路调用。
  *
  * ==降级说明==
- *  - 平板内层（`GuiType.TabletInner`）依赖已随 `common/item/Tablet.scala` 一起降级的
- *    `TabletWrapper`（见 `common/GuiHandler` 的 TODO），这里返回 `null`。
- *  - 终端（`GuiType.Terminal`）依赖 `component.TerminalServer.loaded`，1.21.1 里
- *    `api.internal.Rack` 仍是 1.7.10 风格（`rack.world` / `xPosition`），因此逻辑可以保留，
- *    但 `Rack` 的类型匹配改成 `BlockEntity`，且 `isInvalid` → `isRemoved`。
+ *  - 终端（`GuiType.Terminal`）与路径点（`GuiType.Waypoint`）依赖
+ *    `renderer.gui.BufferRenderer` / `TextBufferRenderCache`（文本缓冲区渲染子系统），
+ *    这部分尚未移植，因此 [[getClientGuiElement]] 里对应分支返回 `null`。
+ *  - 手册（`GuiType.Manual`）是纯客户端界面，已由 [[Manual]] 直接 `setScreen` 打开，
+ *    不走本对象。
  */
-object GuiHandler extends CommonGuiHandler {
+object GuiHandler extends container.GuiHandler {
   // ----------------------------------------------------------------------- //
   // 1.21.1 主链路：MenuType -> Screen
   // ----------------------------------------------------------------------- //
 
   /**
-   * 由 `client.Proxy` 在 `RegisterMenuScreensEvent` 里调用一次。
+   * 由 [[Proxy.initialize]] 在 `RegisterMenuScreensEvent` 里调用一次。
    *
    * 16 个 `MenuType` 与 `common/container` 下的容器一一对应（见
    * [[li.cil.oc.common.container.MenuTypes]]），这里给每个容器配上同名屏幕。
@@ -73,17 +65,16 @@ object GuiHandler extends CommonGuiHandler {
   }
 
   /**
-   * 把 `MenuTypes` 里的 `DeferredHolder` 与一个屏幕工厂接起来。
+   * 把 [[MenuTypes]] 里的 `DeferredHolder` 与一个屏幕工厂接起来。
    *
-   * `MenuTypes.MenuHolder` 的第二个类型参数被擦成了 `MenuType[_]`，所以这里必须做一次
-   * 强制转型；转型是安全的，因为 `DeferredHolder` 的泛型参数在 [[li.cil.oc.common.container.MenuTypes]] 里
-   * 与容器类一一对应。
+   * [[MenuTypes.MenuHolder]] 的类型参数在 `registerScreens` 的调用点上已经确定，
+   * 因此这里不再需要强制转型 —— 这正是 [[MenuTypes.MenuHolder]] 保留 `T` 的原因。
    */
-  private def screen[M <: AbstractContainerMenu, U <: Screen with MenuAccess[M]](
+  private def screen[M <: container.Player, U <: Screen with MenuAccess[M]](
       event: RegisterMenuScreensEvent,
-      holder: MenuTypes.MenuHolder)
+      holder: MenuTypes.MenuHolder[M])
       (factory: (M, Inventory, Component) => U): Unit = {
-    event.register(holder.get().asInstanceOf[MenuType[M]], new MenuScreens.ScreenConstructor[M, U] {
+    event.register(holder.value(), new MenuScreens.ScreenConstructor[M, U] {
       override def create(menu: M, inventory: Inventory, title: Component): U = factory(menu, inventory, title)
     })
   }
@@ -92,117 +83,31 @@ object GuiHandler extends CommonGuiHandler {
   // 旧链路：按 guiId 造屏幕（无容器界面仍需它）
   // ----------------------------------------------------------------------- //
 
+  /**
+   * 按 [[GuiType]] id 造屏幕。
+   *
+   * 1.21.1 里**只有**「没有服务端容器」的界面才需要它（手册 / 终端屏幕 / 路径点），
+   * 因为容器界面走 `MenuType` 工厂。这里的每个分支都必须自己拿到宿主对象，
+   * 而 `world.getBlockEntity(pos)` 在客户端是可靠的（区块已加载），
+   * 因此仍然可行。
+   */
   override def getClientGuiElement(id: Int, player: Player, world: Level, x: Int, y: Int, z: Int): AnyRef = {
     GuiType.Categories.get(id) match {
-      case Some(GuiType.Category.Block) =>
-        // 1.21.1：`world.getTileEntity(x, y, z)` -> `world.getBlockEntity(new BlockPos(...))`。
-        world.getBlockEntity(new BlockPos(x, GuiType.extractY(y), z)) match {
-          case t: tileentity.Adapter if id == GuiType.Adapter.id =>
-            new gui.Adapter(new li.cil.oc.common.container.Adapter(0, player.getInventory, t), player.getInventory, Component.empty())
-          case _ => null
-        }
-      case Some(GuiType.Category.Entity) =>
-        // 1.21.1：`world.getEntityByID(x)` -> `world.getEntity(x)`。
-        world.getEntity(x) match {
-          case drone: entity.Drone if id == GuiType.Drone.id =>
-            new gui.Drone(new li.cil.oc.common.container.Drone(0, player.getInventory, drone), player.getInventory, Component.empty())
-          case _ => null
-        }
-      case Some(GuiType.Category.Item) =>
-        // 1.21.1：`player.getHeldItem` -> `player.getMainHandItem`。
-        val stack = player.getMainHandItem
-        Delegator.subItem(stack) match {
-          case Some(_: item.traits.FileSystemLike) if id == GuiType.Drive.id =>
-            new gui.Drive(player.getInventory, () => stack)
-          case Some(_: item.UpgradeDatabase) if id == GuiType.Database.id =>
-            new gui.Database(new li.cil.oc.common.container.Database(0, player.getInventory, new DatabaseInventory {
-              override def container: ItemStack = stack
-            }), player.getInventory, Component.empty())
-          case Some(_: item.Server) if id == GuiType.Server.id =>
-            new gui.Server(new li.cil.oc.common.container.Server(0, player.getInventory, new ServerInventory {
-              override def container: ItemStack = stack
-            }), player.getInventory, Component.empty())
-          case Some(_: item.Tablet) if id == GuiType.Tablet.id =>
-            // TODO(client.item.Tablet): 原实现从 `item.Tablet.get(stack, player)` 拿到平板包裹物，
-            //   再取出内部的 `api.internal.TextBuffer` 开终端界面。`TabletWrapper` 已随
-            //   `common/item/Tablet.scala` 降级删除，等它给出等价数据（`TabletData`）后再补。
-            null
-          case Some(_: item.Tablet) if id == GuiType.TabletInner.id =>
-            // TODO(client.item.Tablet): 同上，缺 `TabletWrapper`。
-            null
-          case Some(_: item.DiskDriveMountable) if id == GuiType.DiskDriveMountable.id =>
-            new gui.DiskDrive(new li.cil.oc.common.container.DiskDrive(0, player.getInventory, new DiskDriveMountableInventory {
-              override def container: ItemStack = stack
-            }), player.getInventory, Component.empty())
-          case Some(_: item.Terminal) if id == GuiType.Terminal.id =>
-            terminalScreen(player, stack)
-          case _ => null
-        }
       case Some(GuiType.Category.None) =>
-        if (id == GuiType.Manual.id) new gui.Manual()
-        else null
-      case _ => null
-    }
-  }
-
-  /**
-   * 无线终端（`GuiType.Terminal`）开屏逻辑。
-   *
-   * 与原实现的差别只在 API 名称：`stack.hasTagCompound` → `stack.hasTag`、
-   * `player.isEntityAlive` → `player.isAlive`、`player.posX/Y/Z` → `getX/Y/Z`、
-   * `getDistanceFrom` → `distanceToSqr`、`rack.isInvalid` → `isRemoved`、
-   * `Minecraft.getMinecraft.displayGuiScreen` → `Minecraft.getInstance.setScreen`、
-   * `player.addChatMessage` → `player.displayClientMessage(..., false)`。
-   */
-  private def terminalScreen(player: Player, stack: ItemStack): AnyRef = {
-    if (!stack.hasTag) return null
-    val address = stack.getTag.getString(Settings.namespace + "server")
-    val key = stack.getTag.getString(Settings.namespace + "key")
-    if (address == null || address.isEmpty || key == null || key.isEmpty) return null
-    component.TerminalServer.loaded.find(address) match {
-      case Some(term) if term.rack != null =>
-        // 1.21.1 里 `api.internal.Rack` 仍暴露 `world` / `xPosition` 等（`EnvironmentHost`），
-        // 但 `isInvalid` / `getDistanceFrom` 只存在于 `BlockEntity` 上，
-        // 因此这里自己算距离，并把「已移除」判断挪到 `BlockEntity` 分支里。
-        def inRange: Boolean = {
-          if (!player.isAlive) return false
-          val rack = term.rack
-          if (rack.world == null) return false
-          rack match {
-            case be: BlockEntity if be.isRemoved => return false
-            case _ =>
-          }
-          val dx = rack.xPosition - player.getX
-          val dy = rack.yPosition - player.getY
-          val dz = rack.zPosition - player.getZ
-          dx * dx + dy * dy + dz * dz < term.range * term.range
-        }
-        if (inRange) {
-          if (term.sidedKeys.contains(key)) {
-            new gui.Screen(term.buffer, true, () => true, () => {
-              // 别人把终端重新绑定到这台服务器时自动关屏。
-              if (stack.getTag.getString(Settings.namespace + "key") != key) {
-                Minecraft.getInstance().setScreen(null)
-              }
-              // 走出范围时自动关屏。
-              if (!inRange) {
-                Minecraft.getInstance().setScreen(null)
-              }
-              true
-            })
-          }
-          else {
-            player.displayClientMessage(Localization.Terminal.InvalidKey, false)
+        if (id == GuiType.Manual.id) new gui.Manual() else null
+      case Some(GuiType.Category.Block) =>
+        // 方块宿主：文本缓冲区类界面（屏幕 / 路径点）尚未移植，见类注释的降级说明。
+        world.getBlockEntity(new BlockPos(x, GuiType.extractY(y), z)) match {
+          case _: tileentity.Screen if id == GuiType.Screen.id =>
+            // TODO(client.gui.Screen): 需要 `renderer.gui.BufferRenderer` +
+            //   `gui.traits.InputBuffer`（文本缓冲区渲染 / 输入子系统）。
             null
-          }
+          case _: tileentity.Waypoint if id == GuiType.Waypoint.id =>
+            // TODO(client.gui.Waypoint): 同上，但只需要 `BufferRenderer`。
+            null
+          case _ => null
         }
-        else {
-          player.displayClientMessage(Localization.Terminal.OutOfRange, false)
-          null
-        }
-      case _ =>
-        player.displayClientMessage(Localization.Terminal.OutOfRange, false)
-        null
+      case _ => null
     }
   }
 }

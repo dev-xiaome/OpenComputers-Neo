@@ -18,7 +18,7 @@ import scala.jdk.CollectionConverters._
  * 带「动态槽位」渲染的容器界面基类（原 1.7.10 的 `li.cil.oc.client.gui.DynamicGuiContainer`）。
  *
  * 负责 OC 界面里那套固定的槽位绘制流程：
- *  1. 界面底图（[[Textures.guiBackground]]）；
+ *  1. 界面底图（[[CustomGuiContainer.texture]]，默认 [[Textures.guiBackground]]）；
  *  2. [[drawSecondaryBackgroundLayer]]（各界面自己画背景装饰）；
  *  3. [[drawInventorySlots]]（槽位底色 / 未解锁槽位的占位图标）；
  *  4. [[drawSecondaryForegroundLayer]]（标签、tooltip 等）；
@@ -27,8 +27,9 @@ import scala.jdk.CollectionConverters._
  * ==1.21.1 迁移要点==
  *  - `renderBg` / `renderLabels` / `render` 的签名换成
  *    [[net.minecraft.client.gui.GuiGraphics]] 版本；
+ *  - `drawSecondaryForegroundLayer` 增加 `GuiGraphics` 参数（mouseX / mouseY 仍然相对界面左上角）；
  *  - 槽位图标从 `IIcon` 换成 [[ResourceLocation]] + 图集精灵
- *    （见 [[Icons]] 与 [[ComponentSlot#tierIcon]]）；
+ *    （见 [[Icons]] 与 `common.container.ComponentSlot#tierIcon`）；
  *  - 空槽位的等级图标**不再手动画**：1.21.1 的 `AbstractContainerScreen#renderSlot`
  *    会通过 `Slot#getNoItemIcon` 自动画，重复绘制只会多一层半透明叠色；
  *  - `zLevel` 相关的 `glTranslatef` 平移改为 `PoseStack` 平移（[[GuiGraphics#pose]]）。
@@ -68,7 +69,7 @@ abstract class DynamicGuiContainer[C <: li.cil.oc.common.container.Player](
   override protected def renderBg(guiGraphics: GuiGraphics, partialTick: Float, mouseX: Int, mouseY: Int): Unit = {
     // 1.7.10：bindTexture + drawTexturedModalRect(guiLeft, guiTop, 0, 0, xSize, ySize)
     // 1.21.1：GUI 贴图按 256x256 解析 UV，语义完全一致。
-    guiGraphics.blit(Textures.guiBackground, leftPos, topPos, 0, 0, imageWidth, imageHeight)
+    guiGraphics.blit(texture, leftPos, topPos, 0, 0, imageWidth, imageHeight)
     drawSecondaryBackgroundLayer(guiGraphics)
     drawInventorySlots(guiGraphics)
   }

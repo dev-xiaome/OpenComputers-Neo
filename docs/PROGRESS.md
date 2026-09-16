@@ -50,6 +50,10 @@
 | 创造模式标签页 | ⚠️ | 已注册但**空**，游戏会隐藏空标签页 → 阶段 2 注册物品后才会显示 |
 | `li.cil.oc.common` | 🔄 | 阶段 2 进行中：注册层 ✅、网络传输层 ✅、`common/item/traits`+`data` ✅；`common/item` 顶层 / `common/block` / `common/tileentity` 待做 |
 | 物品 NBT 方案 | ✅ | 自定义数据组件 `opencomputers_neo:nbt`（`li.cil.oc.common.DataComponents`）+ `li.cil.oc.util.ItemNBT` + Scala 隐式类 |
+| 方块/物品染色 | ✅ | `li.cil.oc.client.ColorHandlers`（`RegisterColorHandlersEvent.Block/Item`，mod 总线）+ 模型继承 `block/tinted_cube`（`tintindex: 0`）：机箱 1-3 级/创造、屏幕 1-3 级、线缆、变色石 |
+| 屏幕/机箱静态模型 | ✅ | `models/block/screen1|2|3.json` 由「空模型」补成可用方盒（`screen/f2` + `screen/b2` + `screen/b`）；`case*` 改为继承 `block/tinted_cube` 以便上色 |
+| 模型引用校验脚本 | ✅ | `tools/check-models.ps1`：扫描 models + blockstates 的 `opencomputers_neo:` 引用（textures / parent / model）并沿 parent 链解析 `#变量`；当前 460 个引用 0 缺失 |
+| `tools/scalac-check.ps1` | ✅ | 增加 glob 未匹配告警（避免 glob 写错时静默漏编译） |
 
 ## 关键设计决策
 

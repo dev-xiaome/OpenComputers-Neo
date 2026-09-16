@@ -16,7 +16,7 @@ import net.minecraft.world.entity.player.{Inventory, Player => MCPlayer}
  *  - `player.getCommandSenderName` → `player.getGameProfile.getName`（与
  *    `tileentity.traits.Computer#canInteract(player: String)` 的入参一致）。
  */
-class Case(windowId: Int, playerInventory: Inventory, computer: tileentity.Case)
+class Case(windowId: Int, playerInventory: Inventory, val computer: tileentity.Case)
   extends Player(windowId, MenuTypes.Case.value(), playerInventory, computer) {
 
   for (i <- 0 to (if (computer.tier >= Tier.Three) 2 else 1)) {
