@@ -51,9 +51,12 @@ class UpgradeTrading(val host: EnvironmentHost) extends prefab.ManagedEnvironmen
     // 1.21.1：`AABB#expand` → `AABB#inflate`；
     // 商人的接口由 `net.minecraft.entity.IMerchant` 改为 `net.minecraft.world.item.trading.Merchant`，
     // 交易表由 `getRecipes(null)` 改为 `getOffers`，持久 id 由 `getPersistentID` 改为 `getUUID`。
+    // `entitiesInBounds` 返回 `Iterable`，而 `sorted` / `sortBy` 只在 `Seq` 上可用（Scala 2.13），
+    // 因此这里显式转成 `Seq`。
     val merchants = entitiesInBounds[Entity](position.bounds.inflate(maxRange, maxRange, maxRange)).
       filter(isInRange).
-      collect { case merchant: Merchant => merchant }
+      collect { case merchant: Merchant => merchant }.
+      toSeq
     var nextId = 1
     val idMap = mutable.Map[UUID, Int]()
     for (id: UUID <- merchants.map(merchantUuid).sorted) {
@@ -61,7 +64,7 @@ class UpgradeTrading(val host: EnvironmentHost) extends prefab.ManagedEnvironmen
       nextId += 1
     }
     // sorting the result is not necessary, but will help the merchant trades line up nicely by merchant
-    result(merchants.sortBy(merchantUuid).flatMap(merchant => offersOf(merchant).indices.map(index => {
+    result(merchants.sortBy(merchantUuid).flatMap(merchant => offersOf(merchant).map(index => {
       new Trade(this, merchant, index, idMap(merchantUuid(merchant)))
     })))
   }
@@ -72,9 +75,14 @@ class UpgradeTrading(val host: EnvironmentHost) extends prefab.ManagedEnvironmen
     case _ => new UUID(0L, 0L)
   }
 
-  /** 商人的交易列表；非实体实现（理论上不存在）时退化为空。 */
+  /**
+   * 商人的交易条目下标。
+   *
+   * 1.21.1：`Merchant#getRecipes(null)` → `Merchant#getOffers`，返回
+   * `MerchantOffers`（`java.util.ArrayList` 的子类，不是 Scala `Seq`，因此不能用 `.indices`）。
+   */
   private def offersOf(merchant: Merchant): IndexedSeq[Int] = {
     val offers = merchant.getOffers
-    if (offers == null) IndexedSeq.empty else offers.indices
+    if (offers == null) IndexedSeq.empty else (0 until offers.size()).toIndexedSeq
   }
 }

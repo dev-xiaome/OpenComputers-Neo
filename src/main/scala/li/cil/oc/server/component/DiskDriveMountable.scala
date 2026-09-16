@@ -236,7 +236,6 @@ class DiskDriveMountable(val rack: api.internal.Rack, val slot: Int) extends pre
       // Screen 工厂重建界面（`client` 层尚未移植，因此目前只会打开容器、没有界面）。
       // 这里直接构造与 `GuiHandler#getServerMenu` 中 `DiskDriveMountableInRack` 分支
       // 完全相同的容器，保证接线后行为一致。
-      val position = BlockPosition(rack)
       MenuOpening.open(player, Component.empty())((windowId, playerInventory) =>
         new li.cil.oc.common.container.DiskDrive(windowId, playerInventory, this))
       true

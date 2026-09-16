@@ -19,8 +19,6 @@ import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedWorld._
 import li.cil.oc.util.InventoryUtils
 import net.minecraft.world.entity.item.ItemEntity
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.level.block.LevelEvent
 
 import scala.jdk.CollectionConverters._
 
@@ -68,10 +66,13 @@ object UpgradeTractorBeam {
         val remaining = if (stack == null) 0 else stack.getCount
         if (remaining < size || item.isRemoved) {
           context.pause(Settings.get.suckDelay)
-          // 1.21.1：`Level#playAuxSFX(id, x, y, z, data)` 已移除，
-          // 2003（拾取物品粒子 + 音效）对应 `LevelEvent.SOUND_ITEM_PICKUP` 与 `Level#levelEvent`。
-          world.levelEvent(LevelEvent.SOUND_ITEM_PICKUP,
-            math.floor(item.getX).toInt, math.floor(item.getY).toInt, math.floor(item.getZ).toInt, 0)
+          // 1.21.1：`Level#playAuxSFX(id, x, y, z, data)` 已移除，且物品拾取的
+          // level event（1.7.10 的 2003）在新版里已被删除（2003 现在是末影之眼死亡粒子）。
+          // 因此这里改为直接播放与拾取时刻相同的音效（原效果也只是给附近玩家播放拾取音 + 粒子）。
+          world.playSound(null: net.minecraft.world.entity.player.Player,
+            item.getX, item.getY, item.getZ,
+            net.minecraft.sounds.SoundEvents.ITEM_PICKUP, net.minecraft.sounds.SoundSource.PLAYERS,
+            0.2f, (world.random.nextFloat() - world.random.nextFloat()) * 0.7f + 1.0f)
           return result(true)
         }
       }
@@ -79,7 +80,14 @@ object UpgradeTractorBeam {
     }
   }
 
-  class Player(val owner: EnvironmentHost, val player: () => Player) extends Common {
+  /**
+   * 「有玩家」宿主（机器人 / 平板）的吸取实现。
+   *
+   * 注意：本类是 [[UpgradeTractorBeam]] 的内嵌类，名字 `Player` 会遮蔽
+   * `net.minecraft.world.entity.player.Player`，因此这里的函数类型必须写全限定名，
+   * 否则会被解析成 `UpgradeTractorBeam.Player` 自己。
+   */
+  class Player(val owner: EnvironmentHost, val player: () => net.minecraft.world.entity.player.Player) extends Common {
     override protected def position = BlockPosition(owner)
 
     // 1.21.1：`Entity#onCollideWithPlayer(player)` 重命名为 `playerTouch(player)`。

@@ -120,10 +120,10 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
     val volume = (maxX - minX + 1) * (maxZ - minZ + 1) * (maxY - minY + 1)
     if (volume > 64) throw new IllegalArgumentException("volume too large (maximum is 64)")
     // 1.21.1：`mapAsJavaMap` 已随 Scala 2.13 移除，改用 `CollectionConverters#asJava`。
-    // 注意 `Arguments#optTable` 返回的是 **Scala** `Map`，而事件构造器要的是 `java.util.Map`，
-    // 因此两个分支都要显式转换。
+    // 注意 `Arguments#optTable` 的签名是 `(Int, java.util.Map) => java.util.Map`
+    // （见 `api.machine.Arguments`），默认值也要先转成 `java.util.Map`。
     val options = if (args.isBoolean(optIndex)) Map[AnyRef, AnyRef]("includeReplaceable" -> Boolean.box(!args.checkBoolean(optIndex))).asJava
-      else args.optTable(optIndex, Map.empty[AnyRef, AnyRef]).asJava
+      else args.optTable(optIndex, Map.empty[AnyRef, AnyRef].asJava)
     if (math.abs(minX) > Settings.get.geolyzerRange || math.abs(maxX) > Settings.get.geolyzerRange ||
       math.abs(minY) > Settings.get.geolyzerRange || math.abs(maxY) > Settings.get.geolyzerRange ||
       math.abs(minZ) > Settings.get.geolyzerRange || math.abs(maxZ) > Settings.get.geolyzerRange) {
@@ -169,7 +169,8 @@ class Geolyzer(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
       case rotatable: internal.Rotatable => rotatable.toGlobal(side)
       case _ => side
     }
-    val options = args.optTable(1, Map.empty[AnyRef, AnyRef]).asJava
+    // `Arguments#optTable` 的默认值参数是 `java.util.Map`，需要先转换。
+    val options = args.optTable(1, Map.empty[AnyRef, AnyRef].asJava)
 
     if (!node.tryChangeBuffer(-Settings.get.geolyzerScanCost))
       return result(Unit, "not enough energy")
