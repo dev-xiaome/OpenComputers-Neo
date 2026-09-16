@@ -1,5 +1,6 @@
 package li.cil.oc.client.gui
 
+import com.mojang.blaze3d.systems.RenderSystem
 import li.cil.oc.Localization
 import li.cil.oc.client.Textures
 import li.cil.oc.common
@@ -68,8 +69,20 @@ abstract class DynamicGuiContainer[C <: li.cil.oc.common.container.Player](
   override protected def drawSecondaryBackgroundLayer(guiGraphics: GuiGraphics): Unit = {}
 
   override protected def renderBg(guiGraphics: GuiGraphics, partialTick: Float, mouseX: Int, mouseY: Int): Unit = {
+    // 1.7.10 在这个方法开头先 `GL11.glColor4f(1, 1, 1, 1)` 再画界面底图；
+    // 1.20 CE 的 `DynamicGuiContainer.renderBg` 里对应的就是
+    // `RenderSystem.setShaderColor(1, 1, 1, 1)` 这一行。
+    //
+    // 1.21.1 为什么同样必要：`GuiGraphics#blit` 在这里是**立即绘制**
+    // （见 `GuiGraphics#innerBlit`，它直接 `BufferUploader.drawWithShader`），
+    // 而 position_tex 着色器的 `ColorModulator` uniform 就是 `RenderSystem`
+    // 当前的 shaderColor —— 任何把 shaderColor 留在非白色状态的渲染器
+    // （方块实体 / 实体 / 天空 / 天气渲染器，`RenderSystem.setShaderColor`
+    // 是全局状态且不会自动还原）都会把这一帧的界面底图直接染灰。
+    //
     // 1.7.10：bindTexture + drawTexturedModalRect(guiLeft, guiTop, 0, 0, xSize, ySize)
     // 1.21.1：GUI 贴图按 256x256 解析 UV，语义完全一致。
+    RenderSystem.setShaderColor(1f, 1f, 1f, 1f)
     guiGraphics.blit(texture, leftPos, topPos, 0, 0, imageWidth, imageHeight)
     drawSecondaryBackgroundLayer(guiGraphics)
     drawInventorySlots(guiGraphics)
@@ -81,14 +94,37 @@ abstract class DynamicGuiContainer[C <: li.cil.oc.common.container.Player](
    * `AbstractContainerScreen` 只在**没有**平移过的 pose 里画槽位（它自己会
    * `translate(leftPos, topPos)`），所以这里也要把 pose 平移到界面左上角，
    * 槽位坐标（[[Slot#x]] / [[Slot#y]]）才是相对界面的。
+   *
+   * ==为什么必须手动管深度测试与混合（「槽位贴图/图标画不出来、看起来像背面」的修复点）==
+   *  - 1.7.10 的做法：`drawInventorySlots` 前 `RenderState.makeItBlend()`
+   *    （等价 `glEnable(GL_BLEND)` + `glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)`
+   *    + `glDisable(GL_ALPHA_TEST)`），并且每个槽位用 `zLevel += 1` 把自己的深度
+   *    抬高一级再画贴图、画完再减回去。
+   *  - 1.20 CE 的做法就是下面这三行：`disableDepthTest` + `enableBlend` +
+   *    `defaultBlendFunc`，画完再恢复（`disableBlend` + `enableDepthTest`）。
+   *  - 1.21.1 为什么非做不可：
+   *    1. `AbstractContainerScreen#render` 要到 `renderBg` **返回之后**才
+   *       `RenderSystem.disableDepthTest()`，也就是说 `renderBg` 全程深度测试是
+   *       **开启**的；而 `GuiGraphics#blit` 是立即绘制，槽位贴图与界面底图的 z
+   *       同为 0，深度相等会被 `GL_LESS` 直接丢弃（或 z-fighting 闪烁），
+   *       表现就是「槽位图形根本没画出来 / 看起来是反的」。
+   *    2. `GuiGraphics#innerBlit` 的无着色版本**完全不碰混合状态**（只有带颜色
+   *       参数的那个重载才会成对 `enableBlend` / `disableBlend`），所以混合函数
+   *       会沿用世界渲染的残留值：半透明的槽位阴影、面板边框会被画成不透明或
+   *       加色，界面整体就会发灰 / 发白。
    */
   protected def drawInventorySlots(guiGraphics: GuiGraphics): Unit = {
     val pose = guiGraphics.pose()
     pose.pushPose()
     pose.translate(leftPos.toFloat, topPos.toFloat, 0f)
+    RenderSystem.disableDepthTest()
+    RenderSystem.enableBlend()
+    RenderSystem.defaultBlendFunc()
     for (slot <- inventorySlots) {
       drawSlotInventory(guiGraphics, slot)
     }
+    RenderSystem.disableBlend()
+    RenderSystem.enableDepthTest()
     pose.popPose()
   }
 
@@ -99,26 +135,41 @@ abstract class DynamicGuiContainer[C <: li.cil.oc.common.container.Player](
         drawDisabledSlot(guiGraphics, component)
       }
     case _ =>
+      // 1.7.10 在这里写的是 `zLevel += 1` / `zLevel -= 1`；
+      // 1.20 CE 的对应写法是把 pose 沿 z 抬 1（`graphics.pose().translate(0, 0, 1)`）。
+      // 1.21.1 的 z 序由 pose 决定，与 1.20 CE 完全一致，因此这里照抄后者。
+      val pose = guiGraphics.pose()
+      pose.pushPose()
+      pose.translate(0f, 0f, 1f)
       if (!isInPlayerInventory(slot)) {
         drawSlotBackground(guiGraphics, slot.x - 1, slot.y - 1)
       }
       // 空槽位的等级图标由父类的 renderSlot 通过 getNoItemIcon 绘制，这里不重复画。
+      pose.popPose()
   }
 
   /** 槽位底色（原实现手写 18x18 的 UV 四边形，这里等价于把整张贴图铺满 18x18）。 */
   protected def drawSlotBackground(guiGraphics: GuiGraphics, x: Int, y: Int): Unit = {
+    // 1.7.10 的 `drawSlotBackground` 开头是 `GL11.glColor4f(1, 1, 1, 1)`，
+    // 1.20 CE 也是逐行等价的 `RenderSystem.setShaderColor(1, 1, 1, 1)`。
+    // 理由同 renderBg：blit 立即绘制，颜色直接取当前的 shaderColor。
+    RenderSystem.setShaderColor(1f, 1f, 1f, 1f)
     guiGraphics.blit(Textures.guiSlot, x, y, 0f, 0f, 18, 18, 18, 18)
   }
 
-  /** 未解锁 / 无效槽位的占位图标（原 `IIcon`，现在是图集精灵）。 */
+  /**
+   * 未解锁 / 无效槽位的占位图标（原 `IIcon`，现在是图集精灵）。
+   *
+   * 调用方 [[drawInventorySlots]] 已经把 pose 平移到界面左上角了，所以这里
+   * **不能**再平移一次 —— 1.20 CE 的 `drawDisabledSlot` 同样直接按 `slot.x` /
+   * `slot.y` 画。早期移植版在这里又 `translate(leftPos, topPos)` 了一次，
+   * 结果图标被推到界面右下角（每加一次平移就多偏一个界面左上角）。
+   */
   protected def drawDisabledSlot(guiGraphics: GuiGraphics, slot: li.cil.oc.common.container.ComponentSlot): Unit = {
     val sprite = spriteFor(slot.tierIcon)
     if (sprite != null) {
-      val pose = guiGraphics.pose()
-      pose.pushPose()
-      pose.translate(leftPos.toFloat, topPos.toFloat, 0f)
+      RenderSystem.setShaderColor(1f, 1f, 1f, 1f)
       guiGraphics.blit(slot.x, slot.y, 0, 16, 16, sprite)
-      pose.popPose()
     }
   }
 

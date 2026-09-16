@@ -98,20 +98,6 @@ object ColorHandlers {
     Constants.BlockName.Cable,
     Constants.BlockName.ChameliumBlock)
 
-  /**
-   * 可染色的「存储类」物品（软盘 / 硬盘）的注册名。
-   *
-   * 1.7.10 给软盘准备了 **16 张按染料命名的贴图**（`FloppyDisk#icon` 读 `oc:color`
-   * 去选 `icons(0..15)`）；1.21.1 只有一张灰阶贴图，因此改为按 `oc:color` 染色。
-   * 不注册这一段的话，**OpenOS 软盘和空白软盘看起来完全一样（都是灰的）**，
-   * 玩家没法分辨哪张是可启动的系统盘。
-   */
-  private val dyeableStorageNames: Seq[String] = Seq(
-    Constants.ItemName.Floppy,
-    Constants.ItemName.HDDTier1,
-    Constants.ItemName.HDDTier2,
-    Constants.ItemName.HDDTier3)
-
   private def registerBlockColors(event: RegisterColorHandlersEvent.Block): Unit = {
     // `Registry.getBlock` 内部就是 `DeferredHolder#value`；本事件在注册表冻结之后才触发，
     // 所以这里能拿到真实方块实例。取不到的（例如常量与注册名不一致）直接跳过，
@@ -162,16 +148,36 @@ object ColorHandlers {
    * 1.7.10 的 `ItemBlock#getColorFromItemStack` 会回落到方块的 `getRenderColor(metadata)`，
    * 所以机箱 / 屏幕的物品（含创造模式标签页与手持）按等级着色；`block.Item` 另外覆盖了
    * 线缆一种情况：颜色存在堆叠的 NBT 里（[[ItemColorizer]]），没写着色时是 [[Color.LightGray]]。
+   *
+   * ==绝对不要把软盘 / 硬盘（`floppy` / `hdd1` / `hdd2` / `hdd3`）注册进来==
+   * 曾有一版把 `Constants.ItemName.Floppy` 与 `HDDTier1` 到 `HDDTier3` 也交给了
+   * [[ItemColor]]，想用「按 `oc:color` 返回染料色」代替 1.7.10 的 16 张独立贴图，
+   * 结果**所有软盘与硬盘的图标在实机里整体变暗到几乎看不见**（玩家报告「图标消失了」）。
+   * 原因是：
+   *  - `item/generated`（这几个物品模型的 parent）的 `layer0` **带 `tintindex: 0`**
+   *    （原版就是靠它给刷怪蛋 / 皮革盔甲上色的），所以这里注册的返回值**确实会生效**，
+   *    并不是「没有 tintindex 的无效注册」；
+   *  - 而 `item/floppydisk_dye*` 与 `item/harddiskdrive*` 这几十张贴图**本身就是有颜色的**
+   *    （实测平均亮度约 107 到 132）。[[ItemColor]] 只能把颜色**乘**上去：
+   *    未写着色时回落到 `dyes(8)`（即 `dyeGray` = 0x666666，约 40% 亮度），
+   *    相乘后图标平均亮度掉到 43 到 53，在创造模式物品栏的深色底上等于「消失」。
+   *  - `openos` 这个条目在创造标签页里渲染的**就是 `floppy` 的堆叠**
+   *    （见 `Registry.registerStackItem`），所以它跟着一起变暗 ——
+   *    玩家看到的现象才是「**所有**软盘的图标都没了」。
+   *
+   * 1.21.1 的正确做法是「按 `oc:color` 换**模型**」，而不是「给同一张贴图染色」：
+   * 用 `ItemProperties.register` 注册一个读 `oc:color` 的 predicate，
+   * 再在 `models/item/floppy.json` 里写 `overrides` 指向 16 个分别引用
+   * `floppydisk_dyeblack` 到 `floppydisk_dyewhite` 的子模型，
+   * 等价于 1.7.10 的 `FloppyDisk#icons(0..15)`。这需要「注册 predicate」的代码
+   * 与 16 个子模型，属于独立的一次改动。
    */
   private def registerItemColors(event: RegisterColorHandlersEvent.Item): Unit = {
-    val blockItems = coloredBlockNames
+    val items = coloredBlockNames
       .map(name => Registry.getItem(name))
       .filter(_ != null)
-
-    // 可染色的「存储类」物品（软盘 / 硬盘），见 [[dyeableStorageNames]] 的说明。
-    val dyeableItems = dyeableStorageNames.map(Registry.getItem).filter(_ != null)
-
-    val items = (blockItems ++ dyeableItems).distinct.toArray
+      .distinct
+      .toArray
 
     if (items.isEmpty) return
 
@@ -186,15 +192,6 @@ object ColorHandlers {
     if (isCableItem(stack)) {
       // 原 `block.Item#getColorFromItemStack`：线缆按堆叠里保存的颜色绘制，否则浅灰。
       return if (ItemColorizer.hasColor(stack)) ItemColorizer.getColor(stack) else Color.LightGray
-    }
-
-    // 软盘 / 硬盘：颜色存在 `oc:color`（染料索引 0-15，与原版 `FloppyDisk#icon` 读的是同一个键），
-    // 未写着色时用 `dyes(8)`（浅灰），与原版 `icons(8)` 的默认值一致。
-    if (dyeableStorageNames.map(Registry.getItem).exists(i => i != null && (i eq stack.getItem))) {
-      val tag = li.cil.oc.util.ItemNBT.get(stack)
-      val key = li.cil.oc.Settings.namespace + "color"
-      val index = if (tag != null && tag.contains(key)) (tag.getInt(key) max 0 min 15) else 8
-      return Color.byOreName(Color.dyes(index))
     }
 
     stack.getItem match {

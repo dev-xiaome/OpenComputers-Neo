@@ -1,5 +1,6 @@
 package li.cil.oc.client.gui
 
+import com.mojang.blaze3d.systems.RenderSystem
 import li.cil.oc.Localization
 import li.cil.oc.client.Textures
 import li.cil.oc.client.{PacketSender => ClientPacketSender}
@@ -69,6 +70,14 @@ class Case(menu: container.Case, playerInventory: Inventory, title: Component)
   }
 
   override protected def drawSecondaryBackgroundLayer(guiGraphics: GuiGraphics): Unit = {
+    // 1.7.10 的 `Case.drawSecondaryBackgroundLayer` 第一行就是
+    // `GL11.glColor3f(1, 1, 1)`，原注释写着 "Required under Linux." —— 也就是
+    // 1.7.10 时代就已经必须每次重置颜色，否则某些驱动 / 上层渲染器留下的顶点颜色
+    // 会把机箱底图整张染色。1.21.1 的对应物是 `RenderSystem.setShaderColor`：
+    // `GuiGraphics#blit` 是立即绘制，position_tex 着色器的 ColorModulator
+    // 直接取当前 shaderColor，因此这里必须再重置一次（父类 `renderBg` 已经重置过，
+    // 这里是照 1.7.10 的写法保留的冗余保险，代价只有一次 uniform 赋值）。
+    RenderSystem.setShaderColor(1f, 1f, 1f, 1f)
     guiGraphics.blit(Textures.guiComputer, leftPos, topPos, 0, 0, imageWidth, imageHeight)
   }
 

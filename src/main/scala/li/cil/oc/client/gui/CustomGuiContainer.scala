@@ -2,6 +2,7 @@ package li.cil.oc.client.gui
 
 import java.util
 
+import com.mojang.blaze3d.systems.RenderSystem
 import li.cil.oc.client.gui.traits.SlotLocking
 import li.cil.oc.client.gui.widget.WidgetContainer
 import net.minecraft.client.Minecraft
@@ -292,7 +293,38 @@ abstract class CustomGuiContainer[C <: AbstractContainerMenu](
     // 白色本来就是 1.21.1 GUI 渲染的默认值，因此渲染结束后不需要再恢复。
     guiGraphics.setColor(1f, 1f, 1f, 1f)
 
+    // 混合状态同样必须由界面自己保证，理由是 1.21.1 的 `GuiGraphics#blit` 属于
+    // **立即绘制**，而它的无色重载完全不碰混合状态（只有带颜色参数的那个重载才会
+    // 成对 `enableBlend` / `disableBlend`）。混合函数因此会沿用上一个渲染阶段
+    // （世界 / 实体 / 粒子 / 天气）留下的值：
+    //  - 残留加色混合（`GL_SRC_ALPHA, GL_ONE`）会把界面越叠越白、失去原有颜色；
+    //  - 残留的取反类混合（`GL_ONE_MINUS_DST_COLOR` 等，实体受伤闪白用的那种）
+    //    会把贴图画成「底片」，看上去就是反的；
+    //  - 混合干脆没开启时，alpha 被忽略，半透明的槽位阴影与面板边框会变成实心色块，
+    //    界面的明暗关系整体翻转，也就是反馈里的「像背面、发灰」。
+    //
+    // 1.7.10 的对应物是 `RenderState.makeItBlend()`
+    // （`glEnable(GL_BLEND)` + `glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)`
+    // + `glDisable(GL_ALPHA_TEST)`），1.20 CE 与社区 1.21.1 版写成
+    // `RenderSystem.enableBlend()` + `RenderSystem.defaultBlendFunc()`；
+    // 原版自己的 `Screen#renderMenuBackgroundTexture` 也是「blit 前 enableBlend、
+    // 画完 disableBlend」，可见管好这两个状态是绘制方的责任。
+    //
+    // 这里只开启、不在收尾关闭：`renderBg` / `renderLabels` / 自绘小组件都会用到
+    // 半透明贴图，整段渲染都应保持默认混合；原版随后绘制的内容走 RenderType，
+    // 会自行设置并恢复自己需要的状态。
+    RenderSystem.enableBlend()
+    RenderSystem.defaultBlendFunc()
+
     super.render(guiGraphics, mouseX, mouseY, partialTick)
+
+    // 槽位绘制（[[DynamicGuiContainer.drawInventorySlots]]）按 1.20 CE 的写法在收尾处
+    // `disableBlend` 并恢复深度测试，而这里紧接着要画的自绘小组件（进度条等）依旧需要
+    // 「不透明白色 + 默认混合」这套状态（1.7.10 里整个 GUI 绘制期间 `RenderState.makeItBlend`
+    // 都是开着的），因此再设置一次，避免小组件贴图在半透明部分画错。
+    guiGraphics.setColor(1f, 1f, 1f, 1f)
+    RenderSystem.enableBlend()
+    RenderSystem.defaultBlendFunc()
     drawWidgets(guiGraphics)
     currentGuiGraphics = None
   }

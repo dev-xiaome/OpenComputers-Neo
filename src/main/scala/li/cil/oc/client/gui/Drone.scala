@@ -118,11 +118,15 @@ class Drone(menu: container.Drone, playerInventory: Inventory, title: Component)
     val slot = drone.selectedSlot
     if (slot >= 0 && slot < 16) {
       val now = System.currentTimeMillis() / 1000.0
-      val offsetV = ((now - now.toInt) * selectionsStates).toInt * selectionStepV
+      // 帧号 0..16（原实现 `((now - now.toInt) * selectionsStates).toInt`）。
+      val frame = ((now - now.toInt) * selectionsStates).toInt
       val x = leftPos + inventoryX - 1 + (slot % 4) * (selectionSize - 2)
       val y = topPos + inventoryY - 1 + (slot / 4) * (selectionSize - 2)
+      // UV 取法与 Robot 界面完全相同，理由见 `Robot#drawSelection` 的注释：
+      // 1.7.10 每帧只取 `selectionStepV`（1/17）的高度，而 1.21.1 的 blit 参数是 Int，
+      // 因此改用「贴图高 17、每次取 1 像素高」等价表达，否则 17 帧会叠在一起。
       guiGraphics.blit(Textures.guiRobotSelection, x, y, selectionSize, selectionSize,
-        0f, offsetV.toFloat, 1, 1, 1, 1)
+        0f, frame.toFloat, 1, 1, 1, selectionsStates)
     }
   }
 }

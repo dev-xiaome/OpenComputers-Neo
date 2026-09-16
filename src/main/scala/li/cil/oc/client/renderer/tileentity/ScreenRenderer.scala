@@ -7,7 +7,7 @@ import li.cil.oc.api
 import li.cil.oc.client.Textures
 import li.cil.oc.client.renderer.gui.BufferRenderer
 import li.cil.oc.common.tileentity.Screen
-import li.cil.oc.util.RenderState
+import li.cil.oc.util.{Color, RenderState}
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.blockentity.{BlockEntityRenderer, BlockEntityRendererProvider}
 import net.minecraft.client.renderer.texture.TextureAtlasSprite
@@ -97,6 +97,22 @@ class ScreenRenderer(context: BlockEntityRendererProvider.Context) extends Block
     // 屏幕又会退化成静态模型的单块贴图，拼接和朝向都时有时无。
     // 必须在这里（还没 push + translate(0.5, ...)）画：覆盖层是按每个方块的
     // 局部坐标写顶点的，此刻 pose 的入场原点正好是本方块角。
+    //
+    // ==为什么单方块屏幕也要走这一层（而不是只交给静态模型）==
+    // 1.20 CE 的屏幕模型（`models/block/screen.json` → `generic_top` / `generic_side`）
+    // 之所以不需要渲染器补贴图，是因为它的 `blockstates/screen1.json` 写了 **12 个
+    // `pitch` / `yaw` 变体**，靠方块状态本身把模型转到位；本项目移植时
+    // `blockstates/screen1.json` 只有一个 `""` 变体（无 pitch / yaw 属性），静态模型
+    // 永远把 `screen/f2` 画在朝南那一面。也就是说：**只要屏幕不是「放在地上、正面朝南」，
+    // 静态模型的贴图朝向就是错的**，而 blockstate 属于本次不可改动的范围，
+    // 补朝向这件事只能由这个渲染器来做。因此覆盖层对所有屏幕（含单方块）生效。
+    //
+    // ==同时必须写等级染色==
+    // 1.7.10 里这些图标是普通方块图标，天然经过 `BlockScreen#getRenderColor`
+    // （`Color.byTier(tier)`，见 [li.cil.oc.util.Color]）染色；1.21.1 的静态模型同样
+    // 继承 `tinted_cube`（六面 `tintindex: 0`），由 [li.cil.oc.client.ColorHandlers]
+    // 提供同一个颜色。而 [li.cil.oc.client.renderer.tileentity.RenderUtil.drawSpriteQuad]
+    // 把顶点色写死成白色，会把这份染色整个抹掉 —— 详见 [drawFace] 的说明。
     drawScreenOverlay(screen, pose, buffer, overlay)
 
     val distance = playerDistanceSq(screen) / math.min(screen.width, screen.height)
@@ -566,6 +582,9 @@ class ScreenRenderer(context: BlockEntityRendererProvider.Context) extends Block
     // （这些贴图带二值 alpha），深度测试会自然处理与模型本体的前后关系。
     val vc = buffer.getBuffer(RenderType.cutout())
 
+    // 整个多方块同属一个等级，染色值取一次即可（见 [screenTint]）。
+    val tint = screenTint(screen)
+
     for (member <- members) {
       val pos = member.getBlockPos
       val dx = pos.getX - originPos.getX
@@ -579,7 +598,7 @@ class ScreenRenderer(context: BlockEntityRendererProvider.Context) extends Block
           if (sprite != null) {
             pose.pushPose()
             pose.translate(dx.toDouble, dy.toDouble, dz.toDouble)
-            drawFace(pose, vc, worldSide, sprite, light, overlay)
+            drawFace(pose, vc, worldSide, sprite, tint, light, overlay)
             pose.popPose()
           }
         }
@@ -613,30 +632,106 @@ class ScreenRenderer(context: BlockEntityRendererProvider.Context) extends Block
   }
 
   /**
-   * 在方块某个朝向的**外表面**贴一整张精灵。
+   * 在方块某个朝向的**外表面**贴一整张精灵，并写入等级染色。
    *
    * 顶点顺序统一为「从该面外侧看：左下 -> 右下 -> 右上 -> 左上」，与
    * [RenderUtil.drawSpriteQuad] 的约定（第一个顶点取精灵的 `U0` / `V1`，即贴图左下）
    * 一致，因此贴图既不会上下颠倒也不会左右镜像 —— 这套映射必须与 Minecraft 烘焙模型
    * （`CubeFace`）的 UV 约定对齐，否则拼出来的边框会错位或镜像。
+   *
+   * ==为什么这里要自己写顶点，而不用 [RenderUtil.drawSpriteQuad]==
+   * 后者把顶点色写死成白色（`setColor(255, 255, 255, 255)`），等于把方块模型的等级染色
+   * 整个抹掉。而这些屏幕贴图**通体是纯灰阶**（实测 `screen/f2` 只有 `(13,13,13)` 与
+   * `(38,38,38)` 两档主色，`screen/b` 最亮也只到 `(114,114,114)`），等级色完全由顶点色
+   * 提供：1 级 `LightGray`、2 级 `Yellow`、3 级 `Cyan`（`Color.byTier`）。所以覆盖层不写
+   * 颜色时，**三个等级的屏幕会退化成同一张未染色的深灰贴图** —— 实机反馈的「所有等级的
+   * 屏幕被显示为棕色」正是这个现象：深灰贴图在方块光照下偏暖褐，且等级之间不再有任何
+   * 颜色差别（原版 1.7.10 靠 `BlockScreen#getRenderColor` 给这些图标染色，1.21.1 靠
+   * `tinted_cube` + [li.cil.oc.client.ColorHandlers] 做同一件事）。
+   *
+   * 几何坐标与原来的 [RenderUtil.drawSpriteQuad] 调用**逐字相同**，本次只改顶点色，
+   * 因此不可能引入新的朝向 / UV 偏差。
    */
   private def drawFace(pose: PoseStack, vc: VertexConsumer, side: Direction,
-                       sprite: TextureAtlasSprite, light: Int, overlay: Int): Unit = {
+                       sprite: TextureAtlasSprite, tint: Int, light: Int, overlay: Int): Unit = {
     val lo = -overlayEpsilon
     val hi = 1.0 + overlayEpsilon
     side match {
       case Direction.SOUTH => // +Z 面：u 沿 +X，v 沿 -Y。
-        RenderUtil.drawSpriteQuad(pose, vc, sprite, 0, 0, hi, 1, 0, hi, 1, 1, hi, 0, 1, hi, light, overlay)
+        drawTintedQuad(pose, vc, sprite, side, tint, 0, 0, hi, 1, 0, hi, 1, 1, hi, 0, 1, hi, light, overlay)
       case Direction.NORTH => // -Z 面：u 沿 -X，v 沿 -Y。
-        RenderUtil.drawSpriteQuad(pose, vc, sprite, 1, 0, lo, 0, 0, lo, 0, 1, lo, 1, 1, lo, light, overlay)
+        drawTintedQuad(pose, vc, sprite, side, tint, 1, 0, lo, 0, 0, lo, 0, 1, lo, 1, 1, lo, light, overlay)
       case Direction.EAST => // +X 面：u 沿 -Z，v 沿 -Y。
-        RenderUtil.drawSpriteQuad(pose, vc, sprite, hi, 0, 1, hi, 0, 0, hi, 1, 0, hi, 1, 1, light, overlay)
+        drawTintedQuad(pose, vc, sprite, side, tint, hi, 0, 1, hi, 0, 0, hi, 1, 0, hi, 1, 1, light, overlay)
       case Direction.WEST => // -X 面：u 沿 +Z，v 沿 -Y。
-        RenderUtil.drawSpriteQuad(pose, vc, sprite, lo, 0, 0, lo, 0, 1, lo, 1, 1, lo, 1, 0, light, overlay)
+        drawTintedQuad(pose, vc, sprite, side, tint, lo, 0, 0, lo, 0, 1, lo, 1, 1, lo, 1, 0, light, overlay)
       case Direction.UP => // +Y 面：u 沿 +X，v 沿 +Z。
-        RenderUtil.drawSpriteQuad(pose, vc, sprite, 0, hi, 1, 1, hi, 1, 1, hi, 0, 0, hi, 0, light, overlay)
+        drawTintedQuad(pose, vc, sprite, side, tint, 0, hi, 1, 1, hi, 1, 1, hi, 0, 0, hi, 0, light, overlay)
       case Direction.DOWN => // -Y 面：u 沿 +X，v 沿 -Z。
-        RenderUtil.drawSpriteQuad(pose, vc, sprite, 0, lo, 0, 1, lo, 0, 1, lo, 1, 0, lo, 1, light, overlay)
+        drawTintedQuad(pose, vc, sprite, side, tint, 0, lo, 0, 1, lo, 0, 1, lo, 1, 0, lo, 1, light, overlay)
     }
+  }
+
+  /**
+   * 覆盖层顶点要乘的等级染色值。
+   *
+   * 正常情况就是 [[Screen]] 方块实体的颜色（构造时 `color = Color.byTier(tier)`），
+   * 与 [li.cil.oc.client.ColorHandlers] 给方块模型 `tintindex: 0` 用的是同一个来源，
+   * 因此覆盖层与静态模型的颜色严格一致。
+   *
+   * 兜底：客户端方块实体在收到同步数据之前 `_color` 是 `0`（见
+   * `traits.Colored` 的 `readFromNBTForClient`，只有收到 `renderColor` 才会被写入），
+   * 直接用会把整块屏幕画成纯黑。此时回退到等级色 —— 语义与方块模型的染色一致，
+   * 且不会比「整屏纯黑」更糟。
+   */
+  private def screenTint(screen: Screen): Int = {
+    val color = screen.getColor
+    if (color == 0) Color.byTier(screen.tier) else color
+  }
+
+  /**
+   * 与 [RenderUtil.drawSpriteQuad] 完全等价的一个四边面，唯一区别是顶点色取 `tint`
+   * （而不是写死白色）。
+   *
+   * 顶点顺序与 UV 的对应关系**逐字照搬** [RenderUtil.drawQuad]：
+   * 第 1、2 个顶点取 `v1`（贴图下边），第 3、4 个顶点取 `v0`（贴图上边）。
+   */
+  private def drawTintedQuad(pose: PoseStack, vc: VertexConsumer, sprite: TextureAtlasSprite,
+                             normal: Direction, tint: Int,
+                             x0: Double, y0: Double, z0: Double,
+                             x1: Double, y1: Double, z1: Double,
+                             x2: Double, y2: Double, z2: Double,
+                             x3: Double, y3: Double, z3: Double,
+                             light: Int, overlay: Int): Unit = {
+    val entry = pose.last()
+    val r = (tint >> 16) & 0xFF
+    val g = (tint >> 8) & 0xFF
+    val b = tint & 0xFF
+    val nx = normal.getStepX.toFloat
+    val ny = normal.getStepY.toFloat
+    val nz = normal.getStepZ.toFloat
+    val u0 = sprite.getU0
+    val v0 = sprite.getV0
+    val u1 = sprite.getU1
+    val v1 = sprite.getV1
+    tintedVertex(vc, entry, x0, y0, z0, u0, v1, r, g, b, nx, ny, nz, light, overlay)
+    tintedVertex(vc, entry, x1, y1, z1, u1, v1, r, g, b, nx, ny, nz, light, overlay)
+    tintedVertex(vc, entry, x2, y2, z2, u1, v0, r, g, b, nx, ny, nz, light, overlay)
+    tintedVertex(vc, entry, x3, y3, z3, u0, v0, r, g, b, nx, ny, nz, light, overlay)
+  }
+
+  /** 写一个带颜色 / UV / overlay / 光照 / 法线的顶点（与 [RenderUtil] 的私有顶点写法一致）。 */
+  private def tintedVertex(vc: VertexConsumer, entry: PoseStack.Pose,
+                           x: Double, y: Double, z: Double,
+                           u: Float, v: Float,
+                           r: Int, g: Int, b: Int,
+                           nx: Float, ny: Float, nz: Float,
+                           light: Int, overlay: Int): Unit = {
+    vc.addVertex(entry, x.toFloat, y.toFloat, z.toFloat)
+      .setColor(r, g, b, 255)
+      .setUv(u, v)
+      .setOverlay(overlay)
+      .setLight(light)
+      .setNormal(entry, nx, ny, nz)
   }
 }

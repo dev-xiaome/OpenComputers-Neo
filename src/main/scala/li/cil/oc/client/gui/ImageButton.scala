@@ -1,5 +1,6 @@
 package li.cil.oc.client.gui
 
+import com.mojang.blaze3d.systems.RenderSystem
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.components.AbstractWidget
@@ -83,6 +84,13 @@ class ImageButton(val id: Int, x: Int, y: Int, w: Int, h: Int,
 
     hoveredState = mouseX >= x0 && mouseY >= y0 && mouseX < x1 && mouseY < y1
     val isHovered = hoverOverride || hoveredState
+
+    // 1.7.10 的 `ImageButton.drawButton` 在画贴图之前有一行 `GL11.glColor4f(1, 1, 1, 1)`，
+    // 画「无贴图按钮」时才改成 `(1, 1, 1, 0.8f)` / `(1, 1, 1, 0.4f)`。
+    // 1.21.1 里贴图 blit 与 `GuiGraphics#fill` 的顶点颜色都会被着色器的 ColorModulator
+    // （即 `RenderSystem` 的 shaderColor）调制，所以这里照旧先把它重置成不透明白色，
+    // 否则残留颜色会让按钮贴图偏色、无贴图按钮的白色半透明填充也跟着变暗。
+    RenderSystem.setShaderColor(1f, 1f, 1f, 1f)
 
     // 贴图按 2x2 均分处理，因此统一用 2x2 作为「贴图尺寸」，
     // 源区域用整数像素坐标 (0..1) 表达 0 / 0.5 的 UV 分界。

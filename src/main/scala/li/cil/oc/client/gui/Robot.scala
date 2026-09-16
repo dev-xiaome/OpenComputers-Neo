@@ -255,11 +255,22 @@ class Robot(menu: container.Robot, playerInventory: Inventory, title: Component)
     val slot = robot.selectedSlot - inventoryOffset * 4
     if (slot >= 0 && slot < 16) {
       val now = System.currentTimeMillis() / 1000.0
-      val offsetV = ((now - now.toInt) * selectionsStates).toInt * selectionStepV
+      // 帧号 0..16（原实现 `((now - now.toInt) * selectionsStates).toInt`）。
+      val frame = ((now - now.toInt) * selectionsStates).toInt
       val x = leftPos + inventoryX - 1 + (slot % 4) * (selectionSize - 2)
       val y = topPos + inventoryY - 1 + (slot / 4) * (selectionSize - 2)
+      // ==UV 必须按「一帧 = 贴图高度的 1/17」取（高亮框糊成一团的修复点）==
+      // 1.7.10 是手写顶点：
+      //   `uv(0, offsetV)` 到 `uv(1, offsetV + selectionStepV)`，
+      //   其中 `selectionStepV = 1 / 17`（robot_selection.png 是 20x340，纵向 17 帧动画）。
+      // 1.21.1 的 `GuiGraphics#blit` 里 uWidth / vHeight / texWidth / texHeight 全是 Int，
+      // 表达不了 1/17，所以这里把「贴图高度 17、每次只取 1 像素高」代进去：
+      //   v 从 vOffset 除 texHeight 到 (vOffset + vHeight) 除 texHeight，
+      //   也就是 frame 除 17 到 (frame + 1) 除 17，正好一帧。
+      // 早期移植版把 texHeight 与 vHeight 都写成 1，v 方向于是变成
+      // `frame` 到 `frame + 1`（取满整张贴图），17 帧全部叠进 20x20 里。
       guiGraphics.blit(Textures.guiRobotSelection, x, y, selectionSize, selectionSize,
-        0f, offsetV.toFloat, 1, 1, 1, 1)
+        0f, frame.toFloat, 1, 1, 1, selectionsStates)
     }
   }
 }
