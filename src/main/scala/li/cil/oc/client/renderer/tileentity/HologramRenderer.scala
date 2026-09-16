@@ -1,379 +1,272 @@
 package li.cil.oc.client.renderer.tileentity
 
-import java.nio.IntBuffer
-import java.util.concurrent.Callable
-import java.util.concurrent.TimeUnit
-
-import com.google.common.cache.CacheBuilder
-import com.google.common.cache.RemovalListener
-import com.google.common.cache.RemovalNotification
-import net.neoforged.bus.api.SubscribeEvent
-import cpw.mods.fml.common.gameevent.TickEvent.ClientTickEvent
+import com.mojang.blaze3d.vertex.{PoseStack, VertexConsumer}
 import li.cil.oc.Settings
 import li.cil.oc.client.Textures
 import li.cil.oc.common.tileentity.Hologram
-import li.cil.oc.util.RenderState
-import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer
-import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.client.Minecraft
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer
+import net.minecraft.client.renderer.texture.TextureAtlasSprite
+import net.minecraft.client.renderer.{MultiBufferSource, RenderType}
 import net.minecraft.core.Direction
-import org.lwjgl.BufferUtils
-import org.lwjgl.opengl.GL11
-import org.lwjgl.opengl.GL15
+import org.joml.Quaternionf
 
 import scala.util.Random
 
-object HologramRenderer extends TileEntitySpecialRenderer with Callable[Int] with RemovalListener[BlockEntity, Int] {
+/**
+ * 全息投影仪渲染器。
+ *
+ * ==1.7.10 到 1.21.1 的迁移要点==
+ *  - 原实现把一个 48 x 32 x 48 的体素立方体的所有面预烘焙进一个共享 VBO
+ *    （`GL15` 顶点缓冲 + `glInterleavedArrays` + `glDrawElements`），
+ *    并把「哪些面可见」的索引缓存在另一个动态 VBO 里。
+ *    1.21.1 的顶点数据只能经 `MultiBufferSource` 提交，没有客户端顶点数组，
+ *    因此这里改成**逐帧遍历体素**：只绘制「实心且相邻面为空」的面。
+ *    体素数最多 48*48*32 = 73728，遍历本身开销很小；面数由内容决定。
+ *    被降级掉的是 VBO 缓存与 1.7.10 的两趟透明技巧（先关颜色写找最前片元，
+ *    再用 `glDepthFunc(GL_EQUAL)` 画第二遍），详见类尾的说明。
+ *  - `GL11.glPushClientAttrib` / `glPushAttrib` / `glColorMask` / `glDepthFunc`
+ *    / `GL_NORMALIZE` / `glCullFace` 全部删除，改由 `RenderType` 表达渲染状态。
+ *  - 顶点颜色（1.7.10 用 `glColorPointer` 传入打包成 0xBBGGRR 的调色板颜色）
+ *    改为逐顶点 `setColor`，颜色分量顺序与原实现一致（低字节 = R）。
+ *  - 加色混合（1.7.10 的 `blendFunc(SRC_ALPHA, ONE)`）无法在 client 侧复刻：
+ *    1.21.1 里构造自定义 `RenderType` 需要的着色器状态位（如
+ *    `ADDITIVE_TRANSPARENCY`）是 `protected` 的，只能退回
+ *    `RenderType.translucent()` 的常规 alpha 混合。
+ */
+class HologramRenderer extends BlockEntityRenderer[Hologram] {
   private val random = new Random()
 
-  /** We cache the VBOs for the projectors we render for performance. */
-  private val cache = com.google.common.cache.CacheBuilder.newBuilder().
-    expireAfterAccess(5, TimeUnit.SECONDS).
-    removalListener(this).
-    asInstanceOf[CacheBuilder[Hologram, Int]].
-    build[Hologram, Int]()
-
   /**
-   * Common for all holograms. Holds the vertex positions, texture
-   * coordinates and normals information. Layout is: u v nx ny nz x y z
-   *
-   * WARNING: this optimization only works if all the holograms have the
-   * same dimensions (in voxels). If we ever need holograms of different
-   * sizes we could probably just fake that by making the outer layers
-   * immutable (i.e. always empty).
-   *
-   * NOTE: It already takes up 47.25 MiB of video memory and increasing
-   * hologram size to, for example, 64*64*64 will result in 168 MiB.
+   * 渲染距离（方块）。1.21.1 的 `BlockEntityRenderer` 默认只渲染 64 格以内的方块实体，
+   * 而全息投影的渲染距离是配置项，这里把它透出去，避免配置大于 64 时被静默截断。
    */
-  private var commonBuffer = 0
+  override def getViewDistance(): Int =
+    math.max(64, Settings.get.hologramRenderDistance.toInt)
 
-  /**
-   * Also common for all holograms. Temporary buffer used to upload
-   * hologram data to GPU. First half stores colors for each vertex
-   * (0xAABBGGRR Int, alpha is used for alignment only) and second
-   * half stores (Int) indices of vertices that should be drawn.
-   */
-  private var dataBuffer: IntBuffer = null
+  override def render(t: Hologram, partialTicks: Float, pose: PoseStack,
+                      buffer: MultiBufferSource, light: Int, overlay: Int): Unit = {
+    if (t == null || !t.hasPower) return
+    val level = t.getLevel
+    if (level == null) return
 
-  /** Used to pass the current screen along to call(). */
-  private var hologram: Hologram = null
+    val sprite = RenderUtil.sprite(Textures.Block.HologramEffect)
+    if (sprite == null) return
 
-  /**
-   * Whether initialization failed (e.g. due to an out of memory error) and we
-   * should render using the fallback renderer instead.
-   */
-  private var failed = false
+    // 距离衰减：1.7.10 用的是「摄像机到方块原点的距离平方」。
+    val camera = Minecraft.getInstance.gameRenderer.getMainCamera.getPosition
+    val blockPos = t.getBlockPos
+    val dx = camera.x - blockPos.getX
+    val dy = camera.y - blockPos.getY
+    val dz = camera.z - blockPos.getZ
+    val playerDistSq = dx * dx + dy * dy + dz * dz
+    val maxDistSq = t.getMaxRenderDistanceSquared
+    val fadeDistSq = t.getFadeStartDistanceSquared
+    val fade =
+      if (playerDistSq > fadeDistSq && maxDistSq > fadeDistSq)
+        math.max(0.0, 1 - (playerDistSq - fadeDistSq) / (maxDistSq - fadeDistSq))
+      else 1.0
+    if (fade <= 0) return
+    // 1.7.10: setBlendAlpha(0.75f * fade)，逐顶点写入 alpha 表达。
+    val alpha = (0.75 * fade * 255).toInt.max(0).min(255)
 
-  override def renderTileEntityAt(te: BlockEntity, x: Double, y: Double, z: Double, f: Float): Unit = {
-    if (failed) {
-      HologramRendererFallback.renderTileEntityAt(te, x, y, z, f)
-      return
+    // 摄像机在全息投影内部时，1.7.10 会关掉背面剔除；1.21.1 无法按需关闭剔除，
+    // 改为在内部时把每个面按两个绕序各写一遍（等价于双面渲染）。
+    val doubleSided = t.getRenderBoundingBox.contains(camera)
+
+    val vc = buffer.getBuffer(RenderType.translucent())
+    val l = RenderUtil.fullBright
+
+    pose.pushPose()
+    pose.translate(0.5, 0.5, 0.5)
+
+    // 朝向（与 1.7.10 相同的偏航 / 俯仰）。
+    t.yaw match {
+      case Direction.WEST => rotate(pose, -90, 0, 1, 0)
+      case Direction.NORTH => rotate(pose, 180, 0, 1, 0)
+      case Direction.EAST => rotate(pose, 90, 0, 1, 0)
+      case _ => // 南向即默认朝向，不需要旋转。
+    }
+    t.pitch match {
+      case Direction.DOWN => rotate(pose, 90, 1, 0, 0)
+      case Direction.UP => rotate(pose, -90, 1, 0, 0)
+      case _ => // 无俯仰。
     }
 
-    RenderState.checkError(getClass.getName + ".renderTileEntityAt: entering (aka: wasntme)")
+    // 基础旋转 + 随时间旋转（原实现按世界时间求当前角度）。
+    rotate(pose, t.rotationAngle, t.rotationX, t.rotationY, t.rotationZ)
+    val ticks = level.getGameTime % (360L * 20 - 1) + partialTicks
+    rotate(pose, t.rotationSpeed * ticks / 20f, t.rotationSpeedX, t.rotationSpeedY, t.rotationSpeedZ)
 
-    hologram = te.asInstanceOf[Hologram]
-    if (!hologram.hasPower) return
+    // 避免与其它方块 z-fighting。
+    pose.scale(1.001f, 1.001f, 1.001f)
 
-    GL11.glPushClientAttrib(GL11.GL_ALL_CLIENT_ATTRIB_BITS)
-    GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS)
-    RenderState.makeItBlend()
-    GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE)
+    // 投影偏移（1.7.10 里的 `translation*` + `scale` 组合）。
+    pose.translate(
+      (t.translation.xCoord * t.width / 16 - 1.5) * t.scale,
+      t.translation.yCoord * t.height / 16 * t.scale,
+      (t.translation.zCoord * t.width / 16 - 1.5) * t.scale)
 
-    val playerDistSq = x * x + y * y + z * z
-    val maxDistSq = hologram.getMaxRenderDistanceSquared
-    val fadeDistSq = hologram.getFadeStartDistanceSquared
-    RenderState.setBlendAlpha(0.75f * (if (playerDistSq > fadeDistSq) math.max(0, 1 - ((playerDistSq - fadeDistSq) / (maxDistSq - fadeDistSq)).toFloat) else 1))
-
-    GL11.glPushMatrix()
-    GL11.glTranslated(x + 0.5, y + 0.5, z + 0.5)
-
-    hologram.yaw match {
-      case Direction.WEST => GL11.glRotatef(-90, 0, 1, 0)
-      case Direction.NORTH => GL11.glRotatef(180, 0, 1, 0)
-      case Direction.EAST => GL11.glRotatef(90, 0, 1, 0)
-      case _ => // No yaw.
-    }
-    hologram.pitch match {
-      case Direction.DOWN => GL11.glRotatef(90, 1, 0, 0)
-      case Direction.UP => GL11.glRotatef(-90, 1, 0, 0)
-      case _ => // No pitch.
-    }
-
-    GL11.glRotatef(hologram.rotationAngle, hologram.rotationX, hologram.rotationY, hologram.rotationZ)
-    GL11.glRotatef(hologram.rotationSpeed * (hologram.getWorldObj.getTotalWorldTime % (360 * 20 - 1) + f) / 20f, hologram.rotationSpeedX, hologram.rotationSpeedY, hologram.rotationSpeedZ)
-
-    GL11.glScaled(1.001, 1.001, 1.001) // Avoid z-fighting with other blocks.
-    GL11.glTranslated(
-      (hologram.translation.xCoord * hologram.width / 16 - 1.5) * hologram.scale,
-      hologram.translation.yCoord * hologram.height / 16 * hologram.scale,
-      (hologram.translation.zCoord * hologram.width / 16 - 1.5) * hologram.scale)
-
-    // Do a bit of flickering, because that's what holograms do!
+    // 全息嘛，总得闪一下。
     if (Settings.get.hologramFlickerFrequency > 0 && random.nextDouble() < Settings.get.hologramFlickerFrequency) {
-      GL11.glScaled(1 + random.nextGaussian() * 0.01, 1 + random.nextGaussian() * 0.001, 1 + random.nextGaussian() * 0.01)
-      GL11.glTranslated(random.nextGaussian() * 0.01, random.nextGaussian() * 0.01, random.nextGaussian() * 0.01)
+      pose.scale(
+        (1 + random.nextGaussian() * 0.01).toFloat,
+        (1 + random.nextGaussian() * 0.001).toFloat,
+        (1 + random.nextGaussian() * 0.01).toFloat)
+      pose.translate(random.nextGaussian() * 0.01, random.nextGaussian() * 0.01, random.nextGaussian() * 0.01)
     }
 
-    // After the below scaling, hologram is drawn inside a [0..48]x[0..32]x[0..48] box
-    GL11.glScaled(hologram.scale / 16f, hologram.scale / 16f, hologram.scale / 16f)
+    // 缩放后，全息投影占据 [0..width] x [0..height] x [0..width] 的立方体。
+    val voxelScale = (t.scale / 16.0).toFloat
+    pose.scale(voxelScale, voxelScale, voxelScale)
 
-    bindTexture(Textures.blockHologram)
+    val visibleQuads = drawVoxels(t, pose, vc, sprite, alpha, l, overlay, doubleSided)
+    // 与原实现一致：把可见面数写回方块实体（供调试 / 数据统计使用）。
+    t.visibleQuads = visibleQuads
 
-    // Normalize normals (yes, glScale scales them too).
-    GL11.glEnable(GL11.GL_NORMALIZE)
-
-    val sx = (x + 0.5) * hologram.scale
-    val sy = -(y + 0.5) * hologram.scale
-    val sz = (z + 0.5) * hologram.scale
-    if (sx >= -1.5 && sx <= 1.5 && sz >= -1.5 && sz <= 1.5 && sy >= 0 && sy <= 2) {
-      // Camera is inside the hologram.
-      GL11.glDisable(GL11.GL_CULL_FACE)
-    }
-    else {
-      // Camera is outside the hologram.
-      GL11.glEnable(GL11.GL_CULL_FACE)
-      GL11.glCullFace(GL11.GL_BACK)
-    }
-
-    // We do two passes here to avoid weird transparency effects: in the first
-    // pass we find the front-most fragment, in the second we actually draw it.
-    // When we don't do this the hologram will look different from different
-    // angles (because some faces will shine through sometimes and sometimes
-    // they won't), so a more... consistent look is desirable.
-    val glBuffer = cache.get(hologram, this)
-    GL11.glColorMask(false, false, false, false)
-    GL11.glDepthMask(true)
-    draw(glBuffer)
-    GL11.glColorMask(true, true, true, true)
-    GL11.glDepthFunc(GL11.GL_EQUAL)
-    draw(glBuffer)
-
-    GL11.glPopMatrix()
-    GL11.glPopAttrib()
-    GL11.glPopClientAttrib()
-
-    RenderState.checkError(getClass.getName + ".renderTileEntityAt: leaving")
+    pose.popPose()
   }
 
-  def draw(glBuffer: Int): Unit = {
-    if (initialize()) {
-      validate(glBuffer)
-      publish(glBuffer)
-    }
-  }
+  // ----------------------------------------------------------------------- //
+  // 体素
+  // ----------------------------------------------------------------------- //
 
-  private def initialize(): Boolean = !failed && (try {
-    // First run only, create structure information.
-    if (commonBuffer == 0) {
-      dataBuffer = BufferUtils.createIntBuffer(hologram.width * hologram.width * hologram.height * 6 * 4 * 2)
+  /**
+   * 遍历体素并绘制暴露在外的面，返回绘制的面数。
+   *
+   * 面与顶点的定义完全照搬 1.7.10 预烘焙的 VBO 数据
+   * （顶点顺序、法线、UV 的 0/1 排布都保持一致），只是改成每帧现算。
+   */
+  private def drawVoxels(t: Hologram, pose: PoseStack, vc: VertexConsumer, sprite: TextureAtlasSprite,
+                         alpha: Int, light: Int, overlay: Int, doubleSided: Boolean): Int = {
+    val width = t.width
+    val height = t.height
+    var count = 0
 
-      commonBuffer = GL15.glGenBuffers()
+    // 越界视为空气（与 1.7.10 的 `value` 辅助函数一致）。
+    def value(x: Int, y: Int, z: Int): Int =
+      if (x >= 0 && y >= 0 && z >= 0 && x < width && y < height && z < width) t.getColor(x, y, z) else 0
 
-      val data = BufferUtils.createFloatBuffer(hologram.width * hologram.width * hologram.height * 24 * (2 + 3 + 3))
-      def addVertex(x: Int, y: Int, z: Int, u: Int, v: Int, nx: Int, ny: Int, nz: Int): Unit = {
-        data.put(u)
-        data.put(v)
-        data.put(nx)
-        data.put(ny)
-        data.put(nz)
-        data.put(x)
-        data.put(y)
-        data.put(z)
-      }
+    def solid(x: Int, y: Int, z: Int): Boolean = value(x, y, z) != 0
 
-      for (x <- 0 until hologram.width) {
-        for (z <- 0 until hologram.width) {
-          for (y <- 0 until hologram.height) {
-            /*
-                  0---1
-                  | N |
-              0---3---2---1---0
-              | W | U | E | D |
-              5---6---7---4---5
-                  | S |
-                  5---4
-             */
+    for (x <- 0 until width) {
+      for (z <- 0 until width) {
+        for (y <- 0 until height) {
+          val v = value(x, y, z)
+          if (v != 0) {
+            val color = t.colors(v - 1)
+            val r = color & 0xFF
+            val g = (color >>> 8) & 0xFF
+            val b = (color >>> 16) & 0xFF
 
-            // South
-            addVertex(x + 1, y + 1, z + 1, 0, 0, 0, 0, 1) // 5
-            addVertex(x + 0, y + 1, z + 1, 1, 0, 0, 0, 1) // 4
-            addVertex(x + 0, y + 0, z + 1, 1, 1, 0, 0, 1) // 7
-            addVertex(x + 1, y + 0, z + 1, 0, 1, 0, 0, 1) // 6
-            // North
-            addVertex(x + 1, y + 0, z + 0, 0, 0, 0, 0, -1) // 3
-            addVertex(x + 0, y + 0, z + 0, 1, 0, 0, 0, -1) // 2
-            addVertex(x + 0, y + 1, z + 0, 1, 1, 0, 0, -1) // 1
-            addVertex(x + 1, y + 1, z + 0, 0, 1, 0, 0, -1) // 0
-
-            // East
-            addVertex(x + 1, y + 1, z + 1, 1, 0, 1, 0, 0) // 5
-            addVertex(x + 1, y + 0, z + 1, 1, 1, 1, 0, 0) // 6
-            addVertex(x + 1, y + 0, z + 0, 0, 1, 1, 0, 0) // 3
-            addVertex(x + 1, y + 1, z + 0, 0, 0, 1, 0, 0) // 0
-            // West
-            addVertex(x + 0, y + 0, z + 1, 1, 0, -1, 0, 0) // 7
-            addVertex(x + 0, y + 1, z + 1, 1, 1, -1, 0, 0) // 4
-            addVertex(x + 0, y + 1, z + 0, 0, 1, -1, 0, 0) // 1
-            addVertex(x + 0, y + 0, z + 0, 0, 0, -1, 0, 0) // 2
-
-            // Up
-            addVertex(x + 1, y + 1, z + 0, 0, 0, 0, 1, 0) // 0
-            addVertex(x + 0, y + 1, z + 0, 1, 0, 0, 1, 0) // 1
-            addVertex(x + 0, y + 1, z + 1, 1, 1, 0, 1, 0) // 4
-            addVertex(x + 1, y + 1, z + 1, 0, 1, 0, 1, 0) // 5
-            // Down
-            addVertex(x + 1, y + 0, z + 1, 0, 0, 0, -1, 0) // 6
-            addVertex(x + 0, y + 0, z + 1, 1, 0, 0, -1, 0) // 7
-            addVertex(x + 0, y + 0, z + 0, 1, 1, 0, -1, 0) // 2
-            addVertex(x + 1, y + 0, z + 0, 0, 1, 0, -1, 0) // 3
-          }
-        }
-      }
-
-      // Important! OpenGL will start reading from the current buffer position.
-      data.rewind()
-
-      // This buffer never ever changes, so static is the way to go.
-      GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, commonBuffer)
-      GL15.glBufferData(GL15.GL_ARRAY_BUFFER, data, GL15.GL_STATIC_DRAW)
-    }
-    true
-  }
-  catch {
-    case oom: OutOfMemoryError =>
-      HologramRendererFallback.text = "Not enough memory"
-      failed = true
-      false
-  })
-
-  private def validate(glBuffer: Int): Unit = {
-    // Refresh indexes when the hologram's data changed.
-    if (hologram.needsRendering) {
-      def value(hx: Int, hy: Int, hz: Int) = if (hx >= 0 && hy >= 0 && hz >= 0 && hx < hologram.width && hy < hologram.height && hz < hologram.width) hologram.getColor(hx, hy, hz) else 0
-
-      def isSolid(hx: Int, hy: Int, hz: Int) = value(hx, hy, hz) != 0
-
-      def addFace(index: Int, color: Int): Unit = {
-        dataBuffer.put(index)
-        dataBuffer.put(index + 1)
-        dataBuffer.put(index + 2)
-        dataBuffer.put(index + 3)
-
-        dataBuffer.put(index, color)
-        dataBuffer.put(index + 1, color)
-        dataBuffer.put(index + 2, color)
-        dataBuffer.put(index + 3, color)
-
-        hologram.visibleQuads += 1
-      }
-
-      // Copy color information, identify which quads to render and prepare data for glDrawElements
-      hologram.visibleQuads = 0
-      var index = 0
-      dataBuffer.position(hologram.width * hologram.width * hologram.height * 6 * 4)
-      for (hx <- 0 until hologram.width) {
-        for (hz <- 0 until hologram.width) {
-          for (hy <- 0 until hologram.height) {
-            // Do we need to draw at least one face?
-            if (isSolid(hx, hy, hz)) {
-              // Yes, get the color of the voxel.
-              val color = hologram.colors(value(hx, hy, hz) - 1)
-
-              // South
-              if (!isSolid(hx, hy, hz + 1)) {
-                addFace(index, color)
-              }
-              index += 4
-              // North
-              if (!isSolid(hx, hy, hz - 1)) {
-                addFace(index, color)
-              }
-              index += 4
-
-              // East
-              if (!isSolid(hx + 1, hy, hz)) {
-                addFace(index, color)
-              }
-              index += 4
-              // West
-              if (!isSolid(hx - 1, hy, hz)) {
-                addFace(index, color)
-              }
-              index += 4
-
-              // Up
-              if (!isSolid(hx, hy + 1, hz)) {
-                addFace(index, color)
-              }
-              index += 4
-              // Down
-              if (!isSolid(hx, hy - 1, hz)) {
-                addFace(index, color)
-              }
-              index += 4
+            if (!solid(x, y, z + 1)) {
+              face(pose, vc, sprite, 0, 0, 1,
+                x + 1, y + 1, z + 1, x, y + 1, z + 1, x, y, z + 1, x + 1, y, z + 1,
+                r, g, b, alpha, light, overlay, doubleSided)
+              count += 1
             }
-            else {
-              // No, skip all associated indices.
-              index += 6 * 4
+            if (!solid(x, y, z - 1)) {
+              face(pose, vc, sprite, 0, 0, -1,
+                x + 1, y, z, x, y, z, x, y + 1, z, x + 1, y + 1, z,
+                r, g, b, alpha, light, overlay, doubleSided)
+              count += 1
+            }
+            if (!solid(x + 1, y, z)) {
+              face(pose, vc, sprite, 1, 0, 0,
+                x + 1, y + 1, z + 1, x + 1, y, z + 1, x + 1, y, z, x + 1, y + 1, z,
+                r, g, b, alpha, light, overlay, doubleSided)
+              count += 1
+            }
+            if (!solid(x - 1, y, z)) {
+              face(pose, vc, sprite, -1, 0, 0,
+                x, y, z + 1, x, y + 1, z + 1, x, y + 1, z, x, y, z,
+                r, g, b, alpha, light, overlay, doubleSided)
+              count += 1
+            }
+            if (!solid(x, y + 1, z)) {
+              face(pose, vc, sprite, 0, 1, 0,
+                x + 1, y + 1, z, x, y + 1, z, x, y + 1, z + 1, x + 1, y + 1, z + 1,
+                r, g, b, alpha, light, overlay, doubleSided)
+              count += 1
+            }
+            if (!solid(x, y - 1, z)) {
+              face(pose, vc, sprite, 0, -1, 0,
+                x + 1, y, z + 1, x, y, z + 1, x, y, z, x + 1, y, z,
+                r, g, b, alpha, light, overlay, doubleSided)
+              count += 1
             }
           }
         }
       }
+    }
 
-      GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, glBuffer)
-      if (hologram.visibleQuads > 0) {
-        // Flip the buffer to only fill in as much data as necessary.
-        dataBuffer.flip()
+    count
+  }
 
-        // This buffer can be updated quite frequently, so dynamic seems sensible.
-        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, dataBuffer, GL15.GL_DYNAMIC_DRAW)
-      }
-      else {
-        // Empty hologram.
-        GL15.glBufferData(GL15.GL_ARRAY_BUFFER, 0L, GL15.GL_DYNAMIC_DRAW)
-      }
+  /**
+   * 写一个面。
+   *
+   * UV 排布与 1.7.10 的 VBO 一致：顶点 0、1、2、3 分别取贴图的
+   * (minU,minV)、(maxU,minV)、(maxU,maxV)、(minU,maxV)。
+   *
+   * `doubleSided` 为真时（摄像机在全息投影内部）再按相反绕序写一遍，
+   * 这样即使 `RenderType` 开着背面剔除也能从内部看到。
+   */
+  private def face(pose: PoseStack, vc: VertexConsumer, sprite: TextureAtlasSprite,
+                   nx: Float, ny: Float, nz: Float,
+                   x0: Double, y0: Double, z0: Double,
+                   x1: Double, y1: Double, z1: Double,
+                   x2: Double, y2: Double, z2: Double,
+                   x3: Double, y3: Double, z3: Double,
+                   r: Int, g: Int, b: Int, alpha: Int, light: Int, overlay: Int,
+                   doubleSided: Boolean): Unit = {
+    val p = pose.last()
+    val u0 = sprite.getU0
+    val u1 = sprite.getU1
+    val v0 = sprite.getV0
+    val v1 = sprite.getV1
 
-      // Reset for the next operation.
-      dataBuffer.clear()
+    vertex(vc, p, x0, y0, z0, u0, v0, nx, ny, nz, r, g, b, alpha, light, overlay)
+    vertex(vc, p, x1, y1, z1, u1, v0, nx, ny, nz, r, g, b, alpha, light, overlay)
+    vertex(vc, p, x2, y2, z2, u1, v1, nx, ny, nz, r, g, b, alpha, light, overlay)
+    vertex(vc, p, x3, y3, z3, u0, v1, nx, ny, nz, r, g, b, alpha, light, overlay)
 
-      hologram.needsRendering = false
+    if (doubleSided) {
+      // 反绕序 + 反法线：从内侧看是正面。
+      vertex(vc, p, x0, y0, z0, u0, v0, -nx, -ny, -nz, r, g, b, alpha, light, overlay)
+      vertex(vc, p, x3, y3, z3, u0, v1, -nx, -ny, -nz, r, g, b, alpha, light, overlay)
+      vertex(vc, p, x2, y2, z2, u1, v1, -nx, -ny, -nz, r, g, b, alpha, light, overlay)
+      vertex(vc, p, x1, y1, z1, u1, v0, -nx, -ny, -nz, r, g, b, alpha, light, overlay)
     }
   }
 
-  private def publish(glBuffer: Int): Unit = {
-    GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, commonBuffer)
-    GL11.glEnableClientState(GL11.GL_VERTEX_ARRAY)
-    GL11.glEnableClientState(GL11.GL_TEXTURE_COORD_ARRAY)
-    GL11.glEnableClientState(GL11.GL_NORMAL_ARRAY)
-    GL11.glInterleavedArrays(GL11.GL_T2F_N3F_V3F, 0, 0)
-
-    GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, glBuffer)
-    GL11.glEnableClientState(GL11.GL_COLOR_ARRAY)
-    GL11.glColorPointer(3, GL11.GL_UNSIGNED_BYTE, 4, 0)
-
-    GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, glBuffer)
-    GL11.glDrawElements(GL11.GL_QUADS, hologram.visibleQuads * 4, GL11.GL_UNSIGNED_INT, hologram.width * hologram.width * hologram.height * 6 * 4 * 4)
+  private def vertex(vc: VertexConsumer, p: PoseStack.Pose,
+                     x: Double, y: Double, z: Double, u: Float, v: Float,
+                     nx: Float, ny: Float, nz: Float,
+                     r: Int, g: Int, b: Int, alpha: Int, light: Int, overlay: Int): Unit = {
+    vc.addVertex(p, x.toFloat, y.toFloat, z.toFloat)
+      .setColor(r, g, b, alpha)
+      .setUv(u, v)
+      .setOverlay(overlay)
+      .setLight(light)
+      .setNormal(p, nx, ny, nz)
   }
 
   // ----------------------------------------------------------------------- //
-  // Cache
+  // 变换
   // ----------------------------------------------------------------------- //
 
-  def call = {
-    val glBuffer = GL15.glGenBuffers()
-
-    // Force re-indexing.
-    hologram.needsRendering = true
-
-    glBuffer
+  /**
+   * 绕任意轴旋转。
+   *
+   * 1.7.10 用 `GL11.glRotatef(angle, x, y, z)`：轴会被归一化，角度是**度**。
+   * 这里显式归一化后交给 JOML（零向量直接跳过，避免出现 NaN 顶点）。
+   */
+  private def rotate(pose: PoseStack, angle: Float, x: Float, y: Float, z: Float): Unit = {
+    if (angle == 0f) return
+    val length = math.sqrt(x * x + y * y + z * z).toFloat
+    if (length < 1e-6f) return
+    val radians = math.toRadians(angle.toDouble).toFloat
+    pose.mulPose(new Quaternionf().rotateAxis(radians, x / length, y / length, z / length))
   }
-
-  def onRemoval(e: RemovalNotification[BlockEntity, Int]): Unit = {
-    val glBuffer = e.getValue
-    GL15.glDeleteBuffers(glBuffer)
-    dataBuffer.clear()
-  }
-
-  @SubscribeEvent
-  def onTick(e: ClientTickEvent) = cache.cleanUp()
 }

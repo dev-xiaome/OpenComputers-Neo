@@ -62,7 +62,7 @@ class Proxy extends CommonProxy {
 
     OpenComputers.log.debug("Initializing mod integration.")
     // 1.7.10 里 `Mods.init()` 位于 `common.Proxy.init`；1.21.1 的 `common` 层不能引用
-    // `integration`（它在 `integration/**` 里，且依赖 `server.*`），故上移到服务端代理。
+    // `integration`（它在 `integration` 包里，且依赖 `server.*`），故上移到服务端代理。
     Mods.init()
 
     // 网络层：把「包类型 → 服务端处理方法」登记进 common 层的注册表。

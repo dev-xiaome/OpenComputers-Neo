@@ -42,14 +42,14 @@ import net.neoforged.neoforge.event.level.{ChunkEvent, LevelEvent}
  * ==降级清单==
  *  - **手册（Manual）的客户端资源**：`TextureImageProvider` / `ItemImageProvider` /
  *    `BlockImageProvider` / `OreDictImageProvider` / `Textures.guiManualHome`
- *    全部来自尚未移植的 `client/**`，这里只保留服务端可用的 PathProvider 与
+ *    全部来自尚未移植的 `client` 包，这里只保留服务端可用的 PathProvider 与
  *    ResourceContentProvider，其余留 TODO。
  *  - **`common.asm.SimpleComponentTickHandler`**：ASM 注入层整体删除，随之一并移除。
  *  - **`ForgeChunkManager.setForcedChunkLoadingCallback`**：1.21.1 的区块强制加载改为
  *    `ServerLevel#setChunkForced` / ticket，由 `common.event.ChunkloaderUpgradeHandler`
  *    自己处理（它已由 `common.event.EventHandlers.initialize` 接线）。
  *  - **`Analyzer` / `Tablet` 的事件注册**：这两个对象上的监听器属于客户端展示逻辑
- *    （工具提示 / 实体进世界的客户端同步），等 `client/**` 移植后再接。
+ *    （工具提示 / 实体进世界的客户端同步），等 `client` 包移植后再接。
  */
 object ModOpenComputers extends ModProxy {
   override def getMod = Mods.OpenComputers
@@ -102,7 +102,7 @@ object ModOpenComputers extends ModProxy {
     NeoForge.EVENT_BUS.addListener((e: LevelEvent.Unload) => WirelessNetwork.onWorldUnload(e))
     NeoForge.EVENT_BUS.addListener((e: ChunkEvent.Unload) => WirelessNetwork.onChunkUnload(e))
     // TODO(port): 1.7.10 还会把 `Analyzer`（工具提示）与 `Tablet`（实体进世界）注册到事件总线，
-    // 两者的监听器都属于客户端展示逻辑，等 `client/**` 移植后再接。
+    // 两者的监听器都属于客户端展示逻辑，等 `client` 包移植后再接。
     // `Loot` 由主类（`OpenComputersNeo`）注册；`SaveHandler` / `EventHandler` /
     // `server.ComponentTracker` 等已包含在 `common.event.EventHandlers.initialize` 里。
 
@@ -317,7 +317,7 @@ object ModOpenComputers extends ModProxy {
     //   （`TextureImageProvider` / `ItemImageProvider` / `BlockImageProvider` /
     //   `OreDictImageProvider`）与一个用 `Textures.guiManualHome` 的标签页图标。
     //   它们都在尚未移植的 `client.renderer.markdown.segment.render` / `client.Textures` 里，
-    //   等 `client/**` 完成后补回。
+    //   等 `client` 包完成后补回。
 
     api.Manual.addTab(new ItemStackTabIconRenderer(api.Items.get("case1").createItemStack(1)), "oc:gui.Manual.Blocks", "%LANGUAGE%/block/index.md")
     api.Manual.addTab(new ItemStackTabIconRenderer(api.Items.get("cpu1").createItemStack(1)), "oc:gui.Manual.Items", "%LANGUAGE%/item/index.md")

@@ -1,29 +1,41 @@
-﻿package li.cil.oc.client.renderer.tileentity
+package li.cil.oc.client.renderer.tileentity
 
 import com.mojang.blaze3d.vertex.PoseStack
 import li.cil.oc.client.Textures
+import li.cil.oc.common.tileentity
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer
 import net.minecraft.client.renderer.{MultiBufferSource, RenderType}
-import li.cil.oc.common.tileentity
 
 /**
- * 鍦板舰鍒嗘瀽浠紙Geolyzer锛夋柟鍧楀疄浣撴覆鏌撳櫒锛氬湪椤堕潰鐢讳竴灞傚伐浣滃厜鏁堛€? *
- * ==涓?1.7.10 鐗堢殑瀵瑰簲鍏崇郴==
- *  - `TileEntitySpecialRenderer` 鎹㈡垚 `BlockEntityRenderer`锛?*鏃犲弬鏋勯€?*銆? *  - `glTranslated(x + 0.5, y + 0.5, z + 0.5)` 鎹㈡垚 `pose.translate(0.5, 0.5, 0.5)`
- *    锛?.21.1 鐨?`PoseStack` 鍏ュ満鍘熺偣宸茬粡鏄柟鍧楄锛夈€? *  - 鍘熷疄鐜伴潬 `glScaled(1.0025, -1.0025, 1.0025)` 鎶婅鐩栧眰椤跺嚭鏂瑰潡琛ㄩ潰閬垮紑 z-fighting锛? *    杩欓噷鐢?`pose.scale` 淇濈暀鍚屾牱鐨?1.0025 澶栨墿閲忋€? *  - `RenderState.disableLighting/makeItBlend/setBlendAlpha`銆乣glPushAttrib/glPopAttrib`
- *    鏁翠綋鍒犻櫎锛涜嚜鍙戝厜鏀圭敱 `RenderUtil.fullBright` 鍐欒繘椤剁偣銆? *  - `Textures.Geolyzer.iconTopOn`锛坄IIcon`锛夋崲鎴?`Textures.Block.GeolyzerTopOn`
- *    鍔?`RenderUtil.sprite`锛堝彲鑳戒负 `null`锛宍drawSpriteQuad` 鍐呴儴宸插垽绌猴級銆? *
- * ==UV 涓?RenderType 鐨勫彇鑸?=
- *  - `geolyzertopon`锛?6x224锛夋槸鏂瑰潡鍥鹃泦閲岀殑**鍔ㄧ敾璐村浘**锛屾墍浠ュ彧鑳介厤
- *    `RenderType.cutout()`锛堟柟鍧楀浘闆嗗姞鏂瑰潡椤剁偣鏍煎紡锛夛紝涓嶈兘鐢ㄦ寚鍚戠嫭绔嬭创鍥炬枃浠剁殑
- *    `entityCutout` 閭ｇ被 RenderType銆? *  - 瀹冨甫浜屽€?alpha锛屾晠鐢?`cutout()` 鑰岄潪 `solid()`锛堝悗鑰呬笉鍋?alpha 娴嬭瘯锛? *    閫忔槑鍍忕礌浼氭覆鏌撴垚榛戝潡锛夈€? *  - 鏁村紶璐村浘閾烘弧椤堕潰 鈫?鐩存帴鐢?`drawSpriteQuad` 灏辨槸瀵?1.7.10
- *    `icon.getMinU/getMaxU`锛堟寜褰撳墠甯ц繑鍥烇級鍐欐硶鐨勭洿璇戙€? *
- * ==娉ㄦ剰==
- *  - 鍘熷疄鐜板**浠讳綍**鍦板舰鍒嗘瀽浠兘鐢昏繖灞傚厜鏁堬紙涓嶇湅鏂瑰潡鐘舵€侊級锛?.21.1 淇濇寔涓€鑷达紝
- *    涓嶉澶栧紩鍏?`isActive` 涔嬬被鐨勫垽鏂€? */
+ * 地形分析仪（Geolyzer）方块实体渲染器：在顶面画一层工作光效。
+ *
+ * ==与 1.7.10 版的对应关系==
+ *  - `TileEntitySpecialRenderer` 换成 `BlockEntityRenderer`，**无参构造**。
+ *  - `glTranslated(x + 0.5, y + 0.5, z + 0.5)` 换成 `pose.translate(0.5, 0.5, 0.5)`
+ *    （1.21.1 的 `PoseStack` 入场原点已经是方块角）。
+ *  - 原实现靠 `glScaled(1.0025, -1.0025, 1.0025)` 把覆盖层顶出方块表面避开 z-fighting；
+ *    这里用 `pose.scale` 保留同样的 1.0025 外扩量。
+ *  - `RenderState.disableLighting/makeItBlend/setBlendAlpha`、`glPushAttrib/glPopAttrib`
+ *    整体删除；自发光改由 `RenderUtil.fullBright` 写进顶点。
+ *  - `Textures.Geolyzer.iconTopOn`（`IIcon`）换成 `Textures.Block.GeolyzerTopOn`
+ *    加 `RenderUtil.sprite`（可能为 `null`，`drawSpriteQuad` 内部已判空）。
+ *
+ * ==UV 与 RenderType 的取舍==
+ *  - `geolyzertopon`（16x224）是方块图集里的**动画贴图**，所以只能配
+ *    `RenderType.cutout()`（方块图集加方块顶点格式），不能用指向独立贴图文件的
+ *    `entityCutout` 那类 RenderType。
+ *  - 它带二值 alpha，故用 `cutout()` 而非 `solid()`（后者不做 alpha 测试，
+ *    透明像素会渲染成黑块）。
+ *  - 整张贴图铺满顶面，直接用 `drawSpriteQuad` 就是对 1.7.10
+ *    `icon.getMinU/getMaxU`（按当前帧返回）写法的直译。
+ *
+ * ==注意==
+ *  - 原实现对**任何**地形分析仪都画这层光效（不看方块状态）；1.21.1 保持一致，
+ *    不额外引入 `isActive` 之类的判断。
+ */
 class GeolyzerRenderer extends BlockEntityRenderer[tileentity.Geolyzer] {
 
-  /** 绛変环浜?1.7.10 鐨?`GL11.glScaled(1.0025, ...)`銆?*/
+  /** 等价于 1.7.10 的 `GL11.glScaled(1.0025, ...)`。 */
   private final val OverlayScale = 1.0025f
 
   override def render(t: tileentity.Geolyzer, partialTicks: Float, pose: PoseStack,
@@ -34,11 +46,13 @@ class GeolyzerRenderer extends BlockEntityRenderer[tileentity.Geolyzer] {
     val topOn = RenderUtil.sprite(Textures.Block.GeolyzerTopOn)
 
     pose.pushPose()
-    // 鍓嶅悗鍚勪竴娆?0.5 骞崇Щ浜掔浉鎶垫秷锛屽彧鍓┿€岀粫鏂瑰潡涓績缂╂斁銆嶃€?    pose.translate(0.5, 0.5, 0.5)
+    // 前后各一次 0.5 平移互相抵消，只剩「绕方块中心缩放」。
+    pose.translate(0.5, 0.5, 0.5)
     pose.scale(OverlayScale, OverlayScale, OverlayScale)
     pose.translate(-0.5, -0.5, -0.5)
 
-    // 椤堕潰锛堝眬閮?y = 0锛夛紱椤剁偣椤哄簭涓庡師鏉ョ殑 addVertexWithUV 瀹屽叏涓€鑷淬€?    RenderUtil.drawSpriteQuad(pose, vc, topOn,
+    // 顶面（局部 y = 0）；顶点顺序与原来的 addVertexWithUV 完全一致。
+    RenderUtil.drawSpriteQuad(pose, vc, topOn,
       0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, RenderUtil.fullBright, overlay)
 
     pose.popPose()

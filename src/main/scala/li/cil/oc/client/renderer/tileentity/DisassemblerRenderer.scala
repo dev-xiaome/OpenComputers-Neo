@@ -1,4 +1,4 @@
-﻿package li.cil.oc.client.renderer.tileentity
+package li.cil.oc.client.renderer.tileentity
 
 import com.mojang.blaze3d.vertex.PoseStack
 import li.cil.oc.client.Textures
@@ -7,19 +7,32 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderer
 import net.minecraft.client.renderer.{MultiBufferSource, RenderType}
 
 /**
- * 鎷嗚В鏈猴紙Disassembler锛夋柟鍧楀疄浣撴覆鏌撳櫒锛氬伐浣滄椂缁欓《闈笌鍥涗釜渚ч潰鐩栦笂鍏夋晥銆? *
- * ==涓?1.7.10 鐗堢殑瀵瑰簲鍏崇郴==
- *  - `TileEntitySpecialRenderer` 鎹㈡垚 `BlockEntityRenderer`锛?*鏃犲弬鏋勯€?*銆? *  - `glTranslated(x + 0.5, y + 0.5, z + 0.5)` 鎹㈡垚 `pose.translate(0.5, 0.5, 0.5)`
- *    锛?.21.1 鐨?`PoseStack` 鍏ュ満鍘熺偣宸茬粡鏄柟鍧楄锛夈€? *  - 鍘熷疄鐜伴潬 `glScaled(1.0025, -1.0025, 1.0025)` 鎶婅鐩栧眰椤跺嚭鏂瑰潡琛ㄩ潰閬垮紑 z-fighting锛? *    杩欓噷鐢?`pose.scale` 淇濈暀鍚屾牱鐨?1.0025 澶栨墿閲忋€? *  - `RenderState.disableLighting/makeItBlend`銆乣glPushAttrib/glPopAttrib` 鏁翠綋鍒犻櫎锛? *    鑷彂鍏夋敼鐢?`RenderUtil.fullBright` 鍐欒繘椤剁偣銆? *  - `IIcon`锛坄Textures.Disassembler.iconTopOn` / `iconSideOn`锛夋崲鎴? *    `Textures.Block.DisassemblerTopOn` / `DisassemblerSideOn` 鍔?`RenderUtil.sprite`
- *    锛堝彲鑳戒负 `null`锛宍drawSpriteQuad` 鍐呴儴宸插垽绌猴級銆? *
- * ==UV 涓?RenderType 鐨勫彇鑸?=
- *  - `disassemblertopon`锛?6x64锛変笌 `disassemblersideon`锛?6x80锛夐兘鏄柟鍧楀浘闆嗛噷鐨? *    **鍔ㄧ敾璐村浘**锛屾墍浠ュ彧鑳界敤 `RenderType.cutout()`锛堟柟鍧楀浘闆嗗姞鏂瑰潡椤剁偣鏍煎紡锛夛紝
- *    涓嶈兘鐢ㄦ寚鍚戠嫭绔嬭创鍥炬枃浠剁殑 `entityCutout`銆? *  - 涓よ€呴兘甯︿簩鍊?alpha锛屾晠鐢?`cutout()` 鑰岄潪 `solid()`锛堝悗鑰呬笉鍋?alpha 娴嬭瘯锛岄€忔槑鍍忕礌
- *    浼氭覆鏌撴垚榛戝潡锛夈€? *  - 姣忎釜闈㈤兘鏄暣寮犺创鍥鹃摵婊★紝鐩存帴 `drawSpriteQuad` 灏辨槸瀵?1.7.10
- *    `icon.getMinU/getMaxU`锛堝綋鍓嶅抚锛夊啓娉曠殑鐩磋瘧銆? */
+ * 拆解机（Disassembler）方块实体渲染器：工作时给顶面与四个侧面盖上光效。
+ *
+ * ==与 1.7.10 版的对应关系==
+ *  - `TileEntitySpecialRenderer` 换成 `BlockEntityRenderer`，**无参构造**。
+ *  - `glTranslated(x + 0.5, y + 0.5, z + 0.5)` 换成 `pose.translate(0.5, 0.5, 0.5)`
+ *    （1.21.1 的 `PoseStack` 入场原点已经是方块角）。
+ *  - 原实现靠 `glScaled(1.0025, -1.0025, 1.0025)` 把覆盖层顶出方块表面避开 z-fighting；
+ *    这里用 `pose.scale` 保留同样的 1.0025 外扩量。
+ *  - `RenderState.disableLighting/makeItBlend`、`glPushAttrib/glPopAttrib` 整体删除；
+ *    自发光改由 `RenderUtil.fullBright` 写进顶点。
+ *  - `IIcon`（`Textures.Disassembler.iconTopOn` / `iconSideOn`）换成
+ *    `Textures.Block.DisassemblerTopOn` / `DisassemblerSideOn` 加 `RenderUtil.sprite`
+ *    （可能为 `null`，`drawSpriteQuad` 内部已判空）。
+ *
+ * ==UV 与 RenderType 的取舍==
+ *  - `disassemblertopon`（16x64）与 `disassemblersideon`（16x80）都是方块图集里的
+ *    **动画贴图**，所以只能用 `RenderType.cutout()`（方块图集加方块顶点格式），
+ *    不能用指向独立贴图文件的 `entityCutout`。
+ *  - 两者都带二值 alpha，故用 `cutout()` 而非 `solid()`（后者不做 alpha 测试，透明像素
+ *    会渲染成黑块）。
+ *  - 每个面都是整张贴图铺满，直接 `drawSpriteQuad` 就是对 1.7.10
+ *    `icon.getMinU/getMaxU`（当前帧）写法的直译。
+ */
 class DisassemblerRenderer extends BlockEntityRenderer[tileentity.Disassembler] {
 
-  /** 绛変环浜?1.7.10 鐨?`GL11.glScaled(1.0025, ...)`銆?*/
+  /** 等价于 1.7.10 的 `GL11.glScaled(1.0025, ...)`。 */
   private final val OverlayScale = 1.0025f
 
   override def render(t: tileentity.Disassembler, partialTicks: Float, pose: PoseStack,
@@ -32,14 +45,17 @@ class DisassemblerRenderer extends BlockEntityRenderer[tileentity.Disassembler] 
     val sideOn = RenderUtil.sprite(Textures.Block.DisassemblerSideOn)
 
     pose.pushPose()
-    // 鍓嶅悗鍚勪竴娆?0.5 骞崇Щ浜掔浉鎶垫秷锛屽彧鍓┿€岀粫鏂瑰潡涓績缂╂斁銆嶃€?    pose.translate(0.5, 0.5, 0.5)
+    // 前后各一次 0.5 平移互相抵消，只剩「绕方块中心缩放」。
+    pose.translate(0.5, 0.5, 0.5)
     pose.scale(OverlayScale, OverlayScale, OverlayScale)
     pose.translate(-0.5, -0.5, -0.5)
 
-    // 椤堕潰锛堝眬閮?y = 0锛夛紱椤剁偣椤哄簭涓庡師鏉ョ殑 addVertexWithUV 瀹屽叏涓€鑷淬€?    RenderUtil.drawSpriteQuad(pose, vc, topOn,
+    // 顶面（局部 y = 0）；顶点顺序与原来的 addVertexWithUV 完全一致。
+    RenderUtil.drawSpriteQuad(pose, vc, topOn,
       0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, RenderUtil.fullBright, overlay)
 
-    // 鍖楅潰銆佸崡闈€佷笢闈€佽タ闈€?    RenderUtil.drawSpriteQuad(pose, vc, sideOn,
+    // 北面、南面、东面、西面。
+    RenderUtil.drawSpriteQuad(pose, vc, sideOn,
       1, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, RenderUtil.fullBright, overlay)
     RenderUtil.drawSpriteQuad(pose, vc, sideOn,
       0, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 1, RenderUtil.fullBright, overlay)

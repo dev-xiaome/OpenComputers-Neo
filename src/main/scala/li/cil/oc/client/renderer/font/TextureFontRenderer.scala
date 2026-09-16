@@ -3,6 +3,7 @@ package li.cil.oc.client.renderer.font
 import com.mojang.blaze3d.vertex.{PoseStack, VertexConsumer}
 import li.cil.oc.client.renderer.font.TextureFontRenderer.Glyph
 import li.cil.oc.util.{ExtendedUnicodeHelper, PackedColor, TextBuffer}
+import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.renderer.{MultiBufferSource, RenderType}
 import net.minecraft.resources.ResourceLocation
 
@@ -215,6 +216,21 @@ abstract class TextureFontRenderer {
     }
 
     pose.popPose()
+  }
+
+  /**
+   * 基于 [GuiGraphics] 的便捷重载：GUI 里通常只拿得到 `GuiGraphics`。
+   *
+   * 与上面那个重载等价，只是把 `PoseStack` / `MultiBufferSource` 换成 `guiGraphics` 自带的两个。
+   */
+  def drawString(guiGraphics: GuiGraphics,
+                 s: String,
+                 x: Int,
+                 y: Int,
+                 color: Int = 0xFFFFFF,
+                 light: Int = TextureFontRenderer.fullBright): Unit = {
+    if (guiGraphics == null) return
+    drawString(guiGraphics.pose(), guiGraphics.bufferSource(), s, x, y, color, light)
   }
 
   // ----------------------------------------------------------------------- //

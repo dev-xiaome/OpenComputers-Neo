@@ -132,6 +132,14 @@ object BufferRenderer {
   }
 
   /**
+   * [GuiGraphics] 便捷重载：GUI 里通常只拿得到 `GuiGraphics`。
+   */
+  def drawText(guiGraphics: GuiGraphics, screen: api.internal.TextBuffer): Boolean = {
+    if (guiGraphics == null) return false
+    drawText(guiGraphics.pose(), guiGraphics.bufferSource(), screen)
+  }
+
+  /**
    * 提交一块九宫格贴图。
    *
    * 屏幕上的尺寸与贴图里的区域尺寸分开给，因此可拉伸的边与中心会被拉长。

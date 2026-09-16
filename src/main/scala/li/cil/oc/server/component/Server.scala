@@ -6,7 +6,6 @@ import java.util
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
-import li.cil.oc.OpenComputers
 import li.cil.oc.api
 import li.cil.oc.api.Machine
 import li.cil.oc.api.component.RackBusConnectable
@@ -17,10 +16,10 @@ import li.cil.oc.api.network.Analyzable
 import li.cil.oc.api.network.Environment
 import li.cil.oc.api.network.Message
 import li.cil.oc.api.network.Node
-import li.cil.oc.common.GuiType
 import li.cil.oc.common.InventorySlots
 import li.cil.oc.common.Slot
 import li.cil.oc.common.Tier
+import li.cil.oc.common.container.MenuOpening
 import li.cil.oc.common.inventory.ComponentInventory
 import li.cil.oc.common.inventory.ServerInventory
 import li.cil.oc.common.item
@@ -28,6 +27,7 @@ import li.cil.oc.common.item.Delegator
 import li.cil.oc.server.network.Connector
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedNBT._
+import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
@@ -37,7 +37,8 @@ import scala.jdk.CollectionConverters._
 class Server(val rack: api.internal.Rack, val slot: Int) extends Environment with MachineHost with ServerInventory with ComponentInventory with Analyzable with internal.Server with DeviceInfo {
   lazy val machine = Machine.create(this)
 
-  val node = if (!rack.world.isRemote) machine.node else null
+  // 1.21.1：`Level#isRemote` → `Level#isClientSide`。
+  val node = if (!rack.world.isClientSide) machine.node else null
 
   var wasRunning = false
   var hadErrored = false
@@ -49,10 +50,12 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
     DeviceAttribute.Description -> "Server",
     DeviceAttribute.Vendor -> Constants.DeviceInfo.DefaultVendor,
     DeviceAttribute.Product -> "Blader",
-    DeviceAttribute.Capacity -> getSizeInventory.toString
+    // 1.21.1：`IInventory#getSizeInventory` → `IItemHandler#getSlots`。
+    DeviceAttribute.Capacity -> getSlots.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
   // Environment
@@ -74,14 +77,14 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
 
   override def load(nbt: CompoundTag): Unit = {
     super.load(nbt)
-    if (!rack.world.isRemote) {
+    if (!rack.world.isClientSide) {
       machine.load(nbt.getCompound("machine"))
     }
   }
 
   override def save(nbt: CompoundTag): Unit = {
     super.save(nbt)
-    if (!rack.world.isRemote) {
+    if (!rack.world.isClientSide) {
       nbt.setNewCompoundTag("machine", machine.save)
     }
   }
@@ -89,8 +92,18 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
   // ----------------------------------------------------------------------- //
   // MachineHost
 
-  override def internalComponents(): Iterable[ItemStack] = (0 until getSizeInventory).collect {
-    case i if getStackInSlot(i) != null && isComponentSlot(i, getStackInSlot(i)) => getStackInSlot(i)
+  /**
+   * 已安装的组件物品。
+   *
+   * 1.21.1：`getSizeInventory` → `getSlots`，空槽返回 `ItemStack.EMPTY`（不再判 `null`），
+   * 并且 `MachineHost#internalComponents` 要求返回 `java.lang.Iterable`，
+   * 因此这里把 Scala 序列显式转成 Java 集合。
+   */
+  override def internalComponents(): Iterable[ItemStack] = {
+    val stacks = (0 until getSlots).collect {
+      case i if !getStackInSlot(i).isEmpty && isComponentSlot(i, getStackInSlot(i)) => getStackInSlot(i)
+    }
+    scala.jdk.javaapi.CollectionConverters.asJavaCollection(stacks)
   }
 
   override def componentSlot(address: String) = componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
@@ -120,7 +133,21 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
     case _ => 0
   }
 
-  override def isUseableByPlayer(player: Player): Boolean = rack.isUseableByPlayer(player)
+  /**
+   * 玩家是否还能操作这台服务器。
+   *
+   * 1.21.1：`api.internal.Rack` 接口本身不再有 `isUseableByPlayer`（它只继承
+   * `IItemHandler`），实现类 [[li.cil.oc.common.tileentity.Rack]] 通过
+   * `tileentity.traits.Inventory` 仍然提供该方法。因此这里先尝试按实现类判定，
+   * 失败时退化为原版 64 格距离判定（与 `traits.Inventory#isUseableByPlayer` 一致）。
+   */
+  override def isUseableByPlayer(player: Player): Boolean = rack match {
+    case inventory: li.cil.oc.common.tileentity.Rack => inventory.isUseableByPlayer(player)
+    case _ =>
+      // TODO(server): `Rack` 的其它实现（若有）没有可用性查询，这里退化为 8 格距离判定；
+      // 只影响「玩家能否打开服务器界面 / 启动服务器」，不影响机器运行。
+      player.distanceToSqr(rack.xPosition, rack.yPosition, rack.zPosition) <= 64
+  }
 
   // ----------------------------------------------------------------------- //
   // ItemStackInventory
@@ -141,7 +168,7 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
 
   override protected def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
     super.onItemRemoved(slot, stack)
-    if (!rack.world.isRemote) {
+    if (!rack.world.isClientSide) {
       val slotType = InventorySlots.server(tier)(slot).slot
       if (slotType == Slot.CPU) {
         machine.stop()
@@ -171,8 +198,9 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
   }.apply(index)
 
   override def onActivate(player: Player, hitX: Float, hitY: Float): Boolean = {
-    if (!player.getEntityWorld.isRemote) {
-      if (player.isSneaking) {
+    // 1.21.1：`player.getEntityWorld` → `player.level()`；`player.isSneaking` → `player.isShiftKeyDown`。
+    if (!player.level().isClientSide) {
+      if (player.isShiftKeyDown) {
         if (!machine.isRunning && isUseableByPlayer(player)) {
           wasRunning = false
           hadErrored = false
@@ -180,8 +208,13 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
         }
       }
       else {
-        val position = BlockPosition(rack)
-        player.openGui(OpenComputers, GuiType.ServerInRack.id, world, position.x, GuiType.embedSlot(position.y, slot), position.z)
+        // `player.openGui(OpenComputers, GuiType.ServerInRack.id, world, x, embedSlot(y, slot), z)`（1.7.10）
+        // 在 1.21.1 已移除。服务端改为 `player.openMenu(MenuProvider)` 建立与
+        // `GuiHandler#getServerMenu` 中 `ServerInRack` 分支相同的容器。
+        // TODO(client): 客户端界面仍由 `MenuType` 的 Screen 工厂重建，`client` 层移植前
+        // 只会打开容器、没有可见界面（不影响服务器机器本身的运行）。
+        MenuOpening.open(player, Component.empty())((windowId, playerInventory) =>
+          new li.cil.oc.common.container.Server(windowId, playerInventory, this, Some(this), () => machine.isRunning))
       }
     }
     true
@@ -193,7 +226,7 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
   override def canUpdate: Boolean = true
 
   override def update(): Unit = {
-    if (!rack.world.isRemote) {
+    if (!rack.world.isClientSide) {
       machine.update()
 
       val isRunning = machine.isRunning

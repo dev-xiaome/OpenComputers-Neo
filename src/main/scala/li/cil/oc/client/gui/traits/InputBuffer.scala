@@ -59,7 +59,7 @@ trait InputBuffer extends DisplayBuffer {
   override protected def drawBufferLayer(guiGraphics: GuiGraphics): Unit = {
     super.drawBufferLayer(guiGraphics)
 
-    if (System.currentTimeMillis() - showKeyboardMissing < 1000) {
+    if (buffer != null && System.currentTimeMillis() - showKeyboardMissing < 1000) {
       // 原实现用 Tessellator 画 16x16 的四边形；这里等价于把整张贴图铺到 16x16。
       val x = bufferX + buffer.renderWidth - 16
       val y = bufferY + buffer.renderHeight - 16

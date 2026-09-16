@@ -83,9 +83,10 @@ trait RedstoneVanilla extends RedstoneSignaller with DeviceInfo {
       val blockState = redstone.world.getBlockState(blockPos)
       // 1.21.1：`Block#hasComparatorInputOverride` 与
       // `Block#getComparatorInputOverride(World, x, y, z, side)` 已合并为
-      // `BlockState#hasAnalogOutputSignal` / `BlockState#getAnalogOutputSignal(Level, BlockPos, Direction)`。
+      // `BlockState#hasAnalogOutputSignal` / `BlockState#getAnalogOutputSignal(Level, BlockPos)`
+      // —— 注意新签名**没有**方向参数（方向信息已并入方块状态）。
       if (blockState.hasAnalogOutputSignal) {
-        return result(blockState.getAnalogOutputSignal(redstone.world, blockPos.toChunkCoordinates, side.getOpposite))
+        return result(blockState.getAnalogOutputSignal(redstone.world, blockPos.toChunkCoordinates))
       }
     }
     result(0)

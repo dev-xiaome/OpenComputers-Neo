@@ -7,6 +7,7 @@ import li.cil.oc.api.network.ManagedEnvironment
 import li.cil.oc.integration.ManagedTileEntityEnvironment
 import li.cil.oc.util.{BlockPosition, ResultWrapper}
 import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.network.chat.Component
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.Container
 import net.minecraft.world.item.ItemStack
@@ -69,8 +70,9 @@ object DriverInventory extends SidedBlock {
     def getInventoryName(context: Context, args: Arguments): Array[AnyRef] = {
       if (notPermitted()) return ResultWrapper.result(null, "permission denied")
       // TODO(port): `IItemHandler` 没有名字；1.7.10 返回的是 `IInventory#getInventoryName`。
-      // 这里退化为方块自身的显示名。
-      ResultWrapper.result(world.getBlockState(blockPosition.toChunkCoordinates).getBlock.getName.getString)
+      // 这里退化为方块自身的显示名（1.21.1 的 `Block` 没有 `getName`，改用其翻译键）。
+      val block = world.getBlockState(blockPosition.toChunkCoordinates).getBlock
+      ResultWrapper.result(Component.translatable(block.getDescriptionId).getString)
     }
 
     @Callback(doc = "function():number -- Get the number of slots in this inventory.")
