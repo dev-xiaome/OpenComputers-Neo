@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:cable",
+  "criteria": {
+    "crafting_relay": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.switch.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:relay"
+    },
+    "title": {
+      "translate": "achievement.oc.switch"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_relay"
+    ]
+  ]
+}

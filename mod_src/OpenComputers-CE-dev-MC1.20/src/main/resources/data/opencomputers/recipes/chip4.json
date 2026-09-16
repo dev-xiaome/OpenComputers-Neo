@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "nnn",
+    "rTr",
+    "nnn"
+  ],
+  "key": {
+    "n": {
+      "tag": "opencomputers:siliconnetherite"
+    },
+    "r": {
+      "tag": "forge:dusts/redstone"
+    },
+    "T": {
+      "tag": "opencomputers:materialtransistor"
+    }
+  },
+  "result": {
+    "item": "opencomputers:chip4",
+    "count": 2
+  }
+}

@@ -1,0 +1,263 @@
+package li.cil.oc.common
+
+import java.io
+import java.io._
+import java.nio.file._
+import java.nio.file.attribute.BasicFileAttributes
+import java.util.concurrent.CancellationException
+import java.util.concurrent.ConcurrentLinkedDeque
+import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
+import li.cil.oc.OpenComputers
+import li.cil.oc.Settings
+import li.cil.oc.api.machine.MachineHost
+import li.cil.oc.api.network.EnvironmentHost
+import li.cil.oc.util.BlockPosition
+import li.cil.oc.util.SafeThreadPool
+import li.cil.oc.util.ThreadPoolFactory
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.world.level.ChunkPos
+import net.minecraftforge.eventbus.api.EventPriority
+import net.minecraftforge.eventbus.api.SubscribeEvent
+import net.minecraftforge.server.ServerLifecycleHooks
+import org.apache.commons.lang3.JavaVersion
+import org.apache.commons.lang3.SystemUtils
+
+import scala.collection.mutable
+import net.minecraft.world.level.storage.LevelResource
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.world.level.Level
+import net.minecraft.nbt.NbtIo
+import net.minecraftforge.event.level.LevelEvent
+
+// Used by the native lua state to store kernel and stack data in auxiliary
+// files instead of directly in the tile entity data, avoiding potential
+// problems with the tile entity data becoming too large.
+object SaveHandler {
+  private val uuidRegex = "[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}"
+
+  private val TimeToHoldOntoOldSaves = 60 * 1000
+
+  // THIS IS A MASSIVE HACK OF THE UGLIEST KINDS.
+  // But it works, and the alternative would be to change the Persistable
+  // interface to pass along this state to *everything that gets saved ever*,
+  // which in 99% of the cases it doesn't need to know. So yes, this is fugly,
+  // but the "clean" solution would be no less fugly.
+  // Why is this even required? To avoid flushing file systems to disk and
+  // avoid persisting machine states when sending description packets to clients,
+  // which takes a lot of time and is completely unnecessary in those cases.
+  var savingForClients = false
+
+  class SaveDataEntry(val data: Array[Byte], val pos: ChunkPos, val name: String, val dimension: ResourceLocation) extends Runnable {
+    override def run(): Unit = {
+      val path = statePath
+      val dimPath = new io.File(path, dimension.toString.replace(':', '/').replace('.', '/'))
+      val chunkPath = new io.File(dimPath, s"${this.pos.x}.${this.pos.z}")
+      chunkDirs.add(chunkPath)
+      if (!chunkPath.exists()) {
+        chunkPath.mkdirs()
+      }
+      val file = new io.File(chunkPath, this.name)
+      try {
+        // val fos = new GZIPOutputStream(new io.FileOutputStream(file))
+        val fos = new io.BufferedOutputStream(new io.FileOutputStream(file))
+        fos.write(this.data)
+        fos.close()
+      }
+      catch {
+        case e: io.IOException => OpenComputers.log.warn(s"Error saving auxiliary tile entity data to '${file.getAbsolutePath}.", e)
+      }
+    }
+  }
+
+  val stateSaveHandler: SafeThreadPool = ThreadPoolFactory.createSafePool("SaveHandler", 1)
+
+  val chunkDirs = new ConcurrentLinkedDeque[io.File]()
+  val saving = mutable.HashMap.empty[String, Future[_]]
+
+  def savePath = ServerLifecycleHooks.getCurrentServer.getWorldPath(LevelResource.ROOT).resolve(Settings.savePath).toFile
+
+  def statePath: File = new io.File(savePath, "state")
+
+  def scheduleSave(host: MachineHost, nbt: CompoundTag, name: String, data: Array[Byte]): Unit = {
+    scheduleSave(BlockPosition(host), nbt, name, data)
+  }
+
+  def scheduleSave(host: MachineHost, nbt: CompoundTag, name: String, save: CompoundTag => Unit): Unit = {
+    scheduleSave(host, nbt, name, writeNBT(save))
+  }
+
+  def scheduleSave(host: EnvironmentHost, nbt: CompoundTag, name: String, save: CompoundTag => Unit): Unit = {
+    scheduleSave(BlockPosition(host), nbt, name, writeNBT(save))
+  }
+
+  def scheduleSave(world: Level, x: Double, z: Double, nbt: CompoundTag, name: String, data: Array[Byte]): Unit = {
+    scheduleSave(BlockPosition(x, 0, z, world), nbt, name, data)
+  }
+
+  def scheduleSave(world: Level, x: Double, z: Double, nbt: CompoundTag, name: String, save: CompoundTag => Unit): Unit = {
+    scheduleSave(world, x, z, nbt, name, writeNBT(save))
+  }
+
+  def scheduleSave(position: BlockPosition, nbt: CompoundTag, name: String, data: Array[Byte]): Unit = {
+    val world = position.world.get
+    // Try to exclude wrapped/client-side worlds.
+    if (world.isInstanceOf[ServerLevel]) {
+      val dimension = world.dimension.location
+      val chunk = new ChunkPos(position.x >> 4, position.z >> 4)
+
+      // We have to save the dimension and chunk coordinates, because they are
+      // not available on load / may have changed if the computer was moved.
+      nbt.putString("dimension", dimension.toString)
+      nbt.putInt("chunkX", chunk.x)
+      nbt.putInt("chunkZ", chunk.z)
+
+      scheduleSave(dimension, chunk, name, data)
+    }
+  }
+
+  private def writeNBT(save: CompoundTag => Unit) = {
+    val tmpNbt = new CompoundTag()
+    save(tmpNbt)
+    val baos = new ByteArrayOutputStream()
+    val dos = new DataOutputStream(baos)
+    NbtIo.write(tmpNbt, dos)
+    baos.toByteArray
+  }
+
+  def loadNBT(nbt: CompoundTag, name: String): CompoundTag = {
+    val data = load(nbt, name)
+    if (data.length > 0) try {
+      val bais = new ByteArrayInputStream(data)
+      val dis = new DataInputStream(bais)
+      NbtIo.read(dis)
+    }
+    catch {
+      case t: Throwable =>
+        OpenComputers.log.warn("There was an error trying to restore a block's state from external data. This indicates that data was somehow corrupted.", t)
+        new CompoundTag()
+    }
+    else new CompoundTag()
+  }
+
+  def load(nbt: CompoundTag, name: String): Array[Byte] = {
+    // Since we have no world yet, we rely on the dimension we were saved in.
+    // Same goes for the chunk. This also works around issues with computers
+    // being moved (e.g. Redstone in Motion).
+    val dimension = nbt.getString("dimension")
+    val chunk = new ChunkPos(nbt.getInt("chunkX"), nbt.getInt("chunkZ"))
+
+    // Wait for the latest save task for the requested file to complete.
+    // This prevents the chance of loading an outdated version
+    // of this file.
+    saving.get(name).foreach(f => try {
+      f.get(120L, TimeUnit.SECONDS)
+    } catch {
+      case e: TimeoutException => OpenComputers.log.warn("Waiting for state data to save took two minutes! Aborting.")
+      case e: CancellationException => // NO-OP
+    })
+    saving.remove(name)
+
+    val dimLoc = ResourceLocation.tryParse(dimension)
+    if (dimLoc == null) {
+      OpenComputers.log.warn(s"SaveHandler.load: invalid or missing dimension '$dimension' for '$name', skipping")
+      return Array.empty[Byte]
+    }
+    load(dimLoc, chunk, name)
+  }
+
+  def scheduleSave(dimension: ResourceLocation, chunk: ChunkPos, name: String, data: Array[Byte]): Unit = {
+    if (chunk == null) throw new IllegalArgumentException("chunk is null")
+    else {
+      // Disregarding whether or not there already was a
+      // save submitted for the requested file
+      // allows for better concurrency at the cost of
+      // doing more writing operations.
+      stateSaveHandler.withPool(_.submit(new SaveDataEntry(data, chunk, name, dimension))).foreach(saving.put(name, _))
+    }
+  }
+
+  def load(dimension: ResourceLocation, chunk: ChunkPos, name: String): Array[Byte] = {
+    if (chunk == null) throw new IllegalArgumentException("chunk is null")
+
+    val path = statePath
+    val dimPath = new io.File(path, dimension.toString.replace(':', '/').replace('.', '/'))
+    val chunkPath = new io.File(dimPath, s"${chunk.x}.${chunk.z}")
+    val file = new io.File(chunkPath, name)
+    if (!file.exists()) return Array.empty[Byte]
+    try {
+      // val bis = new io.BufferedInputStream(new GZIPInputStream(new io.FileInputStream(file)))
+      val bis = new io.BufferedInputStream(new io.FileInputStream(file))
+      val bos = new io.ByteArrayOutputStream
+      val buffer = new Array[Byte](8 * 1024)
+      var read = 0
+      do {
+        read = bis.read(buffer)
+        if (read > 0) {
+          bos.write(buffer, 0, read)
+        }
+      } while (read >= 0)
+      bis.close()
+      bos.toByteArray
+    }
+    catch {
+      case e: io.IOException =>
+        OpenComputers.log.warn("Error loading auxiliary tile entity data.", e)
+        Array.empty[Byte]
+    }
+  }
+
+  def cleanSaveData(): Unit = {
+    // Delete empty folders to keep the state folder clean.
+    val emptyDirs = savePath.listFiles(new FileFilter {
+      override def accept(file: File) = file.isDirectory &&
+        // Make sure we only consider file system folders (UUID).
+        file.getName.matches(uuidRegex) &&
+        // We set the modified time in the save() method of unbuffered file
+        // systems, to avoid deleting in-use folders here.
+        System.currentTimeMillis() - file.lastModified() > TimeToHoldOntoOldSaves && {
+        val list = file.list()
+        list == null || list.isEmpty
+      }
+    })
+    if (emptyDirs != null) {
+      emptyDirs.filter(_ != null).foreach(_.delete())
+    }
+  }
+
+  @SubscribeEvent(priority = EventPriority.HIGHEST)
+  def onWorldLoad(e: LevelEvent.Load): Unit = {
+    if (!e.getLevel.isClientSide) {
+      // Touch all externally saved data when loading, to avoid it getting
+      // deleted in the next save (because the now - save time will usually
+      // be larger than the time out after loading a world again).
+      SaveHandlerJava17Functionality.visitJava17(statePath)
+    }
+  }
+
+  @SubscribeEvent(priority = EventPriority.LOWEST)
+  def onWorldSave(e: LevelEvent.Save): Unit = {
+    stateSaveHandler.withPool(_.submit(new Runnable {
+      override def run(): Unit = cleanSaveData()
+    }))
+  }
+}
+
+object SaveHandlerJava17Functionality {
+  def visitJava17(statePath: File): Unit = {
+    Files.walkFileTree(statePath.toPath, new FileVisitor[Path] {
+      override def visitFile(file: Path, attrs: BasicFileAttributes) = {
+        file.toFile.setLastModified(System.currentTimeMillis())
+        FileVisitResult.CONTINUE
+      }
+
+      override def visitFileFailed(file: Path, exc: IOException) = FileVisitResult.CONTINUE
+
+      override def preVisitDirectory(dir: Path, attrs: BasicFileAttributes) = FileVisitResult.CONTINUE
+
+      override def postVisitDirectory(dir: Path, exc: IOException) = FileVisitResult.CONTINUE
+    })
+  }
+}

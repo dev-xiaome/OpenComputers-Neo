@@ -1,0 +1,29 @@
+{
+  "parent": "opencomputers:network_card",
+  "criteria": {
+    "crafting_wlancard1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_wlancard2": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.wirelessNetworkCard.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:wlancard1"
+    },
+    "title": {
+      "translate": "achievement.oc.wirelessNetworkCard"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_wlancard1",
+      "crafting_wlancard2"
+    ]
+  ]
+}

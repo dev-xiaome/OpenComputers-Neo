@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:cpu",
+  "criteria": {
+    "crafting_redstone": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.redstoneIO.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:redstone"
+    },
+    "title": {
+      "translate": "achievement.oc.redstoneIO"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_redstone"
+    ]
+  ]
+}

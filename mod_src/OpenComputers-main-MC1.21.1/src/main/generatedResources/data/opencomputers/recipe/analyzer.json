@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "T": {
+      "item": "opencomputers:transistor"
+    },
+    "g": {
+      "tag": "c:nuggets/gold"
+    },
+    "r": {
+      "item": "minecraft:redstone_torch"
+    }
+  },
+  "pattern": [
+    "r ",
+    "Tg",
+    "Pg"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:analyzer"
+  }
+}

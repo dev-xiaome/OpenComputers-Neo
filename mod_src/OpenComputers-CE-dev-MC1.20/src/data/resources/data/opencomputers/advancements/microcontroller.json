@@ -1,0 +1,29 @@
+{
+  "parent": "opencomputers:assembler",
+  "criteria": {
+    "assembling_0": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "achievement.oc.microcontroller.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "item": "opencomputers:microcontroller"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "achievement.oc.microcontroller"
+    }
+  },
+  "requirements": [
+    [
+      "assembling_0"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

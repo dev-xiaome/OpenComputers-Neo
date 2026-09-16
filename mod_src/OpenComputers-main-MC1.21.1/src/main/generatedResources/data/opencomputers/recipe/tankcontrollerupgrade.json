@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip2"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "b": {
+      "item": "minecraft:glass_bottle"
+    },
+    "d": {
+      "item": "minecraft:dispenser"
+    },
+    "g": {
+      "tag": "c:ingots/gold"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    }
+  },
+  "pattern": [
+    "gbg",
+    "dCp",
+    "gPg"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:tankcontrollerupgrade"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "c": {
+      "tag": "c:chests"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    }
+  },
+  "pattern": [
+    "iCi",
+    "pc ",
+    "iBi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:upgradecontainer1"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "T": {
+      "item": "opencomputers:transistor"
+    },
+    "b": {
+      "item": "minecraft:bucket"
+    },
+    "d": {
+      "item": "minecraft:dispenser"
+    },
+    "i": {
+      "tag": "c:nuggets/iron"
+    }
+  },
+  "pattern": [
+    "idi",
+    "TbT",
+    "iPi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:inkcartridgeempty"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "opencomputers:openscreens_enabled"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "b": {
+      "tag": "c:dyes/blue"
+    },
+    "c": {
+      "item": "opencomputers:chip2"
+    },
+    "d": {
+      "item": "opencomputers:chipdiamond"
+    },
+    "g": {
+      "tag": "c:dyes/green"
+    },
+    "p": {
+      "tag": "c:glass_panes"
+    },
+    "r": {
+      "tag": "c:dyes/red"
+    }
+  },
+  "pattern": [
+    "ddr",
+    "cpg",
+    "ddb"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:backflatscreen2"
+  }
+}

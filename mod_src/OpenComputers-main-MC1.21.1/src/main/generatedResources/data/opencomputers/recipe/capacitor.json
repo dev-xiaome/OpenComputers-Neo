@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "T": {
+      "item": "opencomputers:transistor"
+    },
+    "g": {
+      "tag": "c:nuggets/gold"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "p": {
+      "item": "minecraft:paper"
+    }
+  },
+  "pattern": [
+    "iTi",
+    "gpg",
+    "iPi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:capacitor"
+  }
+}

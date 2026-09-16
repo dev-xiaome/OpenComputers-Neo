@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:card",
+  "criteria": {
+    "crafting_lancard": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.networkCard.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:lancard"
+    },
+    "title": {
+      "translate": "achievement.oc.networkCard"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_lancard"
+    ]
+  ]
+}

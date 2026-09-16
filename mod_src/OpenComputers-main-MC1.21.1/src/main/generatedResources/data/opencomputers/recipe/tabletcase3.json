@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers:componentbus4"
+    },
+    "C": {
+      "item": "opencomputers:chip3"
+    },
+    "M": {
+      "item": "opencomputers:screen3"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "b": {
+      "item": "minecraft:stone_button"
+    },
+    "g": {
+      "tag": "c:ingots/gold"
+    }
+  },
+  "pattern": [
+    "Cbg",
+    "BMC",
+    "CPg"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:tabletcase3"
+  }
+}

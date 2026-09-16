@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers:card"
+    },
+    "C": {
+      "item": "opencomputers:chip2"
+    },
+    "c": {
+      "tag": "c:chests"
+    },
+    "g": {
+      "tag": "c:ingots/gold"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    }
+  },
+  "pattern": [
+    "gCg",
+    "pc ",
+    "gBg"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:cardcontainer3"
+  }
+}

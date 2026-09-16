@@ -1,0 +1,31 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "rdd",
+    "gcp",
+    "bdd"
+  ],
+  "key": {
+    "d": {
+      "tag": "opencomputers:chipdiamond"
+    },
+    "r": {
+      "tag": "forge:dyes/red"
+    },
+    "g": {
+      "tag": "forge:dyes/green"
+    },
+    "b": {
+      "tag": "forge:dyes/blue"
+    },
+    "c": {
+      "tag": "opencomputers:circuitchip2"
+    },
+    "p": {
+      "tag": "forge:glass_panes"
+    }
+  },
+  "result": {
+    "item": "opencomputers:frontflatscreen2"
+  }
+}

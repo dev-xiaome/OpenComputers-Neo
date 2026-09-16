@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:chip",
+  "criteria": {
+    "crafting_diskdrive": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.diskDrive.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:diskdrive"
+    },
+    "title": {
+      "translate": "achievement.oc.diskDrive"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_diskdrive"
+    ]
+  ]
+}

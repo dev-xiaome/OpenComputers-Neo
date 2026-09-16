@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "nrn",
+    "CU ",
+    "nPn"
+  ],
+  "key": {
+    "n": {
+      "tag": "opencomputers:siliconnetherite"
+    },
+    "r": {
+      "tag": "forge:dusts/redstone"
+    },
+    "C": {
+      "tag": "opencomputers:circuitchip4"
+    },
+    "U": {
+      "tag": "opencomputers:materialcu"
+    },
+    "P": {
+      "tag": "opencomputers:materialcircuitboardprinted"
+    }
+  },
+  "result": {
+    "item": "opencomputers:componentbus4"
+  }
+}

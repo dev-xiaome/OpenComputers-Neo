@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=east": {
+      "model": "opencomputers:block/shredder",
+      "y": 90
+    },
+    "facing=north": {
+      "model": "opencomputers:block/shredder"
+    },
+    "facing=south": {
+      "model": "opencomputers:block/shredder",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "opencomputers:block/shredder",
+      "y": 270
+    }
+  }
+}

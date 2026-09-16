@@ -1,0 +1,6 @@
+{
+  "label": "Example Diagnostics EEPROM",
+  "code": "bios.lua",
+  "data": "boot-message.txt",
+  "readonly": true
+}

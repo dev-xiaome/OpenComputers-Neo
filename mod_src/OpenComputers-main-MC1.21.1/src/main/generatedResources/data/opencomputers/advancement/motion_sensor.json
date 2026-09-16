@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:cpu",
+  "criteria": {
+    "crafting_motionsensor": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.motionSensor.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:motionsensor"
+    },
+    "title": {
+      "translate": "achievement.oc.motionSensor"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_motionsensor"
+    ]
+  ]
+}

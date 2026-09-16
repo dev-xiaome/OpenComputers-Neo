@@ -1,0 +1,6 @@
+{
+    "parent": "opencomputers:block/switch",
+    "textures": {
+        "top": "opencomputers:block/accesspoint_top"
+    }
+}

@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers:card"
+    },
+    "C": {
+      "item": "opencomputers:chip2"
+    },
+    "c": {
+      "tag": "c:chests"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    }
+  },
+  "pattern": [
+    "iCi",
+    "pc ",
+    "iBi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:cardcontainer2"
+  }
+}

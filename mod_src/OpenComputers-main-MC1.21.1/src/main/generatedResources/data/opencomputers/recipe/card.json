@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "g": {
+      "tag": "c:nuggets/gold"
+    },
+    "i": {
+      "tag": "c:nuggets/iron"
+    }
+  },
+  "pattern": [
+    "i ",
+    "iP",
+    "ig"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:card"
+  }
+}

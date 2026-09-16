@@ -1,0 +1,18 @@
+CC:Tweaked pride flag textures
+
+Source project: CC:Tweaked 1.119.0
+https://github.com/cc-tweaked/CC-Tweaked
+
+Upstream files:
+  projects/common/src/main/resources/assets/computercraft/textures/block/turtle_rainbow_overlay.png
+  projects/common/src/main/resources/assets/computercraft/textures/block/turtle_trans_overlay.png
+
+Adapted OpenComputers files:
+  src/main/resources/assets/opencomputers/textures/model/robot_rainbow_flag.png
+  src/main/resources/assets/opencomputers/textures/model/robot_trans_flag.png
+
+License: CC0 1.0 Universal
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Relicensing permission from SquidDev, maintainer of CC:Tweaked, on 2026-08-09:
+  "Happy to share them as CC0."

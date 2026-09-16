@@ -1,0 +1,19 @@
+{
+  "type": "opencomputers:crafting_robot_flag",
+  "category": "redstone",
+  "group": "robot_flags",
+  "ingredients": [
+    { "tag": "c:dyes/pink" },
+    { "tag": "c:dyes/yellow" },
+    { "tag": "c:dyes/cyan" },
+    { "item": "minecraft:stick" },
+    { "item": "opencomputers:robot" }
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:robot",
+    "components": {
+      "opencomputers:robot_flag": "opencomputers:pansexual_flag"
+    }
+  }
+}

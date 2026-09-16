@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers:card"
+    },
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "c": {
+      "item": "opencomputers:cable"
+    }
+  },
+  "pattern": [
+    "cC",
+    " B"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:lancard"
+  }
+}

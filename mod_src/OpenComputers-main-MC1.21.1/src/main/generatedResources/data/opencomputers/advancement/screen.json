@@ -1,0 +1,33 @@
+{
+  "parent": "opencomputers:chip",
+  "criteria": {
+    "crafting_screen1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_screen2": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_screen3": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.screen.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:screen1"
+    },
+    "title": {
+      "translate": "achievement.oc.screen"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_screen1",
+      "crafting_screen2",
+      "crafting_screen3"
+    ]
+  ]
+}

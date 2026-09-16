@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "g": {
+      "tag": "c:nuggets/gold"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "p": {
+      "item": "minecraft:paper"
+    },
+    "r": {
+      "tag": "c:dusts/redstone"
+    }
+  },
+  "pattern": [
+    "iii",
+    "gpg",
+    " r "
+  ],
+  "result": {
+    "count": 8,
+    "id": "opencomputers:transistor"
+  }
+}

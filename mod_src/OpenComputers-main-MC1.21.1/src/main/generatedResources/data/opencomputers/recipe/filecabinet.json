@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "c": {
+      "item": "minecraft:chest"
+    },
+    "i": {
+      "item": "minecraft:iron_nugget"
+    }
+  },
+  "pattern": [
+    "i i",
+    "ici",
+    "i i"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:filecabinet"
+  }
+}

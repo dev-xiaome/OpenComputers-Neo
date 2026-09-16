@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "D": {
+      "item": "opencomputers:disk"
+    },
+    "i": {
+      "tag": "c:nuggets/iron"
+    },
+    "l": {
+      "item": "minecraft:lever"
+    },
+    "p": {
+      "item": "minecraft:paper"
+    }
+  },
+  "pattern": [
+    "ili",
+    "pDp",
+    "ipi"
+  ],
+  "result": {
+    "components": {
+      "opencomputers:disk_color": "light_gray"
+    },
+    "count": 1,
+    "id": "opencomputers:floppy"
+  }
+}

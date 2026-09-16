@@ -1,0 +1,31 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "dRd",
+    "CBC",
+    "oPo"
+  ],
+  "key": {
+    "d": {
+      "item": "minecraft:netherite_scrap"
+    },
+    "o": {
+      "tag": "forge:obsidian"
+    },
+    "C": {
+      "tag": "opencomputers:circuitchip4"
+    },
+    "P": {
+      "tag": "opencomputers:materialcircuitboardprinted"
+    },
+    "B": {
+      "tag": "opencomputers:componentbus4"
+    },
+    "R": {
+      "tag": "opencomputers:ram8"
+    }
+  },
+  "result": {
+    "item": "opencomputers:server4"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers:componentbus2"
+    },
+    "C": {
+      "item": "opencomputers:chip2"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "R": {
+      "item": "opencomputers:ram3"
+    },
+    "c": {
+      "item": "opencomputers:cpu1"
+    }
+  },
+  "pattern": [
+    "CCC",
+    "BPR",
+    "CcC"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:ssd1"
+  }
+}

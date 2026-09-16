@@ -1,0 +1,33 @@
+{
+  "parent": "opencomputers:card",
+  "criteria": {
+    "crafting_graphicscard1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_graphicscard2": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_graphicscard3": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.graphicsCard.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:graphicscard1"
+    },
+    "title": {
+      "translate": "achievement.oc.graphicsCard"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_graphicscard1",
+      "crafting_graphicscard2",
+      "crafting_graphicscard3"
+    ]
+  ]
+}

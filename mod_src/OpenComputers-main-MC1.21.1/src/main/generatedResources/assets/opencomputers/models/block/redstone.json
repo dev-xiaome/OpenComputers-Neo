@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "down": "opencomputers:block/redstone_bottom",
+    "east": "opencomputers:block/redstone_east",
+    "north": "opencomputers:block/redstone_north",
+    "particle": "opencomputers:block/redstone_top",
+    "south": "opencomputers:block/redstone_south",
+    "up": "opencomputers:block/redstone_top",
+    "west": "opencomputers:block/redstone_west"
+  }
+}

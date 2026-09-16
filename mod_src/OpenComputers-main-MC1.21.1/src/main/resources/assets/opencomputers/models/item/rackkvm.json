@@ -1,0 +1,7 @@
+{
+  "parent": "opencomputers:item/flat",
+  "textures": {
+    "layer0": "opencomputers:item/terminalserver",
+    "layer1": "opencomputers:block/overlay/rack_kvm_presence"
+  }
+}

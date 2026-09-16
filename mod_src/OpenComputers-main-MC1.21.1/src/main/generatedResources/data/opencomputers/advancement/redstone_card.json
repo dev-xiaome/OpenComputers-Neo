@@ -1,0 +1,29 @@
+{
+  "parent": "opencomputers:card",
+  "criteria": {
+    "crafting_redstonecard1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_redstonecard2": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.redstoneCard.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:redstonecard1"
+    },
+    "title": {
+      "translate": "achievement.oc.redstoneCard"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_redstonecard1",
+      "crafting_redstonecard2"
+    ]
+  ]
+}

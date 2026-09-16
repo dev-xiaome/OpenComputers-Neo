@@ -1,0 +1,97 @@
+name: Publish CurseForge Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+
+      - name: Validate Gradle wrapper
+        uses: gradle/wrapper-validation-action@v1
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Read publishing metadata
+        id: metadata
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          echo "curseforge_project_id=$(sed -n 's/^curse_project_id=//p' gradle.properties)" >> "$GITHUB_OUTPUT"
+          echo "minecraft_version=$(sed -n 's/^minecraft_version=//p' gradle.properties)" >> "$GITHUB_OUTPUT"
+          echo "mod_id=$(sed -n 's/^mod_id=//p' gradle.properties)" >> "$GITHUB_OUTPUT"
+          echo "release_version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Build release artifact
+        run: ./gradlew build -Prelease_tag="${{ github.event.release.tag_name }}"
+
+      - name: Verify release artifact
+        shell: bash
+        run: |
+          artifact="build/libs/${{ steps.metadata.outputs.mod_id }}-${{ steps.metadata.outputs.release_version }}.jar"
+          if [[ ! -f "$artifact" ]]; then
+            echo "Expected release artifact not found: $artifact" >&2
+            find build/libs -maxdepth 1 -type f -printf '%f\n' | sort >&2
+            exit 1
+          fi
+
+      - name: Prepare changelog
+        id: changelog
+        shell: bash
+        env:
+          RELEASE_BODY: ${{ github.event.release.body }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          delimiter="CHANGELOG_$(date +%s)_$RANDOM"
+          echo "text<<$delimiter" >> "$GITHUB_OUTPUT"
+
+          if [[ -n "${RELEASE_BODY//[[:space:]]/}" ]]; then
+            printf '%s\n' "$RELEASE_BODY" >> "$GITHUB_OUTPUT"
+          else
+            previous_tag=$(git describe --tags --abbrev=0 "$RELEASE_TAG^" 2>/dev/null || true)
+            if [[ -n "$previous_tag" ]]; then
+              git log "$previous_tag..$RELEASE_TAG" --pretty=format:'- %s (%h)' >> "$GITHUB_OUTPUT"
+            else
+              git log -1 "$RELEASE_TAG" --pretty=format:'- %s (%h)' >> "$GITHUB_OUTPUT"
+            fi
+            echo >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "$delimiter" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to CurseForge
+        uses: Kira-NT/mc-publish@v3
+        with:
+          curseforge-id: ${{ steps.metadata.outputs.curseforge_project_id }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+          files: build/libs/${{ steps.metadata.outputs.mod_id }}-${{ steps.metadata.outputs.release_version }}.jar
+          name: OpenComputers ${{ github.event.release.tag_name }}
+          version: ${{ github.event.release.tag_name }}
+          version-type: ${{ github.event.release.prerelease && 'alpha' || 'release' }}
+          changelog: ${{ steps.changelog.outputs.text }}
+          loaders: neoforge
+          game-versions: ${{ steps.metadata.outputs.minecraft_version }}
+          java: 21
+          environment: client | server

@@ -1,0 +1,21 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "opencomputers:tier4_enabled"
+    }
+  ],
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "opencomputers:hologram3"
+    },
+    {
+      "item": "opencomputers:screen4"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:holoscreen4"
+  }
+}

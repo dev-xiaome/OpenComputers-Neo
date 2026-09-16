@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_hoverupgrade2": {
+      "conditions": {
+        "items": [
+          {
+            "items": "opencomputers:hoverupgrade2"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "opencomputers:hoverboots"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_hoverupgrade2"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "opencomputers:hoverboots"
+    ]
+  }
+}

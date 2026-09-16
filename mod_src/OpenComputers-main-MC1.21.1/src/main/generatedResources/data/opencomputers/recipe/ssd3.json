@@ -1,0 +1,35 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "opencomputers:tier4_enabled"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers:componentbus4"
+    },
+    "C": {
+      "item": "opencomputers:chip4"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "R": {
+      "item": "opencomputers:ram7"
+    },
+    "c": {
+      "item": "opencomputers:cpu1"
+    }
+  },
+  "pattern": [
+    "CCC",
+    "BPR",
+    "CcC"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:ssd3"
+  }
+}

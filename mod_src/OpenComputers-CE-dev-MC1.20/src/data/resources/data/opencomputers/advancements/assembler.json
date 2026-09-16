@@ -1,0 +1,29 @@
+{
+  "parent": "opencomputers:capacitor",
+  "criteria": {
+    "crafting_0": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "achievement.oc.assembler.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "item": "opencomputers:assembler"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "achievement.oc.assembler"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_0"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

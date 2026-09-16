@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "opencomputers:block/tape_drive_front",
+    "down": "opencomputers:block/tape_drive_bottom",
+    "up": "opencomputers:block/tape_drive_top",
+    "north": "opencomputers:block/tape_drive_side",
+    "south": "opencomputers:block/tape_drive_front",
+    "east": "opencomputers:block/tape_drive_side",
+    "west": "opencomputers:block/tape_drive_side"
+  }
+}

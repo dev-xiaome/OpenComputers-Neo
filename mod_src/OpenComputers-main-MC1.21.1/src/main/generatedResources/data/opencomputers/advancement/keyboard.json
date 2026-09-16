@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:screen",
+  "criteria": {
+    "crafting_keyboard": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.keyboard.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:keyboard"
+    },
+    "title": {
+      "translate": "achievement.oc.keyboard"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_keyboard"
+    ]
+  ]
+}

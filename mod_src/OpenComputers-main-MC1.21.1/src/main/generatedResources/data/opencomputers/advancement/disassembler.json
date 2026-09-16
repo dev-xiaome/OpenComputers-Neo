@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:transistor",
+  "criteria": {
+    "crafting_disassembler": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.disassembler.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:disassembler"
+    },
+    "title": {
+      "translate": "achievement.oc.disassembler"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_disassembler"
+    ]
+  ]
+}

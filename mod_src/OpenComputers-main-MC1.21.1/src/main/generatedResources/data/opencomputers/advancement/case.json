@@ -1,0 +1,33 @@
+{
+  "parent": "opencomputers:chip",
+  "criteria": {
+    "crafting_case1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_case2": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_case3": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.case.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:case1"
+    },
+    "title": {
+      "translate": "achievement.oc.case"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_case1",
+      "crafting_case2",
+      "crafting_case3"
+    ]
+  ]
+}

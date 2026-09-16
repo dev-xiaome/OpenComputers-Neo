@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "opencomputers:block/speaker_front",
+    "down": "opencomputers:block/briefcase2",
+    "up": "opencomputers:block/briefcase2",
+    "north": "opencomputers:block/briefcase2",
+    "south": "opencomputers:block/speaker_front",
+    "east": "opencomputers:block/briefcase2",
+    "west": "opencomputers:block/briefcase2"
+  }
+}

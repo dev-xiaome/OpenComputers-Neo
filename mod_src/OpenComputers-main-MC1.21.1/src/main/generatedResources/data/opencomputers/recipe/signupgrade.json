@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "b": {
+      "tag": "c:dyes/black"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "p": {
+      "item": "minecraft:sticky_piston"
+    },
+    "s": {
+      "tag": "c:rods/wooden"
+    }
+  },
+  "pattern": [
+    "ibi",
+    "CsC",
+    "ipi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:signupgrade"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers:componentbus3"
+    },
+    "C": {
+      "item": "opencomputers:chip3"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "R": {
+      "item": "opencomputers:ram6"
+    },
+    "d": {
+      "tag": "c:gems/diamond"
+    },
+    "o": {
+      "tag": "c:obsidians/normal"
+    }
+  },
+  "pattern": [
+    "dRd",
+    "CBC",
+    "oPo"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:server3"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "parent": "opencomputers:chip",
+  "criteria": {
+    "crafting_0": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_2": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_3": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_4": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_5": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "achievement.oc.ram.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "item": "opencomputers:ram1"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "achievement.oc.ram"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_0",
+      "crafting_1",
+      "crafting_2",
+      "crafting_3",
+      "crafting_4",
+      "crafting_5"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

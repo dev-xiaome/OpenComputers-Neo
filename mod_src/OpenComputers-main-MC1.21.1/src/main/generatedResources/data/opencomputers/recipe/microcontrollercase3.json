@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip4"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "c": {
+      "tag": "c:chests"
+    },
+    "d": {
+      "item": "opencomputers:chipdiamond"
+    },
+    "r": {
+      "tag": "c:storage_blocks/redstone"
+    }
+  },
+  "pattern": [
+    "dCd",
+    "rcr",
+    "dPd"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:microcontrollercase3"
+  }
+}

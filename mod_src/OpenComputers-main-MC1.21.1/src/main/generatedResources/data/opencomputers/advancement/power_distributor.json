@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:cable",
+  "criteria": {
+    "crafting_powerdistributor": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.powerDistributor.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:powerdistributor"
+    },
+    "title": {
+      "translate": "achievement.oc.powerDistributor"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_powerdistributor"
+    ]
+  ]
+}

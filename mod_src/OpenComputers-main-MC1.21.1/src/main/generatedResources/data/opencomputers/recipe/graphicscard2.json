@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": {
+      "item": "opencomputers:alu"
+    },
+    "B": {
+      "item": "opencomputers:card"
+    },
+    "C": {
+      "item": "opencomputers:chip2"
+    },
+    "M": {
+      "item": "opencomputers:ram3"
+    }
+  },
+  "pattern": [
+    "CAM",
+    " B "
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:graphicscard2"
+  }
+}

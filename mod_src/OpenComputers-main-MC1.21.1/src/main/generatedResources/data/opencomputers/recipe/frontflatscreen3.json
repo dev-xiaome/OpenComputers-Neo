@@ -1,0 +1,32 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "opencomputers:openscreens_enabled"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "c": {
+      "item": "opencomputers:chip3"
+    },
+    "g": {
+      "tag": "c:dusts/glowstone"
+    },
+    "o": {
+      "tag": "c:obsidians/normal"
+    },
+    "p": {
+      "tag": "c:glass_panes"
+    }
+  },
+  "pattern": [
+    "goo",
+    "gcp",
+    "goo"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:frontflatscreen3"
+  }
+}

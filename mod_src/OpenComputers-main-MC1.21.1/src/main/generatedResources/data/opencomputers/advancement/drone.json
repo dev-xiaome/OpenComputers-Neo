@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:assembler",
+  "criteria": {
+    "assembling_drone": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.drone.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:drone"
+    },
+    "title": {
+      "translate": "achievement.oc.drone"
+    }
+  },
+  "requirements": [
+    [
+      "assembling_drone"
+    ]
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "li.cil.oc.integration.create.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "AbstractComputerBehaviourMixin",
+    "FallbackComputerBehaviourMixin",
+    "ComputerBehaviourMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

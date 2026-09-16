@@ -1,0 +1,9 @@
+{
+    "parent": "block/orientable",
+    "textures": {
+        "bottom": "opencomputers:block/generic_top",
+        "top": "opencomputers:block/generic_top",
+        "side": "opencomputers:block/rack_side",
+        "front": "opencomputers:block/rack_front"
+    }
+}

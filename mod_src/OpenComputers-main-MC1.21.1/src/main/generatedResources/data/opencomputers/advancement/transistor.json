@@ -1,0 +1,25 @@
+{
+  "criteria": {
+    "crafting_transistor": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "background": "minecraft:textures/gui/advancements/backgrounds/stone.png",
+    "description": {
+      "translate": "achievement.oc.transistor.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:transistor"
+    },
+    "title": {
+      "translate": "achievement.oc.transistor"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_transistor"
+    ]
+  ]
+}

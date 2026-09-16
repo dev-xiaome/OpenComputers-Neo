@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "nCn",
+    "bcb",
+    "nPn"
+  ],
+  "key": {
+    "n": {
+      "item": "minecraft:netherite_scrap"
+    },
+    "c": {
+      "tag": "forge:chests"
+    },
+    "b": {
+      "item": "minecraft:iron_bars"
+    },
+    "C": {
+      "tag": "opencomputers:circuitchip4"
+    },
+    "P": {
+      "tag": "opencomputers:materialcircuitboardprinted"
+    }
+  },
+  "result": {
+    "item": "opencomputers:case4"
+  }
+}

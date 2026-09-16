@@ -1,0 +1,36 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "D": {
+      "item": "opencomputers:powerdistributor"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "R": {
+      "item": "opencomputers:relay"
+    },
+    "W": {
+      "item": "opencomputers:wlancard2"
+    },
+    "b": {
+      "item": "minecraft:iron_bars"
+    },
+    "c": {
+      "tag": "c:chests"
+    },
+    "d": {
+      "tag": "c:gems/diamond"
+    }
+  },
+  "pattern": [
+    "dWd",
+    "bcb",
+    "RPD"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:rack"
+  }
+}

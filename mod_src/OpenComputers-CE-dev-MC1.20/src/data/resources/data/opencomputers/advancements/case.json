@@ -1,0 +1,37 @@
+{
+  "parent": "opencomputers:chip",
+  "criteria": {
+    "crafting_0": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_2": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "achievement.oc.case.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "item": "opencomputers:case1"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "achievement.oc.case"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_0",
+      "crafting_1",
+      "crafting_2"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

@@ -1,0 +1,25 @@
+{
+  "criteria": {
+    "crafting_card": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "background": "minecraft:textures/gui/advancements/backgrounds/stone.png",
+    "description": {
+      "translate": "achievement.oc.card.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:card"
+    },
+    "title": {
+      "translate": "achievement.oc.card"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_card"
+    ]
+  ]
+}

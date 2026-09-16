@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:floppy",
+  "criteria": {
+    "crafting_openos": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.openOS.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:floppy"
+    },
+    "title": {
+      "translate": "achievement.oc.openOS"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_openos"
+    ]
+  ]
+}

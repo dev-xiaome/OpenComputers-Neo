@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "b": {
+      "item": "minecraft:iron_bars"
+    },
+    "c": {
+      "item": "minecraft:cauldron"
+    },
+    "d": {
+      "item": "minecraft:dispenser"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    },
+    "w": {
+      "tag": "minecraft:planks"
+    }
+  },
+  "pattern": [
+    "wbw",
+    "dcp",
+    "wCw"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:tankupgrade"
+  }
+}

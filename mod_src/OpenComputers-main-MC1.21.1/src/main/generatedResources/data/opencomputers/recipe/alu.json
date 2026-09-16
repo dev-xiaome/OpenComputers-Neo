@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "T": {
+      "item": "opencomputers:transistor"
+    },
+    "i": {
+      "tag": "c:nuggets/iron"
+    },
+    "r": {
+      "tag": "c:dusts/redstone"
+    }
+  },
+  "pattern": [
+    "iri",
+    "TCT",
+    "iTi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:alu"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "c": {
+      "tag": "c:chests"
+    },
+    "d": {
+      "item": "minecraft:dropper"
+    },
+    "h": {
+      "item": "minecraft:hopper"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    },
+    "w": {
+      "tag": "minecraft:planks"
+    }
+  },
+  "pattern": [
+    "whw",
+    "dcp",
+    "wCw"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:inventoryupgrade"
+  }
+}

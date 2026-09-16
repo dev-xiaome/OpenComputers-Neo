@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": {
+      "item": "opencomputers:alu"
+    },
+    "B": {
+      "item": "opencomputers:card"
+    },
+    "C": {
+      "item": "opencomputers:chip2"
+    },
+    "i": {
+      "tag": "c:nuggets/iron"
+    }
+  },
+  "pattern": [
+    "iAC",
+    " B "
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:datacard1"
+  }
+}

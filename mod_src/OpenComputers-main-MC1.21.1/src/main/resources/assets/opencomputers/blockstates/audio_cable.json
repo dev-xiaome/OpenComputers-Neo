@@ -1,0 +1,64 @@
+{
+  "multipart": [
+    {
+      "apply": {
+        "model": "opencomputers:block/audio_cable"
+      }
+    },
+    {
+      "when": {
+        "conn_down": "cable|device"
+      },
+      "apply": {
+        "model": "opencomputers:block/audio_cable_arm",
+        "x": 90,
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "conn_up": "cable|device"
+      },
+      "apply": {
+        "model": "opencomputers:block/audio_cable_arm",
+        "x": -90,
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "conn_north": "cable|device"
+      },
+      "apply": {
+        "model": "opencomputers:block/audio_cable_arm"
+      }
+    },
+    {
+      "when": {
+        "conn_south": "cable|device"
+      },
+      "apply": {
+        "model": "opencomputers:block/audio_cable_arm",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "conn_west": "cable|device"
+      },
+      "apply": {
+        "model": "opencomputers:block/audio_cable_arm",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "conn_east": "cable|device"
+      },
+      "apply": {
+        "model": "opencomputers:block/audio_cable_arm",
+        "y": 90
+      }
+    }
+  ]
+}

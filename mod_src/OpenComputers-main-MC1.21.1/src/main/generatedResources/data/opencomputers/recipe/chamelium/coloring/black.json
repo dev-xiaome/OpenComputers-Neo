@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "opencomputers:chameliumblock"
+    },
+    {
+      "tag": "c:dyes/black"
+    }
+  ],
+  "result": {
+    "components": {
+      "opencomputers:chamelium_color": "black"
+    },
+    "count": 1,
+    "id": "opencomputers:chameliumblock"
+  }
+}

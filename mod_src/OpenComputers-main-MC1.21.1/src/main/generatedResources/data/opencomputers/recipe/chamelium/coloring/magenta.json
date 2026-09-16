@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "opencomputers:chameliumblock"
+    },
+    {
+      "tag": "c:dyes/magenta"
+    }
+  ],
+  "result": {
+    "components": {
+      "opencomputers:chamelium_color": "magenta"
+    },
+    "count": 1,
+    "id": "opencomputers:chameliumblock"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "ogo",
+    "gCG",
+    "ogo"
+  ],
+  "key": {
+    "g": {
+      "item": "minecraft:glowstone"
+    },
+    "G": {
+      "tag": "forge:glass/tinted"
+    },
+    "o": {
+      "tag": "forge:obsidian"
+    },
+    "C": {
+      "tag": "opencomputers:circuitchip4"
+    }
+  },
+  "result": {
+    "item": "opencomputers:screen4",
+    "count": 4
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_pistonupgrade": {
+      "conditions": {
+        "items": [
+          {
+            "items": "opencomputers:pistonupgrade"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "opencomputers:stickypistonupgrade"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_pistonupgrade"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "opencomputers:stickypistonupgrade"
+    ]
+  }
+}

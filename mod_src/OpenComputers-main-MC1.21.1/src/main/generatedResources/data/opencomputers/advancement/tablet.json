@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:assembler",
+  "criteria": {
+    "assembling_tablet": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.tablet.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:tablet"
+    },
+    "title": {
+      "translate": "achievement.oc.tablet"
+    }
+  },
+  "requirements": [
+    [
+      "assembling_tablet"
+    ]
+  ]
+}

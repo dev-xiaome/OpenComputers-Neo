@@ -1,0 +1,27 @@
+modLoader="kotori_scala"
+loaderVersion="${loader_version_range}"
+license="MIT, CC0 (see LICENSE)"
+issueTrackerURL="https://github.com/akki697222/OpenComputers-CE/issues"
+
+[[mods]]
+modId="opencomputers"
+entryClass="li.cil.oc.OpenComputers"
+version="${mod_version}"
+displayName="OpenComputers"
+displayURL="http://oc.cil.li/"
+logoFile="pack.png"
+credits="Inspired by a couple of other mods, most notably ComputerCraft."
+authors="Sangar, Vexatos, payonel, magik6k, Lord Joda, Github Contributors and modern port by akki697222"
+description="This mod adds modular computers and robots that can be programmed in Lua."
+[[dependencies.opencomputers]]
+    modId="minecraft"
+    mandatory=true
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+[[dependencies.opencomputers]]
+    modId="jei"
+    mandatory=false
+    versionRange="[15,)"
+    ordering="AFTER"
+    side="BOTH"

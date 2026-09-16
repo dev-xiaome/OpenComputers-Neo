@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "w": {
+      "item": "minecraft:crafting_table"
+    }
+  },
+  "pattern": [
+    "i i",
+    "CwC",
+    "iPi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:craftingupgrade"
+  }
+}

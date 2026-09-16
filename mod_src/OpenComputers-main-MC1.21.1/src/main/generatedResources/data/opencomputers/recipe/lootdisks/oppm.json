@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "opencomputers:floppy"
+    },
+    {
+      "item": "opencomputers:interweb"
+    }
+  ],
+  "result": {
+    "components": {
+      "minecraft:custom_name": "\"OPPM (Package Manager)\"",
+      "opencomputers:disk_color": "cyan",
+      "opencomputers:label": "oppm",
+      "opencomputers:loot_disk": "opencomputers:oppm"
+    },
+    "count": 1,
+    "id": "opencomputers:floppy"
+  }
+}

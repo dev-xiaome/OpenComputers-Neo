@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers:componentbus1"
+    },
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "R": {
+      "item": "opencomputers:ram2"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "o": {
+      "tag": "c:obsidians/normal"
+    }
+  },
+  "pattern": [
+    "iRi",
+    "CBC",
+    "oPo"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:server1"
+  }
+}

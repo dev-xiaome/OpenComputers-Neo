@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "I": {
+      "item": "opencomputers:interweb"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "T": {
+      "item": "opencomputers:transistor"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    }
+  },
+  "pattern": [
+    "iCi",
+    "TIT",
+    "iPi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:waypoint"
+  }
+}

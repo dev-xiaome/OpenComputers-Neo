@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip4"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "b": {
+      "item": "minecraft:blaze_powder"
+    },
+    "g": {
+      "tag": "c:glass_blocks"
+    },
+    "n": {
+      "item": "minecraft:netherite_scrap"
+    },
+    "o": {
+      "tag": "c:obsidians/normal"
+    }
+  },
+  "pattern": [
+    "CgC",
+    "PnP",
+    "obo"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:hologram3"
+  }
+}

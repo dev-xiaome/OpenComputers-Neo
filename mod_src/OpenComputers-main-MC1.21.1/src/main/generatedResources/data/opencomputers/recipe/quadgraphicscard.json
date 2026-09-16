@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "G": {
+      "item": "opencomputers:graphicscard2"
+    },
+    "N": {
+      "item": "minecraft:nether_star"
+    },
+    "R": {
+      "item": "opencomputers:ram7"
+    }
+  },
+  "pattern": [
+    "GRG",
+    "RNR",
+    "GRG"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:quadgraphicscard"
+  }
+}

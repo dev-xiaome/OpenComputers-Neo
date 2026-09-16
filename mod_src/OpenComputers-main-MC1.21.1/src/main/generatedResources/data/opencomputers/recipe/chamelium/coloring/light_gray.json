@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "opencomputers:chameliumblock"
+    },
+    {
+      "tag": "c:dyes/light_gray"
+    }
+  ],
+  "result": {
+    "components": {
+      "opencomputers:chamelium_color": "light_gray"
+    },
+    "count": 1,
+    "id": "opencomputers:chameliumblock"
+  }
+}

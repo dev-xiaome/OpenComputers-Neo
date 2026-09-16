@@ -1,0 +1,29 @@
+{
+  "criteria": {
+    "crafting_0": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "background": "minecraft:textures/gui/advancements/backgrounds/stone.png",
+    "description": {
+      "translate": "achievement.oc.cable.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "item": "opencomputers:cable"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "achievement.oc.cable"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_0"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

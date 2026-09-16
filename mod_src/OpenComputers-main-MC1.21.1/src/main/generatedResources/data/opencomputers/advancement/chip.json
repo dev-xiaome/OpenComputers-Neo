@@ -1,0 +1,33 @@
+{
+  "parent": "opencomputers:transistor",
+  "criteria": {
+    "crafting_chip1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_chip2": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_chip3": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.chip.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:chip1"
+    },
+    "title": {
+      "translate": "achievement.oc.chip"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_chip1",
+      "crafting_chip2",
+      "crafting_chip3"
+    ]
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:assembler",
+  "criteria": {
+    "assembling_robot": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.robot.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:robot"
+    },
+    "title": {
+      "translate": "achievement.oc.robot"
+    }
+  },
+  "requirements": [
+    [
+      "assembling_robot"
+    ]
+  ]
+}

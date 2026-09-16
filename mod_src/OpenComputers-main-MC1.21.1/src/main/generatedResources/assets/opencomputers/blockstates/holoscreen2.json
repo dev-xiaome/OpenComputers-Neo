@@ -1,0 +1,38 @@
+{
+  "variants": {
+    "facing=east,mount=down": {
+      "model": "opencomputers:block/holoscreen2",
+      "x": 180,
+      "y": 90
+    },
+    "facing=east,mount=up": {
+      "model": "opencomputers:block/holoscreen2",
+      "y": 90
+    },
+    "facing=north,mount=down": {
+      "model": "opencomputers:block/holoscreen2",
+      "x": 180
+    },
+    "facing=north,mount=up": {
+      "model": "opencomputers:block/holoscreen2"
+    },
+    "facing=south,mount=down": {
+      "model": "opencomputers:block/holoscreen2",
+      "x": 180,
+      "y": 180
+    },
+    "facing=south,mount=up": {
+      "model": "opencomputers:block/holoscreen2",
+      "y": 180
+    },
+    "facing=west,mount=down": {
+      "model": "opencomputers:block/holoscreen2",
+      "x": 180,
+      "y": 270
+    },
+    "facing=west,mount=up": {
+      "model": "opencomputers:block/holoscreen2",
+      "y": 270
+    }
+  }
+}

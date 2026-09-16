@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "opencomputers:chameliumblock"
+    },
+    {
+      "tag": "c:dyes/orange"
+    }
+  ],
+  "result": {
+    "components": {
+      "opencomputers:chamelium_color": "orange"
+    },
+    "count": 1,
+    "id": "opencomputers:chameliumblock"
+  }
+}

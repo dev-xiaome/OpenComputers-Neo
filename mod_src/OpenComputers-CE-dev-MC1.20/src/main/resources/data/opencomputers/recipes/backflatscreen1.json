@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "ggr",
+    "cpr",
+    "ggr"
+  ],
+  "key": {
+    "g": {
+      "tag": "forge:ingots/gold"
+    },
+    "r": {
+      "tag": "forge:dusts/redstone"
+    },
+    "c": {
+      "tag": "opencomputers:circuitchip1"
+    },
+    "p": {
+      "tag": "forge:glass_panes"
+    }
+  },
+  "result": {
+    "item": "opencomputers:backflatscreen1"
+  }
+}

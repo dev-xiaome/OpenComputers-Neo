@@ -1,0 +1,36 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": {
+      "item": "opencomputers:analyzer"
+    },
+    "U": {
+      "item": "opencomputers:cu"
+    },
+    "g": {
+      "tag": "c:glass_panes"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "l": {
+      "item": "minecraft:lava_bucket"
+    },
+    "o": {
+      "tag": "c:obsidians/normal"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    }
+  },
+  "pattern": [
+    "UgA",
+    "p o",
+    "ili"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:disassembler"
+  }
+}

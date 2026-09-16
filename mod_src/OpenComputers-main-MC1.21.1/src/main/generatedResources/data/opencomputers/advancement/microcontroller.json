@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:assembler",
+  "criteria": {
+    "assembling_microcontroller": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.microcontroller.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:microcontroller"
+    },
+    "title": {
+      "translate": "achievement.oc.microcontroller"
+    }
+  },
+  "requirements": [
+    [
+      "assembling_microcontroller"
+    ]
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_folder": {
+      "conditions": {
+        "items": [
+          {
+            "items": "opencomputers:folder"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "opencomputers:folder"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_folder"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "opencomputers:folder"
+    ]
+  }
+}

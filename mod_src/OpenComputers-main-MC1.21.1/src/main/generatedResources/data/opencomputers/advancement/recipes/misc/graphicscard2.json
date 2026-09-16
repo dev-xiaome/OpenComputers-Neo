@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_chip2": {
+      "conditions": {
+        "items": [
+          {
+            "items": "opencomputers:chip2"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "opencomputers:graphicscard2"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_chip2"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "opencomputers:graphicscard2"
+    ]
+  }
+}

@@ -1,0 +1,44 @@
+# Gradle
+/.gradle
+/build
+
+# Eclipse
+/.classpath
+/.project
+/.settings
+/bin
+
+# IntelliJ IDEA
+/*.iml
+/*.ipr
+/*.iws
+/.idea
+/out
+
+# Debugging
+/eclipse
+/run
+/run-data
+
+# Windows...
+**/Thumbs.db
+
+# OS X
+.DS_Store
+/run
+
+# VSCode
+/.vscode
+
+# Other
+/saves
+/logs
+/config
+/options.txt
+/usernamecache.json
+/.metals
+/.bloop
+/.scalafmt.conf
+/font
+/src/data/resources/.cache
+/.travis.yml

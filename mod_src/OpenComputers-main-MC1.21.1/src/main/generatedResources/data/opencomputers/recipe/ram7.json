@@ -1,0 +1,28 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "opencomputers:tier4_enabled"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "c": {
+      "item": "opencomputers:chip4"
+    },
+    "i": {
+      "tag": "c:nuggets/iron"
+    }
+  },
+  "pattern": [
+    "cic",
+    " P "
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:ram7"
+  }
+}

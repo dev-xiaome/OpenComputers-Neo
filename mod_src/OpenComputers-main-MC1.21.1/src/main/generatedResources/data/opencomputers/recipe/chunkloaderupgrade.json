@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip3"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "e": {
+      "item": "minecraft:ender_eye"
+    },
+    "g": {
+      "tag": "c:ingots/gold"
+    },
+    "o": {
+      "tag": "c:obsidians/normal"
+    },
+    "s": {
+      "tag": "c:glass_blocks"
+    }
+  },
+  "pattern": [
+    "gsg",
+    "CeC",
+    "oPo"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:chunkloaderupgrade"
+  }
+}

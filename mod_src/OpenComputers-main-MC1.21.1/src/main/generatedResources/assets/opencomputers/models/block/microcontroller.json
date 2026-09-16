@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "opencomputers:block/microcontroller_front",
+    "side": "opencomputers:block/microcontroller_side",
+    "top": "opencomputers:block/microcontroller_top"
+  }
+}

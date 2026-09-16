@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "i": {
+      "tag": "c:nuggets/iron"
+    },
+    "r": {
+      "tag": "c:dusts/redstone"
+    }
+  },
+  "pattern": [
+    " i ",
+    "iri",
+    " i "
+  ],
+  "result": {
+    "count": 4,
+    "id": "opencomputers:cable"
+  }
+}

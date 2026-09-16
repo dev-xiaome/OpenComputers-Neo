@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:disk_drive",
+  "criteria": {
+    "crafting_floppy": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.floppy.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:floppy"
+    },
+    "title": {
+      "translate": "achievement.oc.floppy"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_floppy"
+    ]
+  ]
+}

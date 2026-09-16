@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_cu": {
+      "conditions": {
+        "items": [
+          {
+            "items": "opencomputers:cu"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "opencomputers:leashupgrade"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_cu"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "opencomputers:leashupgrade"
+    ]
+  }
+}

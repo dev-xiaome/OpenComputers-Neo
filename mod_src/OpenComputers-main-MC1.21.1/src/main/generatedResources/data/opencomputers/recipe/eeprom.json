@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "T": {
+      "item": "opencomputers:transistor"
+    },
+    "g": {
+      "tag": "c:nuggets/gold"
+    },
+    "p": {
+      "item": "minecraft:paper"
+    },
+    "r": {
+      "item": "minecraft:redstone_torch"
+    }
+  },
+  "pattern": [
+    "gTg",
+    "pCp",
+    "grg"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:eeprom"
+  }
+}

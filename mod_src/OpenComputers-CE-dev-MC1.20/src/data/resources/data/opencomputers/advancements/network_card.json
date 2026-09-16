@@ -1,0 +1,29 @@
+{
+  "parent": "opencomputers:card",
+  "criteria": {
+    "crafting_0": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "announce_to_chat": true,
+    "description": {
+      "translate": "achievement.oc.networkCard.desc"
+    },
+    "frame": "task",
+    "hidden": false,
+    "icon": {
+      "item": "opencomputers:lancard"
+    },
+    "show_toast": true,
+    "title": {
+      "translate": "achievement.oc.networkCard"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_0"
+    ]
+  ],
+  "sends_telemetry_event": true
+}

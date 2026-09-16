@@ -1,0 +1,52 @@
+# Gradle
+/.gradle
+/buildSrc/.gradle
+/.gradle-user
+/build
+/buildSrc/build
+
+# Eclipse
+/.classpath
+/.project
+/.settings
+/bin
+
+# IntelliJ IDEA
+*.iml
+*.ipr
+*.iws
+/.idea
+/out
+
+# Debugging
+/eclipse
+/run
+/run-data
+
+# Windows...
+**/Thumbs.db
+
+# OS X
+.DS_Store
+
+# VSCode
+/.vscode
+/saves
+/logs
+/config
+/options.txt
+/usernamecache.json
+/.metals
+/.bloop
+/.scalafmt.conf
+/font
+/src/main/generatedResources/.cache
+.mimocode/
+
+# Local porting references and inspection tools
+/.reference-*/
+/.reference-*.zip
+/OpenComputers-CE-master-*/
+/OpenComputers-CE-master-*.zip
+/.minecraft-*-inspect.jar
+OpenComputers.zip

@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "D": {
+      "item": "opencomputers:disk"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    }
+  },
+  "pattern": [
+    "CDi",
+    "PDp",
+    "CDi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:hdd1"
+  }
+}

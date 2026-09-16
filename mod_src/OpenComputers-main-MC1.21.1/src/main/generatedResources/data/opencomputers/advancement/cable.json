@@ -1,0 +1,25 @@
+{
+  "criteria": {
+    "crafting_cable": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "background": "minecraft:textures/gui/advancements/backgrounds/stone.png",
+    "description": {
+      "translate": "achievement.oc.cable.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:cable"
+    },
+    "title": {
+      "translate": "achievement.oc.cable"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_cable"
+    ]
+  ]
+}

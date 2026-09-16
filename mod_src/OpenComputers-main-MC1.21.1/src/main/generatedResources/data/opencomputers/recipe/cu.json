@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "T": {
+      "item": "opencomputers:transistor"
+    },
+    "c": {
+      "item": "minecraft:clock"
+    },
+    "g": {
+      "tag": "c:nuggets/gold"
+    },
+    "r": {
+      "tag": "c:dusts/redstone"
+    }
+  },
+  "pattern": [
+    "grg",
+    "TcT",
+    "gTg"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:cu"
+  }
+}

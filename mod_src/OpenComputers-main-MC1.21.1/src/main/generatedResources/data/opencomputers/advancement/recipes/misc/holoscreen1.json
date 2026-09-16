@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_hologram2": {
+      "conditions": {
+        "items": [
+          {
+            "items": "opencomputers:hologram2"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "opencomputers:holoscreen1"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_hologram2"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "opencomputers:holoscreen1"
+    ]
+  }
+}

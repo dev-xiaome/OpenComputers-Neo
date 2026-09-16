@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=east": {
+      "model": "opencomputers:block/document_printer",
+      "y": 270
+    },
+    "facing=north": {
+      "model": "opencomputers:block/document_printer",
+      "y": 180
+    },
+    "facing=south": {
+      "model": "opencomputers:block/document_printer"
+    },
+    "facing=west": {
+      "model": "opencomputers:block/document_printer",
+      "y": 90
+    }
+  }
+}

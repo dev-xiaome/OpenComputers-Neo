@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "c": {
+      "item": "minecraft:coal"
+    },
+    "g": {
+      "tag": "c:gravels"
+    },
+    "r": {
+      "tag": "c:dusts/redstone"
+    },
+    "w": {
+      "item": "minecraft:water_bucket"
+    }
+  },
+  "pattern": [
+    "grg",
+    "rcr",
+    "gwg"
+  ],
+  "result": {
+    "count": 16,
+    "id": "opencomputers:chamelium"
+  }
+}

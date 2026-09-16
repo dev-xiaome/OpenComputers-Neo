@@ -1,0 +1,60 @@
+package li.cil.oc.common.capabilities
+
+import li.cil.oc.api
+import li.cil.oc.api.network.{Environment, Message, Node, Visibility}
+import li.cil.oc.integration.Mods
+import net.minecraft.core.Direction
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraftforge.common.capabilities.{Capability, ICapabilityProvider, ICapabilitySerializable}
+import net.minecraftforge.common.util.{LazyOptional, NonNullSupplier}
+
+object CapabilityEnvironment {
+  final val ProviderEnvironment = ResourceLocation.fromNamespaceAndPath(Mods.IDs.OpenComputers, "environment")
+
+  class Provider(val tileEntity: BlockEntity with Environment) extends ICapabilitySerializable[CompoundTag] with NonNullSupplier[Provider] with Environment {
+    private val wrapper = LazyOptional.of(this)
+
+    def get = this
+
+    def invalidate() = wrapper.invalidate()
+
+    override def getCapability[T](capability: Capability[T], facing: Direction): LazyOptional[T] = {
+      if (capability == Capabilities.EnvironmentCapability) wrapper.cast[T]
+      else LazyOptional.empty[T]
+    }
+
+    override def node = tileEntity.node
+
+    override def onMessage(message: Message) = tileEntity.onMessage(message)
+
+    override def onConnect(node: Node) = tileEntity.onConnect(node)
+
+    override def onDisconnect(node: Node) = tileEntity.onDisconnect(node)
+
+    override def serializeNBT(): CompoundTag = {
+      val nbt = new CompoundTag()
+      if (node != null) {
+        node.saveData(nbt)
+      }
+      nbt
+    }
+
+    override def deserializeNBT(nbt: CompoundTag): Unit = {
+      if (node != null) {
+        node.loadData(nbt)
+      }
+    }
+  }
+
+  class DefaultImpl extends Environment {
+    override val node = api.Network.newNode(this, Visibility.None).create()
+
+    override def onMessage(message: Message): Unit = {}
+
+    override def onConnect(node: Node): Unit = {}
+
+    override def onDisconnect(node: Node): Unit = {}
+  }
+}

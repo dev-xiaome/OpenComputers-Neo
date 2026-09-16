@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip2"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "e": {
+      "tag": "c:gems/emerald"
+    },
+    "g": {
+      "tag": "c:ingots/gold"
+    }
+  },
+  "pattern": [
+    "g g",
+    "CeC",
+    "gPg"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:experienceupgrade"
+  }
+}

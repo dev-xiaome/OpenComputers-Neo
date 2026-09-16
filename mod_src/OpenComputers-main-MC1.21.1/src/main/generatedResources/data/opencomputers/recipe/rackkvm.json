@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip3"
+    },
+    "K": {
+      "item": "opencomputers:keyboard"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "S": {
+      "item": "opencomputers:screen1"
+    },
+    "T": {
+      "item": "opencomputers:terminalserver"
+    }
+  },
+  "pattern": [
+    "SCS",
+    "KTK",
+    " P "
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:rackkvm"
+  }
+}

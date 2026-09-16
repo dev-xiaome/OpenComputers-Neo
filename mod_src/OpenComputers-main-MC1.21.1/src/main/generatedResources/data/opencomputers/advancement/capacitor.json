@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:chip",
+  "criteria": {
+    "crafting_capacitor": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.capacitor.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:capacitor"
+    },
+    "title": {
+      "translate": "achievement.oc.capacitor"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_capacitor"
+    ]
+  ]
+}

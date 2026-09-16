@@ -1,0 +1,40 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "opencomputers:tier4_enabled"
+    },
+    {
+      "type": "opencomputers:openscreens_enabled"
+    }
+  ],
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_chip4": {
+      "conditions": {
+        "items": [
+          {
+            "items": "opencomputers:chip4"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "opencomputers:backflatscreen4"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_chip4"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "opencomputers:backflatscreen4"
+    ]
+  }
+}

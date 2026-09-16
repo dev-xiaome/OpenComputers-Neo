@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip3"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "R": {
+      "item": "opencomputers:redstonecard1"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "r": {
+      "tag": "c:storage_blocks/redstone"
+    }
+  },
+  "pattern": [
+    "iCi",
+    "rRr",
+    "iPi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:redstone"
+  }
+}

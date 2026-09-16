@@ -1,0 +1,19 @@
+{
+  "variants": {
+    "facing=east": {
+      "model": "opencomputers:block/briefcase",
+      "y": 90
+    },
+    "facing=north": {
+      "model": "opencomputers:block/briefcase"
+    },
+    "facing=south": {
+      "model": "opencomputers:block/briefcase",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "opencomputers:block/briefcase",
+      "y": 270
+    }
+  }
+}

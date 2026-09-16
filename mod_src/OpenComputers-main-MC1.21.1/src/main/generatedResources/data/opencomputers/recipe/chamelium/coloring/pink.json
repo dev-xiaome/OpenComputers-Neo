@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "opencomputers:chameliumblock"
+    },
+    {
+      "tag": "c:dyes/pink"
+    }
+  ],
+  "result": {
+    "components": {
+      "opencomputers:chamelium_color": "pink"
+    },
+    "count": 1,
+    "id": "opencomputers:chameliumblock"
+  }
+}

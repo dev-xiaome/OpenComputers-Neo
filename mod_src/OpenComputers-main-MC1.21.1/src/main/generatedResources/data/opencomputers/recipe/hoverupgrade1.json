@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "f": {
+      "tag": "c:feathers"
+    },
+    "i": {
+      "tag": "c:nuggets/iron"
+    },
+    "l": {
+      "tag": "c:leathers"
+    }
+  },
+  "pattern": [
+    "fCf",
+    "ili",
+    "fPf"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:hoverupgrade1"
+  }
+}

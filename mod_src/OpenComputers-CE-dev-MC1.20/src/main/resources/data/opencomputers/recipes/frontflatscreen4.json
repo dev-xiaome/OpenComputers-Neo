@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "goo",
+    "gcp",
+    "goo"
+  ],
+  "key": {
+    "o": {
+      "tag": "forge:obsidian"
+    },
+    "g": {
+      "item": "minecraft:glowstone"
+    },
+    "c": {
+      "tag": "opencomputers:circuitchip4"
+    },
+    "p": {
+      "tag": "forge:glass_panes"
+    }
+  },
+  "result": {
+    "item": "opencomputers:frontflatscreen4"
+  }
+}

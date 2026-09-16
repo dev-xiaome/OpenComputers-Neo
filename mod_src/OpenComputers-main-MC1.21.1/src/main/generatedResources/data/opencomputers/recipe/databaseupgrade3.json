@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": {
+      "item": "opencomputers:analyzer"
+    },
+    "C": {
+      "item": "opencomputers:chip3"
+    },
+    "H": {
+      "item": "opencomputers:hdd3"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    }
+  },
+  "pattern": [
+    "iAi",
+    "CHC",
+    "iPi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:databaseupgrade3"
+  }
+}

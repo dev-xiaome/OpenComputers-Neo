@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:capacitor",
+  "criteria": {
+    "crafting_assembler": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.assembler.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:assembler"
+    },
+    "title": {
+      "translate": "achievement.oc.assembler"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_assembler"
+    ]
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "parent": "opencomputers:screen",
+  "criteria": {
+    "crafting_hologram1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_hologram2": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.hologram.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:hologram1"
+    },
+    "title": {
+      "translate": "achievement.oc.hologram"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_hologram1",
+      "crafting_hologram2"
+    ]
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CCC",
+    "BPR",
+    "CcC"
+  ],
+  "key": {
+    "c": {
+      "tag": "opencomputers:cpu1"
+    },
+    "C": {
+      "tag": "opencomputers:circuitchip2"
+    },
+    "P": {
+      "tag": "opencomputers:materialcircuitboardprinted"
+    },
+    "B": {
+      "tag": "opencomputers:componentbus2"
+    },
+    "R": {
+      "tag": "opencomputers:ram3"
+    }
+  },
+  "result": {
+    "item": "opencomputers:ssd1"
+  }
+}

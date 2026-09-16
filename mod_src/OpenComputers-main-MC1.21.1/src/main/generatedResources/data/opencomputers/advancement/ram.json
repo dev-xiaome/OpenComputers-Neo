@@ -1,0 +1,45 @@
+{
+  "parent": "opencomputers:chip",
+  "criteria": {
+    "crafting_ram1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_ram2": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_ram3": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_ram4": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_ram5": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_ram6": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.ram.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:ram1"
+    },
+    "title": {
+      "translate": "achievement.oc.ram"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_ram1",
+      "crafting_ram2",
+      "crafting_ram3",
+      "crafting_ram4",
+      "crafting_ram5",
+      "crafting_ram6"
+    ]
+  ]
+}

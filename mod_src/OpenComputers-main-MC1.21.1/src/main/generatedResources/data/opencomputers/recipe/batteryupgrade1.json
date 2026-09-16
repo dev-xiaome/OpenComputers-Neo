@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:capacitor"
+    },
+    "f": {
+      "item": "minecraft:iron_bars"
+    },
+    "g": {
+      "tag": "c:nuggets/gold"
+    },
+    "i": {
+      "tag": "c:nuggets/iron"
+    }
+  },
+  "pattern": [
+    "igi",
+    "fCf",
+    "igi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:batteryupgrade1"
+  }
+}

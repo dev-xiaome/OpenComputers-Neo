@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:chip",
+  "criteria": {
+    "crafting_eeprom": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.eeprom.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:eeprom"
+    },
+    "title": {
+      "translate": "achievement.oc.eeprom"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_eeprom"
+    ]
+  ]
+}

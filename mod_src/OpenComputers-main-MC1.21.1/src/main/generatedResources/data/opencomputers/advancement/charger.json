@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:capacitor",
+  "criteria": {
+    "crafting_charger": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.charger.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:charger"
+    },
+    "title": {
+      "translate": "achievement.oc.charger"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_charger"
+    ]
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "opencomputers:tier4_enabled"
+    }
+  ],
+  "type": "opencomputers:crafting_shapeless_extended",
+  "ingredients": [
+    {
+      "item": "opencomputers:hdd4"
+    }
+  ],
+  "result": {
+    "id": "opencomputers:hdd4"
+  }
+}

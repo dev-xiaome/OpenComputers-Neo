@@ -1,0 +1,210 @@
+package li.cil.oc.server.component
+
+import java.util
+import li.cil.oc.Constants
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
+import li.cil.oc.OpenComputers
+import li.cil.oc.Settings
+import li.cil.oc.api
+import li.cil.oc.api.driver.DeviceInfo
+import li.cil.oc.api.machine.Arguments
+import li.cil.oc.api.machine.Callback
+import li.cil.oc.api.machine.Context
+import li.cil.oc.api.network._
+import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.common.ToolDurabilityProviders
+import li.cil.oc.common.blockentity
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.common.RobotFlags
+import li.cil.oc.server.PacketSender
+import li.cil.oc.util.BlockPosition
+import li.cil.oc.util.ExtendedArguments._
+import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import li.cil.oc.util.StackOption
+import li.cil.oc.util.StackOption._
+import net.minecraft.core.component.DataComponentHolder
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.core.particles.ParticleTypes
+import net.minecraft.core.{Direction, HolderLookup}
+import net.minecraft.resources.ResourceLocation
+
+import scala.collection.convert.ImplicitConversionsToJava._
+import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+
+class Robot(val agent: blockentity.Robot) extends AbstractManagedEnvironment with Agent with DeviceInfo {
+  override val node = api.Network.newNode(this, Visibility.Network).
+    withComponent("robot").
+    withConnector(Settings.get.bufferRobot).
+    create()
+
+  val romRobot = Option(api.FileSystem.asManagedEnvironment(api.FileSystem.
+    fromResource(ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "lua/component/robot")), "robot"))
+
+  private final lazy val deviceInfo = Map(
+    DeviceAttribute.Class -> DeviceClass.System,
+    DeviceAttribute.Description -> "Robot",
+    DeviceAttribute.Vendor -> Constants.DeviceInfo.DefaultVendor,
+    DeviceAttribute.Product -> "Caterpillar",
+    DeviceAttribute.Capacity -> agent.getContainerSize.toString
+  )
+
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+
+  // ----------------------------------------------------------------------- //
+
+  override protected def checkSideForAction(args: Arguments, n: Int) = agent.toGlobal(args.checkSideForAction(n))
+
+  override def onWorldInteraction(context: Context, duration: Double): Unit = {
+    super.onWorldInteraction(context, duration)
+    agent.animateSwing(duration)
+  }
+
+  // ----------------------------------------------------------------------- //
+
+  @Callback(doc = "function():number -- Get the current color of the activity light as an integer encoded RGB value (0xRRGGBB).")
+  def getLightColor(context: Context, args: Arguments): Array[AnyRef] = result(agent.info.lightColor)
+
+  @Callback(doc = "function(value:number):number -- Set the color of the activity light to the specified integer encoded RGB value (0xRRGGBB).")
+  def setLightColor(context: Context, args: Arguments): Array[AnyRef] = {
+    agent.setLightColor(args.checkInteger(0))
+    context.pause(0.1)
+    result(agent.info.lightColor)
+  }
+
+  @Callback(direct = true, doc = "function():string or nil -- Gets the currently displayed pride flag name, if any.")
+  def getFlag(context: Context, args: Arguments): Array[AnyRef] =
+    agent.info.flag.flatMap(RobotFlags.byId) match {
+      case Some(flag) => result(flag.name)
+      case _ => result(null)
+    }
+
+  @Callback(doc = "function(name:string):string -- Sets the displayed pride flag and returns its canonical name.")
+  def setFlag(context: Context, args: Arguments): Array[AnyRef] = {
+    RobotFlags.byName(args.checkString(0)) match {
+      case Some(flag) =>
+        agent.setFlag(Some(flag.id))
+        context.pause(0.1)
+        result(flag.name)
+      case _ =>
+        result(null, "unknown pride flag")
+    }
+  }
+
+  @Callback(doc = "function() -- Hides the currently displayed pride flag.")
+  def clearFlag(context: Context, args: Arguments): Array[AnyRef] = {
+    agent.setFlag(None)
+    context.pause(0.1)
+    result(true)
+  }
+
+  // ----------------------------------------------------------------------- //
+
+  @Callback(doc = "function():number -- Get the durability of the currently equipped tool.")
+  def durability(context: Context, args: Arguments): Array[AnyRef] = {
+    StackOption(agent.equipmentInventory.getItem(0)) match {
+      case SomeStack(item) =>
+        ToolDurabilityProviders.getDurability(item) match {
+          case Some(durability) => result(durability)
+          case _ => result((), "tool cannot be damaged")
+        }
+      case _ => result((), "no tool equipped")
+    }
+  }
+
+  // ----------------------------------------------------------------------- //
+
+  @Callback(doc = "function(direction:number):boolean -- Move in the specified direction.")
+  def move(context: Context, args: Arguments): Array[AnyRef] = {
+    val direction = agent.toGlobal(args.checkSideForMovement(0))
+    if (agent.isAnimatingMove) {
+      // This shouldn't really happen due to delays being enforced, but just to
+      // be on the safe side...
+      result((), "already moving")
+    }
+    else {
+      val (something, what) = blockContent(direction)
+      if (something) {
+        context.pause(0.4)
+        PacketSender.sendParticleEffect(BlockPosition(agent), ParticleTypes.CRIT, 8, 0.25, Some(direction))
+        result((), what)
+      }
+      else {
+        if (!node.tryChangeBuffer(-Settings.get.robotMoveCost)) {
+          result((), "not enough energy")
+        }
+        else if (agent.move(direction)) {
+          context.pause(Settings.get.moveDelay)
+          result(true)
+        }
+        else {
+          node.changeBuffer(Settings.get.robotMoveCost)
+          context.pause(0.4)
+          PacketSender.sendParticleEffect(BlockPosition(agent), ParticleTypes.CRIT, 8, 0.25, Some(direction))
+          result((), "impossible move")
+        }
+      }
+    }
+  }
+
+  @Callback(doc = "function(clockwise:boolean):boolean -- Rotate in the specified direction.")
+  def turn(context: Context, args: Arguments): Array[AnyRef] = {
+    val clockwise = args.checkBoolean(0)
+    if (node.tryChangeBuffer(-Settings.get.robotTurnCost)) {
+      if (clockwise) agent.rotate(Direction.UP)
+      else agent.rotate(Direction.DOWN)
+      agent.animateTurn(clockwise, Settings.get.turnDelay)
+      context.pause(Settings.get.turnDelay)
+      result(true)
+    }
+    else {
+      result((), "not enough energy")
+    }
+  }
+
+  // ----------------------------------------------------------------------- //
+
+  override def onConnect(node: Node): Unit = {
+    super.onConnect(node)
+    if (node == this.node) {
+      romRobot.foreach(fs => {
+        fs.node.asInstanceOf[Component].setVisibility(Visibility.Network)
+        node.connect(fs.node)
+      })
+    }
+  }
+
+  override def onMessage(message: Message): Unit = {
+    super.onMessage(message)
+    if (message.name == "network.message" && message.source != agent.node) message.data match {
+      case Array(packet: Packet) => agent.proxy.node.sendToReachable(message.name, packet)
+      case _ =>
+    }
+  }
+
+  // ----------------------------------------------------------------------- //
+
+  private final val RomRobotTag = "romRobot"
+
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
+
+    for(rom <- romRobot;
+        tag <- holder.getComponent(OCComponents.ROBOT_ROM_FILESYSTEM_DATA)) {
+      rom.asInstanceOf[li.cil.oc.server.component.FileSystem].fileSystem.loadData(tag)
+    }
+  }
+
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super.saveData(holder)
+
+    for(rom <- romRobot) {
+      val tag = new CompoundTag()
+      rom.asInstanceOf[li.cil.oc.server.component.FileSystem].fileSystem.saveData(tag)
+      holder.setComponent(OCComponents.ROBOT_ROM_FILESYSTEM_DATA, tag)
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "parent": "opencomputers:chip",
+  "criteria": {
+    "crafting_hdd1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_hdd2": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_hdd3": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.hdd.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:hdd1"
+    },
+    "title": {
+      "translate": "achievement.oc.hdd"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_hdd1",
+      "crafting_hdd2",
+      "crafting_hdd3"
+    ]
+  ]
+}

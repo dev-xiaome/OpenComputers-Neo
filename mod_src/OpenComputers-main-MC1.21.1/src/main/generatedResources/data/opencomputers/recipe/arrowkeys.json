@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "b": {
+      "item": "minecraft:stone_button"
+    }
+  },
+  "pattern": [
+    " b ",
+    "bbb"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:arrowkeys"
+  }
+}

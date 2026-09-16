@@ -1,0 +1,25 @@
+{
+  "variants": {
+    "facing=north": {
+      "model": "opencomputers:block/tape_drive"
+    },
+    "facing=south": {
+      "model": "opencomputers:block/tape_drive",
+      "y": 180
+    },
+    "facing=west": {
+      "model": "opencomputers:block/tape_drive",
+      "y": 270
+    },
+    "facing=east": {
+      "model": "opencomputers:block/tape_drive",
+      "y": 90
+    },
+    "facing=up": {
+      "model": "opencomputers:block/tape_drive"
+    },
+    "facing=down": {
+      "model": "opencomputers:block/tape_drive"
+    }
+  }
+}

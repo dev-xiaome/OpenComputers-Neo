@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_chip1": {
+      "conditions": {
+        "items": [
+          {
+            "items": "opencomputers:chip1"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "opencomputers:angelupgrade"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_chip1"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "opencomputers:angelupgrade"
+    ]
+  }
+}

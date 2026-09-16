@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "i": {
+      "tag": "c:nuggets/iron"
+    },
+    "s": {
+      "tag": "c:rods/wooden"
+    }
+  },
+  "pattern": [
+    "sis"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:cuttingwire"
+  }
+}

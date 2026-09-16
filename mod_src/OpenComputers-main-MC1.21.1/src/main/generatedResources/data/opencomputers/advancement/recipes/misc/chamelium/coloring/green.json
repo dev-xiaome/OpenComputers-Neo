@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_chameliumblock": {
+      "conditions": {
+        "items": [
+          {
+            "items": "opencomputers:chameliumblock"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "opencomputers:chamelium/coloring/green"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_chameliumblock"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "opencomputers:chamelium/coloring/green"
+    ]
+  }
+}

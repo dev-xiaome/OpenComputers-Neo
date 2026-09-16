@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "opencomputers:hologram2"
+    },
+    {
+      "item": "opencomputers:screen3"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:holoscreen3"
+  }
+}

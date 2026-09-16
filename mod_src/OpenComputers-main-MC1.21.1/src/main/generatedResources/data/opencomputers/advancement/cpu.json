@@ -1,0 +1,33 @@
+{
+  "parent": "opencomputers:chip",
+  "criteria": {
+    "crafting_cpu1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_cpu2": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_cpu3": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.cpu.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:cpu1"
+    },
+    "title": {
+      "translate": "achievement.oc.cpu"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_cpu1",
+      "crafting_cpu2",
+      "crafting_cpu3"
+    ]
+  ]
+}

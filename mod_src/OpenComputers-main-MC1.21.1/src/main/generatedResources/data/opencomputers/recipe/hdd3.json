@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip3"
+    },
+    "D": {
+      "item": "opencomputers:disk"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "d": {
+      "tag": "c:gems/diamond"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    }
+  },
+  "pattern": [
+    "CDd",
+    "PDp",
+    "CDd"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:hdd3"
+  }
+}

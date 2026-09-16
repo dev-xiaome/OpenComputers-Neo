@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_linkedcard": {
+      "conditions": {
+        "items": [
+          {
+            "items": "opencomputers:linkedcard"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "opencomputers:mfu"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_linkedcard"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "opencomputers:mfu"
+    ]
+  }
+}

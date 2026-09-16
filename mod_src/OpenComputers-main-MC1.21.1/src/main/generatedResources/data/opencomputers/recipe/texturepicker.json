@@ -1,0 +1,42 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": {
+      "item": "opencomputers:analyzer"
+    },
+    "B": {
+      "tag": "c:dyes/blue"
+    },
+    "D": {
+      "tag": "c:dyes/black"
+    },
+    "G": {
+      "tag": "c:dyes/green"
+    },
+    "M": {
+      "tag": "c:dyes/magenta"
+    },
+    "P": {
+      "tag": "c:dyes/purple"
+    },
+    "R": {
+      "tag": "c:dyes/red"
+    },
+    "W": {
+      "tag": "c:dyes/white"
+    },
+    "Y": {
+      "tag": "c:dyes/yellow"
+    }
+  },
+  "pattern": [
+    "DRG",
+    "BAP",
+    "YMW"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:texturepicker"
+  }
+}

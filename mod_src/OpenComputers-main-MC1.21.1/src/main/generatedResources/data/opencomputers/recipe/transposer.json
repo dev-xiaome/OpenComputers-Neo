@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "I": {
+      "item": "opencomputers:inventorycontrollerupgrade"
+    },
+    "T": {
+      "item": "opencomputers:tankcontrollerupgrade"
+    },
+    "b": {
+      "item": "minecraft:bucket"
+    },
+    "h": {
+      "item": "minecraft:hopper"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    }
+  },
+  "pattern": [
+    "iIi",
+    "hbh",
+    "iTi"
+  ],
+  "result": {
+    "count": 4,
+    "id": "opencomputers:transposer"
+  }
+}

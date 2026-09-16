@@ -1,0 +1,20 @@
+{
+  "type": "opencomputers:crafting_robot_flag",
+  "category": "redstone",
+  "group": "robot_flags",
+  "ingredients": [
+    { "tag": "c:dyes/black" },
+    { "tag": "c:dyes/gray" },
+    { "tag": "c:dyes/white" },
+    { "tag": "c:dyes/purple" },
+    { "item": "minecraft:stick" },
+    { "item": "opencomputers:robot" }
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:robot",
+    "components": {
+      "opencomputers:robot_flag": "opencomputers:asexual_flag"
+    }
+  }
+}

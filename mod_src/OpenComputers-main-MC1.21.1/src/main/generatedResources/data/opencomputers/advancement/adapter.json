@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers:cable",
+  "criteria": {
+    "crafting_adapter": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.adapter.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:adapter"
+    },
+    "title": {
+      "translate": "achievement.oc.adapter"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_adapter"
+    ]
+  ]
+}

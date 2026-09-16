@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_printer_ink_black": {
+      "conditions": {
+        "items": [
+          {
+            "items": "opencomputers:printer_ink_black"
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "opencomputers:printer_ink_black_refill"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_the_recipe",
+      "has_printer_ink_black"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "opencomputers:printer_ink_black_refill"
+    ]
+  }
+}

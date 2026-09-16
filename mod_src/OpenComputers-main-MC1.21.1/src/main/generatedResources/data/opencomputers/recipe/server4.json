@@ -1,0 +1,38 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "opencomputers:tier4_enabled"
+    }
+  ],
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers:componentbus4"
+    },
+    "C": {
+      "item": "opencomputers:chip4"
+    },
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "R": {
+      "item": "opencomputers:ram8"
+    },
+    "d": {
+      "item": "minecraft:netherite_scrap"
+    },
+    "o": {
+      "tag": "c:obsidians/normal"
+    }
+  },
+  "pattern": [
+    "dRd",
+    "CBC",
+    "oPo"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:server4"
+  }
+}

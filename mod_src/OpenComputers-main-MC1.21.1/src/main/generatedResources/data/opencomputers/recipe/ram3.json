@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "P": {
+      "item": "opencomputers:printedcircuitboard"
+    },
+    "c": {
+      "item": "opencomputers:chip2"
+    },
+    "i": {
+      "tag": "c:nuggets/iron"
+    }
+  },
+  "pattern": [
+    "cic",
+    " P "
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:ram3"
+  }
+}

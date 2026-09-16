@@ -1,0 +1,33 @@
+{
+  "parent": "opencomputers:rack",
+  "criteria": {
+    "crafting_server1": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_server2": {
+      "trigger": "minecraft:impossible"
+    },
+    "crafting_server3": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.server.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers:server1"
+    },
+    "title": {
+      "translate": "achievement.oc.server"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_server1",
+      "crafting_server2",
+      "crafting_server3"
+    ]
+  ]
+}

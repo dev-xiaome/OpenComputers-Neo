@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "S": {
+      "item": "minecraft:shears"
+    },
+    "i": {
+      "item": "minecraft:iron_nugget"
+    }
+  },
+  "pattern": [
+    "i i",
+    "iSi",
+    "i i"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:shredder"
+  }
+}

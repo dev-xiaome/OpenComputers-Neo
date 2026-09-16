@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers:chip1"
+    },
+    "e": {
+      "tag": "c:ender_pearls"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "p": {
+      "item": "minecraft:sticky_piston"
+    }
+  },
+  "pattern": [
+    "iei",
+    "CpC",
+    "iei"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:angelupgrade"
+  }
+}

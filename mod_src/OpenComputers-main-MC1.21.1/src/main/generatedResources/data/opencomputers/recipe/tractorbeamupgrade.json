@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers:capacitor"
+    },
+    "C": {
+      "item": "opencomputers:chip3"
+    },
+    "g": {
+      "tag": "c:ingots/gold"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    }
+  },
+  "pattern": [
+    "gpg",
+    "iBi",
+    "gCg"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers:tractorbeamupgrade"
+  }
+}
