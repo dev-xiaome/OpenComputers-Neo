@@ -6,6 +6,7 @@ import li.cil.oc.api
 import li.cil.oc.common.Loot
 import li.cil.oc.integration.util.Wrench
 import li.cil.oc.util.StackOption
+import li.cil.oc.util.ItemStackNBTExtensions._
 import net.minecraft.core.{NonNullList, RegistryAccess}
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.inventory.CraftingContainer

@@ -13,7 +13,6 @@ import li.cil.oc.integration.opencomputers.ModOpenComputers
 import li.cil.oc.server
 import li.cil.oc.server._
 import li.cil.oc.server.loot.LootFunctions
-import li.cil.oc.server.machine.luac.{LuaStateFactory, NativeLua52Architecture, NativeLua53Architecture, NativeLua54Architecture}
 import li.cil.oc.server.machine.luaj.LuaJLuaArchitecture
 import net.minecraft.world.item.Item
 import net.neoforged.bus.api.{IEventBus, SubscribeEvent}
@@ -51,20 +50,10 @@ class Proxy {
 
     api.API.config = Settings.get.config
 
-    if (LuaStateFactory.isAvailable) {
-      if (LuaStateFactory.include53) {
-        api.Machine.add(classOf[NativeLua53Architecture])
-      }
-      if (LuaStateFactory.include54) {
-        api.Machine.add(classOf[NativeLua54Architecture])
-      }
-      if (LuaStateFactory.include52) {
-        api.Machine.add(classOf[NativeLua52Architecture])
-      }
-    }
-    if (LuaStateFactory.includeLuaJ) {
-      api.Machine.add(classOf[LuaJLuaArchitecture])
-    }
+    // 1.21.1：原生 Lua 架构（`server/machine/luac` 里的 `LuaStateFactory` 与
+    // `NativeLua52/53/54Architecture`）已整体移出编译集（见 `src/main/scala-pending`），
+    // 本版只剩 LuaJ 一种架构，因此不再按可用性逐个注册，也不再需要「回退到 LuaJ」的告警。
+    api.Machine.add(classOf[LuaJLuaArchitecture])
 
     api.Machine.LuaArchitecture =
       if (Settings.get.forceLuaJ) classOf[LuaJLuaArchitecture]

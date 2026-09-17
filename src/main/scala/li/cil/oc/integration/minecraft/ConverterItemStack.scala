@@ -12,7 +12,7 @@ import net.minecraft.nbt.{CompoundTag, ListTag, StringTag, Tag}
 import net.minecraft.world.item
 import net.minecraft.world.item.Item
 import net.minecraft.tags.ItemTags
-import net.minecraft.world.item.enchantment.EnchantmentHelper
+import net.minecraft.world.item.enchantment.Enchantment
 import net.minecraft.core.registries.BuiltInRegistries
 
 import scala.collection.convert.ImplicitConversionsToScala._
@@ -85,15 +85,18 @@ object ConverterItemStack extends api.driver.Converter {
         }
 
         val enchantments = mutable.ArrayBuffer.empty[mutable.Map[String, Any]]
-        EnchantmentHelper.getEnchantments(stack).collect {
-          case (enchantment, level) =>
-            val name = BuiltInRegistries.ENCHANTMENT.getKey(enchantment).toString
-            val map = mutable.Map[String, Any](
-              "name" -> name,
-              "label" -> enchantment.getFullname(level),
-              "level" -> level
-            )
-            enchantments += map
+        // 1.21.1：EnchantmentHelper.getEnchantments 已移除，附魔改为动态注册表并且
+        // ItemStack 上的附魔组件本身就是「Holder[Enchantment] -> 等级」的映射，
+        // 因此直接遍历 stack.getEnchantments 即可，无需再查注册表。
+        stack.getEnchantments.entrySet().asScala.foreach { entry =>
+          val enchantment = entry.getKey
+          // 1.21.1 的 Enchantment.getFullname 是静态方法，且接收 Holder。
+          val map = mutable.Map[String, Any](
+            "name" -> enchantment.getRegisteredName,
+            "label" -> Enchantment.getFullname(enchantment, entry.getIntValue),
+            "level" -> entry.getIntValue
+          )
+          enchantments += map
         }
         if (enchantments.nonEmpty) {
           output += "enchantments" -> enchantments

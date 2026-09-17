@@ -13,7 +13,6 @@ import li.cil.oc.common.item.data.MicrocontrollerData
 import li.cil.oc.common.item.data.PrintData
 import li.cil.oc.common.item.data.RobotData
 import li.cil.oc.common.item.data.TabletData
-import li.cil.oc.server.machine.luac.LuaStateFactory
 import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.SideTracker
 import net.minecraft.world.level.block.Blocks
@@ -50,6 +49,7 @@ object ExtendedRecipe {
     api.Items.get(Constants.ItemName.APUTier1),
     api.Items.get(Constants.ItemName.APUTier2)
   )
+  // 说明：`cpus` 原用于给 CPU / APU 打默认 Lua 架构标记，原生 Lua 移出编译集后不再需要。
   private lazy val robot = api.Items.get(Constants.BlockName.Robot)
   private lazy val tablet = api.Items.get(Constants.ItemName.Tablet)
   private lazy val print = api.Items.get(Constants.BlockName.Print)
@@ -93,8 +93,11 @@ object ExtendedRecipe {
         for (stack <- getItems(inventory)) {
           if (stack.getItem == Items.FILLED_MAP) {
             // Store information of the map used for crafting in the result.
+            // 1.21.1：`ItemStack#save` 改成 `save(HolderLookup.Provider, Tag): Tag`，
+            // 必须接收返回值（写进传入的 `CompoundTag` 再返回它）。
             val nbt = driver.dataTag(craftedStack)
-            nbt.setNewCompoundTag(Settings.namespace + "map", stack.save)
+            val provider = li.cil.oc.util.RegistryAccessHelper.getOrEmpty()
+            nbt.setNewCompoundTag(Settings.namespace + "map", (tag: CompoundTag) => stack.save(provider, tag))
           }
         })
     }
@@ -108,9 +111,9 @@ object ExtendedRecipe {
       }
     }
 
-    if (cpus.contains(craftedItemName)) {
-      LuaStateFactory.setDefaultArch(craftedStack)
-    }
+    // 1.21.1 移除：原实现在这里调用 `LuaStateFactory.setDefaultArch(craftedStack)`，
+    // 给 CPU 堆叠打上「默认架构」标记。原生 Lua 架构已移出编译集，只剩 LuaJ 一种，
+    // 因此这个标记没有意义，`cpus` 列表也就成了死代码，一并删除。
 
     if (craftedItemName == floppy || hdds.contains(craftedItemName)) {
       val nbt = craftedStack.getOrCreateTag

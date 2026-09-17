@@ -15,6 +15,7 @@ import net.minecraft.world.item.ItemStack
 import net.minecraft.core.Direction
 import net.minecraft.core.BlockPos
 import net.minecraft.world.effect.MobEffect
+import net.minecraft.core.Holder
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.entity.BeaconBlockEntity
 import net.minecraft.core.registries.BuiltInRegistries

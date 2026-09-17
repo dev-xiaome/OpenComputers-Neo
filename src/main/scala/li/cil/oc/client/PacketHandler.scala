@@ -205,35 +205,49 @@ object PacketHandler extends CommonPacketHandler {
   def onFileSystemActivity(p: PacketParser): Unit = {
     val sound = p.readUTF()
     val data = NbtIo.read(p)
-    if (p.readBoolean()) p.readBlockEntity[net.minecraft.world.level.block.entity.BlockEntity]() match {
-      case Some(t) =>
-        NeoForge.EVENT_BUS.post(new FileSystemAccessEvent.Client(sound, t, data))
-      case _ => // Invalid packet.
+    // 1.21.1: 显式加花括号 + 局部 val，避免 `if (c) a match {...} else b match {...}`
+    // 在 NeoForge 的泛型 post[T <: Event] 下触发的类型推断异常。
+    if (p.readBoolean()) {
+      p.readBlockEntity[net.minecraft.world.level.block.entity.BlockEntity]() match {
+        case Some(t) =>
+          val event = new FileSystemAccessEvent.Client(sound, t, data)
+          NeoForge.EVENT_BUS.post(event)
+        case _ => // Invalid packet.
+      }
     }
-    else world(p.player, ResourceLocation.tryParse(p.readUTF())) match {
-      case Some(world) =>
-        val x = p.readDouble()
-        val y = p.readDouble()
-        val z = p.readDouble()
-        NeoForge.EVENT_BUS.post(new FileSystemAccessEvent.Client(sound, world, x, y, z, data))
-      case _ => // Invalid packet.
+    else {
+      world(p.player, ResourceLocation.tryParse(p.readUTF())) match {
+        case Some(world) =>
+          val x = p.readDouble()
+          val y = p.readDouble()
+          val z = p.readDouble()
+          val event = new FileSystemAccessEvent.Client(sound, world, x, y, z, data)
+          NeoForge.EVENT_BUS.post(event)
+        case _ => // Invalid packet.
+      }
     }
   }
 
   def onNetworkActivity(p: PacketParser): Unit = {
     val data = NbtIo.read(p)
-    if (p.readBoolean()) p.readBlockEntity[net.minecraft.world.level.block.entity.BlockEntity]() match {
-      case Some(t) =>
-        NeoForge.EVENT_BUS.post(new NetworkActivityEvent.Client(t, data))
-      case _ => // Invalid packet.
+    if (p.readBoolean()) {
+      p.readBlockEntity[net.minecraft.world.level.block.entity.BlockEntity]() match {
+        case Some(t) =>
+          val event = new NetworkActivityEvent.Client(t, data)
+          NeoForge.EVENT_BUS.post(event)
+        case _ => // Invalid packet.
+      }
     }
-    else world(p.player, ResourceLocation.tryParse(p.readUTF())) match {
-      case Some(world) =>
-        val x = p.readDouble()
-        val y = p.readDouble()
-        val z = p.readDouble()
-        NeoForge.EVENT_BUS.post(new NetworkActivityEvent.Client(world, x, y, z, data))
-      case _ => // Invalid packet.
+    else {
+      world(p.player, ResourceLocation.tryParse(p.readUTF())) match {
+        case Some(world) =>
+          val x = p.readDouble()
+          val y = p.readDouble()
+          val z = p.readDouble()
+          val event = new NetworkActivityEvent.Client(world, x, y, z, data)
+          NeoForge.EVENT_BUS.post(event)
+        case _ => // Invalid packet.
+      }
     }
   }
 

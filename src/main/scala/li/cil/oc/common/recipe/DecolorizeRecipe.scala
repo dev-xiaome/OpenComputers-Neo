@@ -14,7 +14,9 @@ import net.minecraft.world.level.{ItemLike, Level}
 /**
   * @author Vexatos
   */
-class DecolorizeRecipe(id: ResourceLocation, target: ItemLike) extends CustomRecipe(id, CraftingBookCategory.MISC) {
+// 1.21.1：`CustomRecipe` 构造器不再接收配方 id，只剩 `CraftingBookCategory`。
+// `id` 参数保留仅为兼容调用点。
+class DecolorizeRecipe(id: ResourceLocation, target: ItemLike) extends CustomRecipe(CraftingBookCategory.MISC) {
   val targetItem: Item = target.asItem()
 
   override def matches(crafting: CraftingContainer, level: Level): Boolean = {

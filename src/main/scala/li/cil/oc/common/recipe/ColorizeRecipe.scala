@@ -14,7 +14,9 @@ import net.minecraft.world.level.{ItemLike, Level}
 /**
   * @author asie, Vexatos
   */
-class ColorizeRecipe(id: ResourceLocation, target: ItemLike) extends CustomRecipe(id, CraftingBookCategory.MISC) {
+// 1.21.1：`CustomRecipe` 的构造器只剩 `CraftingBookCategory` 一个参数；
+// 配方 id 现在由序列化器 / 注册表决定，构造器不再接收（`id` 参数保留仅为兼容调用点）。
+class ColorizeRecipe(id: ResourceLocation, target: ItemLike) extends CustomRecipe(CraftingBookCategory.MISC) {
   val targetItem: Item = target.asItem()
 
   override def matches(crafting: CraftingContainer, level: Level): Boolean = {
@@ -39,10 +41,12 @@ class ColorizeRecipe(id: ResourceLocation, target: ItemLike) extends CustomRecip
         if (dye.isEmpty)
           return ItemStack.EMPTY
 
-        val itemColor = Color.byTag(dye.get).getTextureDiffuseColors
-        val red = (itemColor(0) * 255.0F).toInt
-        val green = (itemColor(1) * 255.0F).toInt
-        val blue = (itemColor(2) * 255.0F).toInt
+        // 1.21.1：`DyeColor#getTextureDiffuseColors`（float[3]）已换成
+        // `getTextureDiffuseColor`（打包成一个 RGB int），按位拆出 r/g/b。
+        val itemColor = Color.byTag(dye.get).getTextureDiffuseColor
+        val red = (itemColor >> 16) & 0xFF
+        val green = (itemColor >> 8) & 0xFF
+        val blue = itemColor & 0xFF
         maximum += Math.max(red, Math.max(green, blue))
         color(0) += red
         color(1) += green

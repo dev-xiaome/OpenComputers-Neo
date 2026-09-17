@@ -87,6 +87,10 @@ class OpenComputers(modBus: IEventBus, container: ModContainer) {
   NeoForge.EVENT_BUS.register(ThreadPoolFactory)
   Mods.preInit() // Must happen after loading Settings but before registry events are fired.
 
+  // 无人值守的开机链路自检（临时脚手架，默认完全关闭；见 BootSelfTest 的说明）。
+  // 放在主类构造期而不是客户端初始化里，这样专用服务端上也能用。
+  li.cil.oc.common.init.BootSelfTest.register()
+
   @SubscribeEvent
   def imc(e: InterModProcessEvent): Unit = {
     // Technically requires synchronization because IMC.sendTo doesn't check the loading stage.
