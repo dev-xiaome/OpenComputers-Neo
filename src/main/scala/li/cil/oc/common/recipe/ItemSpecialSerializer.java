@@ -12,7 +12,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.crafting.Recipe;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.ItemLike;
-import net.neoforged.neoforge.registries.ForgeRegistries;
+import net.minecraft.core.registries.BuiltInRegistries;
 import org.jetbrains.annotations.NotNull;
 
 public class ItemSpecialSerializer<T extends Recipe<?>> implements RecipeSerializer<T> {
@@ -29,19 +29,19 @@ public class ItemSpecialSerializer<T extends Recipe<?>> implements RecipeSeriali
     @NotNull
     public T fromJson(@NotNull ResourceLocation recipeId, @NotNull JsonObject json) {
         ResourceLocation loc = ResourceLocation.tryParse(GsonHelper.getAsString(json, "item"));
-        if (!ForgeRegistries.ITEMS.containsKey(loc)) {
+        if (!BuiltInRegistries.ITEM.containsKey(loc)) {
             throw new JsonSyntaxException("Unknown item '" + loc + "'");
         }
-        return ctor.apply(recipeId, ForgeRegistries.ITEMS.getValue(loc));
+        return ctor.apply(recipeId, BuiltInRegistries.ITEM.getValue(loc));
     }
 
     @Override
     public T fromNetwork(@NotNull ResourceLocation recipeId, FriendlyByteBuf buff) {
-        return ctor.apply(recipeId, buff.readRegistryIdUnsafe(ForgeRegistries.ITEMS));
+        return ctor.apply(recipeId, buff.readRegistryIdUnsafe(BuiltInRegistries.ITEM));
     }
 
     @Override
     public void toNetwork(FriendlyByteBuf buff, @NotNull T recipe) {
-        buff.writeRegistryIdUnsafe(ForgeRegistries.ITEMS, getter.apply(recipe));
+        buff.writeRegistryIdUnsafe(BuiltInRegistries.ITEM, getter.apply(recipe));
     }
 }

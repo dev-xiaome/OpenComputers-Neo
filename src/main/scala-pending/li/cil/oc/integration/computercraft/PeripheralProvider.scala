@@ -4,7 +4,7 @@ import dan200.computercraft.api.peripheral.IPeripheral
 import li.cil.oc.common.blockentity.Relay
 import net.minecraft.core.Direction
 import net.minecraft.resources.ResourceLocation
-import net.neoforged.neoforge.common.capabilities.{Capability, CapabilityManager, CapabilityToken, ICapabilityProvider}
+import net.neoforged.neoforge.capabilities.{Capability, CapabilityManager, CapabilityToken, ICapabilityProvider}
 import net.neoforged.neoforge.common.util.LazyOptional
 import net.neoforged.neoforge.event.AttachCapabilitiesEvent
 import net.minecraft.world.level.block.entity.BlockEntity

@@ -14,7 +14,7 @@ import net.minecraft.client.Minecraft
 import net.minecraft.client.resources.sounds.SoundInstance.Attenuation
 import net.minecraft.resources.ResourceLocation
 import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.neoforge.event.TickEvent.ClientTickEvent
+import net.neoforged.neoforge.client.event.ClientTickEvent
 
 import scala.collection.mutable
 import net.minecraft.world.level.block.entity.BlockEntity

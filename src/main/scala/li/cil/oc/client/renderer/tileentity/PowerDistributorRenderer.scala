@@ -39,33 +39,33 @@ class PowerDistributorRenderer extends TileEntityRenderer[blockentity.PowerDistr
 
       {
         val icon = Textures.getSprite(Textures.Block.PowerDistributorTopOn)
-        r.vertex(stack.last.pose, 0, 0, 1).uv(icon.getU0, icon.getV1).endVertex()
-        r.vertex(stack.last.pose, 1, 0, 1).uv(icon.getU1, icon.getV1).endVertex()
-        r.vertex(stack.last.pose, 1, 0, 0).uv(icon.getU1, icon.getV0).endVertex()
-        r.vertex(stack.last.pose, 0, 0, 0).uv(icon.getU0, icon.getV0).endVertex()
+        r.addVertex(stack.last.pose, 0, 0, 1).setUv(icon.getU0, icon.getV1)
+        r.addVertex(stack.last.pose, 1, 0, 1).setUv(icon.getU1, icon.getV1)
+        r.addVertex(stack.last.pose, 1, 0, 0).setUv(icon.getU1, icon.getV0)
+        r.addVertex(stack.last.pose, 0, 0, 0).setUv(icon.getU0, icon.getV0)
       }
 
       {
         val icon = Textures.getSprite(Textures.Block.PowerDistributorSideOn)
-        r.vertex(stack.last.pose, 1, 1, 0).uv(icon.getU0, icon.getV1).endVertex()
-        r.vertex(stack.last.pose, 0, 1, 0).uv(icon.getU1, icon.getV1).endVertex()
-        r.vertex(stack.last.pose, 0, 0, 0).uv(icon.getU1, icon.getV0).endVertex()
-        r.vertex(stack.last.pose, 1, 0, 0).uv(icon.getU0, icon.getV0).endVertex()
+        r.addVertex(stack.last.pose, 1, 1, 0).setUv(icon.getU0, icon.getV1)
+        r.addVertex(stack.last.pose, 0, 1, 0).setUv(icon.getU1, icon.getV1)
+        r.addVertex(stack.last.pose, 0, 0, 0).setUv(icon.getU1, icon.getV0)
+        r.addVertex(stack.last.pose, 1, 0, 0).setUv(icon.getU0, icon.getV0)
 
-        r.vertex(stack.last.pose, 0, 1, 1).uv(icon.getU0, icon.getV1).endVertex()
-        r.vertex(stack.last.pose, 1, 1, 1).uv(icon.getU1, icon.getV1).endVertex()
-        r.vertex(stack.last.pose, 1, 0, 1).uv(icon.getU1, icon.getV0).endVertex()
-        r.vertex(stack.last.pose, 0, 0, 1).uv(icon.getU0, icon.getV0).endVertex()
+        r.addVertex(stack.last.pose, 0, 1, 1).setUv(icon.getU0, icon.getV1)
+        r.addVertex(stack.last.pose, 1, 1, 1).setUv(icon.getU1, icon.getV1)
+        r.addVertex(stack.last.pose, 1, 0, 1).setUv(icon.getU1, icon.getV0)
+        r.addVertex(stack.last.pose, 0, 0, 1).setUv(icon.getU0, icon.getV0)
 
-        r.vertex(stack.last.pose, 1, 1, 1).uv(icon.getU0, icon.getV1).endVertex()
-        r.vertex(stack.last.pose, 1, 1, 0).uv(icon.getU1, icon.getV1).endVertex()
-        r.vertex(stack.last.pose, 1, 0, 0).uv(icon.getU1, icon.getV0).endVertex()
-        r.vertex(stack.last.pose, 1, 0, 1).uv(icon.getU0, icon.getV0).endVertex()
+        r.addVertex(stack.last.pose, 1, 1, 1).setUv(icon.getU0, icon.getV1)
+        r.addVertex(stack.last.pose, 1, 1, 0).setUv(icon.getU1, icon.getV1)
+        r.addVertex(stack.last.pose, 1, 0, 0).setUv(icon.getU1, icon.getV0)
+        r.addVertex(stack.last.pose, 1, 0, 1).setUv(icon.getU0, icon.getV0)
 
-        r.vertex(stack.last.pose, 0, 1, 0).uv(icon.getU0, icon.getV1).endVertex()
-        r.vertex(stack.last.pose, 0, 1, 1).uv(icon.getU1, icon.getV1).endVertex()
-        r.vertex(stack.last.pose, 0, 0, 1).uv(icon.getU1, icon.getV0).endVertex()
-        r.vertex(stack.last.pose, 0, 0, 0).uv(icon.getU0, icon.getV0).endVertex()
+        r.addVertex(stack.last.pose, 0, 1, 0).setUv(icon.getU0, icon.getV1)
+        r.addVertex(stack.last.pose, 0, 1, 1).setUv(icon.getU1, icon.getV1)
+        r.addVertex(stack.last.pose, 0, 0, 1).setUv(icon.getU1, icon.getV0)
+        r.addVertex(stack.last.pose, 0, 0, 0).setUv(icon.getU0, icon.getV0)
       }
 
       stack.popPose()

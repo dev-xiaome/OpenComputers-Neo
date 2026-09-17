@@ -13,11 +13,11 @@ import net.minecraft.world.level.block.state.BlockBehaviour.Properties
 import net.minecraft.world.level.material.MapColor
 import net.neoforged.bus.api.IEventBus
 import net.neoforged.neoforge.registries.DeferredRegister
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 import net.neoforged.neoforge.registries.RegistryObject
 
 object Blocks {
-  val BLOCKS: DeferredRegister[Block] = DeferredRegister.create(ForgeRegistries.BLOCKS, Settings.resourceDomain)
+  val BLOCKS: DeferredRegister[Block] = DeferredRegister.create(BuiltInRegistries.BLOCK, Settings.resourceDomain)
 
   def init(bus: IEventBus): Unit = {
     def defaultProps = Properties.of().mapColor(MapColor.METAL).strength(2, 5)

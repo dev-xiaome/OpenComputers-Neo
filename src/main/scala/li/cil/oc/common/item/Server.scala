@@ -10,7 +10,7 @@ import li.cil.oc.util.Tooltip
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 
 import scala.collection.mutable
 import scala.collection.convert.ImplicitConversionsToScala._
@@ -22,7 +22,7 @@ import net.minecraft.world.entity.player.Player
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.network.chat.Component
 
-class Server(props: Properties, val tier: Int) extends Item(props) with IForgeItem with traits.SimpleItem {
+class Server(props: Properties, val tier: Int) extends Item(props) with traits.SimpleItem {
   @Deprecated
   override def getDescriptionId = super.getDescriptionId + tier
 

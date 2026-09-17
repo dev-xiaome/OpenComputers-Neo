@@ -6,8 +6,9 @@ import li.cil.oc.{Settings, api}
 import net.minecraft.core.Direction
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.item.ItemStack
-import net.neoforged.neoforge.common.capabilities.{Capability, ForgeCapabilities, ICapabilityProvider}
-import net.neoforged.neoforge.common.util.{LazyOptional, NonNullSupplier}
+import net.neoforged.neoforge.capabilities.{Capability, ForgeCapabilities, ICapabilityProvider}
+import java.util.Optional
+import java.util.function.Supplier
 import net.neoforged.neoforge.energy.IEnergyStorage
 
 // TODO Forge power capabilities.
@@ -40,16 +41,16 @@ object Chargeable {
     unused
   }
 
-  class Provider(stack: ItemStack, item: li.cil.oc.common.item.traits.Chargeable) extends ICapabilityProvider with NonNullSupplier[Provider] with IEnergyStorage {
-    private val wrapper = LazyOptional.of(this)
+  class Provider(stack: ItemStack, item: li.cil.oc.common.item.traits.Chargeable) extends ICapabilityProvider with java.util.function.Supplier[Provider] with IEnergyStorage {
+    private val wrapper = java.util.Optional.of(this)
 
     def get = this
 
     def invalidate() = wrapper.invalidate
 
-    override def getCapability[T](capability: Capability[T], facing: Direction): LazyOptional[T] = {
+    override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
       if (capability == ForgeCapabilities.ENERGY) wrapper.cast[T]
-      else LazyOptional.empty[T]
+      else java.util.Optional.empty[T]
     }
 
     def receiveEnergy(maxReceive: Int, simulate: Boolean): Int =

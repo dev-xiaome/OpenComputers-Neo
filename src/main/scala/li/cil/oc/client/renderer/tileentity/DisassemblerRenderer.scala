@@ -35,38 +35,38 @@ class DisassemblerRenderer extends BlockEntityRenderer[blockentity.Disassembler]
 
       {
         val icon = Textures.getSprite(Textures.Block.DisassemblerTopOn)
-        vBuffer.vertex(matrix, 0, 0, 1).uv(icon.getU0, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 1).uv(icon.getU1, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 0).uv(icon.getU1, icon.getV0).endVertex()
-        vBuffer.vertex(matrix, 0, 0, 0).uv(icon.getU0, icon.getV0).endVertex()
+        vBuffer.addVertex(matrix, 0, 0, 1).setUv(icon.getU0, icon.getV1)
+        vBuffer.addVertex(matrix, 1, 0, 1).setUv(icon.getU1, icon.getV1)
+        vBuffer.addVertex(matrix, 1, 0, 0).setUv(icon.getU1, icon.getV0)
+        vBuffer.addVertex(matrix, 0, 0, 0).setUv(icon.getU0, icon.getV0)
       }
 
       {
         val icon = Textures.getSprite(Textures.Block.DisassemblerSideOn)
 
         // North
-        vBuffer.vertex(matrix, 1, 1, 0).uv(icon.getU0, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 1, 0).uv(icon.getU1, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 0, 0).uv(icon.getU1, icon.getV0).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 0).uv(icon.getU0, icon.getV0).endVertex()
+        vBuffer.addVertex(matrix, 1, 1, 0).setUv(icon.getU0, icon.getV1)
+        vBuffer.addVertex(matrix, 0, 1, 0).setUv(icon.getU1, icon.getV1)
+        vBuffer.addVertex(matrix, 0, 0, 0).setUv(icon.getU1, icon.getV0)
+        vBuffer.addVertex(matrix, 1, 0, 0).setUv(icon.getU0, icon.getV0)
 
         // South
-        vBuffer.vertex(matrix, 0, 1, 1).uv(icon.getU0, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, 1, 1).uv(icon.getU1, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 1).uv(icon.getU1, icon.getV0).endVertex()
-        vBuffer.vertex(matrix, 0, 0, 1).uv(icon.getU0, icon.getV0).endVertex()
+        vBuffer.addVertex(matrix, 0, 1, 1).setUv(icon.getU0, icon.getV1)
+        vBuffer.addVertex(matrix, 1, 1, 1).setUv(icon.getU1, icon.getV1)
+        vBuffer.addVertex(matrix, 1, 0, 1).setUv(icon.getU1, icon.getV0)
+        vBuffer.addVertex(matrix, 0, 0, 1).setUv(icon.getU0, icon.getV0)
 
         // East
-        vBuffer.vertex(matrix, 1, 1, 1).uv(icon.getU0, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, 1, 0).uv(icon.getU1, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 0).uv(icon.getU1, icon.getV0).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 1).uv(icon.getU0, icon.getV0).endVertex()
+        vBuffer.addVertex(matrix, 1, 1, 1).setUv(icon.getU0, icon.getV1)
+        vBuffer.addVertex(matrix, 1, 1, 0).setUv(icon.getU1, icon.getV1)
+        vBuffer.addVertex(matrix, 1, 0, 0).setUv(icon.getU1, icon.getV0)
+        vBuffer.addVertex(matrix, 1, 0, 1).setUv(icon.getU0, icon.getV0)
 
         // West
-        vBuffer.vertex(matrix, 0, 1, 0).uv(icon.getU0, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 1, 1).uv(icon.getU1, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 0, 1).uv(icon.getU1, icon.getV0).endVertex()
-        vBuffer.vertex(matrix, 0, 0, 0).uv(icon.getU0, icon.getV0).endVertex()
+        vBuffer.addVertex(matrix, 0, 1, 0).setUv(icon.getU0, icon.getV1)
+        vBuffer.addVertex(matrix, 0, 1, 1).setUv(icon.getU1, icon.getV1)
+        vBuffer.addVertex(matrix, 0, 0, 1).setUv(icon.getU1, icon.getV0)
+        vBuffer.addVertex(matrix, 0, 0, 0).setUv(icon.getU0, icon.getV0)
       }
 
       stack.popPose()

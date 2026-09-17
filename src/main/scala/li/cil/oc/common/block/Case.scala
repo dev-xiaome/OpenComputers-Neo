@@ -18,7 +18,7 @@ import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
 import net.minecraft.world.level.block.state.BlockBehaviour.Properties
 import net.minecraft.world.level.block.state.{BlockState, StateDefinition => StateContainer}
 import net.minecraft.world.level.material.FluidState
-import net.neoforged.neoforge.common.extensions.IForgeBlock
+
 
 import java.util
 import scala.collection.convert.ImplicitConversionsToScala._

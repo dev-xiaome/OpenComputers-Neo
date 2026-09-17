@@ -6,11 +6,11 @@ import li.cil.oc.api.manual.InteractiveImageRenderer
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.resources.ResourceLocation
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 
 object ItemImageProvider extends ImageProvider {
   override def getImage(data: String): ImageRenderer = {
-    ForgeRegistries.ITEMS.getValue(ResourceLocation.tryParse(data.toLowerCase)) match {
+    BuiltInRegistries.ITEM.getValue(ResourceLocation.tryParse(data.toLowerCase)) match {
       case item: Item => new ItemStackImageRenderer(Array(new ItemStack(item)))
       case _ => new TextureImageRenderer(TextureImageProvider.ManualMissingItem) with InteractiveImageRenderer {
         override def getTooltip(tooltip: String): String = "oc:gui.Manual.Warning.ItemMissing"

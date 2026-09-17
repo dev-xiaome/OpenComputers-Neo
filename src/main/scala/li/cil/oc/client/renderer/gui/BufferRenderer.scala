@@ -61,10 +61,10 @@ object BufferRenderer {
     val u2f = u2 / 16f
     val v1f = v1 / 16f
     val v2f = v2 / 16f
-    builder.vertex(matrix, x,     y + h, 0).uv(u1f, v2f).endVertex()
-    builder.vertex(matrix, x + w, y + h, 0).uv(u2f, v2f).endVertex()
-    builder.vertex(matrix, x + w, y,     0).uv(u2f, v1f).endVertex()
-    builder.vertex(matrix, x,     y,     0).uv(u1f, v1f).endVertex()
+    builder.addVertex(matrix, x,     y + h, 0).setUv(u1f, v2f)
+    builder.addVertex(matrix, x + w, y + h, 0).setUv(u2f, v2f)
+    builder.addVertex(matrix, x + w, y,     0).setUv(u2f, v1f)
+    builder.addVertex(matrix, x,     y,     0).setUv(u1f, v1f)
   }
 
   def drawText(stack: PoseStack, screen: api.internal.TextBuffer): Unit = screen.renderText(stack)

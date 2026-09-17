@@ -20,7 +20,7 @@ import net.minecraft.core.Direction
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.core.BlockPos
 import net.neoforged.neoforge.common.NeoForge
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 import scala.collection.mutable
@@ -526,7 +526,7 @@ object PacketSender {
     pb.writeInt(position.z)
     pb.writeDouble(velocity)
     pb.writeDirection(direction)
-    pb.writeRegistryEntry(ForgeRegistries.PARTICLE_TYPES, particleType.getType())
+    pb.writeRegistryEntry(BuiltInRegistries.PARTICLE_TYPES, particleType.getType())
     pb.writeByte(count.toByte)
 
     pb.sendToNearbyPlayers(position.world.get, position.x, position.y, position.z, Some(Settings.get.maxNetworkClientEffectPacketDistance / 2.0D))

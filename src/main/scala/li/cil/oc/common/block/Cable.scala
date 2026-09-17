@@ -16,9 +16,9 @@ import net.minecraft.world.level.block.state.{BlockState, StateDefinition => Sta
 import net.minecraft.world.level.{BlockGetter => IBlockReader, Level => World, LevelAccessor => IWorld}
 import net.minecraft.world.phys.shapes.{CollisionContext => ISelectionContext, Shapes => VoxelShapes, VoxelShape}
 import net.minecraft.world.phys.{HitResult => RayTraceResult}
-import net.neoforged.neoforge.common.extensions.IForgeBlock
 
-class Cable(props: Properties) extends SimpleBlock(props) with IForgeBlock {
+
+class Cable(props: Properties) extends SimpleBlock(props) {
   // For FMP part coloring.
   var colorMultiplierOverride: Option[Int] = None
 

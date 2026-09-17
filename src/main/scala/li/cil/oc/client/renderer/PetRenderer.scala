@@ -16,7 +16,7 @@ import com.mojang.math.Axis
 import net.neoforged.neoforge.client.event.RenderPlayerEvent
 import net.neoforged.bus.api.EventPriority
 import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.neoforge.event.TickEvent.ClientTickEvent
+import net.neoforged.neoforge.client.event.ClientTickEvent
 
 import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable

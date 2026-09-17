@@ -34,12 +34,12 @@ import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
 import net.minecraft.world.level.storage.loot.functions.LootItemFunctions
 import net.minecraft.world.level.{BlockGetter => IBlockReader}
 import net.minecraft.world.level.{Level => World}
-import net.neoforged.neoforge.common.extensions.IForgeBlock
+
 
 import scala.reflect.ClassTag
 
 class Microcontroller(props: Properties)
-  extends RedstoneAware(props) with IForgeBlock with traits.PowerAcceptor with traits.StateAware with traits.Tickable {
+  extends RedstoneAware(props) with traits.PowerAcceptor with traits.StateAware with traits.Tickable {
 
   protected override def createBlockStateDefinition(builder: StateContainer.Builder[Block, BlockState]) =
     builder.add(PropertyRotatable.Facing)

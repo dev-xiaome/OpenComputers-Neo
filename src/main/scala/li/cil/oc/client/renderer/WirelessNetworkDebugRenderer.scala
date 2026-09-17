@@ -79,7 +79,7 @@ object WirelessNetworkDebugRenderer {
 
   private def vertex(stack: PoseStack, consumer: com.mojang.blaze3d.vertex.VertexConsumer,
                      x: Float, y: Float, z: Float, r: Int, g: Int, b: Int, a: Int): Unit = {
-    consumer.vertex(stack.last.pose, x, y, z).color(r, g, b, a).endVertex()
+    consumer.addVertex(stack.last.pose, x, y, z).setColor(r, g, b, a)
   }
 
   private def drawBox(stack: PoseStack, consumer: com.mojang.blaze3d.vertex.VertexConsumer,

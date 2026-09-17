@@ -32,28 +32,28 @@ class AssemblerRenderer extends BlockEntityRenderer[Assembler] {
 
     {
       val icon = Textures.getSprite(Textures.Block.AssemblerTopOn)
-      vBuffer.vertex(matrix, -0.5f, 0.55f, 0.5f).uv(icon.getU0, icon.getV1).endVertex()
-      vBuffer.vertex(matrix, 0.5f, 0.55f, 0.5f).uv(icon.getU1, icon.getV1).endVertex()
-      vBuffer.vertex(matrix, 0.5f, 0.55f, -0.5f).uv(icon.getU1, icon.getV0).endVertex()
-      vBuffer.vertex(matrix, -0.5f, 0.55f, -0.5f).uv(icon.getU0, icon.getV0).endVertex()
+      vBuffer.addVertex(matrix, -0.5f, 0.55f, 0.5f).setUv(icon.getU0, icon.getV1)
+      vBuffer.addVertex(matrix, 0.5f, 0.55f, 0.5f).setUv(icon.getU1, icon.getV1)
+      vBuffer.addVertex(matrix, 0.5f, 0.55f, -0.5f).setUv(icon.getU1, icon.getV0)
+      vBuffer.addVertex(matrix, -0.5f, 0.55f, -0.5f).setUv(icon.getU0, icon.getV0)
     }
 
     val indent = 6 / 16f + 0.005f
     for (_ <- 0 until 4) {
       if (assembler.isAssembling) {
         val icon = Textures.getSprite(Textures.Block.AssemblerSideAssembling)
-        vBuffer.vertex(matrix, indent, 0.5f, -indent).uv(icon.getU((0.5f - indent) * 16), icon.getV1).endVertex()
-        vBuffer.vertex(matrix, indent, 0.5f, indent).uv(icon.getU((0.5f + indent) * 16), icon.getV1).endVertex()
-        vBuffer.vertex(matrix, indent, -0.5f, indent).uv(icon.getU((0.5f + indent) * 16), icon.getV0).endVertex()
-        vBuffer.vertex(matrix, indent, -0.5f, -indent).uv(icon.getU((0.5f - indent) * 16), icon.getV0).endVertex()
+        vBuffer.addVertex(matrix, indent, 0.5f, -indent).setUv(icon.getU((0.5f - indent) * 16), icon.getV1)
+        vBuffer.addVertex(matrix, indent, 0.5f, indent).setUv(icon.getU((0.5f + indent) * 16), icon.getV1)
+        vBuffer.addVertex(matrix, indent, -0.5f, indent).setUv(icon.getU((0.5f + indent) * 16), icon.getV0)
+        vBuffer.addVertex(matrix, indent, -0.5f, -indent).setUv(icon.getU((0.5f - indent) * 16), icon.getV0)
       }
 
       {
         val icon = Textures.getSprite(Textures.Block.AssemblerSideOn)
-        vBuffer.vertex(matrix, 0.5005f, 0.5f, -0.5f).uv(icon.getU0, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 0.5005f, 0.5f, 0.5f).uv(icon.getU1, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 0.5005f, -0.5f, 0.5f).uv(icon.getU1, icon.getV0).endVertex()
-        vBuffer.vertex(matrix, 0.5005f, -0.5f, -0.5f).uv(icon.getU0, icon.getV0).endVertex()
+        vBuffer.addVertex(matrix, 0.5005f, 0.5f, -0.5f).setUv(icon.getU0, icon.getV1)
+        vBuffer.addVertex(matrix, 0.5005f, 0.5f, 0.5f).setUv(icon.getU1, icon.getV1)
+        vBuffer.addVertex(matrix, 0.5005f, -0.5f, 0.5f).setUv(icon.getU1, icon.getV0)
+        vBuffer.addVertex(matrix, 0.5005f, -0.5f, -0.5f).setUv(icon.getU0, icon.getV0)
       }
 
       stack.mulPose(Axis.YP.rotationDegrees(90))

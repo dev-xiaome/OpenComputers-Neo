@@ -140,7 +140,7 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
         var acc = 0f
         for (y <- 0 until h) {
           val line = data.buffer(y)
-          val colors = data.color(y)
+          val colors = data.setColor(y)
           for (x <- 0 until w) {
             val char = line(x)
             val color = colors(x)

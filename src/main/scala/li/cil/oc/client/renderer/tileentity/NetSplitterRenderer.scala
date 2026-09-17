@@ -34,45 +34,45 @@ class NetSplitterRenderer(ctx: BlockEntityRendererProvider.Context) extends Bloc
       val matrix = stack.last.pose
 
       if (splitter.isSideOpen(Direction.DOWN)) {
-        r.vertex(matrix, 0, 1, 0).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        r.vertex(matrix, 1, 1, 0).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
-        r.vertex(matrix, 1, 1, 1).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
-        r.vertex(matrix, 0, 1, 1).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
+        r.addVertex(matrix, 0, 1, 0).setUv(sideActivity.getU1, sideActivity.getV0)
+        r.addVertex(matrix, 1, 1, 0).setUv(sideActivity.getU0, sideActivity.getV0)
+        r.addVertex(matrix, 1, 1, 1).setUv(sideActivity.getU0, sideActivity.getV1)
+        r.addVertex(matrix, 0, 1, 1).setUv(sideActivity.getU1, sideActivity.getV1)
       }
 
       if (splitter.isSideOpen(Direction.UP)) {
-        r.vertex(matrix, 0, 0, 0).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
-        r.vertex(matrix, 0, 0, 1).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        r.vertex(matrix, 1, 0, 1).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
-        r.vertex(matrix, 1, 0, 0).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
+        r.addVertex(matrix, 0, 0, 0).setUv(sideActivity.getU1, sideActivity.getV1)
+        r.addVertex(matrix, 0, 0, 1).setUv(sideActivity.getU1, sideActivity.getV0)
+        r.addVertex(matrix, 1, 0, 1).setUv(sideActivity.getU0, sideActivity.getV0)
+        r.addVertex(matrix, 1, 0, 0).setUv(sideActivity.getU0, sideActivity.getV1)
       }
 
       if (splitter.isSideOpen(Direction.NORTH)) {
-        r.vertex(matrix, 1, 1, 0).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
-        r.vertex(matrix, 0, 1, 0).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
-        r.vertex(matrix, 0, 0, 0).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        r.vertex(matrix, 1, 0, 0).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+        r.addVertex(matrix, 1, 1, 0).setUv(sideActivity.getU0, sideActivity.getV1)
+        r.addVertex(matrix, 0, 1, 0).setUv(sideActivity.getU1, sideActivity.getV1)
+        r.addVertex(matrix, 0, 0, 0).setUv(sideActivity.getU1, sideActivity.getV0)
+        r.addVertex(matrix, 1, 0, 0).setUv(sideActivity.getU0, sideActivity.getV0)
       }
 
       if (splitter.isSideOpen(Direction.SOUTH)) {
-        r.vertex(matrix, 0, 1, 1).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
-        r.vertex(matrix, 1, 1, 1).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
-        r.vertex(matrix, 1, 0, 1).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        r.vertex(matrix, 0, 0, 1).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+        r.addVertex(matrix, 0, 1, 1).setUv(sideActivity.getU0, sideActivity.getV1)
+        r.addVertex(matrix, 1, 1, 1).setUv(sideActivity.getU1, sideActivity.getV1)
+        r.addVertex(matrix, 1, 0, 1).setUv(sideActivity.getU1, sideActivity.getV0)
+        r.addVertex(matrix, 0, 0, 1).setUv(sideActivity.getU0, sideActivity.getV0)
       }
 
       if (splitter.isSideOpen(Direction.WEST)) {
-        r.vertex(matrix, 0, 1, 0).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
-        r.vertex(matrix, 0, 1, 1).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
-        r.vertex(matrix, 0, 0, 1).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        r.vertex(matrix, 0, 0, 0).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+        r.addVertex(matrix, 0, 1, 0).setUv(sideActivity.getU0, sideActivity.getV1)
+        r.addVertex(matrix, 0, 1, 1).setUv(sideActivity.getU1, sideActivity.getV1)
+        r.addVertex(matrix, 0, 0, 1).setUv(sideActivity.getU1, sideActivity.getV0)
+        r.addVertex(matrix, 0, 0, 0).setUv(sideActivity.getU0, sideActivity.getV0)
       }
 
       if (splitter.isSideOpen(Direction.EAST)) {
-        r.vertex(matrix, 1, 1, 1).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
-        r.vertex(matrix, 1, 1, 0).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
-        r.vertex(matrix, 1, 0, 0).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        r.vertex(matrix, 1, 0, 1).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+        r.addVertex(matrix, 1, 1, 1).setUv(sideActivity.getU0, sideActivity.getV1)
+        r.addVertex(matrix, 1, 1, 0).setUv(sideActivity.getU1, sideActivity.getV1)
+        r.addVertex(matrix, 1, 0, 0).setUv(sideActivity.getU1, sideActivity.getV0)
+        r.addVertex(matrix, 1, 0, 1).setUv(sideActivity.getU0, sideActivity.getV0)
       }
 
       stack.popPose()

@@ -72,10 +72,10 @@ class DiskDriveRenderer extends BlockEntityRenderer[DiskDrive] {
       val icon = Textures.getSprite(Textures.Block.DiskDriveFrontActivity)
       val pose = matrix.last.pose
 
-      r.vertex(pose, 0, 1, 0).uv(icon.getU0, icon.getV1).endVertex()
-      r.vertex(pose, 1, 1, 0).uv(icon.getU1, icon.getV1).endVertex()
-      r.vertex(pose, 1, 0, 0).uv(icon.getU1, icon.getV0).endVertex()
-      r.vertex(pose, 0, 0, 0).uv(icon.getU0, icon.getV0).endVertex()
+      r.addVertex(pose, 0, 1, 0).setUv(icon.getU0, icon.getV1)
+      r.addVertex(pose, 1, 1, 0).setUv(icon.getU1, icon.getV1)
+      r.addVertex(pose, 1, 0, 0).setUv(icon.getU1, icon.getV0)
+      r.addVertex(pose, 0, 0, 0).setUv(icon.getU0, icon.getV0)
     }
 
     matrix.popPose()

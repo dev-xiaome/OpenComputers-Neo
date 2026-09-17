@@ -10,11 +10,11 @@ import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
 import net.minecraft.core.Direction
 import net.neoforged.neoforge.common.util.FakePlayer
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.minecraft.world.entity.player.Player
 import net.minecraft.server.level.ServerPlayer
 
-class Debugger(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+class Debugger(props: Properties) extends Item(props) with traits.SimpleItem {
   override def onItemUse(stack: ItemStack, player: Player, position: BlockPosition, side: Direction, hitX: Float, hitY: Float, hitZ: Float) = {
     val world = position.world.get
     player match {

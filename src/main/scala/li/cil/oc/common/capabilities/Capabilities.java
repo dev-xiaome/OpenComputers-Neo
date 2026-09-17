@@ -4,10 +4,10 @@ import li.cil.oc.api.audio.AudioReceiver;
 import li.cil.oc.api.internal.Colored;
 import li.cil.oc.api.network.Environment;
 import li.cil.oc.api.network.SidedEnvironment;
-import net.neoforged.neoforge.common.capabilities.Capability;
-import net.neoforged.neoforge.common.capabilities.CapabilityManager;
-import net.neoforged.neoforge.common.capabilities.CapabilityToken;
-import net.neoforged.neoforge.common.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.capabilities.Capability;
+import net.neoforged.neoforge.capabilities.CapabilityManager;
+import net.neoforged.neoforge.capabilities.CapabilityToken;
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import net.neoforged.bus.api.SubscribeEvent;
 
 public final class Capabilities {

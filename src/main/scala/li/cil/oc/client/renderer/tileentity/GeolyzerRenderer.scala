@@ -32,10 +32,10 @@ class GeolyzerRenderer extends BlockEntityRenderer[Geolyzer] {
     val matrix = stack.last.pose
 
     val icon = Textures.getSprite(Textures.Block.GeolyzerTopOn)
-    r.vertex(matrix, 0, 0, 1).uv(icon.getU0, icon.getV1).endVertex()
-    r.vertex(matrix, 1, 0, 1).uv(icon.getU1, icon.getV1).endVertex()
-    r.vertex(matrix, 1, 0, 0).uv(icon.getU1, icon.getV0).endVertex()
-    r.vertex(matrix, 0, 0, 0).uv(icon.getU0, icon.getV0).endVertex()
+    r.addVertex(matrix, 0, 0, 1).setUv(icon.getU0, icon.getV1)
+    r.addVertex(matrix, 1, 0, 1).setUv(icon.getU1, icon.getV1)
+    r.addVertex(matrix, 1, 0, 0).setUv(icon.getU1, icon.getV0)
+    r.addVertex(matrix, 0, 0, 0).setUv(icon.getU0, icon.getV0)
 
     stack.popPose()
 

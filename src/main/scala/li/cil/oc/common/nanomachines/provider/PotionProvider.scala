@@ -9,7 +9,7 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.effect.{MobEffect, MobEffectInstance}
 import net.minecraft.world.entity.player.Player
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 
 import scala.collection.convert.ImplicitConversionsToScala._
 
@@ -19,8 +19,8 @@ object PotionProvider extends ScalaProvider("c29e4eec-5a46-479a-9b3d-ad0f06da784
 
   def filterPotions[T](list: Iterable[T]) = {
     list.map {
-      case name: String => Option(ForgeRegistries.MOB_EFFECTS.getValue(ResourceLocation.tryParse(name)))
-      case loc: ResourceLocation => Option(ForgeRegistries.MOB_EFFECTS.getValue(loc))
+      case name: String => Option(BuiltInRegistries.MOB_EFFECTS.getValue(ResourceLocation.tryParse(name)))
+      case loc: ResourceLocation => Option(BuiltInRegistries.MOB_EFFECTS.getValue(loc))
       case id: java.lang.Number => Option(MobEffect.byId(id.intValue()))
       case _ => None
     }.collect {
@@ -31,13 +31,13 @@ object PotionProvider extends ScalaProvider("c29e4eec-5a46-479a-9b3d-ad0f06da784
   def isPotionEligible(potion: MobEffect) = potion != null && PotionWhitelist.contains(potion)
 
   override def createScalaBehaviors(player: Player) = {
-    ForgeRegistries.MOB_EFFECTS.getValues.filter(isPotionEligible).map(new PotionBehavior(_, player))
+    BuiltInRegistries.MOB_EFFECTS.getValues.filter(isPotionEligible).map(new PotionBehavior(_, player))
   }
 
   override def writeBehaviorToNBT(behavior: Behavior, nbt: CompoundTag): Unit = {
     behavior match {
       case potionBehavior: PotionBehavior =>
-        val key = ForgeRegistries.MOB_EFFECTS.getKey(potionBehavior.effect)
+        val key = BuiltInRegistries.MOB_EFFECTS.getKey(potionBehavior.effect)
         if (key != null) {
           nbt.putString("potionId", key.toString)
         } else {
@@ -49,7 +49,7 @@ object PotionProvider extends ScalaProvider("c29e4eec-5a46-479a-9b3d-ad0f06da784
 
   override def readBehaviorFromNBT(player: Player, nbt: CompoundTag) = {
     val potionId = nbt.getString("potionId")
-    new PotionBehavior(ForgeRegistries.MOB_EFFECTS.getValue(ResourceLocation.tryParse(potionId)), player)
+    new PotionBehavior(BuiltInRegistries.MOB_EFFECTS.getValue(ResourceLocation.tryParse(potionId)), player)
   }
 
   class PotionBehavior(val effect: MobEffect, player: Player) extends AbstractBehavior(player) {

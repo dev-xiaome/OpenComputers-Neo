@@ -10,11 +10,11 @@ import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.{Item, ItemStack}
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 
 import java.util
 
-class Drone(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+class Drone(props: Properties) extends Item(props) with traits.SimpleItem {
   override protected def tooltipExtended(stack: ItemStack, tooltip: util.List[Component]): Unit = {
     if (KeyBindings.showExtendedTooltips) {
       val info = new DroneData(stack)

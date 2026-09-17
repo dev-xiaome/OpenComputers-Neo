@@ -1,7 +1,7 @@
 package li.cil.oc.common.item
 
 import li.cil.oc.Settings
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.minecraft.world.level.Level
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.entity.LivingEntity
@@ -15,7 +15,7 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.InteractionResult
 
-class Chamelium(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+class Chamelium(props: Properties) extends Item(props) with traits.SimpleItem {
   override def use(stack: ItemStack, level: Level, player: Player): InteractionResultHolder[ItemStack] = {
     if (Settings.get.chameliumEdible) {
       player.startUsingItem(if (player.getItemInHand(InteractionHand.MAIN_HAND) == stack) InteractionHand.MAIN_HAND else InteractionHand.OFF_HAND)

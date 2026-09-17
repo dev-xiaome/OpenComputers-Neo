@@ -261,10 +261,10 @@ class Robot(state: menu.Robot, playerInventory: Inventory, name: Component)
       val t = Tesselator.getInstance
       val r = t.getBuilder
       r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
-      r.vertex(stack.last.pose, x, y, 0).uv(0, offsetV).endVertex()
-      r.vertex(stack.last.pose, x, y + selectionSize, 0).uv(0, offsetV + selectionStepV).endVertex()
-      r.vertex(stack.last.pose, x + selectionSize, y + selectionSize, 0).uv(1, offsetV + selectionStepV).endVertex()
-      r.vertex(stack.last.pose, x + selectionSize, y, 0).uv(1, offsetV).endVertex()
+      r.addVertex(stack.last.pose, x, y, 0).setUv(0, offsetV)
+      r.addVertex(stack.last.pose, x, y + selectionSize, 0).setUv(0, offsetV + selectionStepV)
+      r.addVertex(stack.last.pose, x + selectionSize, y + selectionSize, 0).setUv(1, offsetV + selectionStepV)
+      r.addVertex(stack.last.pose, x + selectionSize, y, 0).setUv(1, offsetV)
       t.end()
     }
   }

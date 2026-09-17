@@ -127,9 +127,9 @@ object DynamicFontRenderer {
       val r = (color >> 16) & 0xFF
       val g = (color >> 8) & 0xFF
       val b = color & 0xFF
-      builder.vertex(matrix, tx, ty + h, 0).color(r, g, b, 255).uv(u1, v2).endVertex()
-      builder.vertex(matrix, tx + w, ty + h, 0).color(r, g, b, 255).uv(u2, v2).endVertex()
-      builder.vertex(matrix, tx + w, ty, 0).color(r, g, b, 255).uv(u2, v1).endVertex()
-      builder.vertex(matrix, tx, ty, 0).color(r, g, b, 255).uv(u1, v1).endVertex()}
+      builder.addVertex(matrix, tx, ty + h, 0).setColor(r, g, b, 255).setUv(u1, v2)
+      builder.addVertex(matrix, tx + w, ty + h, 0).setColor(r, g, b, 255).setUv(u2, v2)
+      builder.addVertex(matrix, tx + w, ty, 0).setColor(r, g, b, 255).setUv(u2, v1)
+      builder.addVertex(matrix, tx, ty, 0).setColor(r, g, b, 255).setUv(u1, v1)}
   }
 }

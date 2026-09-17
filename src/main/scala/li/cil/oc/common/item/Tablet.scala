@@ -44,7 +44,7 @@ import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.{Item, ItemStack}
 import net.minecraft.world.level.Level
 import net.neoforged.api.distmarker.{Dist, OnlyIn}
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.neoforged.neoforge.event.TickEvent.{ClientTickEvent, ServerTickEvent}
 import net.neoforged.neoforge.event.level.LevelEvent
 import net.neoforged.bus.api.SubscribeEvent
@@ -57,7 +57,7 @@ import scala.collection.JavaConverters.asJavaIterable
 import scala.collection.convert.ImplicitConversionsToScala._
 import scala.jdk.CollectionConverters._
 
-class Tablet(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.Chargeable {
+class Tablet(props: Properties) extends Item(props) with traits.SimpleItem with traits.Chargeable {
   final val TimeToAnalyze = 10
 
   // ----------------------------------------------------------------------- //

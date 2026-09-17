@@ -8,8 +8,8 @@ import net.minecraft.world.item.crafting.*;
 import net.neoforged.neoforge.common.util.Lazy;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredRegister;
-import net.neoforged.neoforge.registries.ForgeRegistries;
-import net.neoforged.neoforge.registries.RegistryObject;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.neoforged.neoforge.registries.DeferredHolder;
 
 public final class Recipes {
     public static final class RecipeRegistration<R extends Recipe<?>> {
@@ -30,7 +30,7 @@ public final class Recipes {
         }
     }
 
-    public static final DeferredRegister<RecipeSerializer<?>> SERIALIZERS = DeferredRegister.create(ForgeRegistries.RECIPE_SERIALIZERS, OpenComputers.ID());
+    public static final DeferredRegister<RecipeSerializer<?>> SERIALIZERS = DeferredRegister.create(BuiltInRegistries.RECIPE_SERIALIZER, OpenComputers.ID());
     public static final DeferredRegister<RecipeType<?>> RECIPES = DeferredRegister.create(Registries.RECIPE_TYPE, OpenComputers.ID());
 
     public static final RecipeRegistration<LootDiskCyclingRecipe> LOOTDISK_CYCLING = register(
@@ -43,11 +43,11 @@ public final class Recipes {
     public static final RecipeRegistration<ExtendedShapelessRecipe> SHAPELESS_EXTENDED = register("crafting_shapeless_extended", new ExtendedShapelessRecipe.Serializer());
 
     private static <R extends Recipe<?>> RecipeRegistration<R> register(String id, RecipeSerializer<R> serializer) {
-        RegistryObject<RecipeType<R>> recipeType = RECIPES.register(id, () -> new RecipeType<>() {
+        DeferredHolder<RecipeType<R>, RecipeType<R>> recipeType = RECIPES.register(id, () -> new RecipeType<>() {
             @Override
             public String toString() { return id; }
         });
-        RegistryObject<RecipeSerializer<R>> recipeSerializer = SERIALIZERS.register(id, () -> serializer);
+        DeferredHolder<RecipeSerializer<R>, RecipeSerializer<R>> recipeSerializer = SERIALIZERS.register(id, () -> serializer);
         return new RecipeRegistration<>(
                 recipeType::get,
                 recipeSerializer::get

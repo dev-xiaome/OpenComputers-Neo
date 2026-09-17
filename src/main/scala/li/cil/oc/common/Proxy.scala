@@ -24,7 +24,7 @@ import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent
 import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent
 import net.neoforged.neoforge.network.NetworkEvent
 import net.neoforged.neoforge.network.NetworkRegistry
-import net.neoforged.neoforge.registries.{ForgeRegistries, MissingMappingsEvent}
+import net.neoforged.neoforge.registries.{BuiltInRegistries, MissingMappingsEvent}
 
 import scala.jdk.CollectionConverters._
 import net.neoforged.fml.javafmlmod.FMLJavaModLoadingContext
@@ -51,26 +51,26 @@ object Proxy {
 
   @SubscribeEvent
   def onMissingMappings(e: MissingMappingsEvent): Unit = {
-    e.getMappings(ForgeRegistries.Keys.BLOCKS, OpenComputers.ID).asScala.foreach { missing =>
+    e.getMappings(BuiltInRegistries.Keys.BLOCKS, OpenComputers.ID).asScala.foreach { missing =>
       blockRenames.get(missing.getKey.getPath) match {
         case Some(name) =>
           if (Strings.isNullOrEmpty(name)) {
             missing.ignore()
           } else {
-            val target = ForgeRegistries.BLOCKS.getValue(ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, name))
+            val target = BuiltInRegistries.BLOCK.getValue(ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, name))
             if (target != null) missing.remap(target) else missing.warn()
           }
         case _ => missing.warn()
       }
     }
 
-    e.getMappings(ForgeRegistries.Keys.ITEMS, OpenComputers.ID).asScala.foreach { missing =>
+    e.getMappings(BuiltInRegistries.Keys.ITEMS, OpenComputers.ID).asScala.foreach { missing =>
       itemRenames.get(missing.getKey.getPath) match {
         case Some(name) =>
           if (Strings.isNullOrEmpty(name)) {
             missing.ignore()
           } else {
-            val target = ForgeRegistries.ITEMS.getValue(ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, name))
+            val target = BuiltInRegistries.ITEM.getValue(ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, name))
             if (target != null) missing.remap(target) else missing.warn()
           }
         case _ => missing.warn()

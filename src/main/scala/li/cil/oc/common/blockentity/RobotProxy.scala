@@ -13,9 +13,9 @@ import li.cil.oc.api.network._
 import li.cil.oc.common.container.InventoryProxy
 import li.cil.oc.common.blockentity.traits.RedstoneAware
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
-import net.neoforged.neoforge.common.capabilities.{Capability, ForgeCapabilities}
-import net.neoforged.neoforge.common.util.LazyOptional
-import net.neoforged.neoforge.common.util.NonNullSupplier
+import net.neoforged.neoforge.capabilities.{Capability, ForgeCapabilities}
+import java.util.Optional
+import java.util.function.Supplier
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
 import net.neoforged.api.distmarker.Dist
@@ -42,7 +42,7 @@ class RobotProxy(pos: BlockPos, state: BlockState, val robot: Robot)
 
   // ----------------------------------------------------------------------- //
 
-  private val wrapper = LazyOptional.of(new NonNullSupplier[IFluidHandler] {
+  private val wrapper = java.util.Optional.of(new java.util.function.Supplier[IFluidHandler] {
     override def get = RobotProxy.this
   })
 
@@ -51,7 +51,7 @@ class RobotProxy(pos: BlockPos, state: BlockState, val robot: Robot)
     wrapper.invalidate()
   }
 
-  override def getCapability[T](capability: Capability[T], facing: Direction): LazyOptional[T] = {
+  override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
     if (capability == ForgeCapabilities.FLUID_HANDLER)
       wrapper.cast[T]
     else super.getCapability(capability, facing)

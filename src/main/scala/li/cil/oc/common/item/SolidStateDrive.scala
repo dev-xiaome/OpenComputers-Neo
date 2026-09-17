@@ -4,9 +4,9 @@ import li.cil.oc.Settings
 import net.minecraft.network.chat.Component
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.{Item, ItemStack}
-import net.neoforged.neoforge.common.extensions.IForgeItem
 
-class SolidStateDrive(props: Properties, val tier: Int) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier with traits.FileSystemLike {
+
+class SolidStateDrive(props: Properties, val tier: Int) extends Item(props) with traits.SimpleItem with traits.ItemTier with traits.FileSystemLike {
   @Deprecated
   override def getDescriptionId = super.getDescriptionId + tier
 

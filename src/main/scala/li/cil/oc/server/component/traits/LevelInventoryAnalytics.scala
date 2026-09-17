@@ -13,7 +13,7 @@ import net.minecraft.world.level.block.Block
 import net.minecraft.world.item.ItemStack
 import net.minecraft.core.Direction
 import net.neoforged.neoforge.items.IItemHandler
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 
 import scala.jdk.CollectionConverters._
 
@@ -107,12 +107,12 @@ trait LevelInventoryAnalytics extends LevelAware with SideRestricted with Networ
     withInventorySource(facing, {
       case BlockInventorySource(position, _, _) => blockAt(position) match {
         case Some(block) => 
-          val name = ForgeRegistries.BLOCKS.getKey(block).toString
+          val name = BuiltInRegistries.BLOCK.getKey(block).toString
           result(name)
         case _ => result((), "Unknown")
       }
       case EntityInventorySource(entity, _, _) =>
-        val name = ForgeRegistries.ENTITY_TYPES.getKey(entity.getType).toString
+        val name = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType).toString
         result(name)
       case _ => result((), "Unknown")
     })

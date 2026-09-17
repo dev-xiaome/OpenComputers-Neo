@@ -19,7 +19,7 @@ import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.WorldlyContainer
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.phys.Vec3
-import net.neoforged.neoforge.common.capabilities.ForgeCapabilities
+import net.neoforged.neoforge.capabilities.ForgeCapabilities
 
 object InventoryUtils {
 

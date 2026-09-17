@@ -10,7 +10,7 @@ import li.cil.oc.util.Tooltip
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.level.Level
 import net.minecraft.core.BlockPos
@@ -20,7 +20,7 @@ import net.minecraft.world.InteractionResult
 import net.minecraft.network.chat.Component
 import net.minecraft.nbt.CompoundTag
 
-class UpgradeMF(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier {
+class UpgradeMF(props: Properties) extends Item(props) with traits.SimpleItem with traits.ItemTier {
   override def onItemUseFirst(stack: ItemStack, player: Player, level: Level, pos: BlockPos, side: Direction, hitX: Float, hitY: Float, hitZ: Float, hand: InteractionHand): InteractionResult = {
     if (!player.level.isClientSide && player.isCrouching) {
       val data = stack.getOrCreateTag

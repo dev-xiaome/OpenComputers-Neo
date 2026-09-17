@@ -66,9 +66,9 @@ class StaticFontRenderer extends TextureFontRenderer {
     val g = ((color >> 8) & 0xFF) / 255f
     val b = (color & 0xFF) / 255f
 
-    builder.vertex(matrix, tx - dw, ty + charHeight * s, 0).color(r, g, b, 1f).uv(u, v + vSize).endVertex()
-    builder.vertex(matrix, tx + charWidth * s, ty + charHeight * s, 0).color(r, g, b, 1f).uv(u + uStep, v + vSize).endVertex()
-    builder.vertex(matrix, tx + charWidth * s, ty - dh, 0).color(r, g, b, 1f).uv(u + uStep, v).endVertex()
-    builder.vertex(matrix, tx - dw, ty - dh, 0).color(r, g, b, 1f).uv(u, v).endVertex()
+    builder.addVertex(matrix, tx - dw, ty + charHeight * s, 0).setColor(r, g, b, 1f).setUv(u, v + vSize)
+    builder.addVertex(matrix, tx + charWidth * s, ty + charHeight * s, 0).setColor(r, g, b, 1f).setUv(u + uStep, v + vSize)
+    builder.addVertex(matrix, tx + charWidth * s, ty - dh, 0).setColor(r, g, b, 1f).setUv(u + uStep, v)
+    builder.addVertex(matrix, tx - dw, ty - dh, 0).setColor(r, g, b, 1f).setUv(u, v)
   }
 }

@@ -27,7 +27,7 @@ import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.level.Level
 
 abstract class PacketBuilder(stream: OutputStream) extends DataOutputStream(stream) {
-  def writeRegistryEntry[T](registry: IForgeRegistry[T], value: T): Unit = {
+  def writeRegistryEntry[T](registry: Registry[T], value: T): Unit = {
     val key = registry.getKey(value)
     if (key != null) {
       writeUTF(key.toString)

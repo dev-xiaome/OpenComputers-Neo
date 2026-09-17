@@ -3,7 +3,7 @@ package li.cil.oc.integration.minecraft
 import li.cil.oc.api
 import li.cil.oc.util.ExtendedArguments.TankProperties
 import net.minecraft.world.item.ItemStack
-import net.neoforged.neoforge.common.capabilities.ForgeCapabilities
+import net.neoforged.neoforge.capabilities.ForgeCapabilities
 import net.neoforged.neoforge.fluids.capability.IFluidHandlerItem
 
 import java.util

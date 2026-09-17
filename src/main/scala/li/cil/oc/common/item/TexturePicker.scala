@@ -9,11 +9,11 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
 import net.minecraft.core.Direction
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.minecraft.world.entity.player.Player
 import net.minecraft.Util
 
-class TexturePicker(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+class TexturePicker(props: Properties) extends Item(props) with traits.SimpleItem {
   override def onItemUse(stack: ItemStack, player: Player, position: BlockPosition, side: Direction, hitX: Float, hitY: Float, hitZ: Float): Boolean = {
     player.level.getBlock(position) match {
       case block: Block =>

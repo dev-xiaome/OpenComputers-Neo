@@ -9,7 +9,7 @@ import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.block.state.properties.IntegerProperty
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.neoforge.fluids.IFluidBlock
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 
 import scala.jdk.CollectionConverters._
 
@@ -64,7 +64,7 @@ object EventHandlerVanilla {
     val world = e.host.getEnvironmentLevel
     val blockState = world.getBlockState(e.pos)
     val block = blockState.getBlock
-    val blockName = ForgeRegistries.BLOCKS.getKey(block).toString
+    val blockName = BuiltInRegistries.BLOCK.getKey(block).toString
 
     e.data.asScala += "name" -> blockName
     e.data.asScala += "hardness" -> Float.box(blockState.getDestroySpeed(world, e.pos))

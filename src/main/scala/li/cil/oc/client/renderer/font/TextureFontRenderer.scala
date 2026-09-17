@@ -29,7 +29,7 @@ abstract class TextureFontRenderer {
 
     var quadBuilder: VertexConsumer = null
     for (y <- 0 until (viewportHeight min buffer.height)) {
-      val color = buffer.color(y)
+      val color = buffer.setColor(y)
       var cbg = 0x000000
       var x = 0
       var width = 0
@@ -55,7 +55,7 @@ abstract class TextureFontRenderer {
       var fontBuilder: VertexConsumer = null
       for (y <- 0 until (viewportHeight min buffer.height)) {
         val line = buffer.buffer(y)
-        val color = buffer.color(y)
+        val color = buffer.setColor(y)
         val ty = y * charHeight
         var tx = 0f
         for (n <- 0 until viewportWidth) {
@@ -125,10 +125,10 @@ abstract class TextureFontRenderer {
       val r = (color >> 16) & 0xFF
       val g = (color >> 8) & 0xFF
       val b = color & 0xFF
-      builder.vertex(matrix, x0.toFloat, y1.toFloat, 0).color(r, g, b, 255).endVertex()
-      builder.vertex(matrix, x1.toFloat, y1.toFloat, 0).color(r, g, b, 255).endVertex()
-      builder.vertex(matrix, x1.toFloat, y0.toFloat, 0).color(r, g, b, 255).endVertex()
-      builder.vertex(matrix, x0.toFloat, y0.toFloat, 0).color(r, g, b, 255).endVertex()
+      builder.addVertex(matrix, x0.toFloat, y1.toFloat, 0).setColor(r, g, b, 255)
+      builder.addVertex(matrix, x1.toFloat, y1.toFloat, 0).setColor(r, g, b, 255)
+      builder.addVertex(matrix, x1.toFloat, y0.toFloat, 0).setColor(r, g, b, 255)
+      builder.addVertex(matrix, x0.toFloat, y0.toFloat, 0).setColor(r, g, b, 255)
     }
   }
 }

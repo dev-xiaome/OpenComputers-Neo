@@ -34,9 +34,9 @@ import li.cil.oc.util.StackOption._
 import net.minecraft.client.Minecraft
 import net.minecraft.world.item.ItemStack
 import net.neoforged.neoforge.common.NeoForge
-import net.neoforged.neoforge.common.capabilities.{Capability, ForgeCapabilities}
-import net.neoforged.neoforge.common.util.LazyOptional
-import net.neoforged.neoforge.common.util.NonNullSupplier
+import net.neoforged.neoforge.capabilities.{Capability, ForgeCapabilities}
+import java.util.Optional
+import java.util.function.Supplier
 import net.neoforged.neoforge.fluids._
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
@@ -78,7 +78,7 @@ class Robot(pos: BlockPos, state: BlockState)
 
   val bot: component.Robot = if (isServer) new component.Robot(this) else null
 
-  val fluidCap: LazyOptional[IFluidHandler] = LazyOptional.of(new NonNullSupplier[IFluidHandler] {
+  val fluidCap: java.util.Optional[IFluidHandler] = java.util.Optional.of(new java.util.function.Supplier[IFluidHandler] {
     override def get = Robot.this
   })
 
@@ -88,7 +88,7 @@ class Robot(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override def getCapability[T](capability: Capability[T], facing: Direction): LazyOptional[T] = {
+  override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
     if (capability == ForgeCapabilities.FLUID_HANDLER)
       fluidCap.cast()
     else

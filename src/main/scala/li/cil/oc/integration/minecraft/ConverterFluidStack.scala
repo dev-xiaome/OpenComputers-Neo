@@ -4,7 +4,7 @@ import li.cil.oc.util.ItemStackNBTExtensions._
 
 import java.util
 import li.cil.oc.api
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 
 import scala.collection.convert.ImplicitConversionsToScala._
 
@@ -15,7 +15,7 @@ object ConverterFluidStack extends api.driver.Converter {
         output += "amount" -> Int.box(stack.getAmount)
         output += "hasTag" -> Boolean.box(stack.hasTag)
         val fluid = stack.getFluid
-        val registryName = ForgeRegistries.FLUIDS.getKey(fluid).toString
+        val registryName = BuiltInRegistries.FLUID.getKey(fluid).toString
         output += "name" -> registryName
         output += "label" -> fluid.getFluidType.getDescription(stack).getString
       case _ =>

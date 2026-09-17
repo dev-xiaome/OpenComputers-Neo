@@ -44,8 +44,8 @@ import net.minecraft.world.level.{BaseCommandBlock, Level}
 import net.minecraft.server.level.ServerLevel
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.common.util.FakePlayer
-import net.neoforged.neoforge.common.util.LazyOptional
-import net.neoforged.neoforge.common.util.NonNullSupplier
+import java.util.Optional
+import java.util.function.Supplier
 import net.neoforged.neoforge.event.ForgeEventFactory
 import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent
@@ -59,7 +59,7 @@ import net.minecraft.core.NonNullList
 import net.minecraft.world.entity.Entity.RemovalReason
 
 object Player {
-  // These use unobfuscated names because they're added by forge (LazyOptional / capabilities).
+  // These use unobfuscated names because they're added by forge (java.util.Optional / capabilities).
   private val playerMainHandler = ObfuscationReflectionHelper.findField(classOf[PlayerEntity], "playerMainHandler")
 
   private val playerEquipmentHandler = ObfuscationReflectionHelper.findField(classOf[PlayerEntity], "playerEquipmentHandler")
@@ -169,13 +169,13 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
     this.containerMenu = this.inventoryMenu
 
     try {
-      Player.playerMainHandler.set(this, LazyOptional.of(new NonNullSupplier[IItemHandler] {
+      Player.playerMainHandler.set(this, java.util.Optional.of(new java.util.function.Supplier[IItemHandler] {
         override def get = new PlayerMainInvWrapper(inventory)
       }))
-      Player.playerEquipmentHandler.set(this, LazyOptional.of(new NonNullSupplier[IItemHandler] {
+      Player.playerEquipmentHandler.set(this, java.util.Optional.of(new java.util.function.Supplier[IItemHandler] {
         override def get = new CombinedInvWrapper(new PlayerArmorInvWrapper(inventory), new PlayerOffhandInvWrapper(inventory))
       }))
-      Player.playerJoinedHandler.set(this, LazyOptional.of(new NonNullSupplier[IItemHandler] {
+      Player.playerJoinedHandler.set(this, java.util.Optional.of(new java.util.function.Supplier[IItemHandler] {
         override def get = new PlayerInvWrapper(inventory)
       }))
     } catch {

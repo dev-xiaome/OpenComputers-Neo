@@ -8,12 +8,12 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
 import net.minecraft.core.BlockPos
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.minecraft.world.level.LevelReader
 import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Player
 
-class EEPROM(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+class EEPROM(props: Properties) extends Item(props) with traits.SimpleItem {
   override def getName(stack: ItemStack): Component = {
     if (stack.hasTag) {
       val tag = stack.getTag

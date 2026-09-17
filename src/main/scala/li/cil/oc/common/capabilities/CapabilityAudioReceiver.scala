@@ -8,22 +8,23 @@ import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.phys.Vec3
-import net.neoforged.neoforge.common.capabilities.{Capability, ICapabilitySerializable}
-import net.neoforged.neoforge.common.util.{LazyOptional, NonNullSupplier}
+import net.neoforged.neoforge.capabilities.{Capability, ICapabilitySerializable}
+import java.util.Optional
+import java.util.function.Supplier
 
 object CapabilityAudioReceiver {
   final val ProviderAudioReceiver = ResourceLocation.fromNamespaceAndPath(Mods.IDs.OpenComputers, "audio_receiver")
 
-  class Provider(val tileEntity: BlockEntity with AudioReceiver) extends ICapabilitySerializable[CompoundTag] with NonNullSupplier[Provider] with AudioReceiver {
-    private val wrapper = LazyOptional.of(this)
+  class Provider(val tileEntity: BlockEntity with AudioReceiver) extends ICapabilitySerializable[CompoundTag] with java.util.function.Supplier[Provider] with AudioReceiver {
+    private val wrapper = java.util.Optional.of(this)
 
     override def get: Provider = this
 
     def invalidate(): Unit = wrapper.invalidate()
 
-    override def getCapability[T](capability: Capability[T], facing: Direction): LazyOptional[T] = {
+    override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
       if (capability == Capabilities.AudioReceiverCapability) wrapper.cast[T]
-      else LazyOptional.empty[T]
+      else java.util.Optional.empty[T]
     }
 
     override def serializeNBT(): CompoundTag = {

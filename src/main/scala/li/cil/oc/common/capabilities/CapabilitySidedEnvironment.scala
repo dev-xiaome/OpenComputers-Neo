@@ -6,22 +6,23 @@ import net.minecraft.core.Direction
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.neoforged.neoforge.common.capabilities.{Capability, ICapabilityProvider, ICapabilitySerializable}
-import net.neoforged.neoforge.common.util.{LazyOptional, NonNullSupplier}
+import net.neoforged.neoforge.capabilities.{Capability, ICapabilityProvider, ICapabilitySerializable}
+import java.util.Optional
+import java.util.function.Supplier
 
 object CapabilitySidedEnvironment {
   final val ProviderSidedEnvironment = ResourceLocation.fromNamespaceAndPath(Mods.IDs.OpenComputers, "sided_environment")
 
-  class Provider(val tileEntity: BlockEntity with SidedEnvironment) extends ICapabilitySerializable[CompoundTag] with NonNullSupplier[Provider] with SidedEnvironment {
-    private val wrapper = LazyOptional.of(this)
+  class Provider(val tileEntity: BlockEntity with SidedEnvironment) extends ICapabilitySerializable[CompoundTag] with java.util.function.Supplier[Provider] with SidedEnvironment {
+    private val wrapper = java.util.Optional.of(this)
 
     def get = this
 
     def invalidate() = wrapper.invalidate
 
-    override def getCapability[T](capability: Capability[T], facing: Direction): LazyOptional[T] = {
+    override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
       if (capability == Capabilities.SidedEnvironmentCapability) wrapper.cast[T]
-      else LazyOptional.empty[T]
+      else java.util.Optional.empty[T]
     }
 
     override def sidedNode(side: Direction) = tileEntity.sidedNode(side)

@@ -96,10 +96,10 @@ trait InputBuffer extends DisplayBuffer {
       val t = Tesselator.getInstance
       val r = t.getBuilder
       r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
-      r.vertex(stack.last.pose, x, y + 16, 0).uv(0, 1).endVertex()
-      r.vertex(stack.last.pose, x + 16, y + 16, 0).uv(1, 1).endVertex()
-      r.vertex(stack.last.pose, x + 16, y, 0).uv(1, 0).endVertex()
-      r.vertex(stack.last.pose, x, y, 0).uv(0, 0).endVertex()
+      r.addVertex(stack.last.pose, x, y + 16, 0).setUv(0, 1)
+      r.addVertex(stack.last.pose, x + 16, y + 16, 0).setUv(1, 1)
+      r.addVertex(stack.last.pose, x + 16, y, 0).setUv(1, 0)
+      r.addVertex(stack.last.pose, x, y, 0).setUv(0, 0)
       t.end()
 
       RenderState.checkError(getClass.getName + ".drawBufferLayer: keyboard icon")

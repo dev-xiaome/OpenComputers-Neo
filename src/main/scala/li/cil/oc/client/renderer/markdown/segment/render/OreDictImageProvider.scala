@@ -11,7 +11,7 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.tags._
 import net.minecraft.resources.ResourceLocation
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
@@ -22,13 +22,13 @@ object OreDictImageProvider extends ImageProvider {
     val desired = ResourceLocation.tryParse(data.toLowerCase)
     val stacks = mutable.ArrayBuffer.empty[ItemStack]
     val itemTagKey = TagKey.create(BuiltInRegistries.ITEM.key(), desired)
-    val itemTag = ForgeRegistries.ITEMS.tags().getTag(itemTagKey)
+    val itemTag = BuiltInRegistries.ITEM.tags().getTag(itemTagKey)
     if (!itemTag.isEmpty) {
       stacks ++= itemTag.asScala.map(new ItemStack(_))
     }
     if (stacks.isEmpty) {
       val blockTagKey = TagKey.create(BuiltInRegistries.BLOCK.key(), desired)
-      val blockTag = ForgeRegistries.BLOCKS.tags().getTag(blockTagKey)
+      val blockTag = BuiltInRegistries.BLOCK.tags().getTag(blockTagKey)
 
       if (!blockTag.isEmpty) {
         stacks ++= blockTag.asScala.map(new ItemStack(_))

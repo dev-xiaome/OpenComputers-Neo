@@ -34,14 +34,14 @@ import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.level.ItemLike
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent
 import net.neoforged.bus.api.{EventPriority, IEventBus}
-import net.neoforged.neoforge.registries.{DeferredRegister, ForgeRegistries, RegisterEvent, RegistryObject}
+import net.neoforged.neoforge.registries.{DeferredRegister, BuiltInRegistries, RegisterEvent, RegistryObject}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 object Items extends ItemAPI {
   val ITEMS: DeferredRegister[Item] =
-    DeferredRegister.create(ForgeRegistries.ITEMS, Settings.resourceDomain)
+    DeferredRegister.create(BuiltInRegistries.ITEM, Settings.resourceDomain)
 
   val descriptors = mutable.LinkedHashMap.empty[String, ItemInfo]
 
@@ -355,7 +355,7 @@ object Items extends ItemAPI {
     // DeferredRegister listens at HIGHEST priority, so our LOW-priority listener
     // runs after all items are registered — safe to call ro.get() / createItemStack.
     bus.addListener(EventPriority.LOW, (event: RegisterEvent) => {
-      if (event.getRegistryKey == ForgeRegistries.Keys.ITEMS) {
+      if (event.getRegistryKey == BuiltInRegistries.Keys.ITEMS) {
         initPostStorage()
       }
     })

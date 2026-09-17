@@ -23,7 +23,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.math.ScalaNumber
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.level.Level
-import net.neoforged.neoforge.common.capabilities.ForgeCapabilities
+import net.neoforged.neoforge.capabilities.ForgeCapabilities
 
 /**
  * This class keeps track of registered drivers and provides installation logic

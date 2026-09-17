@@ -23,7 +23,7 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.tags.BlockTags
 import net.minecraft.world.inventory.CraftingContainer
 import net.minecraft.world.level.block.state.BlockState
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 
 import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable
@@ -118,8 +118,8 @@ object ItemUtils {
     def getOutputSize(recipe: Recipe[_]) = recipe.getResultItem(null).getCount
 
     def isInputBlacklisted(stack: ItemStack) = stack.getItem match {
-      case item: BlockItem => Settings.get.disassemblerInputBlacklist.contains(ForgeRegistries.BLOCKS.getKey(item.getBlock))
-      case item: Item => Settings.get.disassemblerInputBlacklist.contains(ForgeRegistries.ITEMS.getKey(item))
+      case item: BlockItem => Settings.get.disassemblerInputBlacklist.contains(BuiltInRegistries.BLOCK.getKey(item.getBlock))
+      case item: Item => Settings.get.disassemblerInputBlacklist.contains(BuiltInRegistries.ITEM.getKey(item))
       case _ => false
     }
 

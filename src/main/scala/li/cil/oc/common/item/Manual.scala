@@ -10,7 +10,7 @@ import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.minecraft.world.level.Level
 import net.minecraft.network.chat.Component
 import net.minecraft.world.item.TooltipFlag
@@ -20,7 +20,7 @@ import net.minecraft.world.InteractionResult
 import net.minecraft.ChatFormatting
 import net.minecraft.core.Direction
 
-class Manual(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+class Manual(props: Properties) extends Item(props) with traits.SimpleItem {
   @OnlyIn(Dist.CLIENT)
   override def appendHoverText(stack: ItemStack, level: Level, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
     super.appendHoverText(stack, level, tooltip, flag)

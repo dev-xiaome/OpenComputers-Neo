@@ -101,10 +101,10 @@ object RackMountableRenderHandler {
     val matrix = e.stack.last.pose
     val r = e.typeBuffer.getBuffer(RenderTypes.BLOCK_OVERLAY)
     val icon = Textures.getSprite(texture)
-    r.vertex(matrix, u0, e.v1, 0).uv(icon.getU(u0 * 16), icon.getV(e.v1 * 16)).endVertex();
-    r.vertex(matrix, u1, e.v1, 0).uv(icon.getU(u1 * 16), icon.getV(e.v1 * 16)).endVertex();
-    r.vertex(matrix, u1, e.v0, 0).uv(icon.getU(u1 * 16), icon.getV(e.v0 * 16)).endVertex();
-    r.vertex(matrix, u0, e.v0, 0).uv(icon.getU(u0 * 16), icon.getV(e.v0 * 16)).endVertex();
+    r.addVertex(matrix, u0, e.v1, 0).setUv(icon.getU(u0 * 16), icon.getV(e.v1 * 16));
+    r.addVertex(matrix, u1, e.v1, 0).setUv(icon.getU(u1 * 16), icon.getV(e.v1 * 16));
+    r.addVertex(matrix, u1, e.v0, 0).setUv(icon.getU(u1 * 16), icon.getV(e.v0 * 16));
+    r.addVertex(matrix, u0, e.v0, 0).setUv(icon.getU(u0 * 16), icon.getV(e.v0 * 16));
   }
 
   @SubscribeEvent

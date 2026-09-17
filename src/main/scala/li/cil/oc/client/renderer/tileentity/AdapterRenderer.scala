@@ -34,45 +34,45 @@ class AdapterRenderer extends BlockEntityRenderer[blockentity.Adapter] {
       val matrix = stack.last.pose
 
       if (adapter.isSideOpen(Direction.DOWN)) {
-        vBuffer.vertex(matrix, 0, 1, 0).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        vBuffer.vertex(matrix, 1, 1, 0).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
-        vBuffer.vertex(matrix, 1, 1, 1).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 1, 1).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
+        vBuffer.addVertex(matrix, 0, 1, 0).setUv(sideActivity.getU1, sideActivity.getV0)
+        vBuffer.addVertex(matrix, 1, 1, 0).setUv(sideActivity.getU0, sideActivity.getV0)
+        vBuffer.addVertex(matrix, 1, 1, 1).setUv(sideActivity.getU0, sideActivity.getV1)
+        vBuffer.addVertex(matrix, 0, 1, 1).setUv(sideActivity.getU1, sideActivity.getV1)
       }
 
       if (adapter.isSideOpen(Direction.UP)) {
-        vBuffer.vertex(matrix, 0, 0, 0).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 0, 1).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 1).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 0).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
+        vBuffer.addVertex(matrix, 0, 0, 0).setUv(sideActivity.getU1, sideActivity.getV1)
+        vBuffer.addVertex(matrix, 0, 0, 1).setUv(sideActivity.getU1, sideActivity.getV0)
+        vBuffer.addVertex(matrix, 1, 0, 1).setUv(sideActivity.getU0, sideActivity.getV0)
+        vBuffer.addVertex(matrix, 1, 0, 0).setUv(sideActivity.getU0, sideActivity.getV1)
       }
 
       if (adapter.isSideOpen(Direction.NORTH)) {
-        vBuffer.vertex(matrix, 1, 1, 0).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 1, 0).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 0, 0).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 0).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+        vBuffer.addVertex(matrix, 1, 1, 0).setUv(sideActivity.getU0, sideActivity.getV1)
+        vBuffer.addVertex(matrix, 0, 1, 0).setUv(sideActivity.getU1, sideActivity.getV1)
+        vBuffer.addVertex(matrix, 0, 0, 0).setUv(sideActivity.getU1, sideActivity.getV0)
+        vBuffer.addVertex(matrix, 1, 0, 0).setUv(sideActivity.getU0, sideActivity.getV0)
       }
 
       if (adapter.isSideOpen(Direction.SOUTH)) {
-        vBuffer.vertex(matrix, 0, 1, 1).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, 1, 1).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 1).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        vBuffer.vertex(matrix, 0, 0, 1).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+        vBuffer.addVertex(matrix, 0, 1, 1).setUv(sideActivity.getU0, sideActivity.getV1)
+        vBuffer.addVertex(matrix, 1, 1, 1).setUv(sideActivity.getU1, sideActivity.getV1)
+        vBuffer.addVertex(matrix, 1, 0, 1).setUv(sideActivity.getU1, sideActivity.getV0)
+        vBuffer.addVertex(matrix, 0, 0, 1).setUv(sideActivity.getU0, sideActivity.getV0)
       }
 
       if (adapter.isSideOpen(Direction.WEST)) {
-        vBuffer.vertex(matrix, 0, 1, 0).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 1, 1).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 0, 1).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        vBuffer.vertex(matrix, 0, 0, 0).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+        vBuffer.addVertex(matrix, 0, 1, 0).setUv(sideActivity.getU0, sideActivity.getV1)
+        vBuffer.addVertex(matrix, 0, 1, 1).setUv(sideActivity.getU1, sideActivity.getV1)
+        vBuffer.addVertex(matrix, 0, 0, 1).setUv(sideActivity.getU1, sideActivity.getV0)
+        vBuffer.addVertex(matrix, 0, 0, 0).setUv(sideActivity.getU0, sideActivity.getV0)
       }
 
       if (adapter.isSideOpen(Direction.EAST)) {
-        vBuffer.vertex(matrix, 1, 1, 1).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, 1, 0).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 0).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
-        vBuffer.vertex(matrix, 1, 0, 1).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+        vBuffer.addVertex(matrix, 1, 1, 1).setUv(sideActivity.getU0, sideActivity.getV1)
+        vBuffer.addVertex(matrix, 1, 1, 0).setUv(sideActivity.getU1, sideActivity.getV1)
+        vBuffer.addVertex(matrix, 1, 0, 0).setUv(sideActivity.getU1, sideActivity.getV0)
+        vBuffer.addVertex(matrix, 1, 0, 1).setUv(sideActivity.getU0, sideActivity.getV0)
       }
 
       stack.popPose()

@@ -23,7 +23,7 @@ import net.neoforged.api.distmarker.{Dist, OnlyIn}
 import net.neoforged.neoforge.client.event.ModelEvent
 import net.neoforged.neoforge.client.model.data.ModelData
 import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 
 import scala.collection.mutable
 
@@ -206,7 +206,7 @@ object ModelInitialization {
 
     for ((item, model) <- dynamicItems) {
       val originalLocation =
-        new ModelResourceLocation(ForgeRegistries.ITEMS.getKey(item), "inventory")
+        new ModelResourceLocation(BuiltInRegistries.ITEM.getKey(item), "inventory")
 
       registry.get(originalLocation) match {
         case original: BakedModel =>

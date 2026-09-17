@@ -11,7 +11,7 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.crafting.RecipeManager
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 
 import scala.collection.mutable
 import net.minecraft.world.item.CreativeModeTab
@@ -24,7 +24,7 @@ import net.minecraft.world.level.block.SoundType
 import net.minecraft.sounds.SoundSource
 import net.minecraft.sounds.SoundEvents
 
-class Present(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+class Present(props: Properties) extends Item(props) with traits.SimpleItem {
   override def use(stack: ItemStack, level: Level, player: Player): InteractionResultHolder[ItemStack] = {
     if (stack.getCount > 0) {
       stack.shrink(1)

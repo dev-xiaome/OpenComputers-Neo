@@ -11,9 +11,9 @@ import li.cil.oc.util.StackOption._
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.core.Direction
-import net.neoforged.neoforge.common.capabilities.Capability
-import net.neoforged.neoforge.common.capabilities.ICapabilityProvider
-import net.neoforged.neoforge.common.util.LazyOptional
+import net.neoforged.neoforge.capabilities.Capability
+import net.neoforged.neoforge.capabilities.ICapabilityProvider
+import java.util.Optional
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
 
@@ -154,7 +154,7 @@ trait ComponentInventory extends Environment with Inventory with container.Compo
     }
   }
 
-  override def getCapability[T](capability: Capability[T], facing: Direction): LazyOptional[T] = {
+  override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
     val localFacing = this match {
       case rotatable: Rotatable => rotatable.toLocal(facing)
       case _ => facing

@@ -74,7 +74,7 @@ abstract class PacketHandler {
   private[oc] class PacketParser(stream: InputStream, val player: Player) extends DataInputStream(stream) {
     val packetType = PacketType(readByte())
 
-    def readRegistryEntry[T](registry: IForgeRegistry[T]): T = {
+    def readRegistryEntry[T](registry: Registry[T]): T = {
       val id = readUTF()
       val location = ResourceLocation.tryParse(id)
       if (location != null) {

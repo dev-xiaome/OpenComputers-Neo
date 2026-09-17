@@ -11,12 +11,12 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
 import net.neoforged.api.distmarker.{Dist, OnlyIn}
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.minecraft.world.item.TooltipFlag
 import net.minecraft.world.level.Level
 import net.minecraft.network.chat.Component
 
-class UpgradeExperience(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier {
+class UpgradeExperience(props: Properties) extends Item(props) with traits.SimpleItem with traits.ItemTier {
   @OnlyIn(Dist.CLIENT)
   override def appendHoverText(stack: ItemStack, level: Level, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
     super.appendHoverText(stack, level, tooltip, flag)

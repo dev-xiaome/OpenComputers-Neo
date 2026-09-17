@@ -4,7 +4,7 @@ import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.common.container.DatabaseInventory
 import li.cil.oc.common.menu.MenuTypes
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
@@ -15,7 +15,7 @@ import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.InteractionResult
 
-class UpgradeDatabase(props: Properties, val tier: Int) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier {
+class UpgradeDatabase(props: Properties, val tier: Int) extends Item(props) with traits.SimpleItem with traits.ItemTier {
   @Deprecated
   override def getDescriptionId = super.getDescriptionId + tier
 

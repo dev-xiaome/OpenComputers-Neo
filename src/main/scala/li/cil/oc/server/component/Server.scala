@@ -32,9 +32,9 @@ import li.cil.oc.util.ExtendedNBT._
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.core.Direction
-import net.neoforged.neoforge.common.capabilities.Capability
-import net.neoforged.neoforge.common.capabilities.ICapabilityProvider
-import net.neoforged.neoforge.common.util.LazyOptional
+import net.neoforged.neoforge.capabilities.Capability
+import net.neoforged.neoforge.capabilities.ICapabilityProvider
+import java.util.Optional
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import net.minecraft.server.level.ServerPlayer
@@ -239,7 +239,7 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
   // ----------------------------------------------------------------------- //
   // ICapabilityProvider
 
-  override def getCapability[T](capability: Capability[T], facing: Direction): LazyOptional[T] = {
+  override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
     for (curr <- components) curr match {
       case Some(comp: ICapabilityProvider) => {
         val cap = comp.getCapability(capability, host.toLocal(facing))
@@ -247,6 +247,6 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
       }
       case _ =>
     }
-    LazyOptional.empty[T]
+    java.util.Optional.empty[T]
   }
 }

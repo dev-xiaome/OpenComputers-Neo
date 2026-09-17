@@ -8,7 +8,7 @@ import li.cil.oc.{OpenComputers, Settings}
 import li.cil.oc.client.renderer.font.TextBufferRenderData
 import li.cil.oc.util.RenderState
 import net.minecraft.client.renderer.{GameRenderer, MultiBufferSource}
-import net.neoforged.neoforge.event.TickEvent.ClientTickEvent
+import net.neoforged.neoforge.client.event.ClientTickEvent
 import net.neoforged.bus.api.SubscribeEvent
 
 object TextBufferRenderCache {

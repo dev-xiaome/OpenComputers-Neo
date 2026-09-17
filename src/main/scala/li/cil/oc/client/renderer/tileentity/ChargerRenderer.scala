@@ -45,29 +45,29 @@ class ChargerRenderer extends BlockEntityRenderer[Charger] {
       {
         val inverse = 1 - charger.chargeSpeed.toFloat
         val icon = Textures.getSprite(Textures.Block.ChargerFrontOn)
-        vBuffer.vertex(matrix, 0, 1, 0.005f).uv(icon.getU0, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, 1, 0.005f).uv(icon.getU1, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 1, inverse, 0.005f).uv(icon.getU1, icon.getV(inverse * 16)).endVertex()
-        vBuffer.vertex(matrix, 0, inverse, 0.005f).uv(icon.getU0, icon.getV(inverse * 16)).endVertex()
+        vBuffer.addVertex(matrix, 0, 1, 0.005f).setUv(icon.getU0, icon.getV1)
+        vBuffer.addVertex(matrix, 1, 1, 0.005f).setUv(icon.getU1, icon.getV1)
+        vBuffer.addVertex(matrix, 1, inverse, 0.005f).setUv(icon.getU1, icon.getV(inverse * 16))
+        vBuffer.addVertex(matrix, 0, inverse, 0.005f).setUv(icon.getU0, icon.getV(inverse * 16))
       }
 
       if (charger.hasPower) {
         val icon = Textures.getSprite(Textures.Block.ChargerSideOn)
 
-        vBuffer.vertex(matrix, -0.005f, 1, -1).uv(icon.getU0, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, -0.005f, 1, 0).uv(icon.getU1, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, -0.005f, 0, 0).uv(icon.getU1, icon.getV0).endVertex()
-        vBuffer.vertex(matrix, -0.005f, 0, -1).uv(icon.getU0, icon.getV0).endVertex()
+        vBuffer.addVertex(matrix, -0.005f, 1, -1).setUv(icon.getU0, icon.getV1)
+        vBuffer.addVertex(matrix, -0.005f, 1, 0).setUv(icon.getU1, icon.getV1)
+        vBuffer.addVertex(matrix, -0.005f, 0, 0).setUv(icon.getU1, icon.getV0)
+        vBuffer.addVertex(matrix, -0.005f, 0, -1).setUv(icon.getU0, icon.getV0)
 
-        vBuffer.vertex(matrix, 1, 1, -1.005f).uv(icon.getU0, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 1, -1.005f).uv(icon.getU1, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 0, 0, -1.005f).uv(icon.getU1, icon.getV0).endVertex()
-        vBuffer.vertex(matrix, 1, 0, -1.005f).uv(icon.getU0, icon.getV0).endVertex()
+        vBuffer.addVertex(matrix, 1, 1, -1.005f).setUv(icon.getU0, icon.getV1)
+        vBuffer.addVertex(matrix, 0, 1, -1.005f).setUv(icon.getU1, icon.getV1)
+        vBuffer.addVertex(matrix, 0, 0, -1.005f).setUv(icon.getU1, icon.getV0)
+        vBuffer.addVertex(matrix, 1, 0, -1.005f).setUv(icon.getU0, icon.getV0)
 
-        vBuffer.vertex(matrix, 1.005f, 1, 0).uv(icon.getU0, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 1.005f, 1, -1).uv(icon.getU1, icon.getV1).endVertex()
-        vBuffer.vertex(matrix, 1.005f, 0, -1).uv(icon.getU1, icon.getV0).endVertex()
-        vBuffer.vertex(matrix, 1.005f, 0, 0).uv(icon.getU0, icon.getV0).endVertex()
+        vBuffer.addVertex(matrix, 1.005f, 1, 0).setUv(icon.getU0, icon.getV1)
+        vBuffer.addVertex(matrix, 1.005f, 1, -1).setUv(icon.getU1, icon.getV1)
+        vBuffer.addVertex(matrix, 1.005f, 0, -1).setUv(icon.getU1, icon.getV0)
+        vBuffer.addVertex(matrix, 1.005f, 0, 0).setUv(icon.getU0, icon.getV0)
       }
 
       stack.popPose()

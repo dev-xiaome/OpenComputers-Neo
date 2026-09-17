@@ -38,7 +38,7 @@ import net.minecraft.resources.ResourceLocation
 import net.minecraft.sounds.{SoundEvent, SoundSource}
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.common.NeoForge
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 
 object PacketHandler extends CommonPacketHandler {
   protected override def world(player: Player, dimension: ResourceLocation): Option[Level] = {
@@ -415,7 +415,7 @@ object PacketHandler extends CommonPacketHandler {
         val z = p.readInt()
         val velocity = p.readDouble()
         val direction = p.readDirection()
-        val particleType = p.readRegistryEntry(ForgeRegistries.PARTICLE_TYPES)
+        val particleType = p.readRegistryEntry(BuiltInRegistries.PARTICLE_TYPES)
         val count = p.readUnsignedByte() / (1 << Minecraft.getInstance.options.particles.get.getId)
         particleType match {
           case particle: ParticleOptions =>

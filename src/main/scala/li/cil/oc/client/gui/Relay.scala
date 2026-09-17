@@ -37,10 +37,10 @@ class Relay(state: menu.Relay, playerInventory: Inventory, name: Component)
     val t = Tesselator.getInstance
     val r = t.getBuilder
     r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
-    r.vertex(stack.last.pose, x, y + h, 0).uv(0, 1).endVertex()
-    r.vertex(stack.last.pose, x + w, y + h, 0).uv(1, 1).endVertex()
-    r.vertex(stack.last.pose, x + w, y, 0).uv(1, 0).endVertex()
-    r.vertex(stack.last.pose, x, y, 0).uv(0, 0).endVertex()
+    r.addVertex(stack.last.pose, x, y + h, 0).setUv(0, 1)
+    r.addVertex(stack.last.pose, x + w, y + h, 0).setUv(1, 1)
+    r.addVertex(stack.last.pose, x + w, y, 0).setUv(1, 0)
+    r.addVertex(stack.last.pose, x, y, 0).setUv(0, 0)
     t.end()
   }
 

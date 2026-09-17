@@ -14,7 +14,7 @@ import li.cil.oc.common.blockentity.traits.BaseBlockEntity
 import net.minecraft.client.Minecraft
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
@@ -25,7 +25,7 @@ import net.minecraft.world.entity.player.Player
 import net.minecraft.world.InteractionResultHolder
 import net.minecraft.world.InteractionHand
 
-class Terminal(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+class Terminal(props: Properties) extends Item(props) with traits.SimpleItem {
   def hasServer(stack: ItemStack) = stack.hasTag && stack.getTag.contains(Settings.namespace + "server")
 
   @OnlyIn(Dist.CLIENT)

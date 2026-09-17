@@ -23,9 +23,9 @@ import net.minecraft.core.BlockPos
 import net.minecraft.network.chat.{Component => ITextComponent}
 import net.minecraft.world.level.{BlockGetter => IBlockReader}
 import net.minecraft.world.level.{Level => World}
-import net.neoforged.neoforge.common.extensions.IForgeBlock
 
-class Raid(props: Properties) extends SimpleBlock(props) with IForgeBlock with traits.GUI {
+
+class Raid(props: Properties) extends SimpleBlock(props) with traits.GUI {
 
   protected override def createBlockStateDefinition(builder: StateContainer.Builder[Block, BlockState]) =
     builder.add(PropertyRotatable.Facing)

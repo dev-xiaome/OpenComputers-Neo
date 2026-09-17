@@ -319,10 +319,10 @@ class ScreenRenderer extends TileEntityRenderer[Screen] {
           matrix.translate(screen.width / 2f - 0.5f, screen.height / 2f - 0.5f, if (isBackFlatScreen) -0.935f else 0.05f)
 
           val icon = Textures.getSprite(Textures.Block.ScreenUpIndicator)
-          r.vertex(matrix.last.pose, 0, 1, 0).uv(icon.getU0, icon.getV1).endVertex()
-          r.vertex(matrix.last.pose, 1, 1, 0).uv(icon.getU1, icon.getV1).endVertex()
-          r.vertex(matrix.last.pose, 1, 0, 0).uv(icon.getU1, icon.getV0).endVertex()
-          r.vertex(matrix.last.pose, 0, 0, 0).uv(icon.getU0, icon.getV0).endVertex()
+          r.addVertex(matrix.last.pose, 0, 1, 0).setUv(icon.getU0, icon.getV1)
+          r.addVertex(matrix.last.pose, 1, 1, 0).setUv(icon.getU1, icon.getV1)
+          r.addVertex(matrix.last.pose, 1, 0, 0).setUv(icon.getU1, icon.getV0)
+          r.addVertex(matrix.last.pose, 0, 0, 0).setUv(icon.getU0, icon.getV0)
 
           matrix.popPose()
         }
@@ -497,20 +497,20 @@ class ScreenRenderer extends TileEntityRenderer[Screen] {
     screen.asInstanceOf[li.cil.oc.common.blockentity.HoloScreen]
 
   private def drawProjectionQuad(stack: PoseStack, r: VertexConsumer, color: HologramColor, alpha: Int, layout: ProjectionBeamLayout): Unit = {
-    r.vertex(stack.last.pose, 0, layout.projectorEdgeOffset, 0).color(color.red, color.green, color.blue, alpha).endVertex()
-    r.vertex(stack.last.pose, 1, layout.projectorEdgeOffset, 0).color(color.red, color.green, color.blue, alpha).endVertex()
-    r.vertex(stack.last.pose, (layout.width + 1) / 2f, 0, 0).color(color.red, color.green, color.blue, alpha).endVertex()
-    r.vertex(stack.last.pose, -((layout.width - 1) / 2f), 0, 0).color(color.red, color.green, color.blue, alpha).endVertex()
+    r.addVertex(stack.last.pose, 0, layout.projectorEdgeOffset, 0).setColor(color.red, color.green, color.blue, alpha)
+    r.addVertex(stack.last.pose, 1, layout.projectorEdgeOffset, 0).setColor(color.red, color.green, color.blue, alpha)
+    r.addVertex(stack.last.pose, (layout.width + 1) / 2f, 0, 0).setColor(color.red, color.green, color.blue, alpha)
+    r.addVertex(stack.last.pose, -((layout.width - 1) / 2f), 0, 0).setColor(color.red, color.green, color.blue, alpha)
   }
 
   private def drawColoredQuad(stack: PoseStack, r: VertexConsumer, color: HologramColor, alpha: Int, x1: Float, y1: Float, x2: Float, y2: Float): Unit =
     drawColoredQuad(stack, r, color.red, color.green, color.blue, alpha, x1, y1, x2, y2)
 
   private def drawColoredQuad(stack: PoseStack, r: VertexConsumer, red: Int, green: Int, blue: Int, alpha: Int, x1: Float, y1: Float, x2: Float, y2: Float): Unit = {
-    r.vertex(stack.last.pose, x1, y2, 0).color(red, green, blue, alpha).endVertex()
-    r.vertex(stack.last.pose, x2, y2, 0).color(red, green, blue, alpha).endVertex()
-    r.vertex(stack.last.pose, x2, y1, 0).color(red, green, blue, alpha).endVertex()
-    r.vertex(stack.last.pose, x1, y1, 0).color(red, green, blue, alpha).endVertex()
+    r.addVertex(stack.last.pose, x1, y2, 0).setColor(red, green, blue, alpha)
+    r.addVertex(stack.last.pose, x2, y2, 0).setColor(red, green, blue, alpha)
+    r.addVertex(stack.last.pose, x2, y1, 0).setColor(red, green, blue, alpha)
+    r.addVertex(stack.last.pose, x1, y1, 0).setColor(red, green, blue, alpha)
   }
 
   private def playerDistanceSq(): Double = {

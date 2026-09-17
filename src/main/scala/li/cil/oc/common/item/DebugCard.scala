@@ -9,7 +9,7 @@ import li.cil.oc.server.component.{DebugCard => CDebugCard}
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.minecraft.world.level.Level
 import net.minecraft.world.InteractionResultHolder
 import net.minecraft.world.InteractionResult
@@ -18,7 +18,7 @@ import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Player
 import net.minecraft.Util
 
-class DebugCard(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+class DebugCard(props: Properties) extends Item(props) with traits.SimpleItem {
   override protected def tooltipExtended(stack: ItemStack, tooltip: util.List[Component]): Unit = {
     super.tooltipExtended(stack, tooltip)
     val data = new DebugCardData(stack)

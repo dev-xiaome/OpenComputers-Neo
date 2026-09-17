@@ -2,9 +2,9 @@ package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.Item.Properties
-import net.neoforged.neoforge.common.extensions.IForgeItem
 
-class WirelessNetworkCard(props: Properties, var tier: Int) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier {
+
+class WirelessNetworkCard(props: Properties, var tier: Int) extends Item(props) with traits.SimpleItem with traits.ItemTier {
   @Deprecated
   override def getDescriptionId = super.getDescriptionId + tier
   

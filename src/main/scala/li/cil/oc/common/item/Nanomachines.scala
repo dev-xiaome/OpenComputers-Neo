@@ -13,7 +13,7 @@ import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
-import net.neoforged.neoforge.common.extensions.IForgeItem
+
 import net.minecraft.world.level.Level
 import net.minecraft.network.chat.Component
 import net.minecraft.world.item.TooltipFlag
@@ -24,7 +24,7 @@ import net.minecraft.world.InteractionHand
 import net.minecraft.world.item.UseAnim
 import net.minecraft.world.entity.LivingEntity
 
-class Nanomachines(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+class Nanomachines(props: Properties) extends Item(props) with traits.SimpleItem {
   @OnlyIn(Dist.CLIENT)
   override def appendHoverText(stack: ItemStack, level: Level, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
     super.appendHoverText(stack, level, tooltip, flag)

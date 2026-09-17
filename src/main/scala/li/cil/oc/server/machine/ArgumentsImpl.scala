@@ -10,7 +10,7 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.resources.ResourceLocation
-import net.neoforged.neoforge.registries.ForgeRegistries
+import net.minecraft.core.registries.BuiltInRegistries
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.mutable
@@ -339,7 +339,7 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
   }
 
   private def makeStack(name: String, damage: Int, tag: Option[CompoundTag]) = {
-    ForgeRegistries.ITEMS.getValue(new ResourceLocation(name)) match {
+    BuiltInRegistries.ITEM.getValue(new ResourceLocation(name)) match {
       case item: Item =>
         val stack = new ItemStack(item, 1)
         stack.setDamageValue(damage)
