@@ -17,7 +17,9 @@ object ToolDurabilityProviders {
       if (!durability.isNaN) return Option(durability)
     }
     // Fall back to vanilla damage values.
-    if (stack.getItem.canBeDepleted) Option(1.0 - stack.getDamageValue.toDouble / stack.getMaxDamage.toDouble)
+    // 1.21.1：`Item#canBeDepleted` 已移除，等价判断是 `ItemStack#isDamageableItem`
+    // （即物品带 `MAX_DAMAGE` 组件），顺带避开了 `getMaxDamage` 为 0 时的除零。
+    if (stack.isDamageableItem) Option(1.0 - stack.getDamageValue.toDouble / stack.getMaxDamage.toDouble)
     else None
   }
 }

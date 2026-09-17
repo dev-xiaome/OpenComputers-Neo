@@ -13,7 +13,7 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 
 public final class MenuTypes {
     public static final DeferredRegister<MenuType<?>> MENU_TYPES =
-            DeferredRegister.create(BuiltInRegistries.MENU_TYPES, OpenComputers.ID());
+            DeferredRegister.create(BuiltInRegistries.MENU, OpenComputers.ID());
 
     public static final DeferredHolder<MenuType<Adapter>, MenuType<Adapter>> ADAPTER =
             MENU_TYPES.register("adapter", () -> IForgeMenuType.create(

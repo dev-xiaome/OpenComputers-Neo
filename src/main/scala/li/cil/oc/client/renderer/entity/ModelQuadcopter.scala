@@ -8,6 +8,7 @@ import net.minecraft.client.renderer.LightTexture
 import net.minecraft.client.model.EntityModel
 import net.minecraft.client.model.geom.{ModelLayerLocation, ModelPart, PartPose}
 import net.minecraft.client.model.geom.builders.{CubeListBuilder, LayerDefinition, MeshDefinition}
+import net.minecraft.util.FastColor
 import net.minecraft.client.renderer.texture.OverlayTexture
 import net.minecraft.world.phys.Vec3
 import org.joml.{Quaternionf, Vector3f}
@@ -57,13 +58,18 @@ final class ModelQuadcopter(root: ModelPart) extends EntityModel[Drone] {
     cachedDt = dt
   }
 
-  override def renderToBuffer(stack: PoseStack, builder: VertexConsumer, light: Int, overlay: Int, r: Float, g: Float, b: Float, a: Float): Unit = {
+  // 1.21.1: Model.renderToBuffer 的 RGBA float 重载已被 (..., int color) 取代。
+  override def renderToBuffer(stack: PoseStack, builder: VertexConsumer, light: Int, overlay: Int, color: Int): Unit = {
     if (cachedEntity != null) {
-      doRender(cachedEntity, cachedDt, stack, builder, light, overlay, r, g, b, a)
+      doRender(cachedEntity, cachedDt, stack, builder, light, overlay, color)
     }
   }
 
-  private def doRender(drone: Drone, dt: Float, stack: PoseStack, builder: VertexConsumer, light: Int, overlay: Int, r: Float, g: Float, b: Float, a: Float): Unit = {
+  private def doRender(drone: Drone, dt: Float, stack: PoseStack, builder: VertexConsumer, light: Int, overlay: Int, color: Int): Unit = {
+    val a = (color >>> 24) & 0xFF
+    val r = ((color >>> 16) & 0xFF) / 255f
+    val g = ((color >>> 8) & 0xFF) / 255f
+    val b = (color & 0xFF) / 255f
     stack.pushPose()
     if (drone.isRunning) {
       val timeJitter = drone.hashCode() ^ 0xFF
@@ -81,12 +87,12 @@ final class ModelQuadcopter(root: ModelPart) extends EntityModel[Drone] {
     }
 
     stack.mulPose(Axis.YP.rotationDegrees(drone.bodyAngle))
-    body.render(stack, builder, light, overlay, r, g, b, a)
+    body.render(stack, builder, light, overlay, color)
 
     for (i <- 0 to 3) {
       wings(i).xRot = drone.flapAngles(i)(0)
       wings(i).zRot = drone.flapAngles(i)(1)
-      wings(i).render(stack, builder, light, overlay, r, g, b, a)
+      wings(i).render(stack, builder, light, overlay, color)
     }
 
     if (drone.isRunning) {
@@ -99,7 +105,8 @@ final class ModelQuadcopter(root: ModelPart) extends EntityModel[Drone] {
       for (i <- 0 to 3) {
         lights(i).xRot = drone.flapAngles(i)(0)
         lights(i).zRot = drone.flapAngles(i)(1)
-        lights(i).render(stack, builder, fullLight, OverlayTexture.NO_OVERLAY, rr, gg, bb, a)
+        val lightColorInt = FastColor.ARGB32.colorFromFloat(a / 255f, rr, gg, bb)
+        lights(i).render(stack, builder, fullLight, OverlayTexture.NO_OVERLAY, lightColorInt)
       }
     }
     stack.popPose()

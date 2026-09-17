@@ -13,7 +13,9 @@ object ConverterFluidStack extends api.driver.Converter {
     value match {
       case stack: net.neoforged.neoforge.fluids.FluidStack =>
         output += "amount" -> Int.box(stack.getAmount)
-        output += "hasTag" -> Boolean.box(stack.hasTag)
+        // 1.21.1 的 FluidStack 没有 hasTag：流体附加数据已改为数据组件（DataComponentPatch），
+        // 因此「有 tag」等价于「组件 patch 非空」。
+        output += "hasTag" -> Boolean.box(!stack.isComponentsPatchEmpty)
         val fluid = stack.getFluid
         val registryName = BuiltInRegistries.FLUID.getKey(fluid).toString
         output += "name" -> registryName

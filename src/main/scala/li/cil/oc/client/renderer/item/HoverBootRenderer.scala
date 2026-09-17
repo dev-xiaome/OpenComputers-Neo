@@ -10,6 +10,7 @@ import net.minecraft.client.model.geom.builders.CubeListBuilder
 import net.minecraft.client.model.geom.builders.LayerDefinition
 import net.minecraft.client.model.geom.builders.MeshDefinition
 import net.minecraft.client.renderer.LightTexture
+import net.minecraft.util.FastColor
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.resources.ResourceLocation
 
@@ -109,48 +110,55 @@ class HoverBootRenderer(root: ModelPart) extends HumanoidModel[LivingEntity](roo
     young     = false
   }
 
+  // 1.21.1: Model.renderToBuffer / ModelPart.render 的 RGBA float 重载已被 (..., int color) 取代。
   override def renderToBuffer(
                                poseStack: PoseStack,
                                consumer: VertexConsumer,
                                light: Int,
                                overlay: Int,
-                               r: Float, g: Float, b: Float, a: Float
+                               color: Int
                              ): Unit = {
     allLightParts.foreach(_.visible = false)
-    super.renderToBuffer(poseStack, consumer, light, overlay, r, g, b, a)
+    super.renderToBuffer(poseStack, consumer, light, overlay, color)
     allLightParts.foreach(_.visible = true)
 
+    val a  = (color >>> 24) & 0xFF
+    val r  = ((color >>> 16) & 0xFF) / 255f
+    val g  = ((color >>> 8)  & 0xFF) / 255f
+    val b  = (color & 0xFF) / 255f
     val rm = ((lightColor >>> 16) & 0xFF) / 255f
     val gm = ((lightColor >>> 8)  & 0xFF) / 255f
     val bm = ((lightColor >>> 0)  & 0xFF) / 255f
     val fullBright = LightTexture.pack(15, 15)
 
+    def lightColorInt = FastColor.ARGB32.colorFromFloat(a / 255f, r * rm, g * gm, b * bm)
+
     poseStack.pushPose()
     leftLeg.translateAndRotate(poseStack)
     bootLeft.translateAndRotate(poseStack)
     bootLeft.getChild("wing0").translateAndRotate(poseStack)
-    light0.render(poseStack, consumer, fullBright, overlay, r * rm, g * gm, b * bm, a)
+    light0.render(poseStack, consumer, fullBright, overlay, lightColorInt)
     poseStack.popPose()
 
     poseStack.pushPose()
     leftLeg.translateAndRotate(poseStack)
     bootLeft.translateAndRotate(poseStack)
     bootLeft.getChild("wing1").translateAndRotate(poseStack)
-    light1.render(poseStack, consumer, fullBright, overlay, r * rm, g * gm, b * bm, a)
+    light1.render(poseStack, consumer, fullBright, overlay, lightColorInt)
     poseStack.popPose()
 
     poseStack.pushPose()
     rightLeg.translateAndRotate(poseStack)
     bootRight.translateAndRotate(poseStack)
     bootRight.getChild("wing2").translateAndRotate(poseStack)
-    light2.render(poseStack, consumer, fullBright, overlay, r * rm, g * gm, b * bm, a)
+    light2.render(poseStack, consumer, fullBright, overlay, lightColorInt)
     poseStack.popPose()
 
     poseStack.pushPose()
     rightLeg.translateAndRotate(poseStack)
     bootRight.translateAndRotate(poseStack)
     bootRight.getChild("wing3").translateAndRotate(poseStack)
-    light3.render(poseStack, consumer, fullBright, overlay, r * rm, g * gm, b * bm, a)
+    light3.render(poseStack, consumer, fullBright, overlay, lightColorInt)
     poseStack.popPose()
   }
 }

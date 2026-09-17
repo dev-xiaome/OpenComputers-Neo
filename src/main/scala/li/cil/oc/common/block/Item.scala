@@ -25,7 +25,16 @@ import net.minecraft.world.item.context.BlockPlaceContext
 import net.minecraft.world.phys.BlockHitResult
 
 class Item(value: Block, props: Properties) extends BlockItem(value, props) {
-  override def getRarity(stack: ItemStack): item.Rarity = getBlock match {
+  /**
+   * 原 1.20 的 `Item#getRarity(stack)` 覆写。
+   *
+   * 1.21.1 的物品品质改成了 `ItemStack` 的数据组件（`DataComponents.RARITY`），
+   * `Item` 上已经没有可覆写的 `getRarity(ItemStack)`，`ItemStack#getRarity()` 也不再回调物品。
+   * 因此这里退化为一个普通方法：**动态品质（单片机 / 机器人按 tier 变色）在本版丢失**，
+   * 这两种方块物品现在统一走注册时 `Item.Properties` 给的默认品质。
+   * 若要恢复，需要在写入 `MicrocontrollerData` / `RobotData` 的同时把 `RARITY` 组件写到堆叠上。
+   */
+  def rarity(stack: ItemStack): item.Rarity = getBlock match {
     case _: block.Microcontroller => {
       val data = new MicrocontrollerData(stack)
       Rarity.byTier(data.tier)
@@ -34,7 +43,7 @@ class Item(value: Block, props: Properties) extends BlockItem(value, props) {
       val data = new RobotData(stack)
       Rarity.byTier(data.tier)
     }
-    case _ => super.getRarity(stack)
+    case _ => net.minecraft.world.item.Rarity.COMMON
   }
 
   override def getName(stack: ItemStack): Component = {

@@ -19,6 +19,7 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.core.Direction
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.core.BlockPos
+import net.neoforged.bus.api.ICancellableEvent
 import net.neoforged.neoforge.common.NeoForge
 import net.minecraft.core.registries.BuiltInRegistries
 
@@ -306,7 +307,10 @@ object PacketSender {
       case _ => new NetworkActivityEvent.Server(host.getEnvironmentLevel, host.xPosition, host.yPosition, host.zPosition, node)
     }
     NeoForge.EVENT_BUS.post(event)
-    if (!event.isCanceled) {
+    // NeoForge 1.21.1 用 ICancellableEvent 取代了 Forge 的 @Cancelable 注解，
+    // Event 上不再有可读的 isCanceled 成员。NetworkActivityEvent 已补上该接口
+    // （见 api/event/NetworkActivityEvent.java），这里显式转型以免依赖预编译的旧 class。
+    if (!event.asInstanceOf[ICancellableEvent].isCanceled) {
 
       val pb = new SimplePacketBuilder(PacketType.NetworkActivity)
 

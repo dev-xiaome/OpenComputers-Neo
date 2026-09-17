@@ -62,6 +62,11 @@ class OpenComputers(modBus: IEventBus, container: ModContainer) {
   modBus.register(this)
   Items.init(modBus)
   Blocks.init(modBus)
+  // 自定义数据组件 `opencomputers_neo:nbt`：**必须在这里注册**。
+  // OC 的物品数据模型依赖一整棵可变的 CompoundTag 挂在物品上（`api.driver.Item#dataTag`），
+  // NeoForge 1.21.1 的物品数据已改成数据组件，我们用这个组件承载它（见 common/DataComponents.java）。
+  // 忘记注册的话，任何带数据的物品一被读写就会在运行期崩。
+  li.cil.oc.common.DataComponents.REGISTRY.register(modBus)
   // NeoForge 的强制加载 ticket 控制器必须在 mod 事件总线上注册
   // （取代 Forge 1.20 在集成层调用的 `ForgeChunkManager.setForcedChunkLoadingCallback`）。
   common.event.ChunkloaderUpgradeHandler.initialize(modBus)

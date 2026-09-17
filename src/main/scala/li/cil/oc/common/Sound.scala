@@ -15,7 +15,8 @@ object Sound {
     globalTimeouts.get(host) match {
       case Some(hostTimeouts) if hostTimeouts.getOrElse(name, 0L) > System.currentTimeMillis() => // Cooldown.
       case _ =>
-        PacketSender.sendSound(host.getEnvironmentLevel, host.xPosition, host.yPosition, host.zPosition, new ResourceLocation(Settings.resourceDomain + ":" + name), SoundSource.BLOCKS, 15 * Settings.get.soundVolume)
+        // 1.21.1：`ResourceLocation` 的公开构造器已移除，改用 `fromNamespaceAndPath`。
+        PacketSender.sendSound(host.getEnvironmentLevel, host.xPosition, host.yPosition, host.zPosition, ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, name), SoundSource.BLOCKS, 15 * Settings.get.soundVolume)
         globalTimeouts.getOrElseUpdate(host, mutable.Map.empty) += name -> (System.currentTimeMillis() + 500)
     }
   }

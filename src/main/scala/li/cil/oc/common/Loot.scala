@@ -24,6 +24,7 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.level.storage.LevelResource
 import net.minecraft.nbt.Tag
 import net.minecraft.network.chat.Component
+import net.minecraft.core.component.DataComponents
 import net.neoforged.neoforge.event.level.LevelEvent
 import scala.jdk.CollectionConverters._
 
@@ -163,7 +164,8 @@ object Loot {
       override def call(): FileSystem = api.FileSystem.fromResource(ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "loot/" + path))
     }
     val stack = registerLootDisk(path, ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, path), color.getOrElse(DyeColor.LIGHT_GRAY), callable, doRecipeCycling = true)
-    stack.setHoverName(Component.literal(name))
+    // 1.21.1：`ItemStack#setHoverName(Component)` 已由「自定义名称」数据组件取代。
+    stack.set(DataComponents.CUSTOM_NAME, Component.literal(name))
     if (!external) {
       Items.registerStack(stack, path)
     }

@@ -6,8 +6,8 @@ import li.cil.oc.Settings
 import li.cil.oc.integration
 import net.neoforged.fml.ModList
 import net.neoforged.fml.ModContainer
-import net.neoforged.neoforge.forgespi.language.MavenVersionAdapter
 import org.apache.maven.artifact.versioning.ArtifactVersion
+import org.apache.maven.artifact.versioning.VersionRange
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -40,17 +40,20 @@ object Mods {
 
   val Proxies = Array(
     //integration.appeng.ModAppEng,
-    integration.cofh.tileentity.ModCoFHBlockEntity,
-    integration.create.ModCreate,
-    integration.cofh.foundation.ModThermalFoundation,
+    // 下列集成需要第三方 mod 依赖（cofh / create / mekanism / projectred /
+    // computercraft / enderstorage），这些集成包已暂时隔离到
+    // src/main/scala-pending/li/cil/oc/integration/ 下，等对应的 NeoForge 1.21.1
+    // 版本可用后再移回来并在此处重新登记：
+    //   integration.cofh.tileentity.ModCoFHBlockEntity
+    //   integration.create.ModCreate
+    //   integration.cofh.foundation.ModThermalFoundation
+    //   integration.mekanism.ModMekanism
+    //   integration.projectred.ModProjectRed
+    //   integration.computercraft.ModComputerCraft
+    //   integration.enderstorage.ModEnderStorage
     integration.minecraftforge.ModNeoForge,
     //integration.tis3d.ModTIS3D,
-    integration.mekanism.ModMekanism,
     integration.minecraft.ModMinecraft,
-    integration.projectred.ModProjectRed,
-    integration.computercraft.ModComputerCraft,
-    integration.enderstorage.ModEnderStorage,
-
     // We go late to ensure all other mod integration is done, e.g. to
     // allow properly checking if wireless redstone is present.
     integration.opencomputers.ModOpenComputers
@@ -137,7 +140,11 @@ object Mods {
 
   class SimpleMod(val id: String, version: String = "") extends ModBase {
     private lazy val isModAvailable_ = optionToScala(ModList.get.getModContainerById(id)) match {
-      case Some(container) => version.isEmpty || MavenVersionAdapter.createFromVersionSpec(version).containsVersion(container.getModInfo.getVersion)
+      // NeoForge 移除了 net.neoforged.neoforge.forgespi.language.MavenVersionAdapter，
+      // 这里改用 maven-artifact 自带的 VersionRange（NeoForge 的
+      // IModInfo.getVersion 返回的就是 org.apache.maven.artifact.versioning.ArtifactVersion，
+      // 版本范围字符串本身也是 Maven 语法，语义与原来一致）。
+      case Some(container) => version.isEmpty || VersionRange.createFromVersionSpec(version).containsVersion(container.getModInfo.getVersion)
       case _ => false
     }
 

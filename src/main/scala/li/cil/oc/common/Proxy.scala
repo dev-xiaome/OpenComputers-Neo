@@ -101,7 +101,9 @@ class Proxy {
     if (payloadsRegistered) return
     payloadsRegistered = true
 
-    val registrar: PayloadRegistrar = event.registrar(OpenComputers.ID).versioned("1")
+    // registerPayloadHandlersEvent.registrar 的参数是网络版本号（不是命名空间）；
+    // 双向包必须用 playBidirectional：同一个 payload id 在同一 protocol 下重复注册会直接抛异常。
+    val registrar: PayloadRegistrar = event.registrar("1")
     val handler: IPayloadHandler[PacketPayload] = new IPayloadHandler[PacketPayload] {
       override def handle(payload: PacketPayload, context: IPayloadContext): Unit = {
         // flow().isClientbound() 为真表示这是服务端发到客户端、在客户端被收到的包。
