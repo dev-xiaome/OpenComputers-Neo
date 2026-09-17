@@ -3,6 +3,7 @@ package li.cil.oc.common.tileentity.traits
 import li.cil.oc.api.driver.Item
 import li.cil.oc.api.network.ManagedEnvironment
 import li.cil.oc.api.network.Node
+import li.cil.oc.common.EventHandler
 import li.cil.oc.common.inventory
 import li.cil.oc.common.tileentity.ItemHandlerProvider
 import net.minecraft.nbt.CompoundTag
@@ -61,6 +62,13 @@ trait ComponentInventory extends Environment with Inventory with inventory.Compo
     }
   }
 
+  /**
+   * 精确对应 OCCE 的 `StackOption`：空栈（`null` 或 `ItemStack.EMPTY`）一律映射为 `None`，
+   * 而不是 `Some(ItemStack.EMPTY)`，否则「槽位已空」会被误判为「有一个待处理的栈」。
+   */
+  private def stackOption(stack: ItemStack): Option[ItemStack] =
+    if (stack == null || stack.isEmpty) None else Some(stack)
+
   private def applyInventoryChanges(): Unit = {
     updateScheduled = false
     for (slot <- 0 until getSlots) {
@@ -70,11 +78,14 @@ trait ComponentInventory extends Environment with Inventory with inventory.Compo
           if (!ItemStack.isSameItemSameComponents(removed, added)) {
             super.onItemRemoved(slot, removed)
             super.onItemAdded(slot, added)
+            setChanged()
           } // else: No change, ignore.
         case (Some(removed), None) =>
           super.onItemRemoved(slot, removed)
+          setChanged()
         case (None, Some(added)) =>
           super.onItemAdded(slot, added)
+          setChanged()
         case _ => // No change.
       }
 
@@ -86,28 +97,42 @@ trait ComponentInventory extends Environment with Inventory with inventory.Compo
   private def scheduleInventoryChange(): Unit = {
     if (!updateScheduled) {
       updateScheduled = true
-      // 原实现：EventHandler.scheduleClient(() => applyInventoryChanges())，
-      // 把这些变更合并到本 tick 结束后的客户端任务里执行，避免 MC 临时清空槽位时
-      // 反复销毁 / 重建组件。
-      // TODO(common.EventHandler): 客户端延迟调度器尚未移植，这里直接同步执行；
-      // 移植后应改回 EventHandler.scheduleClient(() => applyInventoryChanges())。
-      applyInventoryChanges()
+      // 把变更合并到本 tick 结束后的客户端任务里执行，避免 MC 临时清空槽位时
+      // 反复销毁 / 重建组件（对齐 OCCE 的 EventHandler.scheduleClient）。
+      EventHandler.scheduleClient(() => applyInventoryChanges())
     }
   }
 
   override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     if (isServer) super.onItemAdded(slot, stack)
     else {
-      pendingAdds(slot) = Option(stack)
-      scheduleInventoryChange()
+      pendingRemovals(slot) match {
+        case Some(removed) if ItemStack.isSameItemSameComponents(removed, stack) =>
+          // 本 tick 内先删后加、且内容与原先完全一致：槽位其实是原样，撤销这对变更。
+          pendingAdds(slot) = None
+          pendingRemovals(slot) = None
+        case _ =>
+          // 本 tick 内出现了「移除后又加入了别的东西」。
+          pendingAdds(slot) = stackOption(stack)
+          scheduleInventoryChange()
+      }
     }
   }
 
   override protected def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
     if (isServer) super.onItemRemoved(slot, stack)
-    else if (pendingRemovals(slot).isEmpty) {
-      pendingRemovals(slot) = Option(stack)
-      scheduleInventoryChange()
+    else {
+      pendingAdds(slot) match {
+        case Some(_) =>
+          // 已有待处理的「添加」，此时出现「移除」意味着这次添加被抵消。
+          pendingAdds(slot) = None
+        case _ =>
+          // 没有待处理的添加时，只有第一次移除是有效的（后续移除理论上不可能出现）。
+          if (pendingRemovals(slot).isEmpty) {
+            pendingRemovals(slot) = stackOption(stack)
+            scheduleInventoryChange()
+          }
+      }
     }
   }
 

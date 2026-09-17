@@ -1,6 +1,6 @@
 # 线缆
 
-![沙拉。](oredict:oc:cable)
+![沙拉。](oredict:opencomputers:cable)
 
 线缆可用于连接距离较远的[电脑](../general/computer.md)与机器。如果你搭建的系统比较紧凑，所有组件都彼此接触（无论直接还是间接接触均可，大多数方块也带有线缆的功能），那么你一般用不到线缆。
 

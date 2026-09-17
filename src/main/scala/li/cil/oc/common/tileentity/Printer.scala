@@ -1,5 +1,6 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util
 
 import li.cil.oc.Constants
@@ -276,8 +277,8 @@ class Printer(pos: BlockPos, state: BlockState)
             limit -= 1
             output = Option(data.createItemStack())
             if (limit < 1) isActive = false
-            // TODO(server.PacketSender): 原为 ServerPacketSender.sendPrinting(this, printing = true)。
-            markBlockForUpdate()
+            // 服务端发专用 Printing 包（对齐 OCCE）。
+            ServerPacketSender.sendPrinting(this, printing = true)
           }
         case _ =>
           isActive = false
@@ -304,8 +305,8 @@ class Printer(pos: BlockPos, state: BlockState)
         requiredEnergy = 0
         output = None
       }
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendPrinting(this, have > 0.5 && output.isDefined)。
-      markBlockForUpdate()
+      // 服务端发专用 Printing 包（对齐 OCCE）。
+      ServerPacketSender.sendPrinting(this, have > 0.5 && output.isDefined)
     }
 
     val inputValue = PrintData.materialValue(getStackInSlot(slotMaterial))
@@ -353,7 +354,7 @@ class Printer(pos: BlockPos, state: BlockState)
     nbt.putBoolean(Settings.namespace + "active", isActive)
     nbt.putInt(Settings.namespace + "limit", limit)
     output.foreach(stack => nbt.setNewCompoundTag(Settings.namespace + "output",
-      (tag: CompoundTag) => stack.save(ExtendedNBT.fallbackRegistry, tag)))
+      (tag: CompoundTag) => tag.merge(ExtendedNBT.encodeStack(stack))))
     nbt.putDouble(Settings.namespace + "total", totalRequiredEnergy)
     nbt.putDouble(Settings.namespace + "remaining", requiredEnergy)
   }

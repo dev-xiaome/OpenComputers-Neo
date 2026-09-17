@@ -32,7 +32,7 @@ import scala.jdk.CollectionConverters._
  *  - `ICrafting#sendProgressBarUpdate` 已删除，改用 [[net.minecraft.world.inventory.DataSlot]]：
  *    服务端 [[sendProgressBarUpdate]] 写值、客户端在 `setData(id, value)` 里读到（见 `container.Robot`）。
  *  - 自定义同步数据（原来的 `ICrafting#sendProgressBarUpdate(container, id, value)` 塞不下的部分）
- *    仍然通过 [[SynchronizedData]] 收集增量，但**投递方式**依赖尚未移植的 `server.PacketSender`，
+ *    仍然通过 [[SynchronizedData]] 收集增量，投递走 `server.PacketSender.sendContainerUpdate`，
  *    见 [[Player.customDataSync]]。
  *  - `@SideOnly` 全部删除（NeoForge 的 `RuntimeDistCleaner` 会直接抛异常）。
  *
@@ -401,18 +401,9 @@ object Player {
   /**
    * 自定义同步数据的投递回调：`(容器, 增量 NBT, 目标玩家) => Unit`。
    *
-   * 1.7.10 里是 `ServerPacketSender.sendContainerUpdate(this, nbt, player)`，
-   * 而 `li.cil.oc.server.PacketSender` 属于尚未移植的 `li.cil.oc.server` 包
-   * （当前编译集里只有 `server/fs` 包与 `server/component/FileSystem.scala`），
-   * 因此容器层不能直接引用它。
-   *
-   * TODO(server.PacketSender): 服务端网络层移植后，在初始化处赋值：
-   * {{{
-   *   Player.customDataSync = (container, nbt, player) =>
-   *     li.cil.oc.server.PacketSender.sendContainerUpdate(container, nbt, player)
-   * }}}
-   * 默认实现是空操作 —— 也就是说**目前自定义数据不会发给客户端**，
-   * 依赖它的只是 GUI 显示（进度、机架节点映射、服务器运行状态等），不影响服务端逻辑。
+   * 1.7.10 里是 `ServerPacketSender.sendContainerUpdate(this, nbt, player)`；
+   * `li.cil.oc.server.PacketSender` 已纳入编译范围，因此默认实现直接投递真实网络包。
    */
-  var customDataSync: (Player, CompoundTag, ServerPlayer) => Unit = (_, _, _) => ()
+  var customDataSync: (Player, CompoundTag, ServerPlayer) => Unit = (container, nbt, player) =>
+    li.cil.oc.server.PacketSender.sendContainerUpdate(container, nbt, player)
 }

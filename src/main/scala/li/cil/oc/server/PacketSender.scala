@@ -212,7 +212,8 @@ object PacketSender {
     pb.sendToPlayersNearHost(host, Option(Settings.get.maxNetworkClientEffectPacketDistance))
   }
 
-  def sendFloppyChange(t: tileentity.DiskDrive, stack: ItemStack = null) {
+  // 与 CE-1.20 一致：默认值用 `ItemStack.EMPTY`（1.7.10 的 `null` 在 1.21.1 里已被 EMPTY 取代）。
+  def sendFloppyChange(t: tileentity.DiskDrive, stack: ItemStack = ItemStack.EMPTY): Unit = {
     val pb = new SimplePacketBuilder(PacketType.FloppyChange)
 
     pb.writeTileEntity(t)

@@ -2,6 +2,7 @@ package li.cil.oc.common.tileentity.traits
 
 import li.cil.oc.Settings
 import li.cil.oc.api.internal
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.RotationHelper
 import net.minecraft.core.Direction
 import net.minecraft.nbt.CompoundTag
@@ -121,8 +122,8 @@ trait Rotatable extends RotationAware with internal.Rotatable {
 
   protected def onRotationChanged(): Unit = {
     if (isServer) {
-      // TODO(server.PacketSender): 原为 PacketSender.sendRotatableState(this)。
-      markBlockForUpdate()
+      // 服务端发专用 RotatableState 包（对齐 OCCE），避免为一次旋转同步整个方块实体。
+      ServerPacketSender.sendRotatableState(this)
     }
     else {
       markBlockForUpdate()

@@ -1,6 +1,6 @@
 # CPU
 
-![脑——子——](oredict:oc:cpu1)
+![脑——子——](oredict:opencomputers:cpu1)
 
 中央处理器是[电脑](../general/computer.md)和[服务器](server1.md)的核心部件，决定了[电脑](../general/computer.md)的架构，以及[电脑](../general/computer.md)在不停止工作的前提下可连接的组件数。CPU的等级越高，[电脑](../general/computer.md)的每tick直接调用进行次数上限也就越高。简而言之：CPU越好运行越快。
 

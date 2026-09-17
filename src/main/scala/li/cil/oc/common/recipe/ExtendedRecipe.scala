@@ -90,7 +90,7 @@ object ExtendedRecipe {
           if (stack.getItem == Items.FILLED_MAP) {
             // Store information of the map used for crafting in the result.
             val nbt = driver.dataTag(craftedStack)
-            nbt.setNewCompoundTag(Settings.namespace + "map", (tag: CompoundTag) => stack.save(ExtendedNBT.fallbackRegistry, tag))
+            nbt.setNewCompoundTag(Settings.namespace + "map", (tag: CompoundTag) => tag.merge(ExtendedNBT.encodeStack(stack)))
           }
         })
     }

@@ -1,5 +1,6 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util.UUID
 
 import li.cil.oc._
@@ -134,9 +135,8 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
 
   override def setSelectedSlot(index: Int): Unit = {
     selectedSlot = index max 0 min mainInventory.getSlots - 1
-    // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotSelectedSlotChange(this)。
-    // 网络层移植后改为发送 SelectedSlotChange 包，这里退化为方块更新。
-    if (world != null) markBlockForUpdate()
+    // 服务端发专用 RobotSelectedSlotChange 包（对齐 OCCE）。
+    if (world != null) ServerPacketSender.sendRobotSelectedSlotChange(this)
   }
 
   val tank: internal.MultiTank = new internal.MultiTank {
@@ -169,8 +169,14 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
 
   override def synchronizeSlot(slot: Int): Unit = if (slot >= 0 && slot < getSlots) this.synchronized {
     val stack = getStackInSlot(slot)
-    // TODO(server.PacketSender): 原实现在这里顺手把组件状态写回物品并调用
-    // ServerPacketSender.sendRobotInventory(this, slot, stack)。网络层移植后补回。
+    // 把组件状态写回物品，再同步该槽位给客户端（对齐 OCCE）。
+    if (slot < componentEnvironments.length) componentEnvironments(slot) match {
+      case Some(component) =>
+        // 有驱动保证：该槽位是组件槽。
+        save(component, Driver.driverFor(stack, getClass), stack)
+      case _ =>
+    }
+    ServerPacketSender.sendRobotInventory(this, slot, stack)
   }
 
   def containerSlots: Range = 1 to info.containers.length
@@ -181,8 +187,8 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
 
   def setLightColor(value: Int): Unit = {
     info.lightColor = value
-    // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotLightChange(this)。
-    markBlockForUpdate()
+    // 服务端发专用 RobotLightChange 包（对齐 OCCE）。
+    ServerPacketSender.sendRobotLightChange(this)
   }
 
   override def shouldAnimate = isRunning
@@ -250,14 +256,14 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
 
   def animateSwing(duration: Double): Unit = if (tools(0).isDefined) {
     setAnimateSwing((duration * 20).toInt)
-    // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotAnimateSwing(this)。
-    markBlockForUpdate()
+    // 服务端发专用 RobotAnimateSwing 包（对齐 OCCE）。
+    ServerPacketSender.sendRobotAnimateSwing(this)
   }
 
   def animateTurn(clockwise: Boolean, duration: Double): Unit = {
     setAnimateTurn(if (clockwise) 1 else -1, (duration * 20).toInt)
-    // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotAnimateTurn(this)。
-    markBlockForUpdate()
+    // 服务端发专用 RobotAnimateTurn 包（对齐 OCCE）。
+    ServerPacketSender.sendRobotAnimateTurn(this)
   }
 
   def setAnimateMove(fromPosition: BlockPosition, ticks: Int): Unit = {
@@ -507,7 +513,8 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
         // TODO(server.agent): 原实现把工具的属性修饰符套用到机器人假玩家上。
       }
       if (isUpgradeSlot(slot)) {
-        // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotInventory(this, slot, stack)。
+        // 同步该槽位的升级组件状态给客户端（对齐 OCCE）。
+        ServerPacketSender.sendRobotInventory(this, slot, stack)
       }
       if (isFloppySlot(slot)) {
         li.cil.oc.common.Sound.playDiskInsert(this)
@@ -530,7 +537,8 @@ class Robot(robotLevel: Level, initialPos: BlockPos, robotState: BlockState)
         // TODO(server.agent): 原实现移除机器人假玩家上的属性修饰符。
       }
       if (isUpgradeSlot(slot)) {
-        // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotInventory(this, slot, null)。
+        // 同步该槽位已空给客户端（对齐 OCCE：移除时用 ItemStack.EMPTY）。
+        ServerPacketSender.sendRobotInventory(this, slot, ItemStack.EMPTY)
       }
       if (isFloppySlot(slot)) {
         li.cil.oc.common.Sound.playDiskEject(this)

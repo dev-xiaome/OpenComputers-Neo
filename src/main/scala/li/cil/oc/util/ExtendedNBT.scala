@@ -2,7 +2,7 @@ package li.cil.oc.util
 
 import com.google.common.base.Charsets
 import net.minecraft.core.Direction
-import net.minecraft.core.RegistryAccess
+import net.minecraft.core.{HolderLookup, RegistryAccess}
 import net.minecraft.nbt._
 import net.minecraft.world.item.ItemStack
 
@@ -20,12 +20,56 @@ import scala.reflect.ClassTag
  *  - `new NBTTagXxx(v)` → `XxxTag.valueOf(v)`
  *  - `func_1502xx_x()` 系列 → `getAsXxx`
  *  - `ListTag` 的遍历/映射语义改为基于下标访问
- *  - `ItemStack` 的序列化需要 `HolderLookup.Provider`，无上下文时使用 `RegistryAccess.EMPTY`
+ *  - `ItemStack` 的序列化需要 `HolderLookup.Provider`，见 [[fallbackRegistry]]
  */
 object ExtendedNBT {
 
-  /** 序列化/反序列化物品时使用的注册表访问器（无上下文时的退化方案）。 */
-  def fallbackRegistry: RegistryAccess = RegistryAccess.EMPTY
+  /**
+   * 序列化 / 反序列化物品时使用的注册表访问器。
+   *
+   * **绝对不能用 `RegistryAccess.EMPTY`。** 1.21.1 的 `ItemStack#save` 内部要先用
+   * `registries.getOrThrow(Registries.ITEM)` 查出物品的 id 才能写进标签；在空访问器上这一步
+   * 拿不到注册表，结果**每个物品都被静默写成空标签 `{"item": {}}`，读档时全部变成空气**。
+   * 这就是「机箱里的物品全没了」的根因——存档里那 7 条空的 `{"item": {}}` 正是它留下的。
+   * 官方 1.21.1 移植版的做法同样是用真实的服务端注册表（`ServerLifecycleHooks`）。
+   *
+   * 真正的取值逻辑（服务端 → 客户端 → 缓存 → 告警）在 Java 侧
+   * [[li.cil.oc.util.RegistryAccessHelper]] 里，这样 Java 代码（例如
+   * `api.prefab.ItemStackArrayValue`）能用到同一个真源，不会各写一份。
+   *
+   * 返回类型用 `HolderLookup.Provider`（`ItemStack#save` / `#parseOptional` 需要的正是它，
+   * `RegistryAccess` 也实现了该接口）。Java 侧的 helper 在真的取不到注册表时返回的是
+   * `RegistryAccess.EMPTY`，所以这里**不要**收窄成 `RegistryAccess`，
+   * 否则一旦 helper 改成别的 provider 实现就会编译不过。
+   */
+  def fallbackRegistry: HolderLookup.Provider = RegistryAccessHelper.getOrEmpty()
+
+  /**
+   * 把一个物品堆写进 `nbt` 的 `name` 键（空栈写空标签）。
+   *
+   * **必须用返回值，不能依赖它写进传入的标签。** 1.21.1 的
+   * `ItemStack#save(HolderLookup.Provider, Tag)` 内部是
+   * `DataComponentUtil.wrapEncodingExceptions(this, CODEC, registries, tag)`，
+   * 它是**返回**编码结果，而不是就地把内容填进 `tag`；空栈还会直接抛
+   * `IllegalStateException: Cannot encode empty ItemStack`。
+   * 把返回值丢掉就会写出空标签 `{}` —— 存档里表现为 `{"item": {}}`，
+   * 读档后物品全部消失（这正是「机箱里的物品全没了」的直接原因）。
+   * 因此统一走 `saveOptional`：空栈返回空标签，非空栈返回编码好的标签。
+   */
+  def putStack(nbt: CompoundTag, name: String, stack: ItemStack): Unit =
+    nbt.put(name, encodeStack(stack))
+
+  /** 把物品栈编码成 `CompoundTag`（空栈 → 空标签）。见 [[putStack]] 对返回值的说明。 */
+  def encodeStack(stack: ItemStack): CompoundTag =
+    if (stack == null) new CompoundTag()
+    else stack.saveOptional(fallbackRegistry) match {
+      case tag: CompoundTag => tag
+      case other =>
+        // 理论上不会发生：物品的 Codec 一定编码成 CompoundTag。真发生也保底不丢数据。
+        val wrapper = new CompoundTag()
+        wrapper.put("value", other)
+        wrapper
+    }
 
   implicit def toNbt(value: Boolean): ByteTag = ByteTag.valueOf(value)
 
@@ -51,10 +95,8 @@ object ExtendedNBT {
 
   implicit def toNbt(value: ItemStack): CompoundTag = {
     val nbt = new CompoundTag()
-    if (value != null && !value.isEmpty) {
-      value.save(fallbackRegistry, nbt)
-    }
-    nbt
+    putStack(nbt, "item", value)
+    nbt.getCompound("item")
   }
 
   implicit def toNbt(value: CompoundTag => Unit): CompoundTag = {

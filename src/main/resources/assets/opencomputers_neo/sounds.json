@@ -4,43 +4,89 @@
                              "sounds":  [
                                             {
                                                 "name":  "opencomputers_neo:computer_running",
-                                                "stream":  true
+                                                "stream":  true,
+                                                "attenuation_distance":  16
                                             }
                                         ]
                          },
     "floppy_access":  {
                           "category":  "block",
                           "sounds":  [
-                                         "opencomputers_neo:floppy_access1",
-                                         "opencomputers_neo:floppy_access2",
-                                         "opencomputers_neo:floppy_access3",
-                                         "opencomputers_neo:floppy_access4",
-                                         "opencomputers_neo:floppy_access5",
-                                         "opencomputers_neo:floppy_access6"
+                                         {
+                                             "name":  "opencomputers_neo:floppy_access1",
+                                             "preload":  true
+                                         },
+                                         {
+                                             "name":  "opencomputers_neo:floppy_access2",
+                                             "preload":  true
+                                         },
+                                         {
+                                             "name":  "opencomputers_neo:floppy_access3",
+                                             "preload":  true
+                                         },
+                                         {
+                                             "name":  "opencomputers_neo:floppy_access4",
+                                             "preload":  true
+                                         },
+                                         {
+                                             "name":  "opencomputers_neo:floppy_access5",
+                                             "preload":  true
+                                         },
+                                         {
+                                             "name":  "opencomputers_neo:floppy_access6",
+                                             "preload":  true
+                                         }
                                      ]
                       },
     "floppy_eject":  {
                          "category":  "block",
                          "sounds":  [
-                                        "opencomputers_neo:floppy_eject"
+                                        {
+                                            "name":  "opencomputers_neo:floppy_eject",
+                                            "preload":  true
+                                        }
                                     ]
                      },
     "floppy_insert":  {
                           "category":  "block",
                           "sounds":  [
-                                         "opencomputers_neo:floppy_insert"
+                                         {
+                                             "name":  "opencomputers_neo:floppy_insert",
+                                             "preload":  true
+                                         }
                                      ]
                       },
     "hdd_access":  {
                        "category":  "block",
                        "sounds":  [
-                                      "opencomputers_neo:hdd_access1",
-                                      "opencomputers_neo:hdd_access2",
-                                      "opencomputers_neo:hdd_access3",
-                                      "opencomputers_neo:hdd_access4",
-                                      "opencomputers_neo:hdd_access5",
-                                      "opencomputers_neo:hdd_access6",
-                                      "opencomputers_neo:hdd_access7"
+                                      {
+                                          "name":  "opencomputers_neo:hdd_access1",
+                                          "preload":  true
+                                      },
+                                      {
+                                          "name":  "opencomputers_neo:hdd_access2",
+                                          "preload":  true
+                                      },
+                                      {
+                                          "name":  "opencomputers_neo:hdd_access3",
+                                          "preload":  true
+                                      },
+                                      {
+                                          "name":  "opencomputers_neo:hdd_access4",
+                                          "preload":  true
+                                      },
+                                      {
+                                          "name":  "opencomputers_neo:hdd_access5",
+                                          "preload":  true
+                                      },
+                                      {
+                                          "name":  "opencomputers_neo:hdd_access6",
+                                          "preload":  true
+                                      },
+                                      {
+                                          "name":  "opencomputers_neo:hdd_access7",
+                                          "preload":  true
+                                      }
                                   ]
                    }
 }

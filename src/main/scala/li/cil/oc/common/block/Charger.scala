@@ -20,9 +20,7 @@ import net.minecraft.world.phys.BlockHitResult
  *    （充电机允许任意面接红石，用来反转充/放电）。
  *  - `onBlockActivated` → [[SimpleBlockHooks.useBlock]]；扳手切换充/放电方向的分支保留，
  *    但 `integration.util.Wrench` 未移植，判断恒为 `false`。
- *  - `PacketSender.sendChargerState(charger)` → 网络层未移植，
- *    改用方块更新同步（`sendBlockUpdated`），方块实体自身的客户端同步标签里带上这些字段。
- *    TODO(server.PacketSender): 网络层移植后改回发送 `ChargerState` 包。
+ *  - `PacketSender.sendChargerState(charger)` 已按原实现接回（见 [[useBlock]]）。
  *  - `getIcon` / `customTextures` / `Textures.Charger.*` 全部删除，面纹理改由模型 JSON 指定。
  *
  * 纹理（原 `customTextures` 面序 DOWN, UP, NORTH, SOUTH, WEST, EAST）：
@@ -57,8 +55,8 @@ class Charger(properties: BlockBehaviour.Properties = SimpleBlock.properties())
         if (!level.isClientSide) {
           charger.invertSignal = !charger.invertSignal
           charger.chargeSpeed = 1.0 - charger.chargeSpeed
-          // 原：`PacketSender.sendChargerState(charger)`
-          level.sendBlockUpdated(pos, state, state, Block.UPDATE_CLIENTS)
+          // 服务端发专用 ChargerState 包（对齐 OCCE）。
+          li.cil.oc.server.PacketSender.sendChargerState(charger)
           // TODO(integration.util.Wrench): 原为 `Wrench.wrenchUsed(player, BlockPosition(x, y, z))`
         }
         InteractionResult.sidedSuccess(level.isClientSide)

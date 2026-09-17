@@ -3,6 +3,8 @@ package li.cil.oc.common.tileentity.traits
 import java.util
 
 import li.cil.oc.Settings
+import li.cil.oc.common.EventHandler
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.ExtendedWorld._
 import net.minecraft.core.Direction
 import net.minecraft.nbt.CompoundTag
@@ -157,11 +159,10 @@ trait RedstoneAware extends RotationAware {
 
   override def initialize(): Unit = {
     super.initialize()
-    // 原实现在此判断 `!canUpdate` 时用 `EventHandler.scheduleServer` 延迟一 tick 采样输入。
-    // TODO(common.EventHandler): `common.EventHandler` 未纳入编译范围（且 1.21.1 的 ticker
-    // 由方块侧的 `EntityBlock#getTicker` 决定），这里改为立刻采样一次。
+    // 不参与 tick 的方块实体需要主动延迟一 tick 采样一次红石输入（对齐 OCCE 的 `clearRemoved` 分支）：
+    // 在自身与邻居方块实体都尚未就绪时立即采样会读到错误的红石状态。
     if (!canUpdate && isServer) {
-      Direction.values().foreach(updateRedstoneInput)
+      EventHandler.scheduleServer(() => Direction.values().foreach(updateRedstoneInput))
     }
   }
 
@@ -230,8 +231,9 @@ trait RedstoneAware extends RotationAware {
   protected def onRedstoneOutputEnabledChanged(): Unit = {
     if (world != null) {
       world.notifyBlocksOfNeighborChange(position, block)
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendRedstoneState(this)。
-      markBlockForUpdate()
+      // 服务端发专用 RedstoneState 包，客户端走方块更新（对齐 OCCE）。
+      if (isServer) ServerPacketSender.sendRedstoneState(this)
+      else markBlockForUpdate()
     }
   }
 
@@ -241,8 +243,9 @@ trait RedstoneAware extends RotationAware {
       world.notifyBlockOfNeighborChange(blockPos, block)
       world.notifyBlocksOfNeighborChange(blockPos, world.getBlock(blockPos), side.getOpposite)
 
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendRedstoneState(this)。
-      markBlockForUpdate()
+      // 服务端发专用 RedstoneState 包，客户端走方块更新（对齐 OCCE）。
+      if (isServer) ServerPacketSender.sendRedstoneState(this)
+      else markBlockForUpdate()
     }
   }
 }

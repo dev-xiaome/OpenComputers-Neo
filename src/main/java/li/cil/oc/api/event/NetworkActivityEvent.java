@@ -5,6 +5,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.bus.api.Event;
+import net.neoforged.bus.api.ICancellableEvent;
 
 /**
  * Events for handling network activity and representing it on the client.
@@ -17,8 +18,13 @@ import net.neoforged.bus.api.Event;
  * <br>
  * Canceling this event is provided to allow registering higher priority
  * event handlers that override default behavior.
+ * <br>
+ * 1.21.1：必须实现 {@link ICancellableEvent}，否则 {@code setCanceled}/{@code isCanceled}
+ * 不存在，{@code PacketSender.sendNetworkActivity} 就无法像 1.7.10 / CE-1.20 那样检查
+ * 「其它模组是否取消了网络活动特效」，事件也就不可取消。相邻的
+ * {@code FileSystemAccessEvent} 一直是这么写的。
  */
-public class NetworkActivityEvent extends Event {
+public class NetworkActivityEvent extends Event implements ICancellableEvent {
     protected Level world;
 
     protected double x;

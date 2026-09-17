@@ -6,6 +6,7 @@ import li.cil.oc.api.network
 import li.cil.oc.api.network.Connector
 import li.cil.oc.api.network.Node
 import li.cil.oc.api.network.SidedEnvironment
+import li.cil.oc.common.EventHandler
 import li.cil.oc.util.ExtendedNBT._
 import net.minecraft.core.Direction
 import net.minecraft.nbt.CompoundTag
@@ -14,9 +15,8 @@ import net.minecraft.nbt.CompoundTag
  * 带组件网络环境的方块实体（对应 1.7.10 的 `common.tileentity.traits.Environment`）。
  *
  * 1.21.1 迁移要点：
- *  - `EventHandler.scheduleServer(this)`（延迟一 tick 入网）→ 直接在 `initialize()` 里
- *    调用 `api.Network.joinOrCreateNetwork(this)`：`BlockEntity#onLoad()` 保证此时方块实体
- *    已完整加入世界，不再需要规避「世界/区块未就绪」。
+ *  - `EventHandler.scheduleServer(this)`（延迟一 tick 入网）**必须保留**：见 [[initialize]] 的说明，
+ *    同步入网会在区块加载时把方块实体连进不完整的网络，导致组件识别失败。
  *  - 原 `dispose()` 里依赖 `li.cil.oc.server.network.Network` 的「按侧断连」逻辑（用于
  *    可被移动的计算机）尚未移植，这里退化为直接摘除节点，语义等价于节点离开网络。
  *  - `ForgeDirection.VALID_DIRECTIONS` → `Direction.values()`。
@@ -46,9 +46,14 @@ trait Environment extends TileEntity with network.Environment with network.Envir
   override def initialize(): Unit = {
     super.initialize()
     if (isServer) {
-      // 原实现：EventHandler.scheduleServer(this)，把入网推迟到下一个服务端 tick。
-      // 1.21.1：BlockEntity#onLoad() 已经是「方块实体完整加入世界之后」的时机。
-      api.Network.joinOrCreateNetwork(this)
+      // 把「加入网络」推迟到下一个服务端 tick（对齐 OCCE 的 `EventHandler.scheduleServer(this)`）。
+      //
+      // 不能在这里同步入网：区块加载时，同一 tick 内会有多个方块实体陆续 `onLoad`
+      // （机箱、显卡、屏幕、键盘、线缆……）。先 `onLoad` 的那个如果立刻
+      // `joinOrCreateNetwork`，此时邻居尚未入网，它会被连进一个**不完整**的网络；
+      // 结果是机器的节点与组件节点不在同一网络里，表现为「识别不到组件 / 开机失败」。
+      // 推迟到 tick 起点统一入网，才能保证所有方块实体都已加入世界。
+      EventHandler.scheduleServer(this)
     }
   }
 

@@ -1,6 +1,6 @@
 # 数据库升级
 
-![住在数据库里。](oredict:oc:databaseUpgrade1)
+![住在数据库里。](oredict:opencomputers:databaseUpgrade1)
 
 数据库升级可以通过配置来存储一份物品堆信息的列表，以供其他组件使用。此升级尤其适用于仅依据NBT数据来区分的物品，因为回调函数返回的物品堆信息中不包含这部分数据。
 

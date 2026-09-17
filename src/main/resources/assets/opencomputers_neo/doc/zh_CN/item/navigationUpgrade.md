@@ -1,6 +1,6 @@
 # 导航升级
 
-![我又迷路了。](oredict:oc:navigationUpgrade)
+![我又迷路了。](oredict:opencomputers:navigationUpgrade)
 
 导航升级可为所安装设备提供位置与朝向信息。此升级所提供的位置是相对用于合成升级所用地图中心的的相对位置，作用范围也受限于地图大小。
 

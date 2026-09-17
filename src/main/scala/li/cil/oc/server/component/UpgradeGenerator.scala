@@ -259,7 +259,7 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends pr
   override def save(nbt: CompoundTag): Unit = {
     super.save(nbt)
     inventory match {
-      case Some(stack) => nbt.setNewCompoundTag("inventory", tag => stack.save(host.world.registryAccess(), tag))
+      case Some(stack) => nbt.setNewCompoundTag("inventory", tag => tag.merge(li.cil.oc.util.ExtendedNBT.encodeStack(stack)))
       case _ =>
     }
     if (remainingTicks > 0) {

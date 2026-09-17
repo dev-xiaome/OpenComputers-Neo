@@ -1,9 +1,9 @@
 package li.cil.oc.server.machine.luaj
 
-import li.cil.oc.api.network.Component
+import li.cil.oc.server.network.Component
 import li.cil.oc.util.ScalaClosure._
-import org.luaj.vm2.LuaValue
-import org.luaj.vm2.Varargs
+import li.cil.repack.org.luaj.vm2.LuaValue
+import li.cil.repack.org.luaj.vm2.Varargs
 
 import scala.jdk.CollectionConverters._
 
@@ -82,8 +82,8 @@ class ComponentAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
   }
 
   private def withComponent(address: String, f: (Component) => Varargs) = Option(node.network.node(address)) match {
-    // TODO(server.component): 上游用 `li.cil.oc.server.network.Component`，
-    // 尚未移植，这里改用 API 接口。
+    // 与 CE-1.20 一致：只认 `li.cil.oc.server.network.Component`（带真实回调表的实现），
+    // 不能放宽到裸的 `api.network.Component` 接口。
     case Some(component: Component) if component.canBeSeenFrom(node) || component == node =>
       f(component)
     case _ =>

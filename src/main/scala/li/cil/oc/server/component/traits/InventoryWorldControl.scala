@@ -10,6 +10,9 @@ import li.cil.oc.util.ResultWrapper.result
 import net.minecraft.core.Direction
 import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.item.{BlockItem, ItemStack}
+import net.minecraft.world.item.context.BlockPlaceContext
+import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.phys.BlockHitResult
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.entity.item.ItemTossEvent
 
@@ -18,7 +21,8 @@ import net.neoforged.neoforge.event.entity.item.ItemTossEvent
  *
  * 1.21.1 迁移要点：
  *  - `ItemBlock` → `BlockItem`，`item.field_150939_a` → `BlockItem#getBlock`
- *  - 方块 metadata 已移除，[[compare]] 的非 fuzzy 分支退化为比较完整方块状态
+ *  - 方块 metadata 已移除，[[compare]] 的非 fuzzy 分支改为用 `BlockPlaceContext`
+ *    推算放置状态后再比较（见 [[blockStateMatchesStack]]），而不是跟 `defaultBlockState` 硬比
  *  - `MinecraftForge` → `NeoForge`，`ItemTossEvent` 改成 NeoForge 的包名；
  *    新事件没有 `Event.Result`，只用 `isCanceled`
  *  - `EntityItem` → `ItemEntity`；`isDead` → `isRemoved`，`getEntityItem` → `getItem`，
@@ -33,18 +37,37 @@ trait InventoryWorldControl extends InventoryAware with WorldAware with SideRest
     stackInSlot(selectedSlot) match {
       case Some(stack) => stack.getItem match {
         case item: BlockItem =>
-          val blockPos = position.offset(side)
-          val blockState = world.getBlockState(blockPos.toChunkCoordinates)
+          val blockPos = position.offset(side).toChunkCoordinates
+          val blockState = world.getBlockState(blockPos)
           val idMatches = item.getBlock == blockState.getBlock
-          // 1.21.1 没有方块 metadata：非 fuzzy 分支退化为比较完整方块状态，
-          // 语义与旧版一致（比默认状态多出额外属性就算不同）。
-          val subTypeMatches = args.optBoolean(1, false) || blockState == item.getBlock.defaultBlockState
+          val fuzzy = args.optBoolean(1, false)
+          // 1.7.10 用方块 metadata 判「是不是同一个子类型」；metadata 在 1.21.1 被
+          // BlockState 属性取代，因此这里必须**按同样的放置上下文**推算出该堆叠会放出来的
+          // 状态再比较。只跟 `defaultBlockState` 比是错的：楼梯/台阶/带朝向的方块
+          // （也就是机器人最常比的那批）会被判成「不匹配」，进而让部署脚本误判。
+          val subTypeMatches = fuzzy || blockStateMatchesStack(item, stack, blockState, blockPos, side)
           return result(idMatches && subTypeMatches)
         case _ =>
       }
       case _ =>
     }
     result(false)
+  }
+
+  /**
+   * 推算「把 `stack` 放在 `blockPos` 时会产生哪个 BlockState」，再与目标位置的实际状态比较。
+   *
+   * 等价于 OCCE `ContainerLevelControl#blockStateMatchesStack`：先用
+   * `Block#getStateForPlacement(BlockPlaceContext)` 拿到「像玩家放置那样」的状态，
+   * 没有该属性的方块则直接与默认状态比较。
+   */
+  private def blockStateMatchesStack(item: BlockItem, stack: ItemStack, state: BlockState,
+                                     blockPos: net.minecraft.core.BlockPos, side: Direction): Boolean = {
+    if (item.getBlock.getStateDefinition.getProperties.isEmpty) return true
+    val context = new BlockPlaceContext(
+      world, fakePlayer, net.minecraft.world.InteractionHand.MAIN_HAND, stack,
+      new BlockHitResult(net.minecraft.world.phys.Vec3.atCenterOf(blockPos), side.getOpposite, blockPos, false))
+    Option(item.getBlock.getStateForPlacement(context)).forall(_ == state)
   }
 
   @Callback(doc = "function(side:number[, count:number=64]):boolean -- Drops items from the selected slot towards the specified side.")

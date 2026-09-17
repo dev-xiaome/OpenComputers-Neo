@@ -1,6 +1,6 @@
 # 中继器
 
-![构建信息之桥。](oredict:oc:relay)
+![构建信息之桥。](oredict:opencomputers:relay)
 
 中继器可以让不同子网互相发送网络报文，但不会将组件暴露给其他子网中的[电脑](../general/computer.md)。通常而言，最好保证组件只对本地设备可见，这样可以避免[电脑](../general/computer.md)连接到错误的[显示屏](screen1.md)，还能避免组件数溢出（会导致[电脑](../general/computer.md)崩溃并拒绝启动）。
 

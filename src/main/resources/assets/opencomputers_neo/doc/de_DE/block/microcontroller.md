@@ -1,6 +1,6 @@
 # Mikrocontroller
 
-![Don't belittle it.](block:opencomputers_neo:microcontroller)
+![Don't belittle it.](block:opencomputers:microcontroller)
 
 Mikrocontroller werden gebaut, indem ein [Mikrocontrollergehäuse](../item/microcontrollerCase1.md) in der [Elektronik-Werkbank](assembler.md) verwendet wird. Im Vergleich zu [Computern](../general/computer.md) haben sie weniger Funktionen, sind aber günstiger zu bauen. Ganz besonders *können sie nicht mit externen Komponenten interagieren*.
 

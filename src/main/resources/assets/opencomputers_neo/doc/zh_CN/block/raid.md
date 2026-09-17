@@ -1,6 +1,6 @@
 # 硬盘阵列柜
 
-![硬盘开团。](oredict:oc:raid)
+![硬盘开团。](oredict:opencomputers:raid)
 
 硬盘阵列柜方块可容纳三块[硬盘](../item/hdd1.md)，可以将它们组合为单个文件系统。组合所得文件系统的大小为各[硬盘](../item/hdd1.md)容量之和，并且此文件系统对所有与其连接的[电脑](../general/computer.md)均可用。
 

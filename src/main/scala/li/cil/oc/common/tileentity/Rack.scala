@@ -1,5 +1,6 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util
 
 import li.cil.oc.Settings
@@ -382,8 +383,8 @@ class Rack(pos: BlockPos, state: BlockState)
     if (isServer) {
       setOutputEnabled(hasRedstoneCard)
       isAbstractBusAvailable = hasAbstractBusCard
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendRackInventory(this)。
-      markBlockForUpdate()
+      // 服务端发专用 RackInventory 包（对齐 OCCE），避免同步整个方块实体。
+      ServerPacketSender.sendRackInventory(this)
     }
     else {
       markBlockForUpdate()
@@ -434,8 +435,8 @@ class Rack(pos: BlockPos, state: BlockState)
           if (hasChanged(slot)) {
             hasChanged(slot) = false
             lastData(slot) = mountable.getData
-            // TODO(server.PacketSender): 原为 ServerPacketSender.sendRackMountableData(this, slot)。
-            markBlockForUpdate()
+            // 服务端发专用 RackMountableData 包（对齐 OCCE），只同步该槽位的挂载数据。
+            ServerPacketSender.sendRackMountableData(this, slot)
             notifyNeighbors()
             // These are working state dependent, so recompute them.
             setOutputEnabled(hasRedstoneCard)

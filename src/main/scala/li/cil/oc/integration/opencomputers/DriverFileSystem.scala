@@ -49,10 +49,6 @@ object DriverFileSystem extends Item {
     }
 
   private def createEnvironment(stack: ItemStack, capacity: Int, platterCount: Int, host: EnvironmentHost, speed: Int) = {
-    // TODO(diag): 临时诊断日志，用于定位「OpenOS 软盘没有文件系统」，问题解决后删除。
-    li.cil.oc.OpenComputers.log.info(
-      s"[OC-DIAG] FileSystem.createEnvironment: item=${stack.getItem} hasTag=${stack.hasTag()} " +
-        s"nbt=${if (stack.hasTag()) stack.getTag().toString else "null"}")
     if (stack.hasTag() && stack.getTag().contains(Settings.namespace + "lootFactory")) {
       // Loot disk, create file system using factory callback.
       Loot.factories.get(stack.getTag().getString(Settings.namespace + "lootFactory")) match {

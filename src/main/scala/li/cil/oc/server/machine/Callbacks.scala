@@ -11,6 +11,7 @@ import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.FilteredEnvironment
 import li.cil.oc.api.network.ManagedPeripheral
+import li.cil.oc.server.driver.CompoundBlockEnvironment
 
 import scala.collection.immutable
 import scala.collection.mutable
@@ -19,9 +20,9 @@ object Callbacks {
   private val cache = mutable.Map.empty[Class[_], immutable.Map[String, Callback]]
 
   def apply(host: Any) = host match {
-    // TODO(server.driver): 上游此处匹配 `li.cil.oc.server.driver.CompoundBlockEnvironment`；
-    // 该类尚未进入编译集，所以这里先退化为对 `ManagedPeripheral` /
-    // `FilteredEnvironment` 的动态分析，复合方块环境等移植完成后补回分支。
+    // 复合方块环境（一个方块上叠了多个组件驱动）必须每次动态分析：
+    // 它的方法表由内部各驱动环境聚合而成，不能按宿主 Class 缓存。
+    case multi: CompoundBlockEnvironment => dynamicAnalyze(host)
     case peripheral: ManagedPeripheral => dynamicAnalyze(host)
     case filtered: FilteredEnvironment => dynamicAnalyze(host)
     case _ => cache.synchronized(cache.getOrElseUpdate(host.getClass, dynamicAnalyze(host)))
@@ -73,8 +74,9 @@ object Callbacks {
     // First collect whitelist and priority information, then sort and
     // fetch callbacks.
     (host match {
-      // TODO(server.driver): 上游此处对 CompoundBlockEnvironment 展开其内部环境列表：
-      // `case multi: CompoundBlockEnvironment => multi.environments.map(env => process(env._2))`
+      // 复合方块环境要把内部每个驱动环境分别展开，才能让白名单 / 优先级 / 过滤
+      // 各按自己的环境生效（CE-1.20 原样如此）。
+      case multi: CompoundBlockEnvironment => multi.environments.map(env => process(env._2))
       case single => Seq(process(single))
     }).sortBy(-_._1).map(_._2).foreach(_ ())
 

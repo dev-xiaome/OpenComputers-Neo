@@ -1,6 +1,6 @@
 # 网络分断器
 
-![*.net *.split](oredict:oc:netSplitter)
+![*.net *.split](oredict:opencomputers:netSplitter)
 
 网络分断器是用于控制子网间连通性的设备。和[中继器](relay.md)以及[能量转换器](powerConverter.md)不同，网络分断器会将相邻子网络直接连通，也就是可以直接访问组件。各方向上的连通性可通过扳手（例如[螺丝刀扳手](../item/wrench.md)）来反转。当有红石信号输入进网络分断器时，所有方向上的连通性都会反转。
 

@@ -5,8 +5,10 @@ import li.cil.oc.api.driver
 import li.cil.oc.api.driver.NamedBlock
 import li.cil.oc.api.network.ManagedEnvironment
 import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
+import net.minecraft.world.level.block.entity.BlockEntity
 
 // TODO Remove blocks in OC 1.7.
 class CompoundBlockDriver(val sidedBlocks: Array[driver.SidedBlock], val blocks: Array[driver.Block]) extends driver.SidedBlock {
@@ -36,17 +38,18 @@ class CompoundBlockDriver(val sidedBlocks: Array[driver.SidedBlock], val blocks:
   /**
    * 推导适配器（Adapter）旁那个方块对外的组件名。
    *
-   * ==1.21.1 移植要点==
-   * 1.7.10 版依次尝试了三种来源，其中两种依赖已经不存在或不可靠的 API，这里按如下方式降级：
-   *  1. `NamedBlock#preferredName` —— 不变，优先级最高。
-   *  2. `world.getTileEntity` + `IInventory#getInventoryName` —— 1.21.1 没有 `IInventory`，
-   *     也没有「方块实体的显示名」这种约定，**整体删除**。
-   *  3. `world.getBlock` + `Item#getItemFromBlock` + `ItemStack#getUnlocalizedName` —— 1.21.1 改为
-   *     `world.getBlockState(pos).getBlock` → `new ItemStack(block)`（`Block` 即 `ItemLike`），
-   *     名字取 `Item#getDescriptionId`（`block.minecraft.xxx`），再去掉命名空间前缀。
-   *  4. `BlockEntity.classToNameMap`（1.7.10 的类 → 注册名映射）—— 1.21.1 已移除，**整体删除**。
+   * 与 OCCE 的 `tryGetName` 保持同样的优先级顺序（1.7.10 的顺序也一致）：
+   *  1. `NamedBlock#preferredName` —— 优先级最高。
+   *  2. 方块物品的本地化键（1.7.10 是 `ItemStack#getUnlocalizedName`，1.21.1 是
+   *     `Item#getDescriptionId`，形如 `block.minecraft.xxx`）。
+   *  3. 方块实体类型注册名（1.7.10 是 `TileEntity.classToNameMap`，1.20 是
+   *     `ForgeRegistries.BLOCK_ENTITY_TYPES`，1.21.1 是 `BuiltInRegistries.BLOCK_ENTITY_TYPE`）。
+   *     **不能省略这一步**：很多方块（例如各种机器的机壳）没有可用的物品名，
+   *     只能靠方块实体类型名区分。
+   *  4. 兜底 `"component"`，与 1.7.10 行为一致。
    *
-   * 兜底仍是 `"component"`，与 1.7.10 行为一致。
+   * 已删除的无对应 API：`IInventory#getInventoryName`（1.21.1 没有 `IInventory`，
+   * 也没有「方块实体显示名」这种约定）。
    */
   private def tryGetName(world: Level, x: Int, y: Int, z: Int, environments: Seq[ManagedEnvironment]): String = {
     environments.collect {
@@ -55,8 +58,8 @@ class CompoundBlockDriver(val sidedBlocks: Array[driver.SidedBlock], val blocks:
       case Some(named) => return named.preferredName
       case _ => // No preferred name.
     }
+    val pos = new BlockPos(x, y, z)
     try {
-      val pos = new BlockPos(x, y, z)
       val state = world.getBlockState(pos)
       if (!state.isAir) {
         // 1.21.1：`world.getBlock(x, y, z)` → `getBlockState(pos).getBlock`；
@@ -66,10 +69,21 @@ class CompoundBlockDriver(val sidedBlocks: Array[driver.SidedBlock], val blocks:
         if (!stack.isEmpty) {
           val name = stack.getItem.getDescriptionId
           if (!Strings.isNullOrEmpty(name)) {
-            return name.stripPrefix("block.").stripPrefix("item.")
+            return name.stripPrefix("tile.").stripPrefix("block.").stripPrefix("item.")
           }
         }
       }
+    } catch {
+      case _: Throwable =>
+    }
+    try world.getBlockEntity(pos) match {
+      case blockEntity: BlockEntity =>
+        // 1.7.10 的 `TileEntity.classToNameMap` 已被移除，改为查方块实体类型注册表。
+        val key = BuiltInRegistries.BLOCK_ENTITY_TYPE.getKey(blockEntity.getType)
+        if (key != null) {
+          return key.toString
+        }
+      case _ =>
     } catch {
       case _: Throwable =>
     }

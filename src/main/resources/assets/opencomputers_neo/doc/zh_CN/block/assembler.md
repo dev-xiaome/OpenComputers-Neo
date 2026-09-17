@@ -1,6 +1,6 @@
 # 电子装配机
 
-![更猛更棒更快更强。](oredict:oc:assembler)
+![更猛更棒更快更强。](oredict:opencomputers:assembler)
 
 电子装配机是一台可用于构建复杂电子设备的高级工作站。可制作的设备有[机器人](robot.md)、[无人机](../item/drone.md)和[平板电脑](../item/tablet.md)等。组装设备的过程需要消耗大量能量，因此推荐使用[电容](capacitor.md)库来为其保证充足能源供应。
 

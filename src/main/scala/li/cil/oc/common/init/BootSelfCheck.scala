@@ -3,7 +3,7 @@ package li.cil.oc.common.init
 import java.util.function.Consumer
 
 import li.cil.oc.OpenComputersNeo
-import net.minecraft.core.{BlockPos, RegistryAccess}
+import net.minecraft.core.BlockPos
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.world.item.{Item, ItemStack, TooltipFlag}
 import net.minecraft.world.level.block.EntityBlock
@@ -80,7 +80,9 @@ object BootSelfCheck {
           case entityBlock: EntityBlock =>
             val blockEntity = entityBlock.newBlockEntity(BlockPos.ZERO, state)
             if (blockEntity != null) {
-              blockEntity.getUpdateTag(RegistryAccess.EMPTY)
+              // 不能用 `RegistryAccess.EMPTY`：那一侧会把物品栈写成空标签。
+              // 这里走统一的真实注册表兜底（见 `ExtendedNBT.fallbackRegistry`）。
+              blockEntity.getUpdateTag(li.cil.oc.util.ExtendedNBT.fallbackRegistry)
             }
           case _ =>
         }

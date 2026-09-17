@@ -1,6 +1,6 @@
 # 交换机
 
-![构建信息之桥。](oredict:oc:switch)
+![构建信息之桥。](oredict:opencomputers:switch)
 
 *本方块已废弃，将会在未来版本被移除* 请将其合成为[中继器](relay.md)以避免丢失。
 

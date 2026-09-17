@@ -1,6 +1,6 @@
 # 充电机
 
-![好了，开始吧。](oredict:oc:charger)
+![好了，开始吧。](oredict:opencomputers:charger)
 
 充电机可为[机器人](robot.md)、[无人机](../item/drone.md)和[平板电脑](../item/tablet.md)等设备充能。输入红石信号即可激活充电机。充电速度基于输入的红石信号强度，强度15代表100%充电速度。
 

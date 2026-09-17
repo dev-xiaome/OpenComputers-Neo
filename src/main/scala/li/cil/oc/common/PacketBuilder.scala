@@ -12,7 +12,6 @@ import li.cil.oc.Settings
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.common.network.OpenComputersPayload
 import net.minecraft.core.Direction
-import net.minecraft.core.RegistryAccess
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.NbtIo
 import net.minecraft.server.level.ServerLevel
@@ -69,7 +68,9 @@ abstract class PacketBuilder(stream: OutputStream) extends DataOutputStream(stre
     writeBoolean(haveStack)
     if (haveStack) {
       // 1.21.1 的物品数据走数据组件；save 的静态返回类型是 Tag，这里实际得到 CompoundTag。
-      stack.save(RegistryAccess.EMPTY, new CompoundTag()) match {
+      // **必须**用真实的注册表访问器（见 `ExtendedNBT.fallbackRegistry`）：用
+      // `RegistryAccess.EMPTY` 会让 `ItemStack#save` 取不到物品注册表，同步出去的是空栈。
+      stack.save(li.cil.oc.util.ExtendedNBT.fallbackRegistry, new CompoundTag()) match {
         case tag: CompoundTag => writeNBT(tag)
         case _ => writeNBT(null)
       }

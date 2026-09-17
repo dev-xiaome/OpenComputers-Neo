@@ -1,5 +1,6 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util
 
 import li.cil.oc.Constants
@@ -68,8 +69,8 @@ class Adapter(pos: BlockPos, state: BlockState)
   override def setSideOpen(side: Direction, value: Boolean): Unit = {
     super.setSideOpen(side, value)
     if (isServer) {
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendAdapterState(this)，网络层移植后改回专用包。
-      markBlockForUpdate()
+      // 服务端发专用 AdapterState 包（对齐 OCCE），避免为开/关一面同步整个方块实体。
+      ServerPacketSender.sendAdapterState(this)
       world.playSound(null, x + 0.5, y + 0.5, z + 0.5, SoundEvents.PISTON_EXTEND, SoundSource.BLOCKS,
         0.5f, world.random.nextFloat() * 0.25f + 0.7f)
       notifyNeighbors()

@@ -1,6 +1,6 @@
 # 微控制器外壳
 
-![超可爱的。](oredict:oc:microcontrollerCase1)
+![超可爱的。](oredict:opencomputers:microcontrollerCase1)
 
 微控制器外壳是用于在[电子装配机](../block/assembler.md)中构建[微控制器](../block/microcontroller.md)的基础部件。[微控制器](../block/microcontroller.md)是一种极其简化的[电脑](../general/computer.md)，只能安装少量组件，且适用于高度特化的应用场景，例如转换或响应红石信号，又或者处理网络信息。
 

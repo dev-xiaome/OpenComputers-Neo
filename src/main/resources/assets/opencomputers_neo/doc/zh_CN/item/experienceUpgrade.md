@@ -1,6 +1,6 @@
 # 经验升级
 
-![完全解释不通，但帅就完事了。](oredict:oc:experienceUpgrade)
+![完全解释不通，但帅就完事了。](oredict:opencomputers:experienceUpgrade)
 
 经验升级是一种很特殊的升级，因为它能让[机器人](../block/robot.md)和[无人机](drone.md)在执行一些动作时获取经验，例如挖掘矿石以及杀死实体。一个经验升级能存储至多30级的经验，每个等级都能带来一定被动加成，包括加快挖掘速度以及提高能量容量等。
 

@@ -1,5 +1,6 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util
 
 import li.cil.oc.Constants
@@ -180,13 +181,11 @@ class Charger(pos: BlockPos, state: BlockState)
 
       if (hasPower && !canCharge) {
         hasPower = false
-        // TODO(server.PacketSender): 原为 ServerPacketSender.sendChargerState(this)。
-        markBlockForUpdate()
+        ServerPacketSender.sendChargerState(this)
       }
       if (!hasPower && canCharge) {
         hasPower = true
-        // TODO(server.PacketSender): 原为 ServerPacketSender.sendChargerState(this)。
-        markBlockForUpdate()
+        ServerPacketSender.sendChargerState(this)
       }
     }
 
@@ -266,9 +265,8 @@ class Charger(pos: BlockPos, state: BlockState)
     if (invertSignal) chargeSpeed = (15 - signal) / 15.0
     else chargeSpeed = signal / 15.0
     if (isServer) {
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendChargerState(this)
-      // （把 chargeSpeed / hasPower 同步给客户端用于渲染）。
-      markBlockForUpdate()
+      // 把 chargeSpeed / hasPower 同步给客户端用于渲染（对齐 OCCE）。
+      ServerPacketSender.sendChargerState(this)
     }
   }
 

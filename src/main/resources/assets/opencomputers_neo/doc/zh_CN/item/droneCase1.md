@@ -1,6 +1,6 @@
 # 无人机外壳
 
-![在空中嗡嗡作响。](oredict:oc:droneCase1)
+![在空中嗡嗡作响。](oredict:opencomputers:droneCase1)
 
 无人机外壳的用途是在[电子装配机](../block/assembler.md)中构建[无人机](drone.md)。[无人机](drone.md)是一种轻量、快速且移动性能很高的机器，但它们功能有限（可用的升级与组件槽位较少）。不像[机器人](../block/robot.md)，无人机不能使用工具，也只能以相对受限的方式与世界交互。
 

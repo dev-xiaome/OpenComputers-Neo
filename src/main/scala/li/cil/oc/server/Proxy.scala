@@ -12,22 +12,10 @@ import li.cil.oc.{OpenComputers, Settings}
  * ==1.21.1 结构==
  * 1.7.10 里 `@SidedProxy` 会在客户端挑 `client.Proxy`、在服务端挑 `server.Proxy`，
  * 共同继承 [[li.cil.oc.common.Proxy]]（`preInit` / `init` / `postInit` 三段）。
- * 1.21.1 没有 `@SidedProxy`，主类需要在构造 / `FMLCommonSetupEvent` /
- * `FMLLoadCompleteEvent` 里显式选择代理：
- *
- * {{{
- *   // li.cil.oc.OpenComputersNeo 的构造期（注册表事件之前）
- *   private val proxy: li.cil.oc.common.Proxy =
- *     if (net.neoforged.fml.loading.FMLEnvironment.dist == net.neoforged.api.distmarker.Dist.CLIENT)
- *       new li.cil.oc.server.Proxy   // TODO(client): 之后换 li.cil.oc.client.Proxy
- *     else new li.cil.oc.server.Proxy
- *   proxy.preInit()
- * }}}
- *
- * **注意**：主类目前写的是 `new li.cil.oc.common.Proxy`，那样
- * `api.API.driver/machine/network/nanomachines` 都不会被赋值、`Mods.init()` 也不会执行，
- * 结果是驱动 / 组件 / 网络 API 全线不可用（GUI 打不开的一半原因就在这里）。
- * 必须改成上面这段「按侧选代理」，细节见仓库任务汇报。
+ * 1.21.1 没有 `@SidedProxy`，主类 [[li.cil.oc.OpenComputersNeo]] 已显式写死
+ * `private val proxy = new li.cil.oc.server.Proxy`，并在构造期 / `FMLCommonSetupEvent` /
+ * `FMLLoadCompleteEvent` 里依次调用 `preInit` / `init` / `postInit`。
+ * 两侧都使用本类（客户端同样需要驱动表与 API 接线），客户端专有的接线另行处理。
  *
  * 本类在 [[li.cil.oc.common.Proxy]] 的三段之外补齐**服务端专有**的接线：
  *  - `preInit`：把 API 的 driver / machine / network / nanomachines 指向 `server.*` 的实现，

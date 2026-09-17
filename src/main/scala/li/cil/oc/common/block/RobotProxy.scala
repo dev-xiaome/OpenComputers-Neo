@@ -1,5 +1,6 @@
 package li.cil.oc.common.block
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util
 
 import li.cil.oc.Constants
@@ -169,8 +170,8 @@ class RobotProxy(properties: BlockBehaviour.Properties = RobotProxy.properties()
         // so we send him the current one just in case.
         level.getBlockEntity(pos) match {
           case proxy: tileentity.RobotProxy if proxy.robot != null && proxy.robot.node != null && proxy.robot.node.network != null =>
-            // 原：`PacketSender.sendRobotSelectedSlotChange(proxy.robot)`
-            // TODO(server.PacketSender): 网络层移植后改为发送选中槽位同步包。
+            // 服务端发专用 RobotSelectedSlotChange 包（对齐 OCCE）。
+            ServerPacketSender.sendRobotSelectedSlotChange(proxy.robot)
             // 原：`player.openGui(OpenComputers, GuiType.Robot.id, world, x, y, z)`
             // TODO(GUI): 见 `traits.GUI` 的说明——等 `common.container` 与客户端 GUI 移植后
             // 改为 `player.openMenu(new SimpleMenuProvider(...))`。

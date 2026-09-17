@@ -1,5 +1,6 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util
 
 import li.cil.oc.Constants
@@ -137,20 +138,19 @@ class DiskDrive(pos: BlockPos, state: BlockState)
       }
       case _ =>
     }
-    Sound.playDiskInsert(this)
     if (isServer) {
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendFloppyChange(this, stack)。
-      // 网络层移植后改为发送 FloppyChange 包（只同步盘片物品，避免整包方块实体同步）。
-      markBlockForUpdate()
+      // 服务端发专用 FloppyChange 包（只同步盘片物品，避免整包方块实体同步），并播放插入音效。
+      // 对齐 OCCE：音效只在服务端触发（playDiskInsert 内部向附近玩家发包）。
+      ServerPacketSender.sendFloppyChange(this, stack)
+      Sound.playDiskInsert(this)
     }
   }
 
   override def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
     super.onItemRemoved(slot, stack)
-    Sound.playDiskEject(this)
     if (isServer) {
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendFloppyChange(this)。
-      markBlockForUpdate()
+      ServerPacketSender.sendFloppyChange(this)
+      Sound.playDiskEject(this)
     }
   }
 
@@ -171,7 +171,7 @@ class DiskDrive(pos: BlockPos, state: BlockState)
     super.writeToNBTForClient(nbt)
     items(0) match {
       case Some(stack) if stack != null && !stack.isEmpty =>
-        nbt.setNewCompoundTag("disk", (tag: CompoundTag) => stack.save(ExtendedNBT.fallbackRegistry, tag))
+        nbt.setNewCompoundTag("disk", (tag: CompoundTag) => tag.merge(ExtendedNBT.encodeStack(stack)))
       case _ =>
     }
   }

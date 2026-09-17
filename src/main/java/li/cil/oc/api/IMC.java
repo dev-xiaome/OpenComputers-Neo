@@ -1,6 +1,5 @@
 package li.cil.oc.api;
 
-import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.StringTag;
@@ -8,6 +7,8 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.InterModComms;
 import org.apache.commons.lang3.tuple.Pair;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * This is a pure utility class to more comfortably register things that can
@@ -31,9 +32,11 @@ import org.apache.commons.lang3.tuple.Pair;
  * <li>发送目标 mod id 由 {@code "OpenComputers"} 改为本移植项目注册的 mod id
  * {@value #MOD_ID}，否则 NeoForge 会因为目标 mod 未加载而直接丢弃消息。</li>
  * <li>{@code ItemStack} 在 1.21.1 中不再有 {@code writeToNBT}，改为
- * {@link ItemStack#saveOptional(net.minecraft.core.HolderLookup.Provider)}；IMC 阶段没有 Level
- * 上下文，因此使用 {@link RegistryAccess#EMPTY}，其中依赖注册表的数据组件可能无法序列化，
- * 该类情况会退化为写入一个空 compound（见 {@link #writeItemStack}）。</li>
+ * {@link ItemStack#saveOptional(net.minecraft.core.HolderLookup.Provider)}；IMC 阶段可能没有
+ * Level 上下文，因此通过 {@link li.cil.oc.util.RegistryAccessHelper} 取真实注册表
+ * （服务端 → 客户端 → 缓存）；确实取不到时才退化为写入一个空 compound
+ * （见 {@link #writeItemStack}）。<b>不能</b>直接用 {@code RegistryAccess.EMPTY}，
+ * 那会让每个物品被静默写成空标签。</li>
  * <li>本类只负责“发送”消息。1.21.1 中 NeoForge 不提供 {@code IMCEnqueuedEvent}，对应的
  * 接收侧需要在 mod 的总线事件（{@code InterModProcessEvent} / FMLCommonSetupEvent 等）里
  * 调用 {@link InterModComms#getMessages(String, java.util.function.Predicate)} 主动拉取；
@@ -43,6 +46,10 @@ import org.apache.commons.lang3.tuple.Pair;
  */
 @SuppressWarnings("unused")
 public final class IMC {
+
+    /** Java 侧不能引用 Scala 的 `OpenComputers.log`，这里单独取一个 logger。 */
+    private static final Logger LOGGER = LogManager.getLogger("OpenComputers Neo");
+
     /**
      * Register a callback that is used as a filter for assembler templates.
      * Any templates that require a base item that is rejected by <em>any</em>
@@ -476,19 +483,27 @@ public final class IMC {
      * <p>
      * 1.7.10 使用 {@code ItemStack#writeToNBT}；1.21.1 改为
      * {@link ItemStack#saveOptional(net.minecraft.core.HolderLookup.Provider)}。
-     * IMC 发送阶段通常没有 Level 上下文，这里退而使用 {@link RegistryAccess#EMPTY}；
-     * 若某些新建的注册表相关数据组件无法在该上下文中编码，或传入的堆栈为空，
-     * 则写入一个空 compound，接收侧应把空 compound 视为“未提供物品”。
+     * IMC 发送阶段可能没有 Level 上下文，这里通过
+     * {@link li.cil.oc.util.RegistryAccessHelper} 取真实注册表
+     * （服务端 → 客户端 → 缓存）。
+     * <p>
+     * <b>不能用 {@link RegistryAccess#EMPTY}</b>：1.21.1 的 {@code ItemStack#save} 内部要先
+     * {@code registries.getOrThrow(Registries.ITEM)} 取物品 id，空访问器上取不到，
+     * 结果每个物品都被静默写成空标签 {@code {"item": {}}}，接收侧只会看到空气。
+     * 若确实拿不到真实注册表，或传入的堆栈为空，则写入一个空 compound，
+     * 接收侧应把空 compound 视为“未提供物品”。
      */
     private static Tag writeItemStack(final ItemStack stack) {
         if (stack == null || stack.isEmpty()) {
             return new CompoundTag();
         }
         try {
-            final Tag saved = stack.saveOptional(RegistryAccess.EMPTY);
+            final Tag saved = stack.saveOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty());
             return saved == null ? new CompoundTag() : saved;
         } catch (final RuntimeException e) {
-            // 空注册表上下文不足以编码该堆栈（例如含依赖注册表的数据组件）时安全降级。
+            // 真实的注册表上下文不足以编码该堆栈（例如含依赖注册表的数据组件）时安全降级，
+            // 但必须留下日志，不允许无声无息地丢物品。
+            LOGGER.warn("Failed to serialize an item stack for an IMC blacklist message.", e);
             return new CompoundTag();
         }
     }

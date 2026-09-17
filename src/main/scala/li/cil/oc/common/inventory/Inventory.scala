@@ -159,19 +159,30 @@ trait Inventory extends SimpleInventory with IItemHandlerModifiable {
   def load(nbt: CompoundTag): Unit = {
     // Implicit slot numbers are compatibility code for loading old server save format.
     // TODO 1.7 remove compat code.
+    val itemsTag = nbt.getList(Settings.namespace + "items", Tag.TAG_COMPOUND)
+
+    // 读档自检：`items` 的长度由「首次访问 [[items]] 时的 [[getSlots]]」决定，一旦首次
+    // 访问发生在尺寸还不正确的时刻（例如具体方块实体的等级 / 配置尚未就绪），数组会永久
+    // 偏小，之后读档就会**静默丢物品**（1.7.10 的 `IInventory` 同样会忽略超界槽位，但那时
+    // 尺寸是固定常量，不会出错）。这里在尺寸与存档条数明显不符时留下明确日志，
+    // 便于今后一眼定位，而不是让物品凭空消失。
+    if (itemsTag.size() > items.length) {
+      li.cil.oc.OpenComputers.log.warn(
+        s"Inventory '$inventoryName' has ${items.length} slots but the save data holds ${itemsTag.size()} entries; " +
+          "entries beyond the slot count will be dropped. This usually means getSlots was queried before the " +
+          "block entity's configuration had been restored.")
+    }
+
     var count = 0
-    nbt.getList(Settings.namespace + "items", Tag.TAG_COMPOUND).foreach((tag: CompoundTag) => {
-      if (tag.contains("slot")) {
-        val slot = tag.getByte("slot")
-        if (slot >= 0 && slot < items.length) {
-          updateItems(slot, loadStack(tag.getCompound("item")))
-        }
+    itemsTag.foreach((tag: CompoundTag) => {
+      val slot = if (tag.contains("slot")) tag.getByte("slot").toInt else count
+      if (slot >= 0 && slot < items.length) {
+        updateItems(slot, loadStack(if (tag.contains("slot")) tag.getCompound("item") else tag))
       }
       else {
-        val slot = count
-        if (slot >= 0 && slot < items.length) {
-          updateItems(slot, loadStack(tag))
-        }
+        // 超界槽位在（修正前的）旧实现里会被无声丢弃；这里至少留下一条 warn。
+        li.cil.oc.OpenComputers.log.warn(
+          s"Inventory '$inventoryName' dropped an item while loading: slot $slot is out of range (0 until ${items.length}).")
       }
       count += 1
     })
@@ -185,7 +196,9 @@ trait Inventory extends SimpleInventory with IItemHandlerModifiable {
         case (stack, slot) =>
           val slotNbt = new CompoundTag()
           slotNbt.putByte("slot", slot.toByte)
-          slotNbt.setNewCompoundTag("item", (tag: CompoundTag) => stack.save(ExtendedNBT.fallbackRegistry, tag))
+          // 必须用 putStack（内部取 save 的返回值）：直接 `stack.save(registry, tag)` 并丢掉
+          // 返回值会写出空标签，读档时物品全部消失。
+          ExtendedNBT.putStack(slotNbt, "item", stack)
           slotNbt
       }.toIndexedSeq)
   }

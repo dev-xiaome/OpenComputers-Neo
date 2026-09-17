@@ -1,6 +1,6 @@
 # 机箱
 
-![“箱”当可靠。](oredict:oc:case1)
+![“箱”当可靠。](oredict:opencomputers:case1)
 
 电脑机箱有三个不同等级，等级限制了它们所能安装的组件。此外还有一个仅供创造模式使用的等级。电脑机箱还可以放置到[装配机](assembler.md)中组装[机器人](robot.md)。
 

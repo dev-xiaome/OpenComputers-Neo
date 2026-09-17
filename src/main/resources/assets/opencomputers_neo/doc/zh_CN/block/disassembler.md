@@ -1,6 +1,6 @@
 # 分解机
 
-![造了拆，拆了造。](oredict:oc:disassembler)
+![造了拆，拆了造。](oredict:opencomputers:disassembler)
 
 分解机可以将OC模组的绝大多数物品分解为原来的材料，常用于从废弃的旧配件中回收材料，还可以拆解淘汰或造错的设备（比如忘了装[操作系统](../general/openOS.md)的[机器人](robot.md)）。
 

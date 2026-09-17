@@ -22,10 +22,11 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
-import li.cil.oc.server.fs.FileSystem
 // 1.21.1：NeoForge 已移除 `net.minecraftforge.common.DimensionManager`，
-// 存档目录改由 `FileSystem.saveRootDirectory`（`ServerLifecycleHooks` + `LevelResource.ROOT`）提供。
+// 存档目录改为 `ServerLifecycleHooks.getCurrentServer.getWorldPath(LevelResource)`（与 CE-1.20 一致）。
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.level.storage.LevelResource
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 // 显式导入结果包装器，使本文件不依赖 `server/component/package.scala` 也能编译；
 // 与包对象里的隐式转换 `result` 语义完全一致（同一实现）。
 import li.cil.oc.util.ResultWrapper.result
@@ -41,13 +42,13 @@ class Drive(val capacity: Int, val platterCount: Int, val label: Label, host: Op
   /**
    * 驱动器数据文件的落盘路径。
    *
-   * 1.21.1：无服务端上下文时 `FileSystem.saveRootDirectory` 返回 `null`，
-   * 此时同样返回 `null`，由 `load` / `save` 跳过磁盘读写（原 1.7.10 在此处会 NPE）。
+   * 与 CE-1.20 一致：`ServerLifecycleHooks.getCurrentServer.getWorldPath(new LevelResource(...))`。
+   * 无服务端上下文时返回 `null`，由 `load` / `save` 跳过磁盘读写（原 1.7.10 在此处会 NPE）。
    */
   private def savePath: io.File = {
-    val root = FileSystem.saveRootDirectory
-    if (root == null) null
-    else new io.File(root, Settings.savePath + node.address + ".bin")
+    val server = ServerLifecycleHooks.getCurrentServer
+    if (server == null) null
+    else server.getWorldPath(new LevelResource(Settings.savePath + node.address + ".bin")).toFile
   }
 
   private final val sectorSize = 512

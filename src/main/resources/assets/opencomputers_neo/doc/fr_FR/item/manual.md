@@ -1,10 +1,10 @@
 # Manuel
 
-![Une bonne lecture.](oredict:oc:manual)
+![Une bonne lecture.](oredict:opencomputers:manual)
 
 Ce que vous êtes en train de lire en ce moment même ! Le manuel contient une mine d'informations à propos d'OpenComputers (et sûrement plus). Si vous avez besoin d'information sur un objet ou un bloc, ne cherchez pas plus loin ! Descendez pour apprendre comment l'utiliser (avec la souris ou la barre d'ascenseur sur la droite).
 
-![Votre nouveau meilleur ami.](opencomputers_neo:doc/img/manual.png)
+![Votre nouveau meilleur ami.](opencomputers:doc/img/manual.png)
 
 Naviguer dans le manuel est semblable à la navigation dans un wiki : cliquez sur les liens (1) pour accéder à la page qu'ils désignent. Faites un clic droit ou appuyez sur la touche de saut pour revenir en arrière d'une page. Appuyez sur Echap pour fermer le manuel. A gauche vous trouverez quelques onglets (2) qui permettent d'accéder rapidement à certaines pages, comme l'index des blocs et des objets. A droite vous trouverez la barre d'ascenseur (3). Vous pouvez soit la déplacer manuellement, soit utiliser la molette de la souris pour vous déplacer dans la page.
 

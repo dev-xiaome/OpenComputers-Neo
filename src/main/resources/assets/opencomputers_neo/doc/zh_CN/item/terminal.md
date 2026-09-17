@@ -1,6 +1,6 @@
 # 远程终端
 
-![远程访问。](oredict:oc:terminal)
+![远程访问。](oredict:opencomputers:terminal)
 
 远程终端可通过[终端服务器](terminalServer.md)对电脑进行远程控制。要使用远程终端，首先要激活一台装在[机架](../block/rack.md)里的[终端服务器](terminalServer.md)（手持远程终端，对准[机架](../block/rack.md)里的[终端服务器](terminalServer.md)点击即可绑定）。
 

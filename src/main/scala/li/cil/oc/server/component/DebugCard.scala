@@ -46,6 +46,8 @@ import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.material.Fluids
 import net.minecraft.world.level.storage.ServerLevelData
+import net.minecraft.world.scores.{ScoreHolder, Scoreboard}
+import net.minecraft.world.scores.criteria.ObjectiveCriteria
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.common.util.{FakePlayer, FakePlayerFactory}
 import net.neoforged.neoforge.event.level.BlockEvent
@@ -152,6 +154,13 @@ class DebugCard(host: EnvironmentHost) extends prefab.ManagedEnvironment with De
     checkAccess()
     // 1.7.10 的 `getAllUsernames` → 1.21.1 的 `getPlayerNames`。
     result(serverOf(host.world).map(_.getPlayerNames).getOrElse(Array.empty[String]))
+  }
+
+  @Callback(doc = """function():userdata -- Get the scoreboard object for the world""")
+  def getScoreboard(context: Context, args: Arguments): Array[AnyRef] = {
+    checkAccess()
+    // 对应 OCCE `DebugCard#getScoreboard`：把宿主所在世界（以及派生世界）的记分板包成 userdata。
+    result(new DebugCard.ScoreboardValue(Option(host.world)))
   }
 
 
@@ -495,6 +504,36 @@ object DebugCard {
         null
       })
 
+    @Callback(doc = """function():number -- Get the player's level.""")
+    def getLevel(context: Context, args: Arguments): Array[AnyRef] =
+      withPlayer(player => result(player.experienceLevel))
+
+    @Callback(doc = """function():number -- Get the player's total experience.""")
+    def getExperienceTotal(context: Context, args: Arguments): Array[AnyRef] =
+      withPlayer(player => result(player.totalExperience))
+
+    @Callback(doc = """function(level:number) -- Add a level to the player's experience level.""")
+    def addExperienceLevel(context: Context, args: Arguments): Array[AnyRef] =
+      withPlayer(player => {
+        player.giveExperienceLevels(args.checkInteger(0))
+        null
+      })
+
+    @Callback(doc = """function(level:number) -- Remove a level from the player's experience level.""")
+    def removeExperienceLevel(context: Context, args: Arguments): Array[AnyRef] =
+      withPlayer(player => {
+        player.giveExperienceLevels(-args.checkInteger(0))
+        null
+      })
+
+    @Callback(doc = """function() -- Clear the player's inventory.""")
+    def clearInventory(context: Context, args: Arguments): Array[AnyRef] =
+      withPlayer(player => {
+        // 1.7.10 的 `InventoryPlayer#clearInventory` → 1.21.1 的 `Inventory#clearContent`。
+        player.getInventory.clearContent()
+        null
+      })
+
     // ----------------------------------------------------------------------- //
 
     override def load(nbt: CompoundTag): Unit = {
@@ -510,6 +549,126 @@ object DebugCard {
     }
   }
 
+  /**
+   * 记分板对象（对应 OCCE `DebugCard.ScoreboardValue`）。
+   *
+   * 1.21.1 的 `Scoreboard` 只在服务端世界（`ServerLevel#getScoreboard`）上存在，
+   * 因此这里保存「维度 key + 记分板引用」，读档时按维度 key 重新取回（与 OCCE 一致）。
+   */
+  class ScoreboardValue(world: Option[Level])(implicit var ctx: Option[Settings.AccessContext]) extends prefab.AbstractValue {
+    var scoreboard: Scoreboard = world.fold(null: Scoreboard)(_.getScoreboard)
+    var dimension: ResourceLocation = world.fold(Level.OVERWORLD: ResourceKey[Level])(_.dimension()).location()
+
+    def this() = this(None)(None) // For loading.
+
+    @Callback(doc = """function(team:string) -- Add a team to the scoreboard.""")
+    def addTeam(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      scoreboard.addPlayerTeam(args.checkString(0))
+      null
+    }
+
+    @Callback(doc = """function(teamName:string) -- Remove a team from the scoreboard.""")
+    def removeTeam(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      scoreboard.removePlayerTeam(scoreboard.getPlayersTeam(args.checkString(0)))
+      null
+    }
+
+    @Callback(doc = """function(player:string, team:string):boolean -- Add a player to a team.""")
+    def addPlayerToTeam(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      // 1.7.10 的 `Scoreboard#func_151392_a(player, team)` → 1.21.1 的 `addPlayerToTeam`。
+      result(scoreboard.addPlayerToTeam(args.checkString(0), scoreboard.getPlayersTeam(args.checkString(1))))
+    }
+
+    @Callback(doc = """function(player:string):boolean -- Remove a player from their team.""")
+    def removePlayerFromTeams(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      val player = args.checkString(0)
+      // 1.21.1 的 `Scoreboard` 没有「按玩家名移除」的重载，只有 `(name, team)`；
+      // 原版 C 里那句 `result(removePlayerFromTeam(player))` 返回的是 `void`，无法照搬。
+      // 这里按原版语义（把该玩家从它当前所属的队伍里移出）实现，返回值沿用旧文档形状。
+      scoreboard.removePlayerFromTeam(player, scoreboard.getPlayersTeam(player))
+      result(true)
+    }
+
+    @Callback(doc = """function(player:string, team:string):boolean -- Remove a player from a specific team.""")
+    def removePlayerFromTeam(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      scoreboard.removePlayerFromTeam(args.checkString(0), scoreboard.getPlayersTeam(args.checkString(1)))
+      null
+    }
+
+    @Callback(doc = """function(objectiveName:string, objectiveCriteria:string) -- Create a new objective for the scoreboard.""")
+    def addObjective(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      val objName = args.checkString(0)
+      // 1.7.10 用 `IScoreObjectiveCriteria.registry.getObject(name)`；
+      // 1.21.1 改为 `ObjectiveCriteria#byName(name): Optional`，未命中时报错（与 OCCE 一致）。
+      val criteria = ObjectiveCriteria.byName(args.checkString(1)).orElseThrow(new java.util.function.Supplier[IllegalArgumentException] {
+        override def get: IllegalArgumentException = new IllegalArgumentException("invalid criterion")
+      })
+      // 1.21.1 的 `addObjective` 只有 6 参重载（多了 displayAutoUpdate 与 numberFormat）。
+      // OCCE 调用的 4 参版本在本版本已不存在于字节码里，这里补上两个默认值。
+      scoreboard.addObjective(objName, criteria, Component.literal(objName), ObjectiveCriteria.RenderType.INTEGER, false, null)
+      null
+    }
+
+    @Callback(doc = """function(objectiveName:string) -- Remove an objective from the scoreboard.""")
+    def removeObjective(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      scoreboard.removeObjective(scoreboard.getObjective(args.checkString(0)))
+      null
+    }
+
+    @Callback(doc = """function(playerName:string, objectiveName:string, score:number) -- Sets the score of a player for a certain objective.""")
+    def setPlayerScore(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(args.checkString(0)), scoreboard.getObjective(args.checkString(1))).set(args.checkInteger(2))
+      null
+    }
+
+    @Callback(doc = """function(playerName:string, objectiveName:string):number -- Gets the score of a player for a certain objective.""")
+    def getPlayerScore(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      result(scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(args.checkString(0)), scoreboard.getObjective(args.checkString(1))).get())
+    }
+
+    @Callback(doc = """function(playerName:string, objectiveName:string, score:number) -- Increases the score of a player for a certain objective.""")
+    def increasePlayerScore(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(args.checkString(0)), scoreboard.getObjective(args.checkString(1))).add(args.checkInteger(2))
+      null
+    }
+
+    @Callback(doc = """function(playerName:string, objectiveName:string, score:number) -- Decrease the score of a player for a certain objective.""")
+    def decreasePlayerScore(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(args.checkString(0)), scoreboard.getObjective(args.checkString(1))).add(-args.checkInteger(2))
+      null
+    }
+
+    // ----------------------------------------------------------------------- //
+
+    override def load(nbt: CompoundTag): Unit = {
+      super.load(nbt)
+      ctx = DebugCard.loadAccess(nbt)
+      val parsedDim = ResourceLocation.tryParse(nbt.getString("dimension"))
+      if (parsedDim != null) {
+        dimension = parsedDim
+        // 1.7.10 由 `DimensionManager.getWorld(id)` 取世界；1.21.1 用维度 key（见 DebugCard.serverLevelAt）。
+        DebugCard.serverLevelAt(parsedDim).foreach(level => scoreboard = level.getScoreboard)
+      }
+    }
+
+    override def save(nbt: CompoundTag): Unit = {
+      super.save(nbt)
+      ctx.foreach(DebugCard.saveAccess(_, nbt))
+      if (dimension != null) nbt.putString("dimension", dimension.toString)
+    }
+  }
+
   class WorldValue(var world: Level)(implicit var ctx: Option[Settings.AccessContext]) extends prefab.AbstractValue {
     def this() = this(null)(None) // For loading.
 
@@ -520,6 +679,14 @@ object DebugCard {
       checkAccess()
       // 1.7.10 的 `world.provider.dimensionId` 在 1.21.1 已无对应物，返回伪 ID（见 DebugCard.serverLevel）。
       result(dimensionIdOf(world))
+    }
+
+    @Callback(doc = """function():string -- Gets the resource location of the current dimension.""")
+    def getDimension(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      // 对应 OCCE `WorldValue#getDimension`：稳定的维度标识（`minecraft:overworld` 等），
+      // 可再直接传给 `DebugCard#getWorld` 之外的维度查询路径。
+      result(if (world == null) "" else world.dimension().location().toString)
     }
 
     @Callback(doc = """function():string -- Gets the name of the current dimension.""")
@@ -636,20 +803,37 @@ object DebugCard {
       result(0)
     }
 
-    @Callback(doc = """function(x:number, y:number, z:number):number -- Check whether the block at the specified coordinates is loaded.""")
+    @Callback(doc = """function(x:number, y:number, z:number[, actualState:boolean=false]):table -- Gets the block state for the block at the specified position, optionally getting additional display related data.""")
+    def getBlockState(context: Context, args: Arguments): Array[AnyRef] = {
+      checkAccess()
+      val pos = blockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
+      // 1.7.10 返回 `IBlockState`，1.21.1 返回 `BlockState`；`actualState` 参数在
+      // 1.7.10 也只用于「附加显示数据」，这里与 OCCE 一样先读出来但不参与计算。
+      args.optBoolean(3, false) // actualState
+      result(world.getBlockState(pos))
+    }
+
+    @Callback(doc = """function(x:number, y:number, z:number):boolean -- Check whether the block at the specified coordinates is loaded.""")
     def isLoaded(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
       // 1.7.10 的 `World#blockExists` → 1.21.1 的 `Level#isLoaded`。
       result(world.isLoaded(blockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))))
     }
 
-    @Callback(doc = """function(x:number, y:number, z:number):number -- Check whether the block at the specified coordinates has a tile entity.""")
-    def hasTileEntity(context: Context, args: Arguments): Array[AnyRef] = {
+    @Callback(doc = """function(x:number, y:number, z:number):boolean -- Check whether the block at the specified coordinates has a block entity.""")
+    def hasBlockEntity(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
       val (x, y, z) = (args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
       // 1.7.10 的 `World#getTileEntity` → 1.21.1 的 `Level#getBlockEntity`。
       result(world.getBlockEntity(blockPos(x, y, z)) != null)
     }
+
+    /**
+     * 迁移期兼容别名：本项目早期版本把它叫 `hasTileEntity`（1.7.10 用词）。
+     * OCCE 已统一改成 `hasBlockEntity`，这里保留旧名以免已经写好的 Lua 脚本失效。
+     */
+    @Callback(doc = """function(x:number, y:number, z:number):boolean -- Check whether the block at the specified coordinates has a block entity (alias of hasBlockEntity).""")
+    def hasTileEntity(context: Context, args: Arguments): Array[AnyRef] = hasBlockEntity(context, args)
 
     @Callback(doc = """function(x:number, y:number, z:number):table -- Get the NBT of the block at the specified coordinates.""")
     def getTileNBT(context: Context, args: Arguments): Array[AnyRef] = {

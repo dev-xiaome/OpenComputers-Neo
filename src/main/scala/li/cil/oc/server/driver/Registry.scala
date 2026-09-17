@@ -15,6 +15,7 @@ import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
 import net.minecraft.core.Direction
+import net.neoforged.neoforge.capabilities.Capabilities
 import net.neoforged.neoforge.items.IItemHandler
 
 import scala.jdk.CollectionConverters._
@@ -121,8 +122,10 @@ private[oc] object Registry extends api.detail.DriverAPI {
       case _ => null
     }
 
+  // 与 OCCE 一致：空栈（`ItemStack.EMPTY`）不查驱动，直接返回 null。
+  // 1.7.10 时代用 `stack != null`，但在 1.20+ 里空栈是常态而非 null。
   override def driverFor(stack: ItemStack, host: Class[_ <: EnvironmentHost]) =
-    if (stack != null) {
+    if (stack != null && !stack.isEmpty) {
       val hostAware = items.collect {
         case driver: HostAware if driver.worksWith(stack) => driver
       }
@@ -134,7 +137,7 @@ private[oc] object Registry extends api.detail.DriverAPI {
     else null
 
   override def driverFor(stack: ItemStack) =
-    if (stack != null) items.find(_.worksWith(stack)).orNull
+    if (stack != null && !stack.isEmpty) items.find(_.worksWith(stack)).orNull
     else null
 
   @Deprecated
@@ -148,10 +151,12 @@ private[oc] object Registry extends api.detail.DriverAPI {
     environmentProviders.map(_.getEnvironment(stack)).filter(_ != null).toSet[Class[_]].asJava
 
   // 1.21.1：`IInventory` 已经不存在，`InventoryProvider` 返回 NeoForge 的 `IItemHandler`。
+  // 与 OCCE 的 `itemHandlerFor` 语义一致：先问已注册的 provider，没有匹配的 provider 时
+  // 回退到物品自身携带的物品栏能力（例如背包类物品）。
   override def inventoryFor(stack: ItemStack, player: Player): IItemHandler = {
     inventoryProviders.find(provider => provider.worksWith(stack, player)).
-      map(provider => provider.getInventory(stack, player)).
-      orNull
+      flatMap(provider => Option(provider.getInventory(stack, player))).
+      getOrElse(Capabilities.ItemHandler.ITEM.getCapability(stack, null))
   }
 
   override def blockDrivers = blocks.toSeq.asJava
@@ -159,9 +164,10 @@ private[oc] object Registry extends api.detail.DriverAPI {
   override def itemDrivers = items.toSeq.asJava
 
   def blacklistHost(stack: ItemStack, host: Class[_]): Unit = {
-    // 1.21.1：`ItemStack#isItemEqual` 已移除，物品 + 数据组件一起比较。
+    // 与 OCCE 一致：只比较物品本身（`1.7.10 的 isItemEqual` / 1.20 的 `isSameItem`），
+    // 不比较数据组件。用 `isSameItemSameComponents` 会让同一物品的不同组件各占一条记录。
     blacklist.find((entry: (ItemStack, mutable.Set[Class[_]])) =>
-      entry._1 != null && ItemStack.isSameItemSameComponents(entry._1, stack)) match {
+      entry._1 != null && ItemStack.isSameItem(entry._1, stack)) match {
       case Some((_, hosts)) => hosts += host
       case _ => blacklist.append((stack, mutable.Set[Class[_]](host)))
     }

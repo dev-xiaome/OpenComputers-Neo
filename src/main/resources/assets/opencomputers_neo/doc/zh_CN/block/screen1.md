@@ -1,6 +1,6 @@
 # 显示屏
 
-![看见没？](oredict:oc:screen1)
+![看见没？](oredict:opencomputers:screen1)
 
 显示屏需要和[显卡](../item/graphicsCard1.md)配合使用，这样[电脑](../general/computer.md)才能显示文本。不同等级显示屏的性能不同。例如，各等级所支持分辨率和色深均有差异。OC模组的显示屏既有低分辨率的单色屏，也有高分辨率的256色屏。
 

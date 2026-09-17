@@ -1,6 +1,6 @@
 # 运动传感器
 
-![不 要 眨 眼。](oredict:oc:motionSensor)
+![不 要 眨 眼。](oredict:opencomputers:motionSensor)
 
 运动传感器能够让[电脑](../general/computer.md)探测到活动实体的运动。如果有实体的移动速度超过设定阈值，传感器会向与之相连的[电脑](../general/computer.md)输入一个信号。阈值可以在运动传感器所连接的电脑上用组件API修改。
 

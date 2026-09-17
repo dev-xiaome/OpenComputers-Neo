@@ -1,6 +1,6 @@
 # 材质获取器
 
-![你什么意思？这就是个换皮版？](oredict:oc:texturePicker)
+![你什么意思？这就是个换皮版？](oredict:opencomputers:texturePicker)
 
 材质获取器在制作供[3D打印机](../block/printer.md)使用的模型时很有用。它能获取世界中方块所用材质的名称，方法只需手持工具（潜行）与方块交互。免责声明：对箱子等采用特殊渲染方式的方块可能无效。
 

@@ -1,6 +1,6 @@
 # 腐蚀液
 
-![胃酸反流了？](oredict:oc:materialAcid)
+![胃酸反流了？](oredict:opencomputers:materialAcid)
 
 如果你想找点……乐子，或者是摧毁你的消化道，又或者二者兼有。那么你可以喝一些这种美味[来源请求]的混合物。这种液体也能作为其他更有用物品的制作材料。
 

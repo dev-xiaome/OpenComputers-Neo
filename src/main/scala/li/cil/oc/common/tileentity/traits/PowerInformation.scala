@@ -1,6 +1,7 @@
 package li.cil.oc.common.tileentity.traits
 
 import li.cil.oc.Settings
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import net.minecraft.nbt.CompoundTag
 
 /**
@@ -11,8 +12,7 @@ import net.minecraft.nbt.CompoundTag
  *  - `@SideOnly(Side.CLIENT)` 删除；客户端同步数据统一走
  *    `readFromNBTForClient` / `writeToNBTForClient`（由 `BlockEntityBase#getUpdateTag` 驱动）。
  *  - 节流逻辑（每 `100 / tickFrequency` tick 最多同步一次、比例变化超过 5% 立即同步）保持原样。
- *  - 原同步通过 `li.cil.oc.server.PacketSender.sendPowerState(this)` 发包，
- *    服务端网络层尚未移植，这里退化为方块更新包，见 [[updatePowerInformation]]。
+ *  - 同步通过 `ServerPacketSender.sendPowerState(this)` 发送专用包（对齐 OCCE）。
  */
 trait PowerInformation extends TileEntity {
   // 注意：Scala 的自类型不会被继承，每个子 trait 都必须重新声明。
@@ -34,10 +34,7 @@ trait PowerInformation extends TileEntity {
     val ratio = if (globalBufferSize > 0) globalBuffer / globalBufferSize else 0
     if (shouldSync(ratio) || hasChangedSignificantly(ratio)) {
       lastSentRatio = ratio
-      // 原：ServerPacketSender.sendPowerState(this)
-      // TODO(server.PacketSender): 服务端网络层移植后改为发送 PowerState 包；
-      // 目前用方块更新包把 writeToNBTForClient 写出的缓冲比例发给客户端。
-      markBlockForUpdate()
+      ServerPacketSender.sendPowerState(this)
     }
   }
 

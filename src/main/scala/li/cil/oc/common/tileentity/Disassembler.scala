@@ -1,5 +1,6 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util
 
 import li.cil.oc.Constants
@@ -64,8 +65,8 @@ class Disassembler(pos: BlockPos, state: BlockState)
 
   private def setActive(value: Boolean): Unit = if (value != isActive) {
     isActive = value
-    // TODO(server.PacketSender): 原为 ServerPacketSender.sendDisassemblerActive(this, isActive)。
-    markBlockForUpdate()
+    // 服务端发专用 DisassemblerActive 包（对齐 OCCE）。
+    ServerPacketSender.sendDisassemblerActive(this, isActive)
     notifyNeighbors()
   }
 

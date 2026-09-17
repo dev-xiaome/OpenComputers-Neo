@@ -1,6 +1,6 @@
 # 储罐交互升级
 
-![流体路由。](oredict:oc:tankControllerUpgrade)
+![流体路由。](oredict:opencomputers:tankControllerUpgrade)
 
 储罐交互升级是用于流体储罐的[物品栏交互升级](inventoryControllerUpgrade.md)，后者仅适用于普通物品容器。它能让设备查询其内部或邻近流体储罐的更详细信息。
 

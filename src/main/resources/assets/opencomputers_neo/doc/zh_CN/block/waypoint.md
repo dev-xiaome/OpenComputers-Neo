@@ -1,6 +1,6 @@
 # 路径点
 
-![“走这条路！” - “不对，走那条路！”](oredict:oc:waypoint)
+![“走这条路！” - “不对，走那条路！”](oredict:opencomputers:waypoint)
 
 路径点的用途不在其本身，而在其他设备能如何利用它。[导航升级](../item/navigationUpgrade.md)可以探测路径点，因此安装了导航升级的设备就可以利用路径点导航。这一功能尤其适合用于给[机器人](robot.md)和[无人机](../item/drone.md)等设备编写便于重复使用的程序。
 

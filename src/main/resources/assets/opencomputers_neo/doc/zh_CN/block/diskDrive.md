@@ -1,6 +1,6 @@
 # 软盘驱动器
 
-![轉啊轉啊...](oredict:oc:diskDrive)
+![轉啊轉啊...](oredict:opencomputers:diskDrive)
 
 软盘驱动器与[电脑](../general/computer.md)连接后可读取[软盘](../item/floppy.md)。此设备在初期很有用，因为低等级的[电脑机箱](case1.md)没有内置的软盘插槽，而你需要操作系统引导电脑启动。[OpenOS](../general/openOS.md)软盘可以通过将空[软盘](../item/floppy.md)和[手册](../item/manual.md)一起合成获得。
 

@@ -1,5 +1,7 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.common.EventHandler
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util
 
 import li.cil.oc.Constants
@@ -77,8 +79,7 @@ class NetSplitter(pos: BlockPos, state: BlockState)
       if (isServer) {
         node.remove()
         api.Network.joinOrCreateNetwork(this)
-        // TODO(server.PacketSender): 原为 ServerPacketSender.sendNetSplitterState(this)。
-        markBlockForUpdate()
+        ServerPacketSender.sendNetSplitterState(this)
         world.playSound(null, x + 0.5, y + 0.5, z + 0.5, SoundEvents.PISTON_EXTEND, SoundSource.BLOCKS,
           0.5f, world.getRandom.nextFloat() * 0.25f + 0.7f)
         notifyNeighbors()
@@ -102,10 +103,9 @@ class NetSplitter(pos: BlockPos, state: BlockState)
 
   override def initialize(): Unit = {
     super.initialize()
-    // 原实现：EventHandler.scheduleServer(this)（把「加入网络」推迟到下一个服务端 tick）。
-    // TODO(common.EventHandler): `common.EventHandler` 未纳入编译范围；1.21.1 的
-    // `BlockEntity#onLoad()` 已经是「方块实体完整加入世界之后」的时机，
-    // 且 traits.Environment 已在这里调用 api.Network.joinOrCreateNetwork(this)，无需再调度。
+    // 把「加入网络」推迟到下一个服务端 tick（对齐 OCCE 的 EventHandler.scheduleServer(this)），
+    // 避免与同一 tick 内其它方块实体的网络重建互相干扰。
+    EventHandler.scheduleServer(this)
   }
 
   // ----------------------------------------------------------------------- //
@@ -118,8 +118,7 @@ class NetSplitter(pos: BlockPos, state: BlockState)
       if (isServer) {
         node.remove()
         api.Network.joinOrCreateNetwork(this)
-        // TODO(server.PacketSender): 原为 ServerPacketSender.sendNetSplitterState(this)。
-        markBlockForUpdate()
+        ServerPacketSender.sendNetSplitterState(this)
         world.playSound(null, x + 0.5, y + 0.5, z + 0.5, SoundEvents.PISTON_CONTRACT, SoundSource.BLOCKS,
           0.5f, world.getRandom.nextFloat() * 0.25f + 0.7f)
       }

@@ -1,5 +1,6 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util
 
 import li.cil.oc.Constants
@@ -115,8 +116,8 @@ class Assembler(pos: BlockPos, state: BlockState)
           totalRequiredEnergy = math.max(1.0, energy)
         }
         requiredEnergy = totalRequiredEnergy
-        // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotAssembling(this, assembling = true)。
-        markBlockForUpdate()
+        // 服务端发专用 RobotAssembling 包（对齐 OCCE）。
+        ServerPacketSender.sendRobotAssembling(this, assembling = true)
 
         for (slot <- 0 until getSlots) updateItems(slot, null)
         markDirty()
@@ -155,8 +156,8 @@ class Assembler(pos: BlockPos, state: BlockState)
         output = None
         requiredEnergy = 0
       }
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotAssembling(this, have > 0.5 && output.isDefined)。
-      markBlockForUpdate()
+      // 服务端发专用 RobotAssembling 包（对齐 OCCE）。
+      ServerPacketSender.sendRobotAssembling(this, have > 0.5 && output.isDefined)
     }
   }
 
@@ -176,7 +177,7 @@ class Assembler(pos: BlockPos, state: BlockState)
   override def writeToNBTForServer(nbt: CompoundTag): Unit = {
     super.writeToNBTForServer(nbt)
     output.foreach(stack => nbt.setNewCompoundTag(Settings.namespace + "output",
-      (tag: CompoundTag) => stack.save(li.cil.oc.util.ExtendedNBT.fallbackRegistry, tag)))
+      (tag: CompoundTag) => tag.merge(li.cil.oc.util.ExtendedNBT.encodeStack(stack))))
     nbt.putDouble(Settings.namespace + "total", totalRequiredEnergy)
     nbt.putDouble(Settings.namespace + "remaining", requiredEnergy)
   }

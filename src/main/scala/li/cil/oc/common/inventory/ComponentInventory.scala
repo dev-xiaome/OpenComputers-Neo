@@ -1,7 +1,6 @@
 package li.cil.oc.common.inventory
 
 import li.cil.oc.OpenComputers
-import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.Driver
 import li.cil.oc.api.driver.{Item => ItemDriver}
@@ -10,6 +9,7 @@ import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.ManagedEnvironment
 import li.cil.oc.api.network.Node
 import li.cil.oc.api.util.Lifecycle
+import li.cil.oc.integration.opencomputers.Item
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.item.ItemStack
 
@@ -216,22 +216,11 @@ trait ComponentInventory extends Inventory with network.Environment {
   /**
    * 取组件的数据标签（组件的存档都写在这里）。
    *
-   * 原实现：`Option(driver.dataTag(stack)).getOrElse(Item.dataTag(stack))`，
-   * 其中 `li.cil.oc.integration.opencomputers.Item.dataTag` 会把标签挂到
-   * `<namespace>data` 下。该集成层尚未纳入编译范围，
-   * TODO(integration.opencomputers.Item): 这里内联了同样的逻辑；等该包移植后改回调用。
+   * 与 OCCE 一致：优先用驱动自己提供的 `dataTag`，否则回退到
+   * `integration.opencomputers.Item.dataTag`（把标签挂在 `<namespace>data` 下）。
    */
   protected def dataTag(driver: ItemDriver, stack: ItemStack): CompoundTag =
-    Option(driver.dataTag(stack)).getOrElse(fallbackDataTag(stack))
-
-  private def fallbackDataTag(stack: ItemStack): CompoundTag = {
-    if (stack == null || stack.isEmpty) return new CompoundTag()
-    if (!stack.hasTag()) stack.setTag(new CompoundTag())
-    val nbt = stack.getTag()
-    val key = Settings.namespace + "data"
-    if (!nbt.contains(key)) nbt.put(key, new CompoundTag())
-    nbt.getCompound(key)
-  }
+    Option(driver.dataTag(stack)).getOrElse(Item.dataTag(stack))
 
   protected def save(component: ManagedEnvironment, driver: ItemDriver, stack: ItemStack): Unit = {
     try {

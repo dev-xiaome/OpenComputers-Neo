@@ -1,5 +1,6 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util.UUID
 
 import li.cil.oc.api
@@ -166,8 +167,8 @@ class RobotProxy(pos: BlockPos, state: BlockState)
     val newName: String = args.checkString(0)
     if (machine != null && machine.isRunning) return result((), "is running")
     setName(newName)
-    // TODO(server.PacketSender): 原为 ServerPacketSender.sendRobotNameChange(robot)。
-    markBlockForUpdate()
+    // 服务端发专用 RobotNameChange 包（对齐 OCCE）；注意参数是内部 Robot，而不是代理本身。
+    ServerPacketSender.sendRobotNameChange(robot)
     result(oldName)
   }
 

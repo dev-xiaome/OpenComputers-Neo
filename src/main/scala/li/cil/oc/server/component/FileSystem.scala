@@ -371,23 +371,25 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
       throw new IOException("bad file descriptor")
 
   /**
-   * TODO(common): 原 `li.cil.oc.common.SaveHandler.savingForClients`（`common/SaveHandler.scala` 尚未移植，
-   * 不在当前编译范围内）。原语义：向客户端序列化时跳过文件系统的 `owners` / `fs` 数据，
-   * 只有真正写盘（服务端存档）时才写入。这里先固定按「服务端存档」处理。
-   * 移植 `common/SaveHandler` 后请改回 `SaveHandler.savingForClients`。
+   * 与 CE-1.20 一致：向客户端序列化（发描述包）时跳过 `owners` 数据，只有真正写盘
+   * （服务端存档）时才写入。`common/SaveHandler` 已在编译集内，直接用它的开关。
    */
-  private def savingForClients: Boolean = false
+  private def savingForClients: Boolean = li.cil.oc.common.SaveHandler.savingForClients
 
   /**
-   * TODO(server): 磁盘访问音效通告。
+   * 磁盘访问音效通告。
    *
-   * 原实现调用 `li.cil.oc.server.PacketSender.sendFileSystemActivity(...)`，它会先向事件总线投递
-   * `FileSystemAccessEvent.Server`（允许其它模组改写/取消音效），再发送 `PacketType.FileSystemActivity`
-   * 包给附近玩家。`server/PacketSender` 与 `common/network/message` 均未移植。
-   *
-   * 这里降级为空操作：只影响客户端播放磁盘访问音效，不影响文件系统功能。
+   * 与 CE-1.20 一致：[[li.cil.oc.server.PacketSender.sendFileSystemActivity]] 会先向事件总线投递
+   * `FileSystemAccessEvent.Server`（允许其它模组改写 / 取消音效），再发送
+   * `PacketType.FileSystemActivity` 包给附近玩家；限流由 PacketSender 内部按 host 缓存。
+   * （此前这里被降级成空操作，理由是 `server/PacketSender` 未移植 —— 该理由已不成立。）
    */
-  private def diskActivity(): Unit = ()
+  private def diskActivity(): Unit = {
+    (sound, host) match {
+      case (Some(s), Some(h)) => li.cil.oc.server.PacketSender.sendFileSystemActivity(node, h, s)
+      case _ =>
+    }
+  }
 }
 
 final class HandleValue extends AbstractValue {

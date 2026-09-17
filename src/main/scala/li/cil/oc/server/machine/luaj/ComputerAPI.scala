@@ -6,8 +6,8 @@ import li.cil.oc.api.driver.item.MutableProcessor
 import li.cil.oc.api.driver.item.Processor
 import li.cil.oc.api.network.Connector
 import li.cil.oc.util.ScalaClosure._
-import org.luaj.vm2.LuaValue
-import org.luaj.vm2.Varargs
+import li.cil.repack.org.luaj.vm2.LuaValue
+import li.cil.repack.org.luaj.vm2.Varargs
 
 import scala.jdk.CollectionConverters._
 

@@ -23,8 +23,10 @@ $jars.Add((Join-Path $Project 'build\classes\java\main'))
 
 $cache = Join-Path $env:USERPROFILE '.gradle\caches\modules-2\files-2.1'
 Get-ChildItem $cache -Recurse -File -Filter '*.jar' -ErrorAction SilentlyContinue |
-    Where-Object { $_.FullName -match 'scala-library-2\.13|scala-reflect-2\.13|config-1\.4\.3|luaj-jse-3\.0\.1' } |
+    Where-Object { $_.FullName -match 'scala-library-2\.13|scala-reflect-2\.13|config-1\.4\.3' } |
     ForEach-Object { $jars.Add($_.FullName) }
+# OC-LuaJ 放在仓库内的本地 maven 目录（maven.cil.li 已不再托管这个 jar，见 gradle.properties）。
+Get-ChildItem (Join-Path $Project 'libs\maven-local') -Recurse -File -Filter 'OC-LuaJ-*.jar' -ErrorAction SilentlyContinue | ForEach-Object { $jars.Add($_.FullName) }
 $cp = ($jars -join ';')
 
 $props = Get-Content (Join-Path $Project 'gradle.properties')

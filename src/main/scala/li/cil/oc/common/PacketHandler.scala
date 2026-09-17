@@ -9,7 +9,6 @@ import li.cil.oc.OpenComputers
 import li.cil.oc.common.network.OpenComputersNetwork
 import net.minecraft.core.BlockPos
 import net.minecraft.core.Direction
-import net.minecraft.core.RegistryAccess
 import net.minecraft.core.registries.Registries
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.NbtIo
@@ -170,7 +169,10 @@ class PacketParser(stream: InputStream, val player: Player, val context: PacketC
     val haveStack = readBoolean()
     if (haveStack) {
       val nbt = readNBT()
-      if (nbt != null) ItemStack.parseOptional(RegistryAccess.EMPTY, nbt) else null
+      // 必须用真实注册表（`ExtendedNBT.fallbackRegistry`：服务端 → 缓存 → 客户端世界）。
+      // `RegistryAccess.EMPTY` 会让 `parseOptional` 找不到物品注册表，
+      // 同步过来的物品会全部解析成空气。
+      if (nbt != null) ItemStack.parseOptional(li.cil.oc.util.ExtendedNBT.fallbackRegistry, nbt) else null
     }
     else null
   }

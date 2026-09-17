@@ -144,9 +144,11 @@ object BlockEntityBase {
   /**
    * 是否正在为「客户端同步包」写出 NBT。
    *
-   * TODO(server.component): 对应原 `li.cil.oc.common.SaveHandler.savingForClients`。
-   * 原字段定义在尚未移植的 `common/SaveHandler.scala` 里，且只有 `server.component.FileSystem`
-   * 与 `server.machine.Machine` 使用；移植这两个包时请改为读写本字段。
+   * 直接委托给 [[li.cil.oc.common.SaveHandler.savingForClients]]——该字段已经存在，
+   * 并由 `server.component.FileSystem` 与 `server.machine.Machine` 读写；两边共用同一份
+   * 状态，客户端描述包才能正确跳过文件系统刷盘与机器状态持久化。
    */
-  var savingForClients = false
+  def savingForClients: Boolean = li.cil.oc.common.SaveHandler.savingForClients
+
+  def savingForClients_=(value: Boolean): Unit = li.cil.oc.common.SaveHandler.savingForClients = value
 }

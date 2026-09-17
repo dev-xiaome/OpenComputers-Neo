@@ -1,6 +1,6 @@
 # 键盘
 
-![QWERTY](oredict:oc:keyboard)
+![QWERTY](oredict:opencomputers:keyboard)
 
 键盘是向[显示屏](screen1.md)输入文本时所必需的东西，它们可能放置在世界中，也可能内置在[机器人](robot.md)或[平板电脑](../item/tablet.md)等设备里。
 

@@ -1,13 +1,15 @@
 package li.cil.oc.common.tileentity.traits
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
+
 import scala.collection.mutable
 
 /**
  * 网络交换机 / 中继器的公共部分（对应 1.7.10 的 `common.tileentity.traits.SwitchLike`）。
  *
  * 1.21.1 迁移要点：
- *  - 原 `PacketSender.sendSwitchActivity(this)` 属于尚未移植的服务端网络层，
- *    见 [[onSwitchActivity]] 的降级说明。
+ *  - 活动指示通过 `ServerPacketSender.sendSwitchActivity(this)` 发送专用包（对齐 1.7.10
+ *    的 `PacketSender.sendSwitchActivity`），让附近客户端播放交换机的指示灯动画。
  *  - `relayDelay` / `isWirelessEnabled` / `isLinkedEnabled` 仍为抽象成员，由交换机 / 中继器实现。
  */
 trait SwitchLike extends Hub {
@@ -30,10 +32,7 @@ trait SwitchLike extends Hub {
     val now = System.currentTimeMillis()
     if (now - lastMessage >= (relayDelay - 1) * 50) {
       lastMessage = now
-      // 原：PacketSender.sendSwitchActivity(this)
-      // TODO(server.PacketSender): 服务端网络层移植后改为发送 SwitchActivity 包
-      // （让附近客户端播放交换机的指示灯动画）；目前退化为方块更新包。
-      markBlockForUpdate()
+      ServerPacketSender.sendSwitchActivity(this)
     }
   }
 }

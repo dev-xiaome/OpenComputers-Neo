@@ -1,6 +1,6 @@
 # Roboter
 
-![Er hieß Retobor.](block:opencomputers_neo:robot)
+![Er hieß Retobor.](block:opencomputers:robot)
 
 Im Gegensatz zu [Computern](../general/computer.md) können Roboter sich bewegen und mit der Welt fast wie ein Spieler interagieren. Sie können jedoch *nicht* mit externen Komponenten interagieren. Wenn die Kommunikation mit einem Computer benötigt wird, muss eine [kabellose Netzwerkkarte](../item/wlanCard1.md) verwendet werden, oder ein Low-Level-Protokoll mit Redstonesignalen erstellt werden.
 

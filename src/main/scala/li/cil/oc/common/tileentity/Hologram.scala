@@ -1,5 +1,6 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util
 
 import li.cil.oc.Constants
@@ -179,8 +180,9 @@ class Hologram(pos: BlockPos, state: BlockState)
   @Callback(doc = """function() -- Clears the hologram.""")
   def clear(context: Context, args: Arguments): Array[AnyRef] = this.synchronized {
     for (i <- volume.indices) volume(i) = 0
-    // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramClear(this)。
-    markDirtyAndUpdate()
+    // 服务端发专用 HologramClear 包（对齐 OCCE），并保留存盘标记。
+    ServerPacketSender.sendHologramClear(this)
+    markDirty()
     resetDirtyFlag()
     litRatio = 0
     null
@@ -309,8 +311,9 @@ class Hologram(pos: BlockPos, state: BlockState)
   @Callback(doc = """function(value:number) -- Set the render scale. A larger scale consumes more energy.""")
   def setScale(context: Context, args: Arguments): Array[AnyRef] = {
     scale = math.max(0.333333, math.min(Settings.get.hologramMaxScaleByTier(tier), args.checkDouble(0)))
-    // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramScale(this)。
-    markDirtyAndUpdate()
+    // 服务端发专用 HologramScale 包（对齐 OCCE），并保留存盘标记。
+    ServerPacketSender.sendHologramScale(this)
+    markDirty()
     null
   }
 
@@ -331,8 +334,9 @@ class Hologram(pos: BlockPos, state: BlockState)
     translation.yCoord = ty
     translation.zCoord = tz
 
-    // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramOffset(this)。
-    markDirtyAndUpdate()
+    // 服务端发专用 HologramOffset 包（对齐 OCCE），并保留存盘标记。
+    ServerPacketSender.sendHologramOffset(this)
+    markDirty()
     null
   }
 
@@ -358,8 +362,9 @@ class Hologram(pos: BlockPos, state: BlockState)
     // Change byte order here to allow passing stored color to OpenGL "as-is"
     // (as whole Int, i.e. 0xAABBGGRR, alpha is unused but present for alignment)
     colors(index - 1) = convertColor(value)
-    // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramColor(this, index - 1, colors(index - 1))。
-    markDirtyAndUpdate()
+    // 服务端发专用 HologramColor 包（对齐 OCCE），并保留存盘标记。
+    ServerPacketSender.sendHologramColor(this, index - 1, colors(index - 1))
+    markDirty()
     result(oldValue)
   }
 
@@ -375,8 +380,9 @@ class Hologram(pos: BlockPos, state: BlockState)
       rotationX = x.toFloat
       rotationY = y.toFloat
       rotationZ = z.toFloat
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramRotation(this)。
-      markDirtyAndUpdate()
+      // 服务端发专用 HologramRotation 包（对齐 OCCE），并保留存盘标记。
+      ServerPacketSender.sendHologramRotation(this)
+      markDirty()
 
       result(true)
     }
@@ -395,8 +401,9 @@ class Hologram(pos: BlockPos, state: BlockState)
       rotationSpeedX = x.toFloat
       rotationSpeedY = y.toFloat
       rotationSpeedZ = z.toFloat
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramRotationSpeed(this)。
-      markDirtyAndUpdate()
+      // 服务端发专用 HologramRotationSpeed 包（对齐 OCCE），并保留存盘标记。
+      ServerPacketSender.sendHologramRotationSpeed(this)
+      markDirty()
 
       result(true)
     }
@@ -450,9 +457,12 @@ class Hologram(pos: BlockPos, state: BlockState)
         // changes * (4 + 4 + 2) = dirtySizeX * dirtySizeZ * (4 + 4)
         // changes = dirtySizeX * dirtySizeZ * (4 + 4) / (4 + 4 + 2) = dirtySizeX * dirtySizeZ * 0.8
         // So if changes are larger than that, just send the full hologram.
-        // TODO(server.PacketSender): 原为 sendHologramArea / sendHologramValues（按脏区大小二选一），
-        // 网络层移植后恢复；现在统一走方块更新 + 同步标签。
-        markDirtyAndUpdate()
+        // 按脏区大小二选一：脏区大就整包发区域，否则只发变化的值（对齐 OCCE）。
+        // 此处不标脏：体素数据由 SaveHandler.scheduleSave 单独异步持久化，逐 tick 标脏会造成无谓的存盘压力。
+        if (dirty.size > dirtySizeX * dirtySizeZ * 0.8)
+          ServerPacketSender.sendHologramArea(this)
+        else
+          ServerPacketSender.sendHologramValues(this)
         resetDirtyFlag()
       }
       if (world != null && world.getGameTime % Settings.get.tickFrequency == 0) {
@@ -472,8 +482,8 @@ class Hologram(pos: BlockPos, state: BlockState)
           case _ => true
         }
         if (hasPower != hadPower) {
-          // TODO(server.PacketSender): 原为 ServerPacketSender.sendHologramPowerChange(this)。
-          markDirtyAndUpdate()
+          // 服务端发专用 HologramPowerChange 包（对齐 OCCE）。
+          ServerPacketSender.sendHologramPowerChange(this)
         }
       }
     }

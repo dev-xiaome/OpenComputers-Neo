@@ -7,7 +7,10 @@ import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.network.ManagedEnvironment
 import li.cil.oc.api.network.Node
+import li.cil.oc.client.Sound
 import li.cil.oc.common.tileentity.RobotProxy
+import li.cil.oc.integration.opencomputers.DriverRedstoneCard
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.ExtendedNBT._
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.StringTag
@@ -41,14 +44,15 @@ import scala.jdk.CollectionConverters._
  * `setOutputEnabled` / `getOutput` /
  * `getBundledOutput` / `setRednetInput`（来自 [[BundledRedstoneAware]]）。
  *
- * ==降级清单==
- *  - `api.Machine.create(this)`：`API.machine` 在 `server.machine` 移植前为 `null`，
- *    因此 `machine` 在服务端也会是 `null`；所有用到 `machine` 的地方都做了空值保护，
- *    并留下 `TODO(server.machine)`。
- *  - `client.Sound`（运行音循环）、`server.PacketSender`（状态同步）、
- *    `server.agent.Player`（机器人假玩家）、`integration.util.Waila`、
- *    `integration.opencomputers.DriverRedstoneCard`、`integration.stargatetech2.*`
- *    均未移植，逐处标注 `TODO(...)`。
+ * ==集成层状态==
+ *  - `API.machine` 已由 `common.Proxy`、`server.Proxy` 赋值为 `server.machine.Machine`，
+ *    因此 `machine` 在服务端可用；代码中仍保留空值保护以兼容客户端（客户端 `machine` 恒为 null）。
+ *  - 运行音循环（`client.Sound`）、运行状态同步（`server.PacketSender`）、红石卡判定
+ *    （`integration.opencomputers.DriverRedstoneCard`）均已接回真实实现。
+ *  - 机器人假玩家识别（`server.agent.Player`）**仍不可用**：该文件存在但未纳入
+ *    `gradle.properties` 的 `scala_ported_packages` 编译白名单，见 [[isUseableByPlayer]]。
+ *  - 仍存在的降级：`integration.util.Waila`（1.21.1 下由 Jade / TOP 走独立查询路径，不适用）、
+ *    `integration.stargatetech2` 抽象总线卡（OCCE 亦已移除该集成，`hasAbstractBusCard` 恒 false）。
  */
 trait Computer extends Environment with ComponentInventory with Rotatable with BundledRedstoneAware with AbstractBusAware with api.network.Analyzable with api.machine.MachineHost with StateAware {
   // 注意：Scala 的自类型不会被继承，TileEntity 的每个子 trait 都必须重新声明。
@@ -57,17 +61,14 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
   /**
    * 本宿主持有的机器实例。
    *
-   * TODO(server.machine): 原实现是 `api.Machine.create(this)`，由 `li.cil.oc.server.machine.Machine`
-   * 提供实现（`API.machine` 在 mod 初始化时被赋值）。`server.machine` 尚未移植，因此
-   * `API.machine == null`，`api.Machine.create` 会返回 `null`（客户端侧本来就返回 `null`）。
-   * 机器层移植完成后**本文件无需改动**，只需保证 `API.machine` 被赋值；在那之前所有
-   * 使用点都做了空值保护，避免运行期 NPE。
+   * `api.Machine.create(this)` 由已赋值的 `API.machine`（见 `common.Proxy` / `server.Proxy`）
+   * 提供实现，服务端可用；客户端恒为 null。所有使用点仍做空值保护，避免运行期 NPE。
    */
   private lazy val _machine: api.machine.Machine = if (isServer) api.Machine.create(this) else null
 
   def machine: api.machine.Machine = _machine
 
-  // TODO(server.machine): 机器为 null 时（见上）节点也不存在，这里返回 null 而不是抛 NPE。
+  // 客户端（machine 为 null）时节点不存在，这里返回 null 而不是抛 NPE。
   override def node: Node = if (isServer && machine != null) machine.node else null
 
   private var _isRunning = false
@@ -95,9 +96,12 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
     if (world != null) {
       // 原为 `world.markBlockForUpdate(x, y, z)`。
       markBlockForUpdate()
-      // TODO(client.Sound): 客户端原本在此调用 `client.Sound.startLoop(this, runSound, ...)` /
-      // `client.Sound.stopLoop(this)` 播放计算机运行音循环。`li.cil.oc.client` 尚未移植，
-      // 该逻辑留待客户端音效层接入（`runSound` 供其使用）。
+      // 客户端播放 / 停止计算机运行音循环（对齐 OCCE traits.Computer#setRunning）。
+      if (isClient) {
+        runSound.foreach(sound =>
+          if (_isRunning) Sound.startLoop(this, sound, 0.5f, (50 + world.random.nextInt(50)).toLong)
+          else Sound.stopLoop(this))
+      }
     }
   }
 
@@ -144,14 +148,16 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
   def hasAbstractBusCard = false
 
   /**
-   * 是否安装了红石卡。
+   * 是否安装了红石卡（对齐 OCCE traits.Computer#hasRedstoneCard）。
    *
-   * TODO(integration.opencomputers): 原实现为
-   * `items.exists { case Some(item) => machine.isRunning && DriverRedstoneCard.worksWith(item, getClass) ... }`。
-   * `integration` 包（含红石卡驱动）未纳入编译范围，这里暂时恒为 false，
-   * 因此计算机目前不会输出红石信号；集成层移植后请恢复原判定。
+   * `integration.opencomputers.DriverRedstoneCard` 与本项目其余集成层驱动一样已经就绪，
+   * 这里直接使用其 `worksWith(stack, hostClass)` 判定；`machine` 为 null（例如客户端）时
+   * 视为未运行，避免 NPE。
    */
-  def hasRedstoneCard = false
+  def hasRedstoneCard: Boolean = items.exists {
+    case Some(item) if !item.isEmpty => machine != null && machine.isRunning && DriverRedstoneCard.worksWith(item, getClass)
+    case _ => false
+  }
 
   // ----------------------------------------------------------------------- //
 
@@ -185,9 +191,8 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
 
   protected def onRunningChanged(): Unit = {
     markDirty()
-    // TODO(server.PacketSender): 原为 ServerPacketSender.sendComputerState(this) 同步运行状态/错误灯。
-    // 网络层移植后改为发送 ComputerState 包；这里退化为方块更新。
-    markBlockForUpdate()
+    // 同步运行状态 / 错误指示灯给客户端（对齐 OCCE）。`server.PacketSender` 已就绪。
+    ServerPacketSender.sendComputerState(this)
   }
 
   override def dispose(): Unit = {
@@ -204,10 +209,14 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
     // God, this is so ugly... will need to rework the robot architecture.
     // This is required for loading auxiliary data (kernel state), because the
     // coordinates in the actual robot won't be set properly, otherwise.
-    // TODO(server.machine): 原实现在这里把本方块实体的坐标写进内部 `RobotProxy.robot`
-    // （`proxy.robot.xCoord = xCoord` 等）以便加载机器内核状态。1.21.1 的 `BlockEntity`
-    // 位置由 `worldPosition` 统一提供、不再有可写的 xCoord/yCoord/zCoord；
-    // 待 Robot / RobotProxy 移植完成后，请改为调用 Robot 暴露的显式坐标同步方法。
+    // 机器人架构要求：加载内核状态前，先把机器人代理指向本方块实体的世界，
+    // 否则 Robot 侧读到的坐标是错的。1.21.1 用公开的 `BlockEntity#setLevel`
+    // （坐标由 Robot 自身的 `worldPosition` 在移动时同步，这里不再直接改写）。
+    this match {
+      case proxy: RobotProxy =>
+        proxy.robot.setLevel(world)
+      case _ =>
+    }
     if (machine != null) {
       machine.load(nbt.getCompound(Settings.namespace + "computer"))
     }
@@ -238,7 +247,8 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
     setRunning(nbt.getBoolean("isRunning"))
     _users.clear()
     _users ++= nbt.getList("users", Tag.TAG_STRING).map((tag: StringTag) => tag.getAsString)
-    // TODO(client.Sound): 原实现在 `_isRunning` 为真时调用 `client.Sound.startLoop(...)`。
+    // 客户端读档后若机器已在运行，恢复运行音循环（对齐 OCCE）。
+    if (_isRunning) runSound.foreach(sound => Sound.startLoop(this, sound, 0.5f, (1000 + world.random.nextInt(2000)).toLong))
   }
 
   override def writeToNBTForClient(nbt: CompoundTag): Unit = {
@@ -263,8 +273,11 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
 
   override def isUseableByPlayer(player: Player): Boolean =
     super.isUseableByPlayer(player) && canInteract(player.getGameProfile.getName)
-  // TODO(server.agent): 原实现在此识别 `server.agent.Player`（机器人使用的假玩家），
-  // 并用其 `agent.ownerName()` 作为交互者名字。`server.agent` 未移植，这里统一取真实玩家名。
+  // 说明：OCCE 的 stillValid 会额外识别 `server.agent.Player`（机器人假玩家），
+  // 并用其 `agent.ownerName()` 作为交互者名。本项目的 `server/agent/Player.scala`
+  // 虽已存在，但尚未纳入 `gradle.properties` 的 `scala_ported_packages` 编译白名单
+  // （该文件目前仍有大量未完成的 1.21.1 移植点），因此这里暂时统一取真实玩家名。
+  // 白名单加入 `li/cil/oc/server/agent/**` 后，可按 OCCE 恢复该 match 分支。
 
   override protected def onRotationChanged(): Unit = {
     super.onRotationChanged()

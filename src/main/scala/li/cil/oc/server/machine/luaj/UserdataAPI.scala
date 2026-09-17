@@ -3,12 +3,12 @@ package li.cil.oc.server.machine.luaj
 import li.cil.oc.OpenComputers
 import li.cil.oc.api.machine.Value
 import li.cil.oc.server.machine.ArgumentsImpl
-// TODO(server.driver): 上游是 `li.cil.oc.server.driver.Registry`；该包尚未编译进来，
-// 这里显式导入 `server/machine/Registry.scala` 里的等价实现。
-import li.cil.oc.server.machine.Registry
+// 与 CE-1.20 一致：值转换走唯一的 server/driver/Registry 实现
+// （本包内曾有一份过时的本地替身 server/machine/Registry.scala，已删除）。
+import li.cil.oc.server.driver.Registry
 import li.cil.oc.util.ScalaClosure._
-import org.luaj.vm2.LuaValue
-import org.luaj.vm2.Varargs
+import li.cil.repack.org.luaj.vm2.LuaValue
+import li.cil.repack.org.luaj.vm2.Varargs
 
 import scala.jdk.CollectionConverters._
 
@@ -19,8 +19,7 @@ class UserdataAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
     userdata.set("apply", (args: Varargs) => {
       val value = args.checkuserdata(1, classOf[Value]).asInstanceOf[Value]
       val params = toSimpleJavaObjects(args, 2)
-      // TODO(server.driver): 上游用 `li.cil.oc.server.driver.Registry.convert`，
-      // 该包尚未编译进来，这里用 server.machine 内的等价实现。
+      // 与 CE-1.20 一致：走 `li.cil.oc.server.driver.Registry.convert`。
       owner.invoke(() => Registry.convert(Array(value.apply(machine, new ArgumentsImpl(params)))))
     })
 

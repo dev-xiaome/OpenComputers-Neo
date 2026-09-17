@@ -1,6 +1,6 @@
 # 3D打印机
 
-![2D打印太过时了。](oredict:oc:printer)
+![2D打印太过时了。](oredict:opencomputers:printer)
 
 3D打印机能让你打印出具有任意形状以及任意材质的方块。使用3D打印机的第一步是将3D打印机方块放置在电脑旁边。这样电脑就可以使用`printer3d`组件API了。你可以用其提供的函数创建并打印出[模型](print.md)来。
 

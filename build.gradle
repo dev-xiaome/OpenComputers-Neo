@@ -32,18 +32,20 @@ repositories {
     // Add here additional repositories if required by some of the dependencies below.
     maven { url = 'https://maven.aliyun.com/repository/public' }
     mavenCentral()
+    // 仓库内的本地 maven 目录：存放 maven.cil.li 已不再托管的 OC-LuaJ（见 gradle.properties）。
+    maven { url = uri('libs/maven-local') }
 }
 
 dependencies {
     // 仅编译期可见：运行期由下面的 ocRunLibs + jarJar 提供。
     compileOnly "org.scala-lang:scala-library:${scala_version}"
     compileOnly "com.typesafe:config:${typesafe_config_version}"
-    compileOnly "org.luaj:luaj-jse:${luaj_version}"
+    compileOnly "li.cil:OC-LuaJ:${oc_luaj_version}"
 
     // 随模组一起打包（正式发布用）。
     jarJar "org.scala-lang:scala-library:${scala_version}"
     jarJar "com.typesafe:config:${typesafe_config_version}"
-    jarJar "org.luaj:luaj-jse:${luaj_version}"
+    jarJar "li.cil:OC-LuaJ:${oc_luaj_version}"
 }
 
 // 开发环境专用：把这三个库塞进 FML 的传统 -cp 类路径。
@@ -63,7 +65,7 @@ configurations {
 dependencies {
     ocRunLibs "org.scala-lang:scala-library:${scala_version}"
     ocRunLibs "com.typesafe:config:${typesafe_config_version}"
-    ocRunLibs "org.luaj:luaj-jse:${luaj_version}"
+    ocRunLibs "li.cil:OC-LuaJ:${oc_luaj_version}"
 }
 
 tasks.matching { it.name.startsWith('write') && it.name.endsWith('LegacyClasspath') }.configureEach { t ->
@@ -144,6 +146,19 @@ neoForge {
             client()
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            // 无人值守验证用：`gradlew runClient -PquickPlay=<存档目录名>` 让客户端直接进入指定存档，
+            // 这样机箱会立刻开机，日志里就能直接看到 BIOS / OpenOS 的启动结果，无需人工点进世界。
+            // 不传 -PquickPlay 时行为与原来完全一致。
+            if (project.hasProperty('quickPlay')) {
+                programArguments.addAll '--quickPlaySingleplayer', project.property('quickPlay').toString()
+                // 同时打开 mod 里的临时自检钩子：玩家进入世界后自动把附近机箱关机再开机，
+                // 这样无人值守启动也能拿到完整的 BIOS / OpenOS 开机日志。
+                jvmArgument '-Doc.autoboot=true'
+                // 额外开启「填充一整套组件」的自检开关，用于把开机链路与存档状态分开验证。
+                if (project.hasProperty('fillComponents')) {
+                    jvmArgument '-Doc.fillcomponents=true'
+                }
+            }
         }
 
         server {

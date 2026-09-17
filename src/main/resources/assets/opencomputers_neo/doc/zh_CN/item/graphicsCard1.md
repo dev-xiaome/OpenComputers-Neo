@@ -1,6 +1,6 @@
 # 显卡
 
-![炫彩图像。](oredict:oc:graphicsCard1)
+![炫彩图像。](oredict:opencomputers:graphicsCard1)
 
 显卡对大多数[电脑](../general/computer.md)而言都是必备组件，能让[电脑](../general/computer.md)在与其相连的[显示屏](../block/screen1.md)上显示文本。显卡分若干等级，并且与[显示屏](../block/screen1.md)相同，也支持不同分辨率和色深。
 

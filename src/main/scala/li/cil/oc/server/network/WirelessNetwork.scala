@@ -31,9 +31,9 @@ import scala.collection.mutable
  *  - `var hardness += ...` 之类的「对局部 var 做 `+=`」在 Scala 2.13 里成立，
  *    但原写法把 `hardness` 写成了被闭包捕获的 var，这里改为显式累加赋值。
  *
- * ==已知缺口==
- * TODO(common.EventHandler): 本对象上的 `@SubscribeEvent` 需要由 `common/EventHandler` 在
- * `NeoForge.EVENT_BUS` 上注册才会生效；注册遗漏时只影响「世界/区块卸载时的兜底清理」。
+ * 事件注册：本对象上的 `@SubscribeEvent` 在 NeoForge 下对 Scala `object` 不可靠，
+ * 因此统一由 `integration/opencomputers/ModOpenComputers` 用
+ * `NeoForge.EVENT_BUS.addListener` 显式挂上（`onWorldLoad` / `onWorldUnload` / `onChunkUnload`）。
  */
 object WirelessNetwork {
   val dimensions = mutable.Map.empty[ResourceLocation, RTree[WirelessEndpoint]]
@@ -89,12 +89,11 @@ object WirelessNetwork {
   def remove(endpoint: WirelessEndpoint): Boolean = removeFrom(dimension(endpoint), endpoint)
 
   /**
-   * 兼容 `api.detail.NetworkAPI#leaveWirelessNetwork(WirelessEndpoint, int)`（1.7.10 的数字维度 id）。
+   * 兼容 `api.detail.NetworkAPI#leaveWirelessNetwork(WirelessEndpoint, int)`。
    *
    * 1.21.1 的维度没有数字 id，这里用 `minecraft:overworld` / `the_nether` / `the_end` 三个
    * 已知 id 做一次回退映射，并额外提供 [[removeFrom]] 供内部按 [[ResourceLocation]] 精确删除。
-   *
-   * TODO(server.machine): 调用方全部换成按 `ResourceLocation` 之后，本方法可以删除。
+   * 该重载是 api 层为兼容 1.7.10 保留的入口，一旦 api 移除即可一并删除。
    */
   def remove(endpoint: WirelessEndpoint, dimensionId: Int): Boolean = {
     val legacy = dimensionId match {

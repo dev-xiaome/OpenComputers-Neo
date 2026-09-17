@@ -26,7 +26,15 @@ import li.cil.oc.api.network.Message
 import li.cil.oc.api.network.Node
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
+import li.cil.oc.common.EventHandler
+import li.cil.oc.common.SaveHandler
 import li.cil.oc.common.Slot
+// 回调返回值与信号参数的转换必须走唯一的 server/driver/Registry 实现。
+// 本包内曾有一份过时的本地替身 Registry，它缺少 none 与 unit 的归一化，
+// 也不遍历已注册的 Converter，已删除；这里显式导入，避免裸 Registry 再被同包成员遮蔽。
+import li.cil.oc.server.PacketSender
+import li.cil.oc.server.driver.Registry
+import li.cil.oc.server.fs.FileSystem
 import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.ResultWrapper.result
 import li.cil.oc.util.ThreadPoolFactory
@@ -44,13 +52,9 @@ class Machine(val host: MachineHost) extends prefab.ManagedEnvironment with mach
     create()
 
   val tmp: Option[api.network.ManagedEnvironment] = if (Settings.get.tmpSize > 0) {
-    // TODO(server.component): 上游直接调用
-    // `FileSystem.asManagedEnvironment(FileSystem.fromMemory(...), "tmpfs", null, null, 5)`，
-    // 最终会构造 `li.cil.oc.server.component.FileSystem`。
-    // `server/component` 与它依赖的 `common/item` 目前还不在编译集内，
-    // 这里退回 API 层的内存文件系统 + 反射构造组件；缺类时退化为「没有 tmpfs」。
-    ReflectFilesystem.asManagedEnvironment(
-      li.cil.oc.api.API.fileSystem.fromMemory(Settings.get.tmpSize * 1024), "tmpfs")
+    // 与 CE-1.20 一致：直接用 `server/fs/FileSystem` 的工厂构造真实的
+    // `server/component/FileSystem`，不再走反射替身（`server/component` 已在编译集内）。
+    Option(FileSystem.asManagedEnvironment(FileSystem.fromMemory(Settings.get.tmpSize * 1024), "tmpfs", null, null, 5))
   } else None
 
   var architecture: Architecture = _
@@ -206,9 +210,6 @@ class Machine(val host: MachineHost) extends prefab.ManagedEnvironment with mach
       onHostChanged()
       processAddedComponents()
       verifyComponents()
-      // TODO(diag): 临时诊断日志，用于定位「电脑报未安装CPU」，问题解决后请删除。
-      li.cil.oc.OpenComputers.log.info(
-        s"[OC-DIAG] Machine.start: arch=${architecture != null} maxComponents=$maxComponents componentCount=$componentCount hasMemory=$hasMemory components=${_components.size} added=${addedComponents.size}")
       if (!Settings.get.ignorePower && node.globalBuffer < cost) {
         // No beep! We have no energy after all :P
         crash("gui.Error.NoEnergy")
@@ -293,16 +294,12 @@ class Machine(val host: MachineHost) extends prefab.ManagedEnvironment with mach
   }
 
   override def beep(frequency: Short, duration: Short): Unit = {
-    // TODO(server.component): 上游直接调用
-    // `PacketSender.sendSound(host.world, x, y, z, frequency, duration)`（Int 参数）。
-    // `server/PacketSender.scala` 依赖尚未移植的 `common/block`、`common/tileentity`，
-    // 暂时走反射桥接。
-    ReflectionCompat.sendSound(host.world, host.xPosition, host.yPosition, host.zPosition, frequency.toInt, duration.toInt)
+    // 与 CE-1.20 一致：直接调用 `PacketSender`（`server/PacketSender` 已在编译集内）。
+    PacketSender.sendSound(host.world, host.xPosition, host.yPosition, host.zPosition, frequency, duration)
   }
 
   override def beep(pattern: String): Unit = {
-    // TODO(server.component): 同上，模式版本。
-    ReflectionCompat.sendSound(host.world, host.xPosition, host.yPosition, host.zPosition, pattern)
+    PacketSender.sendSound(host.world, host.xPosition, host.yPosition, host.zPosition, pattern)
   }
 
   override def crash(message: String) = {
@@ -385,10 +382,10 @@ class Machine(val host: MachineHost) extends prefab.ManagedEnvironment with mach
   override def invoke(address: String, method: String, args: Array[AnyRef]): Array[AnyRef] = {
     if (node != null && node.network != null) {
       Option(node.network.node(address)) match {
-        // TODO(server.component): 上游此处用 `li.cil.oc.server.network.Component`；
-        // 该实现尚未移植，这里改用 API 接口 `api.network.Component`
-        // （server 侧实现继承自它，因此行为一致）。
-        case Some(component: Component) if component.canBeSeenFrom(node) || component == node =>
+        // 与 CE-1.20 一致：必须匹配 `li.cil.oc.server.network.Component`（真正带回调表的实现），
+        // 不能用裸的 `api.network.Component` 接口 —— 那会把任何实现了该接口的节点
+        // 都当成可调用组件。
+        case Some(component: li.cil.oc.server.network.Component) if component.canBeSeenFrom(node) || component == node =>
           val annotation = component.annotation(method)
           if (annotation.direct) {
             consumeCallBudget(1.0 / annotation.limit)
@@ -564,11 +561,10 @@ class Machine(val host: MachineHost) extends prefab.ManagedEnvironment with mach
         usersChanged = false
         users
       }
-      // TODO(common.tileentity): 上游是
-      // `host match { case computer: tileentity.traits.Computer => PacketSender.sendComputerUserList(computer, list) }`，
-      // `common/tileentity` 尚未进入编译集，这里通过宿主对象类型名判断后反射派发。
-      if (host.isInstanceOf[li.cil.oc.api.machine.MachineHost]) {
-        ReflectionCompat.sendComputerUserList(host.asInstanceOf[AnyRef], list)
+      // 与 CE-1.20 一致：只有计算机方块实体才需要推送用户列表。
+      host match {
+        case computer: li.cil.oc.common.tileentity.traits.Computer => PacketSender.sendComputerUserList(computer, list)
+        case _ =>
       }
     }
 

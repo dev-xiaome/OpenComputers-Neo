@@ -1,6 +1,6 @@
 # 悬浮靴子
 
-![步步高升。](oredict:oc:hoverBoots)
+![步步高升。](oredict:opencomputers:hoverBoots)
 
 如果你不想费力给[无人机](drone.md)编程，那它们还有其他用途：当成垫脚石！或者美化后的叫法：内置滑冰鞋。总之就是这个意思。
 

@@ -1,6 +1,6 @@
 # 因特网卡
 
-![猫片播放倒数，3，2，……](oredict:oc:internetCard)
+![猫片播放倒数，3，2，……](oredict:opencomputers:internetCard)
 
 因特网卡为[电脑](../general/computer.md)提供了连接现实中因特网的能力。此扩展卡提供了进行简单HTTP请求的方法，还能打开简单TCP客户端套接字以供读写。
 

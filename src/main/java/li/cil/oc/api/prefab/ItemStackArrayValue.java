@@ -3,6 +3,7 @@ package li.cil.oc.api.prefab;
 import li.cil.oc.api.machine.Arguments;
 import li.cil.oc.api.machine.Callback;
 import li.cil.oc.api.machine.Context;
+import li.cil.oc.util.RegistryAccessHelper;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
@@ -22,11 +23,10 @@ import java.util.TreeMap;
  * {@code ItemStack#save(HolderLookup.Provider, Tag)} /
  * {@code ItemStack#parseOptional(HolderLookup.Provider, CompoundTag)} 取代，
  * 两者都需要注册表上下文，而 {@link li.cil.oc.api.machine.Value#load}/{@code save}
- * 的签名里没有这个上下文，因此这里退化为 {@link RegistryAccess#EMPTY}。</li>
- * <li>对于普通物品（尤其是 OpenComputers 自己的组件，其数据放在自定义数据组件里）
- * 这个空上下文足够使用；如果某个物品的数据组件引用了注册表内容
- * （例如附魔、属性修饰符），在空上下文下编解码可能失败，届时需要把真实的
- * {@code HolderLookup.Provider} 传进来，这要求扩展 {@code Value} 的签名。</li>
+ * 的签名里没有这个上下文，因此这里通过 {@link RegistryAccessHelper} 取真实的注册表。</li>
+ * <li><b>不要退回 {@link RegistryAccess#EMPTY}</b>：1.21.1 的 {@code ItemStack#save} 内部要先用
+ * {@code registries.getOrThrow(Registries.ITEM)} 取物品 id，空访问器上取不到，
+ * 每个物品都会被静默写成空标签 {@code {"item": {}}}，读档时全部变成空气。</li>
  * <li>NBT 方法名同步为新版：{@code hasKey → contains}、{@code getTagList → getList}、
  * {@code tagCount → size}、{@code getCompoundTagAt → getCompound}、
  * {@code hasNoTags → isEmpty}、{@code setTag → put}、{@code setInteger → putInt}。</li>
@@ -38,10 +38,13 @@ public class ItemStackArrayValue extends AbstractValue {
     /**
      * 用于物品编解码的注册表上下文。
      * <br>
-     * {@code Value#load/save} 不提供 {@code HolderLookup.Provider}，这里使用空上下文；
-     * 详见类注释中的说明。
+     * {@code Value#load/save} 不提供 {@code HolderLookup.Provider}，因此这里使用
+     * {@link RegistryAccessHelper} 提供的「服务端 → 客户端 → 缓存」真实注册表；
+     * 详见该类的说明。
      */
-    private static final HolderLookup.Provider REGISTRIES = RegistryAccess.EMPTY;
+    private static HolderLookup.Provider registries() {
+        return RegistryAccessHelper.getOrEmpty();
+    }
 
     private ItemStack[] array = null;
     private int iteratorIndex;
@@ -109,7 +112,7 @@ public class ItemStackArrayValue extends AbstractValue {
                     // 空标签表示 1.7.10 里用 null 标记的“空槽位”。
                     this.array[i] = null;
                 } else {
-                    this.array[i] = ItemStack.parseOptional(REGISTRIES, el);
+                    this.array[i] = ItemStack.parseOptional(registries(), el);
                 }
             }
         } else {
@@ -126,7 +129,7 @@ public class ItemStackArrayValue extends AbstractValue {
                 if (stack != null && !stack.isEmpty()) {
                     // ItemStack.EMPTY 不能序列化（会抛 IllegalStateException），
                     // 因此空槽位写一个空 CompoundTag 占位。
-                    tagList.add(stack.save(REGISTRIES, new CompoundTag()));
+                    tagList.add(stack.save(registries(), new CompoundTag()));
                 } else {
                     tagList.add(new CompoundTag());
                 }

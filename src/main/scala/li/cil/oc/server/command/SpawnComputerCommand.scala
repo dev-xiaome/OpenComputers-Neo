@@ -27,9 +27,11 @@ import net.minecraft.world.phys.BlockHitResult
  *  - `player.addChatMessage(...)` → `player.displayClientMessage(component, false)`；
  *  - `WrongUsageException` → Brigadier 的 `SimpleCommandExceptionType`。
  *
- * ==降级说明==
- *  - 原 `LuaStateFactory.setDefaultArch(apu)`（把**原生 Lua** 架构写进 APU 的 NBT）随
- *    `server/machine/luac` 一起未移植，改为写入默认（LuaJ）架构，见 [[spawn]] 里的 TODO。
+ * ==架构标签的处理==
+ *  1.7.10 在这里调用 `LuaStateFactory.setDefaultArch(apu)`，它只在「原生 Lua 5.3 被配置为默认架构」
+ *  时才把 `NativeLua53Architecture` 写进 APU 的 NBT。本项目只移植了 LuaJ
+ *  （`server/machine/luaj`，由 `li.cil.oc.server.Proxy` 注册为 `api.Machine.LuaArchitecture`），
+ *  因此这里写入「当前默认架构」就是等价的语义，而不是功能缺失。
  */
 object SpawnComputerCommand extends SimpleCommand("oc_spawnComputer") {
   aliases += "oc_sc"
@@ -104,10 +106,10 @@ object SpawnComputerCommand extends SimpleCommand("oc_spawnComputer") {
         api.Network.joinOrCreateNetwork(world.getBlockEntity(casePos.toChunkCoordinates))
 
         val apu = api.Items.get(Constants.ItemName.APUCreative).createItemStack(1)
-        // TODO(port): 1.7.10 是 `LuaStateFactory.setDefaultArch(apu)`（把**原生 Lua** 架构
-        // 写进 APU 的 NBT）。原生 Lua（`server/machine/luac`）未移植，改为写入默认架构
-        // （LuaJ，由 `server.Proxy.preInit` 注册）。若架构还没注册（例如主类没有走服务端代理），
-        // 就不给 APU 打架构标签，机器启动时会自行回退到 `api.Machine.LuaArchitecture`。
+        // 等价于 1.7.10 的 `LuaStateFactory.setDefaultArch(apu)`：把「当前默认架构」写进 APU 的
+        // 架构标签。1.7.10 里默认架构可能是原生 Lua 5.3，本项目只移植了 LuaJ，由服务端代理
+        // 注册为 `api.Machine.LuaArchitecture`。若架构还没注册（例如没走服务端代理），就不打标签，
+        // 机器启动时会自行回退到默认架构。
         Option(api.Machine.LuaArchitecture).foreach(arch => DriverAPU.setArchitecture(apu, arch))
 
         InventoryUtils.insertIntoInventoryAt(apu, casePos)

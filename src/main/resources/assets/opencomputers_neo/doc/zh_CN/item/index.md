@@ -48,6 +48,7 @@
 * [活塞升级](pistonUpgrade.md)
 * [告示牌升级](signUpgrade.md)
 * [太阳能发电机升级](solarGeneratorUpgrade.md)
+* [粘性活塞升级](stickypistonupgrade.md)
 * [储罐交互升级](tankControllerUpgrade.md)
 * [储罐升级](tankUpgrade.md)
 * [牵引光束升级](tractorBeamUpgrade.md)

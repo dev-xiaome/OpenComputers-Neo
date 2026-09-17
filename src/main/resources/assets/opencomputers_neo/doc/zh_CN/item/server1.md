@@ -1,6 +1,6 @@
 # 服务器
 
-![为您服务。](oredict:oc:server1)
+![为您服务。](oredict:opencomputers:server1)
 
 服务器是高级形式的[电脑](../general/computer.md)。手持他们使用即可进行配置，就像打开背包或末影袋一样。服务器在安装进[机架](../block/rack.md)后也能进行配置，方式为与它们互动（瞄准[机架](../block/rack.md)正面的对应位置点击）。要让服务器开始工作，需要将其装进[机架](../block/rack.md)中。详细信息请参见[机架](../block/rack.md)条目。
 

@@ -383,6 +383,9 @@ object PacketHandler {
       case Some(t) => p.player match {
         case player: ServerPlayer if withinInteractionRange(player, t) =>
           t.isRelayEnabled = enabled
+          // CE-1.20 在改动后会把方块实体标记为脏（1.7.10 漏了这一步，
+          // 结果是中继开关状态不落盘）。
+          t.setChanged()
         case _ =>
       }
       case _ => // Invalid packet.

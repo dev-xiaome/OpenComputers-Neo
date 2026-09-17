@@ -38,7 +38,7 @@ do
         return nil, reason
       end
       buffer = buffer .. (data or "")
-    until not data
+    until not data --or data == ""
     boot_invoke(address, "close", handle)
     return load(buffer, "=init")
   end

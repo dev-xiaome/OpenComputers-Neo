@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    OpenComputers 官方维护的 LuaJ 分支（OC-LuaJ）。
+
+    为什么不能用原版 org.luaj:luaj-jse：原版 3.0.1 的 string.format 对 %s 只接受字符串
+    （Lua 5.1 语义），而 OpenOS 的 /lib/package.lua 依赖 Lua 5.2+ 的「%s 接受任意值」。
+    直接用原版会让 OpenOS 在启动时报
+      bad argument: string expected, got table
+    并停在 Unrecoverable Error 界面。官方所有版本的 OpenComputers 都使用这个分支。
+
+    来源：https://github.com/PC-Logix/OC-LuaJ/releases
+    版本：oc-luaj-20260908.1
+    SHA-256：78128bdc021fe1a0365bbc075dabc2707a23274484d3266c28b8637185f75dd3
+    之所以放进仓库内的本地 maven 目录：原先托管它的 https://maven.cil.li/ 已不再提供该产物，
+    放进本地可保证构建可复现、且不依赖构建期下载。
+  -->
+  <groupId>li.cil</groupId>
+  <artifactId>OC-LuaJ</artifactId>
+  <version>20260908.1</version>
+  <packaging>jar</packaging>
+
+  <name>OC-LuaJ</name>
+  <description>OpenComputers' fork of LuaJ, required for OpenOS to boot.</description>
+</project>

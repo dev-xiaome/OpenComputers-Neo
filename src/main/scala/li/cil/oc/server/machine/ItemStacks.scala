@@ -1,25 +1,29 @@
 package li.cil.oc.server.machine
 
 import com.google.common.base.Charsets
-import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.ItemNBT
-import net.minecraft.core.component.DataComponents
 import net.minecraft.core.registries.BuiltInRegistries
-import net.minecraft.nbt.{CompoundTag, NbtAccounter, NbtIo, Tag}
+import net.minecraft.nbt.{CompoundTag, NbtAccounter, NbtIo}
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.item.ItemStack
 
-import java.io.{ByteArrayInputStream, DataInputStream}
+import java.io.ByteArrayInputStream
 
 /**
- * 物品栈的构造/解析辅助。
+ * 物品栈的构造 / 解析辅助，语义完全对齐 OCCE（1.20）里散落在
+ * `server/machine/ArgumentsImpl.scala` 与 `util/ItemUtils.scala` 的实现。
  *
- * 原 1.7.10 的实现直接使用 `Item.itemRegistry.getObject(name)` 与
- * `ItemStack(item, 1, damage)` + `stack.setTagCompound(tag)`。
- * 1.21.1 中：
- *  - 物品注册表改为 [[net.minecraft.core.registries.BuiltInRegistries]]
- *  - `damage` 改为数据组件 [[net.minecraft.core.component.DataComponents.DAMAGE]]
- *  - NBT 反序列化需要 `HolderLookup.Provider`
+ * 对应关系：
+ *  - [[makeStack]] ← OCCE `ArgumentsImpl.makeStack`
+ *  - [[readTagCompound]] ← OCCE `ItemUtils.loadTag`
+ *
+ * 1.21.1 适配点：
+ *  - 物品注册表 `ForgeRegistries.ITEMS` → [[net.minecraft.core.registries.BuiltInRegistries]]。
+ *  - `ItemStack#setDamageValue` 仍然存在，直接沿用（它内部会 clamp 到
+ *    `[0, maxDamage]`，与 CE-1.20 完全一致；不要改成裸的数据组件写入，那样会丢掉 clamp）。
+ *  - `ItemStack#setTag` 已删除，改用自定义数据组件助手 [[li.cil.oc.util.ItemNBT]]。
+ *  - `NbtIo.readCompressed(InputStream)` 在 1.21.1 需要显式给出 `NbtAccounter`；
+ *    这里用 `unlimitedHeap()`，与 1.20 的默认行为一致。
  */
 private[machine] object ItemStacks {
 
@@ -28,25 +32,31 @@ private[machine] object ItemStacks {
     val id = ResourceLocation.tryParse(name)
     if (id == null) throw new IllegalArgumentException("invalid item stack")
     val item = BuiltInRegistries.ITEM.get(id)
-    // TODO(1.21.1): 原版用 `Items.AIR` 表示“查不到”，这里等价于原来的 `case _ =>`。
+    // 1.21.1 的注册表查询查不到时返回默认值 `Items.AIR`（Forge 的 `getValue` 返回 null），
+    // 因此这里的判定等价于 CE-1.20 的 `case _ => throw ...`。
     if (item == null || (item eq net.minecraft.world.item.Items.AIR)) {
       throw new IllegalArgumentException("invalid item stack")
     }
     val stack = new ItemStack(item)
-    if (damage != 0) stack.set(DataComponents.DAMAGE, Integer.valueOf(damage))
+    stack.setDamageValue(damage)
     // 不依赖包对象里的隐式类（在 `li.cil.oc` 之外的辅助对象里不总是可见），
     // 直接用 Java 侧的 ItemNBT 助手读写数据组件。
     tag.foreach(t => ItemNBT.set(stack, t))
     stack
   }
 
-  /** 把一段 NBT 二进制数据解析成 `CompoundTag`，失败时返回 `None`。 */
+  /**
+   * 把一段 NBT 二进制数据解析成 `CompoundTag`，失败时返回 `None`。
+   *
+   * 必须是**压缩**读取：写出方 `integration/vanilla/ConverterItemStack.scala` 用的是
+   * `NbtIo.writeCompressed`（对应 OCCE 的 `ItemUtils.saveTag`），CE-1.20 在
+   * `ItemUtils.loadTag` 里同样用 `NbtIo.readCompressed` 对称读回。此前这里误用了未压缩的
+   * `NbtIo.read`，导致 Lua 与组件之间往返物品栈时 tag 全部解析失败。
+   */
   def readTagCompound(data: Array[Byte]): Option[CompoundTag] =
     try {
-      // TODO(1.21.1): 原 `NbtIo.func_152457_a`（读未压缩 NBT）；新 API 需要显式给
-      // 出 NbtAccounter，这里沿用默认的“无限”累加器以保持旧行为。
-      val stream = new DataInputStream(new ByteArrayInputStream(data))
-      try Option(NbtIo.read(stream, NbtAccounter.unlimitedHeap()))
+      val stream = new ByteArrayInputStream(data)
+      try Option(NbtIo.readCompressed(stream, NbtAccounter.unlimitedHeap()))
       finally stream.close()
     }
     catch {
@@ -59,7 +69,7 @@ private[machine] object ItemStacks {
 
   /**
    * 从物品栈描述表格中取出 NBT 字段。存在返回 `Some`，不存在返回 `None`
-   * （对应原实现的 `case _ => None`）。
+   * （对应 CE-1.20 `ArgumentsImpl.checkItemStack` 里 `map.get("tag")` 的匹配）。
    */
   def tagOf(value: Any): Option[CompoundTag] = value match {
     case bytes: Array[Byte] => readTagCompound(bytes)
@@ -67,7 +77,4 @@ private[machine] object ItemStacks {
     case tag: CompoundTag => Some(tag)
     case _ => None
   }
-
-  /** 判断一个 `Tag` 是否是本模块认识的“信号参数”类型。 */
-  def isSignalArgTag(tag: Tag): Boolean = tag != null && tag.getId != Tag.TAG_END
 }

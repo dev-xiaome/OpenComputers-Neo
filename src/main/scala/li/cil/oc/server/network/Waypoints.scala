@@ -27,10 +27,9 @@ import scala.collection.mutable
  *  - `AABB#expand` → `AABB#inflate`。
  *  - `BlockPosition#world` 是 `Option[Level]`，取维度 id 时要先取值。
  *
- * ==已知缺口==
- * TODO(common.EventHandler): 本对象上的 `@SubscribeEvent` 需要由 `common/EventHandler` 在
- * `NeoForge.EVENT_BUS` 上注册才会生效；`EventHandler` 尚在移植中，注册遗漏时只影响
- * 「世界卸载/区块卸载时的兜底清理」，不影响航点查询本身（`Waypoint.dispose()` 仍会主动注销）。
+ * 事件注册：本对象上的 `@SubscribeEvent` 在 NeoForge 下对 Scala `object` 不可靠，
+ * 因此统一由 `integration/opencomputers/ModOpenComputers` 用
+ * `NeoForge.EVENT_BUS.addListener` 显式挂上（`onWorldLoad` / `onWorldUnload` / `onChunkUnload`）。
  */
 object Waypoints {
   val dimensions = mutable.Map.empty[ResourceLocation, RTree[Waypoint]]

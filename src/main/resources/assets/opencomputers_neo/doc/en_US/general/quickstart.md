@@ -6,12 +6,12 @@ Also know as "how to build your first computer". To get your first [computer](co
 
 First off, you will need a [computer case](../block/case1.md). This is the block which will contain all of the components, defining the behavior of the computer you are building.
 
-![A tier two computer case.](oredict:oc:case2)
+![A tier two computer case.](oredict:opencomputers:case2)
 
 For example, you will need to choose what tier of [graphics card](../item/graphicsCard1.md) you wish to use, if you need a [network card](../item/lanCard.md), a [redstone card](../item/redstoneCard1.md) or, if you're just playing around in creative mode, maybe even a [debug card](../item/debugCard.md).
 
 When you open the [computer case](../block/case1.md)'s GUI, you will see a few slots to the right. The number of slots, and what tier of component can be placed into them (indicated by the small roman numeral in the slot) depends on the tier of the case itself.
-![GUI of a tier two computer case.](opencomputers_neo:doc/img/configuration_case1.png)
+![GUI of a tier two computer case.](opencomputers:doc/img/configuration_case1.png)
 In their empty state, [computer cases](../block/case1.md) are pretty useless. You can try to power up your [computer](computer.md) now, but it'll immediately print an error message to your chat log, and make its dissatisfaction heard by beeping at you. Good thing the error message is telling you what you can do to fix this situation: it requires energy. Connect your [computer](computer.md) to some power, either directly or via a [power converter](../block/powerConverter.md).
 
 When you try to start it now, it will tell you that you need a [CPU](../item/cpu1.md). These come in different tiers - a trend you will notice is present throughout OpenComputers. For [CPUs](../item/cpu1.md), higher tiers mean more components at a time, as well as faster execution. So pick a tier, and put it in your [computer case](../block/case1.md).
@@ -19,7 +19,7 @@ When you try to start it now, it will tell you that you need a [CPU](../item/cpu
 Next up you will be asked to insert some [memory (RAM)](../item/ram1.md). Notice that the beep code is different now: long-short. Higher tiers of [memory (RAM)](../item/ram1.md) mean more memory available to the programs running on your [computer](computer.md). To run [OpenOS](openOS.md), which is the goal of this introduction, you will want to use at least two tier 1 [memory (RAM)](../item/ram1.md) sticks.
 
 We're making good progress here. By now your [computer case](../block/case1.md) will look somewhat like this:
-![Partially configured computer.](opencomputers_neo:doc/img/configuration_case2.png)
+![Partially configured computer.](opencomputers:doc/img/configuration_case2.png)
 And behold, turning it on now does not print any more error messages! But alas, it still doesn't do much. At least it beeps twice now. That means the actual execution of the [computer](computer.md) failed. In other words: it technically runs! This is where a very useful tool comes into play: the [analyzer](../item/analyzer.md). This tool allows inspecting many of OpenComputers' blocks, as well as some blocks from other mods. To use it on the [computer](computer.md), use the [analyzer](../item/analyzer.md) on the case while sneaking.
 
 You should now see the error that caused the [computer](computer.md) to crash:
@@ -37,13 +37,13 @@ Now, if you used a tier 2 [computer case](../block/case2.md) as in the screensho
 It lives! Or should, anyway. If it doesn't something went wrong, and you'll want to investigate using the [analyzer](../item/analyzer.md). But assuming it's running now, you're pretty much done. The hardest part is over. All that's left is to make it take input and show some output.
 
 To allow the [computer](computer.md) to show some output, you'll want to grab a [screen](../block/screen1.md) and a [graphics card](../item/graphicsCard1.md).
-![No, it's not a flatscreen.](oredict:oc:screen2)
+![No, it's not a flatscreen.](oredict:opencomputers:screen2)
 
 Place the [screen](../block/screen1.md) adjacent to your [computer case](../block/case1.md), or, again, connect it using some [cable](../block/cable.md). Then place a [graphics card](../item/graphicsCard1.md) of your choice into the [computer case](../block/case1.md). You should now see a blinking cursor on the [screen](../block/screen1.md). Finally, place a [keyboard](../block/keyboard.md) either on the [screen](../block/screen1.md) itself, or in a way so that it faces the [screen](../block/screen1.md), to enable [keyboard](../block/keyboard.md) input.
 
 And with that, you're done. The [computer](computer.md) is up and running and ready for action. Try using it now! Type `lua` in the shell and press enter, and you'll be greeted with a bit of information on how to use the Lua interpreter. Here you can test basic Lua commands. For more information this topic see [the Lua page](lua.md).
 
-![It lives!](opencomputers_neo:doc/img/configuration_done.png)
+![It lives!](opencomputers:doc/img/configuration_done.png)
 
 Have fun building more complex [computers](computer.md), messing with [servers](../item/server1.md) and assembling [robots](../block/robot.md), [drones](../item/drone.md), [microcontrollers](../block/microcontroller.md) and [tablets](../item/tablet.md) in the [assembler](../block/assembler.md).
 

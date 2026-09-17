@@ -14,8 +14,8 @@ import li.cil.oc.api.machine.LimitReachedException
 import li.cil.oc.server.machine.Machine
 import li.cil.oc.util.ScalaClosure
 import li.cil.oc.util.ScalaClosure._
-import org.luaj.vm2._
-import org.luaj.vm2.lib.jse.JsePlatform
+import li.cil.repack.org.luaj.vm2._
+import li.cil.repack.org.luaj.vm2.lib.jse.JsePlatform
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 
@@ -183,8 +183,14 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
         // that pcall goes bad.
         def isInnerError = results.`type`(2) == LuaValue.TBOOLEAN && (results.isstring(3) || results.isnoneornil(3))
         def isOuterError = results.isstring(2) || results.isnoneornil(2)
-        if (results.`type`(1) != LuaValue.TBOOLEAN || !isInnerError || !isOuterError) {
+        // 注意：这里必须是 `!(isInnerError || isOuterError)`（两个判定**都**不成立才算异常）。
+        // 不能写成 `!isInnerError || !isOuterError` —— `isInnerError` 与 `isOuterError` 互斥
+        // （`type(2)` 不可能既是 BOOLEAN 又是 string/nil），于是那个写法**恒为真**，
+        // 结果是内核每次正常退出都刷一条 "Kernel returned unexpected results"，
+        // 把真正的错误淹没在噪音里。与 CE-1.20 逐字一致。
+        if (results.`type`(1) != LuaValue.TBOOLEAN || !(isInnerError || isOuterError)) {
           OpenComputers.log.warn("Kernel returned unexpected results.")
+          OpenComputers.log.warn("Returned: {}", results)
         }
         // The pcall *should* never return normally... but check for it nonetheless.
         if ((isOuterError && results.toboolean(1)) || (isInnerError && results.toboolean(2))) {

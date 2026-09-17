@@ -1,6 +1,6 @@
 # 转运器
 
-![转运不易。](oredict:oc:transposer)
+![转运不易。](oredict:opencomputers:transposer)
 
 转运器填平了红石控制的漏斗和[机器人](robot.md)之间的鸿沟，可用于在邻近方块之间进行[电脑](../general/computer.md)控制的物品和流体转运。
 

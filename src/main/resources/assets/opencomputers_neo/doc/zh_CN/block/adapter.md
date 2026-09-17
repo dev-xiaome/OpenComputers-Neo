@@ -1,6 +1,6 @@
 # 适配器
 
-![现在物品数超级加倍了。](oredict:oc:adapter)
+![现在物品数超级加倍了。](oredict:opencomputers:adapter)
 
 适配器令[电脑](../general/computer.md)得以与Minecraft原版或其他模组的方块交互。受支持的方块需要与适配器直接接触，然后它就会在连接到适配器的[电脑](../general/computer.md)中以组件的形式出现。
 

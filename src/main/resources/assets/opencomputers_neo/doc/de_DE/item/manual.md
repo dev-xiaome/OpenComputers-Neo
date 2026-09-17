@@ -1,10 +1,10 @@
 # Handbuch
 
-![Ein gutes Buch.](oredict:oc:manual)
+![Ein gutes Buch.](oredict:opencomputers:manual)
 
 Das Ding das du gerade liest! Das Handbuch enthält eine Vielfalt von Informationen über OpenComputers (und vielleicht mehr). Wenn du mehr Informatonen über ein Item oder einen Block im Mod benötigst, bist du hier genau richtig! Scrolle herunter für mehr Informationen (Mausrad oder Scrollbar auf der rechten Seite).
 
-![Dein neuer bester Freund.](opencomputers_neo:doc/img/manual.png)
+![Dein neuer bester Freund.](opencomputers:doc/img/manual.png)
 
 Das Handbuch funktioniert ähnlich wie ein Wiki: Auf Links zu klicken öffnet die Seite auf die sie zeigen. Klicke rechts oder drücke den "Springen"-Knopf um eine Seite zurückzugehen. Mit Escape oder dem "Inventar"-Knopf wird das Buch geschlossen. Links befinden sich einige Tabs (2) mit denen schnell zu bestimmen Seiten (wie der Block- bzw. Itemindex) navigiert werden kann. Rechts befindet sich die Scrollbar (3). Sie kann manuell oder mit dem Mausrad bewegt werden.
 

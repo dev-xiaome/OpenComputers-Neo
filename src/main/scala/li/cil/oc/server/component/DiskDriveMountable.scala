@@ -203,7 +203,9 @@ class DiskDriveMountable(val rack: api.internal.Rack, val slot: Int) extends pre
     val nbt = new CompoundTag()
     nbt.putLong("lastAccess", lastAccess)
     // `toNbt` 是 `li.cil.oc.util.ExtendedNBT` 提供的隐式转换（1.21.1 的 `ItemStack`
-    // 需要 `HolderLookup.Provider` 才能序列化，扩展里用 `RegistryAccess.EMPTY` 兜底）。
+    // 需要 `HolderLookup.Provider` 才能序列化；扩展内部走
+    // `ExtendedNBT.fallbackRegistry`，即「当前服务端 → 上次缓存 → 客户端世界」的真实注册表，
+    // **不是** `RegistryAccess.EMPTY`）。
     nbt.put("disk", toNbt(getStackInSlot(0)))
     nbt
   }

@@ -1,5 +1,6 @@
 package li.cil.oc.common.tileentity
 
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import java.util.UUID
 
 import li.cil.oc.Settings
@@ -86,9 +87,8 @@ class Raid(pos: BlockPos, state: BlockState)
   override def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     super.onItemAdded(slot, stack)
     if (isServer) this.synchronized {
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendRaidChange(this)
-      // （只同步 presence / 磁盘变化）。
-      markBlockForUpdate()
+      // 服务端发专用 RaidChange 包（只同步 presence / 磁盘变化，对齐 OCCE）。
+      ServerPacketSender.sendRaidChange(this)
       tryCreateRaid(UUID.randomUUID().toString)
     }
   }
@@ -102,8 +102,7 @@ class Raid(pos: BlockPos, state: BlockState)
   override def onItemRemoved(slot: Int, stack: ItemStack): Unit = {
     super.onItemRemoved(slot, stack)
     if (isServer) this.synchronized {
-      // TODO(server.PacketSender): 原为 ServerPacketSender.sendRaidChange(this)。
-      markBlockForUpdate()
+      ServerPacketSender.sendRaidChange(this)
       fileSystem.foreach(fs => {
         fs.close()
         val entries = fs.list("/")

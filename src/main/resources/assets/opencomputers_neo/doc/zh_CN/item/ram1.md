@@ -1,6 +1,6 @@
 # 内存条
 
-![你可曾记得，九月的热舞～](oredict:oc:ram1)
+![你可曾记得，九月的热舞～](oredict:opencomputers:ram1)
 
 内存条和[CPU](cpu1.md)一样都是所有种类[电脑](../general/computer.md)的必备配件。根据[CPU](cpu1.md)的架构不同，内存很大程度上影响了[电脑](../general/computer.md)的工作能力。例如，对标准Lua架构而言，内存大小控制了Lua脚本能使用的实际内存量。意味着如果要运行越大，越内存密集型的程序，就需要越多内存。
 

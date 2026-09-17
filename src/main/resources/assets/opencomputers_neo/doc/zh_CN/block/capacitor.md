@@ -1,6 +1,6 @@
 # 电容器
 
-![超过9000。](oredict:oc:capacitor)
+![超过9000。](oredict:opencomputers:capacitor)
 
 电容器存储了供网络使用的能量，在需要时承担了能量缓存的工作。与其他模组能量转换为OC模组内部能量形式的过程（比如使用[能量转换器](powerConverter.md)）不同，在单个子网络中传输能量是瞬时完成的。网络内部的能量缓存对一些需要大量耗能的任务用处很大，例如[装配](assembler.md)或[充能](charger.md)[机器人](robot.md)和[无人机](../item/drone.md)等设备。
 

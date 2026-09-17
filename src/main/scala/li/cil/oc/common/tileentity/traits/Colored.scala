@@ -2,6 +2,7 @@ package li.cil.oc.common.tileentity.traits
 
 import li.cil.oc.Settings
 import li.cil.oc.api.internal
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.block.entity.BlockEntity
 
@@ -9,10 +10,9 @@ import net.minecraft.world.level.block.entity.BlockEntity
  * 可被染色的方块实体（对应 1.7.10 的 `traits.Colored`）。
  *
  * 1.21.1 迁移要点：
- *  - 颜色同步：1.7.10 通过 `server.PacketSender.sendColorChange(this)` 发包，`server` 包尚未移植，
- *    这里改为「方块更新 + 客户端同步标签」——[[BlockEntityBase]] 的 `getUpdateTag` 会调用
- *    `writeToNBTForClient`，其中包含 `renderColor`，因此客户端能拿到颜色。
- *    TODO(server.PacketSender): 网络层移植后改回专用包，避免同步整个方块实体。
+ *  - 颜色同步：服务端用专用包 `ServerPacketSender.sendColorChange(this)`（对齐 OCCE），
+ *    避免为一次染色同步整个方块实体；客户端侧仍由 [[BlockEntityBase]] 的 `getUpdateTag`
+ *    驱动的 `writeToNBTForClient` 提供 `renderColor`。
  */
 trait Colored extends TileEntity with internal.Colored {
   // 注意：Scala 的自类型不会被继承，TileEntity 的子 trait 必须重新声明。
@@ -35,7 +35,7 @@ trait Colored extends TileEntity with internal.Colored {
 
   protected def onColorChanged(): Unit = {
     if (world != null && isServer) {
-      markBlockForUpdate()
+      ServerPacketSender.sendColorChange(this)
     }
   }
 
