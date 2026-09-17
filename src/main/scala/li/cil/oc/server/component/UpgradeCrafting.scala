@@ -54,17 +54,20 @@ class UpgradeCrafting(val host: EnvironmentHost with internal.Robot) extends Abs
       copyItemsFromHost(player.inventory)
       var countCrafted = 0
       val manager = host.getEnvironmentLevel.getRecipeManager
-      val initialCraft = manager.getRecipeFor(RecipeType.CRAFTING, CraftingContainer: inventory.CraftingContainer, host.getEnvironmentLevel)
+      // 1.21.1 的配方查询改用 CraftingInput（CraftingContainer 不再是 RecipeInput），
+      // 且返回 RecipeHolder 而非配方本身。
+      val initialCraft = manager.getRecipeFor(RecipeType.CRAFTING, CraftingContainer.asCraftInput, host.getEnvironmentLevel)
       if (initialCraft.isPresent) {
         def tryCraft() : Boolean = {
-          val craft = manager.getRecipeFor(RecipeType.CRAFTING, CraftingContainer: inventory.CraftingContainer, host.getEnvironmentLevel)
+          val craftInput = CraftingContainer.asCraftInput
+          val craft = manager.getRecipeFor(RecipeType.CRAFTING, craftInput, host.getEnvironmentLevel)
           if (craft != initialCraft) {
             return false
           }
 
           val craftResult = new ResultContainer
           val craftingSlot = new ResultSlot(player, CraftingContainer, craftResult, 0, 0, 0)
-          val craftedResult = craft.get.assemble(this, host.getEnvironmentLevel.registryAccess())
+          val craftedResult = craft.get.value.assemble(craftInput, host.getEnvironmentLevel.registryAccess())
           craftResult.setItem(0, craftedResult)
           if (!craftingSlot.hasItem)
             return false

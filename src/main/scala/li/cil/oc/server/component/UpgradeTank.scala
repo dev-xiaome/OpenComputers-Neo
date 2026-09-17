@@ -11,6 +11,7 @@ import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.util.RegistryAccessHelper
 import net.minecraft.nbt.CompoundTag
 import net.neoforged.neoforge.fluids.FluidStack
 import net.neoforged.neoforge.fluids.IFluidTank
@@ -38,12 +39,14 @@ class UpgradeTank(val owner: EnvironmentHost, val capacity: Int) extends Abstrac
 
   override def loadData(nbt: CompoundTag): Unit = {
     super.loadData(nbt)
-    tank.readFromNBT(nbt)
+    // 1.21.1 的 FluidTank NBT 读写需要 HolderLookup.Provider 参数。
+    tank.readFromNBT(RegistryAccessHelper.getOrEmpty(), nbt)
   }
 
   override def saveData(nbt: CompoundTag): Unit = {
     super.saveData(nbt)
-    tank.writeToNBT(nbt)
+    // writeToNBT 是返回编码结果而不是就地写入，必须用返回值。
+    nbt.merge(tank.writeToNBT(RegistryAccessHelper.getOrEmpty(), new CompoundTag))
   }
 
   // ----------------------------------------------------------------------- //

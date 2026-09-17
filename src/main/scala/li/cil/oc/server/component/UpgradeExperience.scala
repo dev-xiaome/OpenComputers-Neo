@@ -93,9 +93,11 @@ class UpgradeExperience(val host: EnvironmentHost with internal.Agent) extends A
       xp += 3 + host.getEnvironmentLevel.random.nextInt(5) + host.getEnvironmentLevel.random.nextInt(5)
     }
     else {
-      for ((enchantment, level) <- EnchantmentHelper.getEnchantments(stack)) {
+      // 1.21.1 的附魔改为数据组件，通过 ItemStack#getEnchantments 迭代 Holder[Enchantment]。
+      for (entry <- stack.getEnchantments.entrySet().asScala) {
+        val enchantment = entry.getKey
         if (enchantment != null) {
-          xp += enchantment.getMinCost(level)
+          xp += enchantment.value().getMinCost(entry.getIntValue)
         }
       }
       if (xp <= 0) {

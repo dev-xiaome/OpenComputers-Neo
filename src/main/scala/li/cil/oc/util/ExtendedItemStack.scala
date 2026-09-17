@@ -1,7 +1,7 @@
 package li.cil.oc.util
 
 import li.cil.oc.common.DataComponents
-import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.{CompoundTag, Tag}
 import net.minecraft.world.item.ItemStack
 
 /**
@@ -54,7 +54,7 @@ trait ExtendedItemStack {
      */
     def getOrCreateTagElement(key: String): CompoundTag = {
       val tag = getOrCreateTag()
-      if (tag.contains(key, CompoundTag.TAG_COMPOUND)) tag.getCompound(key)
+      if (tag.contains(key, Tag.TAG_COMPOUND)) tag.getCompound(key)
       else {
         val child = new CompoundTag()
         tag.put(key, child)

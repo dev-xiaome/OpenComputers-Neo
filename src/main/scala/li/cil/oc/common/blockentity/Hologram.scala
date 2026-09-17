@@ -441,7 +441,8 @@ class Hologram(pos: BlockPos, state: BlockState, var tier: Int)
 
   private final val Sqrt2 = Math.sqrt(2)
 
-  override def getRenderBoundingBox = {
+  // 1.21.1：`getRenderBoundingBox` 已从方块实体挪到渲染器，不再可覆写。
+  def getRenderBoundingBox = {
     val cx = x + 0.5
     val cy = y + 0.5
     val cz = z + 0.5

@@ -17,16 +17,17 @@ import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent
 import net.neoforged.neoforge.event.entity.player.PlayerEvent.PlayerRespawnEvent
 import net.minecraft.client.renderer.MultiBufferSource
-import com.mojang.blaze3d.vertex.Tesselator
+import com.mojang.blaze3d.vertex.ByteBufferBuilder
 import net.minecraft.world.entity.player.Player
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.NbtIo
+import net.minecraft.nbt.NbtAccounter
 import com.mojang.blaze3d.vertex.PoseStack
 import com.mojang.blaze3d.vertex.VertexConsumer
 import com.mojang.blaze3d.vertex.DefaultVertexFormat
 import net.neoforged.api.distmarker.{Dist, OnlyIn}
-import net.neoforged.neoforge.client.event.RenderGuiOverlayEvent
-import net.neoforged.neoforge.client.gui.overlay.VanillaGuiOverlay
+import net.neoforged.neoforge.client.event.CustomizeGuiOverlayEvent
+import net.neoforged.neoforge.event.tick.EntityTickEvent
 
 object NanomachinesHandler {
   @OnlyIn(Dist.CLIENT)
@@ -34,36 +35,39 @@ object NanomachinesHandler {
     val TexNanomachines = RenderTypes.createTexturedQuad("nanomachines", Textures.GUI.Nanomachines, DefaultVertexFormat.POSITION_TEX, false)
     val TexNanomachinesBar = RenderTypes.createTexturedQuad("nanomachines_bar", Textures.GUI.NanomachinesBar, DefaultVertexFormat.POSITION_TEX, false)
 
+    // 1.21.1：`RenderGuiOverlayEvent` / `VanillaGuiOverlay` 已被 `CustomizeGuiOverlayEvent.DebugText`
+    // 取代 —— 这个事件本身就是「正在渲染 F3 调试文本覆盖层」，不再需要按 overlay id 过滤。
     @SubscribeEvent
-    def onRenderGameOverlay(e: RenderGuiOverlayEvent.Post): Unit = {
-      if (e.getOverlay.id() == VanillaGuiOverlay.DEBUG_TEXT.id()) {
-        val mc = Minecraft.getInstance
-        api.Nanomachines.getController(mc.player) match {
-          case controller: Controller =>
-            val graphics = e.getGuiGraphics
-            val window = mc.getWindow
-            val sizeX = 8
-            val sizeY = 12
-            val width = window.getGuiScaledWidth
-            val height = window.getGuiScaledHeight
-            val (x, y) = Settings.get.nanomachineHudPos
-            val left: Int =
-              math.min(width - sizeX,
-                if (x < 0) width / 2 - 91 - 12
-                else if (x < 1) (width * x).toInt
-                else x.toInt)
-            val top: Int =
-              math.min(height - sizeY,
-                if (y < 0) height - 39
-                else if (y < 1) (y * height).toInt
-                else y.toInt)
-            val fill = controller.getLocalBuffer / controller.getLocalBufferSize
-            val buffer = MultiBufferSource.immediate(Tesselator.getInstance.getBuilder)
-            drawRect(graphics.pose, buffer.getBuffer(TexNanomachines), left, top, sizeX, sizeY, sizeX, sizeY)
-            drawRect(graphics.pose, buffer.getBuffer(TexNanomachinesBar), left, top, sizeX, sizeY, sizeX, sizeY, fill.toFloat)
-            buffer.endBatch()
-          case _ => // Nothing to show.
-        }
+    def onRenderGameOverlay(e: CustomizeGuiOverlayEvent.DebugText): Unit = {
+      val mc = Minecraft.getInstance
+      api.Nanomachines.getController(mc.player) match {
+        case controller: Controller =>
+          val graphics = e.getGuiGraphics
+          val window = mc.getWindow
+          val sizeX = 8
+          val sizeY = 12
+          val width = window.getGuiScaledWidth
+          val height = window.getGuiScaledHeight
+          val (x, y) = Settings.get.nanomachineHudPos
+          val left: Int =
+            math.min(width - sizeX,
+              if (x < 0) width / 2 - 91 - 12
+              else if (x < 1) (width * x).toInt
+              else x.toInt)
+          val top: Int =
+            math.min(height - sizeY,
+              if (y < 0) height - 39
+              else if (y < 1) (y * height).toInt
+              else y.toInt)
+          val fill = controller.getLocalBuffer / controller.getLocalBufferSize
+          // 1.21.1：`Tesselator#getBuilder` 与 `MultiBufferSource.immediate(BufferBuilder)` 都已移除。
+          // 现在按官方做法先建 `ByteBufferBuilder`，再 `immediate` 出一个 BufferSource，
+          // 由它按 RenderType 分发顶点，最后 `endBatch()` 统一提交。
+          val buffer = MultiBufferSource.immediate(new ByteBufferBuilder(1536))
+          drawRect(graphics.pose, buffer.getBuffer(TexNanomachines), left, top, sizeX, sizeY, sizeX, sizeY)
+          drawRect(graphics.pose, buffer.getBuffer(TexNanomachinesBar), left, top, sizeX, sizeY, sizeX, sizeY, fill.toFloat)
+          buffer.endBatch()
+        case _ => // Nothing to show.
       }
     }
 
@@ -86,8 +90,10 @@ object NanomachinesHandler {
       }
     }
 
+    // 1.21.1：`LivingEvent.LivingTickEvent` 已被 NeoForge 移除，实体每 tick 的事件是
+    // `EntityTickEvent.Pre`（对所有实体触发，本方法内部再筛 `Player`，语义等价）。
     @SubscribeEvent
-    def onLivingUpdate(e: LivingEvent.LivingTickEvent): Unit = {
+    def onLivingUpdate(e: EntityTickEvent.Pre): Unit = {
       e.getEntity match {
         case player: Player => api.Nanomachines.getController(player) match {
           case controller: ControllerImpl =>
@@ -143,7 +149,8 @@ object NanomachinesHandler {
           case controller: ControllerImpl =>
             try {
               val fis = new FileInputStream(file)
-              try controller.loadData(NbtIo.readCompressed(fis)) catch {
+              // 1.21.1：`NbtIo.readCompressed` 多了 `NbtAccounter` 参数（用于限制解压后的内存占用）。
+              try controller.loadData(NbtIo.readCompressed(fis, NbtAccounter.unlimitedHeap())) catch {
                 case t: Throwable =>
                   OpenComputers.log.warn("Error loading nanomachine state.", t)
               }

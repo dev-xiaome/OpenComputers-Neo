@@ -38,7 +38,7 @@ class Robot(val agent: blockentity.Robot) extends AbstractManagedEnvironment wit
     create()
 
   val romRobot = Option(api.FileSystem.asManagedEnvironment(api.FileSystem.
-    fromResource(new ResourceLocation(Settings.resourceDomain, "lua/component/robot")), "robot"))
+    fromResource(ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "lua/component/robot")), "robot"))
 
   private final lazy val deviceInfo = Map(
     DeviceAttribute.Class -> DeviceClass.System,

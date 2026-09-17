@@ -140,7 +140,9 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
         var acc = 0f
         for (y <- 0 until h) {
           val line = data.buffer(y)
-          val colors = data.setColor(y)
+          // 1.21.1：`setColor(y)` 是 OCCE Java 版对私有颜色表的访问器；
+          // 本移植版的 `util.TextBuffer` 直接公开 `var color: Array[Array[Int]]`。
+          val colors = data.color(y)
           for (x <- 0 until w) {
             val char = line(x)
             val color = colors(x)

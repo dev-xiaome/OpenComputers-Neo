@@ -22,10 +22,11 @@ class UpgradeTank(props: Properties) extends Item(props) with traits.SimpleItem 
   override def appendHoverText(stack: ItemStack, level: Level, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
     super.appendHoverText(stack, level, tooltip, flag)
     if (stack.hasTag) {
-      FluidStack.loadFluidStackFromNBT(stack.getTag.getCompound(Settings.namespace + "data")) match {
-        case stack: FluidStack =>
-          tooltip.add(Component.literal(stack.getDisplayName.getString + ": " + stack.getAmount + "/16000").setStyle(Tooltip.DefaultStyle))
-        case _ =>
+      // 1.21.1：`FluidStack.loadFluidStackFromNBT` 已由 `parseOptional(provider, tag)` 取代
+      // （需要注册表上下文；解析失败时返回 `FluidStack.EMPTY`）。
+      val fluid = FluidStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), stack.getTag.getCompound(Settings.namespace + "data"))
+      if (!fluid.isEmpty) {
+        tooltip.add(Component.literal(fluid.getDisplayName.getString + ": " + fluid.getAmount + "/16000").setStyle(Tooltip.DefaultStyle))
       }
     }
   }

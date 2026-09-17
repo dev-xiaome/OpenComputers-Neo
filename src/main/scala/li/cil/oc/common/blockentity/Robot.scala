@@ -190,6 +190,18 @@ class Robot(pos: BlockPos, state: BlockState)
 
   private lazy val player_ = new agent.Player(this)
 
+  /**
+   * 1.21.1：`ItemStack#getAttributeModifiers(EquipmentSlot)` 已被「属性修饰符」数据组件取代
+   * （`ItemStack#getAttributeModifiers()` 变成无参，按槽位过滤要用
+   * `ItemAttributeModifiers#forEach(EquipmentSlot, BiConsumer)`）。
+   * 这里把主手槽位的修饰符收成一个 `Multimap`，供 `AttributeMap` 的增删接口使用。
+   */
+  private def mainHandAttributeModifiers(stack: ItemStack): com.google.common.collect.Multimap[net.minecraft.core.Holder[net.minecraft.world.entity.ai.attributes.Attribute], net.minecraft.world.entity.ai.attributes.AttributeModifier] = {
+    val result = com.google.common.collect.ArrayListMultimap.create[net.minecraft.core.Holder[net.minecraft.world.entity.ai.attributes.Attribute], net.minecraft.world.entity.ai.attributes.AttributeModifier]()
+    stack.getAttributeModifiers().forEach(EquipmentSlot.MAINHAND, (attribute, modifier) => result.put(attribute, modifier))
+    result
+  }
+
   // ----------------------------------------------------------------------- //
 
   override def name: String = info.name
@@ -348,7 +360,7 @@ class Robot(pos: BlockPos, state: BlockState)
       if (!appliedToolEnchantments) {
         appliedToolEnchantments = true
         StackOption(getItem(0)) match {
-          case SomeStack(item) => player_.getAttributes.addTransientAttributeModifiers(item.getAttributeModifiers(EquipmentSlot.MAINHAND))
+          case SomeStack(item) => player_.getAttributes.addTransientAttributeModifiers(mainHandAttributeModifiers(item))
           case _ =>
         }
       }
@@ -542,7 +554,7 @@ class Robot(pos: BlockPos, state: BlockState)
   override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     if (isServer) {
       if (isToolSlot(slot)) {
-        player_.getAttributes.addTransientAttributeModifiers(stack.getAttributeModifiers(EquipmentSlot.MAINHAND))
+        player_.getAttributes.addTransientAttributeModifiers(mainHandAttributeModifiers(stack))
         ServerPacketSender.sendRobotInventory(this, slot, stack)
       }
       if (isUpgradeSlot(slot)) {
@@ -566,7 +578,7 @@ class Robot(pos: BlockPos, state: BlockState)
     super.onItemRemoved(slot, stack)
     if (isServer) {
       if (isToolSlot(slot)) {
-        player_.getAttributes.removeAttributeModifiers(stack.getAttributeModifiers(EquipmentSlot.MAINHAND))
+        player_.getAttributes.removeAttributeModifiers(mainHandAttributeModifiers(stack))
         ServerPacketSender.sendRobotInventory(this, slot, ItemStack.EMPTY)
       }
       if (isUpgradeSlot(slot)) {

@@ -39,10 +39,11 @@ class ImageButton(xPos: Int, yPos: Int, w: Int, h: Int,
       RenderSystem.setShaderColor(1, 1, 1, 1)
       val isHov = hoverOverride || (isHovered && active)
 
-      val x0 = getX.toFloat
-      val x1 = (getX + width).toFloat
-      val y0 = getY.toFloat
-      val y1 = (getY + height).toFloat
+      // AT 已把 AbstractWidget.x / .y 开放为 public，这里按官方 OCCE 原样直接用字段。
+      val x0 = x.toFloat
+      val x1 = (x + width).toFloat
+      val y0 = y.toFloat
+      val y1 = (y + height).toFloat
 
       val t = Tesselator.getInstance
 
@@ -102,9 +103,9 @@ class ImageButton(xPos: Int, yPos: Int, w: Int, h: Int,
           else textColor
         val font = Minecraft.getInstance.font
         if (textIndent >= 0)
-          graphics.drawString(font, getMessage, textIndent + getX, getY + (height - 8) / 2, color)
+          graphics.drawString(font, getMessage, textIndent + x, y + (height - 8) / 2, color)
         else
-          graphics.drawCenteredString(font, getMessage, getX + width / 2, getY + (height - 8) / 2, color)
+          graphics.drawCenteredString(font, getMessage, x + width / 2, y + (height - 8) / 2, color)
       }
     }
   }

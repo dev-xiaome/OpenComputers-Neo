@@ -336,9 +336,12 @@ class Screen(pos: BlockPos, state: BlockState, var tier: Int) extends BlockEntit
 
   // ----------------------------------------------------------------------- //
 
+  // 1.21.1：`getRenderBoundingBox` 已从方块实体挪到渲染器
+  // （`IBlockEntityRendererExtension#getRenderBoundingBox(BlockEntity)`），
+  // 方块实体上再没有可覆写的同名方法，因此这里降级为普通方法，由 `ScreenRenderer` 读取。
   @OnlyIn(Dist.CLIENT)
-  override def getRenderBoundingBox = {
-    if ((width == 1 && height == 1) || !isOrigin) super.getRenderBoundingBox
+  def getRenderBoundingBox = {
+    if ((width == 1 && height == 1) || !isOrigin) new AABB(getBlockPos) // 等同 NeoForge 的默认实现
     else cachedBounds match {
       case Some(bounds) => bounds
       case _ =>

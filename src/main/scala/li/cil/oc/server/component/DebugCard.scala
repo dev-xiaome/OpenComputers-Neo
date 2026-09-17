@@ -31,6 +31,7 @@ import li.cil.oc.util.ExtendedBlock._
 import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.ExtendedLevel._
 import li.cil.oc.util.InventoryUtils
+import li.cil.oc.util.RegistryAccessHelper
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.LiquidBlock
 import net.minecraft.commands.CommandSource
@@ -42,7 +43,7 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt._
 import net.minecraft.world.scores.criteria.ObjectiveCriteria
-import net.minecraft.world.scores.Scoreboard
+import net.minecraft.world.scores.{ScoreHolder, Scoreboard}
 import net.minecraft.server.MinecraftServer
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.core.Direction
@@ -63,7 +64,6 @@ import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.common.util.FakePlayer
 import net.neoforged.neoforge.common.util.FakePlayerFactory
 import net.neoforged.neoforge.fluids.FluidStack
-import net.neoforged.neoforge.fluids.IFluidBlock
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.fml.ModList
 import net.neoforged.neoforge.server.ServerLifecycleHooks
@@ -221,7 +221,8 @@ class DebugCard(host: EnvironmentHost) extends AbstractManagedEnvironment with D
         if (state.isAir()) {
           result(false, "air", block)
         }
-        else if (block.isInstanceOf[LiquidBlock] || block.isInstanceOf[IFluidBlock]) {
+        // NeoForge 1.21.1 移除了 IFluidBlock 接口，改用流体状态判断是否为流体方块。
+        else if (block.isInstanceOf[LiquidBlock] || !state.getFluidState.isEmpty) {
           val event = new BlockEvent.BreakEvent(world, position.toBlockPos, state, fakePlayer)
           NeoForge.EVENT_BUS.post(event)
           result(event.isCanceled, "liquid", block)
@@ -258,8 +259,10 @@ class DebugCard(host: EnvironmentHost) extends AbstractManagedEnvironment with D
     CommandMessages.synchronized {
       CommandMessages = None
       var value = 0
+      // 1.21.1 的 Commands#performPrefixedCommand 返回 void，改用 brigadier 拿到命令返回值。
+      val dispatcher = ServerLifecycleHooks.getCurrentServer.getCommands.getDispatcher
       for (command <- commands) {
-        value = ServerLifecycleHooks.getCurrentServer.getCommands.performPrefixedCommand(source, command.toString)
+        value = dispatcher.execute(command.toString.stripPrefix("/"), source)
       }
       result(value, CommandMessages.orNull)
     }
@@ -596,7 +599,7 @@ object DebugCard {
       val criteria = ObjectiveCriteria.byName(objType).orElseThrow(new Supplier[IllegalArgumentException] {
         override def get = new IllegalArgumentException("invalid criterion")
       })
-      scoreboard.addObjective(objName, criteria, Component.literal(objName), ObjectiveCriteria.RenderType.INTEGER)
+      scoreboard.addObjective(objName, criteria, Component.literal(objName), ObjectiveCriteria.RenderType.INTEGER, false, null)
       null
     }
 
@@ -615,7 +618,7 @@ object DebugCard {
       val name = args.checkString(0)
       val objective = scoreboard.getObjective(args.checkString(1))
       val scoreVal = args.checkInteger(2)
-      val score = scoreboard.getOrCreatePlayerScore(name,objective)
+      val score = scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(name), objective)
       score.setScore(scoreVal)
       null
     }
@@ -625,7 +628,7 @@ object DebugCard {
       checkAccess()
       val name = args.checkString(0)
       val objective = scoreboard.getObjective(args.checkString(1))
-      val score = scoreboard.getOrCreatePlayerScore(name, objective)
+      val score = scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(name), objective)
       result(score.getScore)
     }
 
@@ -635,7 +638,7 @@ object DebugCard {
       val name = args.checkString(0)
       val objective = scoreboard.getObjective(args.checkString(1))
       val scoreVal = args.checkInteger(2)
-      val score = scoreboard.getOrCreatePlayerScore(name,objective)
+      val score = scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(name), objective)
       score.add(scoreVal)
       null
     }
@@ -646,7 +649,7 @@ object DebugCard {
       val name = args.checkString(0)
       val objective = scoreboard.getObjective(args.checkString(1))
       val scoreVal = args.checkInteger(2)
-      val score = scoreboard.getOrCreatePlayerScore(name,objective)
+      val score = scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(name), objective)
       score.add(-scoreVal)
       null
     }
@@ -754,7 +757,9 @@ object DebugCard {
     @Callback(doc = """function():number, number, number -- Get the current spawn point coordinates.""")
     def getSpawnPoint(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.getLevelData.getXSpawn, world.getLevelData.getYSpawn, world.getLevelData.getZSpawn)
+      // 1.21.1 用 LevelData#getSpawnPos 取代了 getXSpawn/getYSpawn/getZSpawn。
+      val spawn = world.getLevelData.getSpawnPos
+      result(spawn.getX, spawn.getY, spawn.getZ)
     }
 
     @Callback(doc = """function(x:number, y:number, z:number) -- Set the spawn point coordinates.""")
@@ -764,9 +769,8 @@ object DebugCard {
       val y = args.checkInteger(1)
       val z = args.checkInteger(2)
       val info = world.getLevelData.asInstanceOf[ServerLevelData]
-      info.setXSpawn(x)
-      info.setYSpawn(y)
-      info.setZSpawn(z)
+      // 1.21.1 用 setSpawn(BlockPos, angle) 取代了 setXSpawn/setYSpawn/setZSpawn。
+      info.setSpawn(new BlockPos(x, y, z), world.getLevelData.getSpawnAngle)
       null
     }
 
@@ -829,7 +833,7 @@ object DebugCard {
       checkAccess()
       val blockPos = new BlockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
       world.getBlockEntity(blockPos) match {
-        case tileEntity: BlockEntity => result(tileEntity.saveWithFullMetadata().toTypedMap)
+        case tileEntity: BlockEntity => result(tileEntity.saveWithFullMetadata(RegistryAccessHelper.getOrEmpty()).toTypedMap)
         case _ => null
       }
     }
@@ -843,7 +847,8 @@ object DebugCard {
         case tileEntity: BlockEntity =>
           typedMapToNbt(mapAsScalaMap(args.checkTable(3)).toMap) match {
             case nbt: CompoundTag =>
-              tileEntity.load(nbt)
+              // 1.21.1 用 loadWithComponents(tag, provider) 取代了 BlockEntity#load。
+              tileEntity.loadWithComponents(nbt, RegistryAccessHelper.getOrEmpty())
               tileEntity.setChanged()
               world.notifyBlockUpdate(blockPos)
               result(true)

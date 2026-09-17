@@ -58,7 +58,8 @@ class UpgradeLeash(val host: Entity) extends AbstractManagedEnvironment with tra
     val nearBounds = position.bounds
     val farBounds = nearBounds.move(side.getStepX * 2.0, side.getStepY * 2.0, side.getStepZ * 2.0)
     val bounds = nearBounds.minmax(farBounds)
-    entitiesInBounds[Mob](classOf[Mob], bounds).find(_.canBeLeashed(fakePlayer)) match {
+    // 1.21.1 起 canBeLeashed 不再接收玩家参数。
+    entitiesInBounds[Mob](classOf[Mob], bounds).find(_.canBeLeashed()) match {
       case Some(entity) =>
         entity.setLeashedTo(host, true)
         leashedEntities += entity.getUUID

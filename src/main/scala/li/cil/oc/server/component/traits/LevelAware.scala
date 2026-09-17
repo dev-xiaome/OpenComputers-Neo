@@ -5,10 +5,8 @@ import li.cil.oc.Settings
 import li.cil.oc.util.{BlockInventorySource, BlockPosition, EntityInventorySource, InventorySource}
 import li.cil.oc.util.ExtendedBlock._
 import net.neoforged.neoforge.common.NeoForge
-import net.neoforged.neoforge.common.util.FakePlayerFactory
+import net.neoforged.neoforge.common.util.{FakePlayerFactory, TriState}
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent
-import net.neoforged.bus.api.Event.Result
-import net.neoforged.neoforge.fluids.IFluidBlock
 import net.neoforged.neoforge.items.wrapper.InvWrapper
 
 import scala.collection.convert.ImplicitConversionsToScala._
@@ -41,7 +39,8 @@ trait LevelAware {
       val trace = new BlockHitResult(fakePlayer.position, face, blockPos.toBlockPos, false)
       val event = new PlayerInteractEvent.RightClickBlock(fakePlayer, InteractionHand.MAIN_HAND, blockPos.toBlockPos, trace)
       NeoForge.EVENT_BUS.post(event)
-      !event.isCanceled && event.getUseBlock != Result.DENY
+      // NeoForge 1.21.1 用 TriState 取代了 Event.Result。
+      !event.isCanceled && event.getUseBlock != TriState.FALSE
     } catch {
       case t: Throwable =>
         OpenComputers.log.warn("Some event handler threw up while checking for permission to access a block.", t)
@@ -99,7 +98,8 @@ trait LevelAware {
         if (state.isAir()) {
           (false, "air")
         }
-        else if (block.isInstanceOf[LiquidBlock] || block.isInstanceOf[IFluidBlock]) {
+        // NeoForge 1.21.1 移除了 IFluidBlock 接口，改用流体状态判断是否为流体方块。
+        else if (block.isInstanceOf[LiquidBlock] || !state.getFluidState.isEmpty) {
           val event = new BlockEvent.BreakEvent(world, blockPos.toBlockPos, state, fakePlayer)
           NeoForge.EVENT_BUS.post(event)
           (event.isCanceled, "liquid")

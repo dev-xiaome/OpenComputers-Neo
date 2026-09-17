@@ -5,7 +5,7 @@ import li.cil.oc.util.ExtendedLevel._
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.item.ItemStack
 import net.minecraft.core.Direction
-import net.neoforged.neoforge.fluids.{FluidStack, FluidType, IFluidBlock}
+import net.neoforged.neoforge.fluids.{FluidStack, FluidType}
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
 import net.neoforged.neoforge.fluids.capability.IFluidHandlerItem
@@ -90,7 +90,8 @@ object FluidUtils {
    */
   @Deprecated
   def lookupFluidForBlock(block: Block): Fluid = block match {
-    case fluid: LiquidBlock => fluid.getFluid
+    // 1.21.1 的 LiquidBlock 不再有 getFluid()，对应的流体放在公开字段 fluid 里。
+    case fluid: LiquidBlock => fluid.fluid
     case _ => null
   }
 
@@ -112,7 +113,8 @@ object FluidUtils {
     override def fill(resource: FluidStack, action: FluidAction): Int = currentWrapper.fold(0)(_.fill(resource, action))
 
     def currentWrapper: Option[IFluidHandler] = if (position.world.get.blockExists(position)) position.world.get.getBlock(position) match {
-      case block: IFluidBlock => Option(new FluidBlockWrapper(position, block))
+      // NeoForge 1.21.1 移除了 IFluidBlock：世界中的流体一律由 LiquidBlock 承载，
+      // 因此这里只保留 LiquidBlock / 空气两种包装（原来的 FluidBlockWrapper 一并删除）。
       case block: LiquidBlock if lookupFluidForBlock(block) != null && isFullLiquidBlock => Option(new LiquidBlockWrapper(position, block))
       case block: Block if block.isAir(position) || block.isReplaceable(position) => Option(new AirBlockWrapper(position, block))
       case _ => None
@@ -151,21 +153,12 @@ object FluidUtils {
     override def fill(resource: FluidStack, action: FluidAction): Int = 0
   }
 
-  @Deprecated
-  private class FluidBlockWrapper(val position: BlockPosition, val block: IFluidBlock) extends BlockWrapperBase {
-    override def getFluidInTank(tank: Int) = block.drain(position, FluidAction.SIMULATE)
-
-    override def isFluidValid(tank: Int, fluid: FluidStack): Boolean = block.getFluid.isSame(fluid.getFluid) && block.canDrain(position)
-
-    override protected def uncheckedDrain(action: FluidAction): FluidStack = block.drain(position, action)
-  }
-
   private class LiquidBlockWrapper(val position: BlockPosition, val block: LiquidBlock) extends BlockWrapperBase {
     val fluid: Fluid = lookupFluidForBlock(block)
 
     override def getFluidInTank(tank: Int) = if (isFullLiquidBlock) new FluidStack(fluid, FluidType.BUCKET_VOLUME) else FluidStack.EMPTY
 
-    override def isFluidValid(tank: Int, fluid: FluidStack): Boolean = block.getFluid.isSame(fluid.getFluid)
+    override def isFluidValid(tank: Int, fluid: FluidStack): Boolean = block.fluid.isSame(fluid.getFluid)
 
     override protected def uncheckedDrain(action: FluidAction): FluidStack = {
       if (action.execute) {

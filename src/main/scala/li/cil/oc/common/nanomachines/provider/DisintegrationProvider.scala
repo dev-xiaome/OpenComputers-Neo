@@ -19,9 +19,8 @@ import net.minecraft.world.InteractionHand
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.storage.ServerLevelData
 import net.neoforged.neoforge.common.NeoForge
-import net.neoforged.neoforge.common.util.FakePlayer
+import net.neoforged.neoforge.common.util.{FakePlayer, TriState}
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent
-import net.neoforged.bus.api.Event
 
 import scala.collection.mutable
 
@@ -61,9 +60,11 @@ object DisintegrationProvider extends ScalaProvider("c4e7e3c2-8069-4fbb-b08e-74b
                 breakingMapNew += pos -> info
                 info.update(world, player, now)
               case None =>
-                val event = new PlayerInteractEvent.LeftClickBlock(player, pos.toBlockPos, player.getDirection)
+                // 1.21.1：`LeftClickBlock` 的构造器多了第 4 个参数 `Action`（按下 / 持续 / 抬起），
+                // 手动构造事件时用 `START`；`Event.Result` 已随 NeoForge 移除，改用 `TriState`。
+                val event = new PlayerInteractEvent.LeftClickBlock(player, pos.toBlockPos, player.getDirection, PlayerInteractEvent.LeftClickBlock.Action.START)
                 NeoForge.EVENT_BUS.post(event)
-                val allowed = !event.isCanceled && event.getUseBlock != Event.Result.DENY && event.getUseItem != Event.Result.DENY
+                val allowed = !event.isCanceled() && event.getUseBlock != TriState.FALSE && event.getUseItem != TriState.FALSE
                 val placingRestricted = world.getLevelData match {
                   case srvInfo: ServerLevelData => srvInfo.getGameType.isBlockPlacingRestricted
                   case _ => true // Means it's not a server world (somehow).

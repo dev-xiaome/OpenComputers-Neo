@@ -98,13 +98,14 @@ abstract class UpgradeSign extends AbstractManagedEnvironment with DeviceInfo {
     }
     val event = new BlockEvent.BreakEvent(host.getEnvironmentLevel, tileEntity.getBlockPos, tileEntity.getLevel.getBlockState(tileEntity.getBlockPos), player)
     NeoForge.EVENT_BUS.post(event)
-    if (event.isCanceled || event.getResult == Event.Result.DENY) {
+    // 1.21.1 的 BreakEvent 只有取消状态，没有 getResult/Result。
+    if (event.isCanceled) {
       return false
     }
 
     val signEvent = new SignChangeEvent.Pre(tileEntity, lines)
     NeoForge.EVENT_BUS.post(signEvent)
-    !(signEvent.isCanceled || signEvent.getResult == Event.Result.DENY)
+    !signEvent.isCanceled
   }
 
   override def onMessage(message: Message): Unit = {

@@ -4,6 +4,8 @@ import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.common.container.DatabaseInventory
 import li.cil.oc.common.menu.MenuTypes
+// 1.21.1：物品 NBT 改走 `DataComponents.NBT`，`removeTagKey` 由该扩展补回。
+import li.cil.oc.util.ItemStackNBTExtensions._
 
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.Item

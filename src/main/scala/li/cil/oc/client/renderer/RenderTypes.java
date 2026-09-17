@@ -14,11 +14,11 @@ import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 
 public class RenderTypes extends RenderType {
-    // 1.21.1: RenderStateShard.OC_POSITION_TEX_COLOR_SHADER 已被移除，而 position_tex_color
+    // 1.21.1: RenderStateShard 里的 POSITION_COLOR_TEX_SHADER 已被移除，而 position_tex_color
     // 这个 shader 仍然存在（GameRenderer.getPositionTexColorShader），所以这里自行包一层。
     // 必须声明在下面那些 RenderType 常量之前：Java 静态初始化是自上而下执行的。
-    private static final ShaderStateShard OC_POSITION_TEX_COLOR_SHADER =
-            new ShaderStateShard(GameRenderer::getPositionTexColorShader);
+    private static final RenderStateShard.ShaderStateShard OC_POSITION_TEX_COLOR_SHADER =
+            new RenderStateShard.ShaderStateShard(GameRenderer::getPositionTexColorShader);
 
     public static final RenderStateShard.TextureStateShard ROBOT_CHASSIS_TEXTURE = new RenderStateShard.TextureStateShard(Textures.Model$.MODULE$.Robot(), false, false);
 

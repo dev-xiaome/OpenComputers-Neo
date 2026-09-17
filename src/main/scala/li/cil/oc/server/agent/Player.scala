@@ -27,7 +27,7 @@ import net.minecraft.world.item.BlockItem
 import net.minecraft.world.item.context.UseOnContext
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.trading.MerchantOffers
-import net.minecraft.server.network.ServerGamePacketListenerImpl
+import net.minecraft.server.network.{CommonListenerCookie, ServerGamePacketListenerImpl}
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket
 import net.minecraft.world.effect.MobEffectInstance
 import net.minecraft.server.players.ServerOpListEntry
@@ -159,12 +159,11 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
   abilities.flying = true
   setOnGround(true)
 
-  override def getMyRidingOffset = 0.5
+  // 1.21.1 移除了 getMyRidingOffset；假玩家不承载乘客，无需再覆写。
 
-  override def getStandingEyeHeight(pose: Pose, size: EntityDimensions) = 0f
-
+  // 1.21.1 移除了 getStandingEyeHeight，眼高改为随 EntityDimensions 提供。
   // 1.21.1 的 EntityDimensions 是 record，请使用 fixed/scalable 工厂方法。
-  override def getDimensions(pose: Pose) = EntityDimensions.fixed(1, 1)
+  override def getDimensions(pose: Pose) = EntityDimensions.fixed(1, 1).withEyeHeight(0f)
   refreshDimensions()
 
   {
@@ -239,7 +238,12 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
   }
 
   override def interactOn(entity: Entity, hand: InteractionHand): InteractionResult = {
-    val cancel = try NeoForge.EVENT_BUS.post(new PlayerInteractEvent.EntityInteract(this, hand, entity)) catch {
+    val cancel = try {
+      val event = new PlayerInteractEvent.EntityInteract(this, hand, entity)
+      // NeoForge 的 IEventBus.post 返回事件本身，取消状态需从事件读取。
+      NeoForge.EVENT_BUS.post(event)
+      event.isCanceled
+    } catch {
       case t: Throwable =>
         if (!t.getStackTrace.exists(_.getClassName.startsWith("mods.battlegear2."))) {
           OpenComputers.log.warn("Some event handler screwed up!", t)
@@ -255,7 +259,7 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
         if (getItemInHand(InteractionHand.MAIN_HAND).getCount <= 0) {
           val orig = getItemInHand(InteractionHand.MAIN_HAND)
           this.inventory.setItem(this.inventory.selected, ItemStack.EMPTY)
-          ForgeEventFactory.onPlayerDestroyItem(this, orig, hand)
+          EventHooks.onPlayerDestroyItem(this, orig, hand)
         } else {
           // because of various hacks for IC2, we expect the in-hand result to be moved to our offhand buffer
           this.inventory.offhand.set(0, getItemInHand(InteractionHand.MAIN_HAND))
@@ -283,7 +287,8 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
       val canActivate = !state.isAir() && Settings.get.allowActivateBlocks
       val shouldActivate = canActivate && (!isCrouching || (item == null || item.doesSneakBypassUse(stack, level, pos, this)))
       val result =
-        if (shouldActivate && state.use(level, this, InteractionHand.OFF_HAND, new BlockHitResult(new Vec3(hitX, hitY, hitZ), side, pos, false)).consumesAction)
+        // 1.21.1 中 BlockState#use 被拆分为 useItemOn（带物品）/ useWithoutItem。
+        if (shouldActivate && state.useItemOn(stack, level, this, InteractionHand.OFF_HAND, new BlockHitResult(new Vec3(hitX, hitY, hitZ), side, pos, false)).consumesAction)
           ActivationType.BlockActivated
         else if (duration <= Double.MinPositiveValue && isItemUseAllowed(stack) && tryPlaceBlockWhileHandlingFunnySpecialCases(stack, pos, side, hitX, hitY, hitZ))
           ActivationType.ItemPlaced
@@ -331,7 +336,8 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
   }
 
   def fireLeftClickBlock(pos: BlockPos, side: Direction): PlayerInteractEvent.LeftClickBlock = {
-    net.neoforged.neoforge.common.ForgeHooks.onLeftClickBlock(this, pos, side)
+    // NeoForge 1.21.1 用 CommonHooks.onLeftClickBlock 取代了 ForgeHooks.onLeftClickBlock。
+    CommonHooks.onLeftClickBlock(this, pos, side, ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK)
   }
 
   def fireRightClickAir(): PlayerInteractEvent.RightClickItem = {
@@ -374,7 +380,7 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
       return false
     }
 
-    val maxDuration = stack.getUseDuration
+    val maxDuration = stack.getUseDuration(this)
     val heldTicks = Math.max(0, Math.min(maxDuration, (duration * 20).toInt))
     agent.machine.pause(heldTicks / 20.0)
 
@@ -466,7 +472,7 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
   })
 
   private def isItemUseAllowed(stack: ItemStack) = stack.isEmpty || {
-    (Settings.get.allowUseItemsWithDuration || stack.getUseDuration <= 0) && !ItemStack.isSameItem(stack, new ItemStack(Items.LEAD))
+    (Settings.get.allowUseItemsWithDuration || stack.getUseDuration(this) <= 0) && !ItemStack.isSameItem(stack, new ItemStack(Items.LEAD))
   }
 
   override def drop(stack: ItemStack, dropAround: Boolean, traceItem: Boolean): ItemEntity =
@@ -475,12 +481,16 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
   private def shouldCancel(f: () => PlayerInteractEvent) = {
     try {
       val event = f()
-      event.isCanceled || (event match {
-        case rightClick: PlayerInteractEvent.RightClickBlock => rightClick.getUseBlock == Event.Result.DENY || rightClick.getUseItem == Event.Result.DENY
-        case leftClick: PlayerInteractEvent.LeftClickBlock => leftClick.getUseBlock == Event.Result.DENY || leftClick.getUseItem == Event.Result.DENY
-        case rightClick: PlayerInteractEvent.RightClickItem => rightClick.getResult == Event.Result.DENY
+      // NeoForge 1.21.1 用 TriState 取代了 Event.Result；getResult/hasResult 只在部分事件上存在。
+      event match {
+        case rightClick: PlayerInteractEvent.RightClickBlock =>
+          rightClick.isCanceled || rightClick.getUseBlock == TriState.FALSE || rightClick.getUseItem == TriState.FALSE
+        case leftClick: PlayerInteractEvent.LeftClickBlock =>
+          leftClick.isCanceled || leftClick.getUseBlock == TriState.FALSE || leftClick.getUseItem == TriState.FALSE
+        case rightClick: PlayerInteractEvent.RightClickItem =>
+          rightClick.isCanceled
         case _ => false
-      })
+      }
     }
     catch {
       case t: Throwable =>
@@ -517,7 +527,7 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
         }
         if (repair) {
           if (newStack.getCount > 0) tryRepair(newStack, oldStack)
-          else ForgeEventFactory.onPlayerDestroyItem(this, newStack, InteractionHand.OFF_HAND)
+          else EventHooks.onPlayerDestroyItem(this, newStack, InteractionHand.OFF_HAND)
         }
       }
       collectDroppedItems(itemsBefore.asScala)
@@ -663,4 +673,10 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
           val expGained: Int = PlayerInteractionManagerHelper.blockRemoving(player, pos)
           this.player.setPos(this.player.getX + side.getStepX / 2.0, this.player.getY, this.player.getZ + side.getStepZ / 2.0)
           if (expGained >= 0) {
-            NeoForge.EVENT_BUS.post(new Robot
+            NeoForge.EVENT_BUS.post(new RobotBreakBlockEvent.Post(agent, expGained))
+          }
+        })
+      }
+    }
+  }
+}

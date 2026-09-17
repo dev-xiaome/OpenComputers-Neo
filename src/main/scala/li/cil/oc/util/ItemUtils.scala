@@ -19,6 +19,7 @@ import net.minecraft.world.item.crafting.Recipe
 import net.minecraft.world.item.crafting.RecipeType
 import net.minecraft.world.item.crafting.Ingredient
 import net.minecraft.nbt.NbtIo
+import net.minecraft.nbt.NbtAccounter
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.tags.BlockTags
 import net.minecraft.world.inventory.CraftingContainer
@@ -91,12 +92,15 @@ object ItemUtils {
 
   def loadTag(data: Array[Byte]): CompoundTag = {
     val bais = new ByteArrayInputStream(data)
-    NbtIo.readCompressed(bais)
+    // 1.21.1 的 NbtIo.readCompressed 需要显式的 NbtAccounter（解压配额），
+    // 旧的单参重载已移除。
+    NbtIo.readCompressed(bais, NbtAccounter.unlimitedHeap())
   }
 
   def saveStack(stack: ItemStack): Array[Byte] = {
-    val tag = new CompoundTag()
-    stack.save(tag)
+    // 1.21.1 的 ItemStack#save 是「返回编码结果」而不是就地写入传入的 tag，
+    // 且空堆叠会抛 IllegalStateException，因此用 saveOptional 并取返回值。
+    val tag = stack.saveOptional(RegistryAccessHelper.getOrEmpty).asInstanceOf[CompoundTag]
     saveTag(tag)
   }
 
@@ -115,7 +119,7 @@ object ItemUtils {
         // to make it output fluids into fluiducts or such, sorry).
         !input.getItem.isInstanceOf[BucketItem]).toArray, outputSize)
 
-    def getOutputSize(recipe: Recipe[_]) = recipe.getResultItem(null).getCount
+    def getOutputSize(recipe: Recipe[_]) = recipe.getResultItem(RegistryAccessHelper.getOrEmpty).getCount
 
     def isInputBlacklisted(stack: ItemStack) = stack.getItem match {
       case item: BlockItem => Settings.get.disassemblerInputBlacklist.contains(BuiltInRegistries.BLOCK.getKey(item.getBlock))
@@ -123,8 +127,12 @@ object ItemUtils {
       case _ => false
     }
 
-    val matching = manager.getAllRecipesFor[CraftingContainer, CraftingRecipe](RecipeType.CRAFTING).
-      filter(recipe => !recipe.getResultItem(null).isEmpty && ItemStack.isSameItem(recipe.getResultItem(null), stack))
+    // 1.21.1：getAllRecipesFor 的签名变为 getAllRecipesFor(RecipeType[T]): List[RecipeHolder[T]]，
+    // 返回的是 RecipeHolder，需要 .value() 取出配方本体；输入类型由 Recipe 自身推导。
+    val matching = manager.getAllRecipesFor(RecipeType.CRAFTING).asScala.
+      map(_.value()).
+      filter(recipe => !recipe.getResultItem(RegistryAccessHelper.getOrEmpty).isEmpty &&
+        ItemStack.isSameItem(recipe.getResultItem(RegistryAccessHelper.getOrEmpty), stack))
 
     val (ingredients, count) = matching.collect {
       case recipe: CraftingRecipe =>

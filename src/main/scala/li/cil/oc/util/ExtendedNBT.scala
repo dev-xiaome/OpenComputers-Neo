@@ -38,11 +38,11 @@ object ExtendedNBT {
   implicit def toNbt(value: String): StringTag = StringTag.valueOf(value)
 
   implicit def toNbt(value: ItemStack): CompoundTag = {
-    val nbt = new CompoundTag()
-    if (value != null) {
-      value.save(nbt)
-    }
-    nbt
+    // 1.21.1 的 ItemStack#save 是「返回编码结果」，不再就地写入传入的 tag；
+    // 空堆叠会抛异常，因此这里用 saveOptional（空堆叠返回空 CompoundTag）。
+    // 注册表访问器必须给真实实例，给 RegistryAccess.EMPTY 会把物品静默写成空标签。
+    if (value == null) new CompoundTag()
+    else value.saveOptional(RegistryAccessHelper.getOrEmpty).asInstanceOf[CompoundTag]
   }
 
   implicit def toNbt(value: CompoundTag => Unit): CompoundTag = {

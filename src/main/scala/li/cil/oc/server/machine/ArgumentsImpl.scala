@@ -5,6 +5,7 @@ import java.util
 import com.google.common.base.Charsets
 import li.cil.oc.api.machine.Arguments
 import li.cil.oc.util.ItemUtils
+import li.cil.oc.util.ItemStackNBTExtensions._
 import li.cil.oc.util.ResultWrapper
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
@@ -339,7 +340,8 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
   }
 
   private def makeStack(name: String, damage: Int, tag: Option[CompoundTag]) = {
-    BuiltInRegistries.ITEM.get(new ResourceLocation(name)) match {
+    // 1.21.1 移除了 ResourceLocation 的公开构造器，改用 ResourceLocation.parse。
+    BuiltInRegistries.ITEM.get(ResourceLocation.parse(name)) match {
       case item: Item =>
         val stack = new ItemStack(item, 1)
         stack.setDamageValue(damage)

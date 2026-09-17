@@ -17,7 +17,6 @@ import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.phys.{BlockHitResult, Vec3}
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.entity.item.ItemTossEvent
-import net.neoforged.bus.api.Event.Result
 
 import scala.collection.convert.ImplicitConversionsToScala._
 import net.minecraft.world.entity.item.ItemEntity
@@ -76,9 +75,9 @@ trait ContainerLevelControl extends ContainerAware with LevelAware with SideRest
           val dropped = inventory.removeItem(selectedSlot, count)
           val validator = (item: ItemEntity) => {
             val event = new ItemTossEvent(item, fakePlayer)
-            val canceled = NeoForge.EVENT_BUS.post(event)
-            val denied = event.hasResult && event.getResult == Result.DENY
-            !canceled && !denied
+            // NeoForge 的 post 返回事件本身；ItemTossEvent 只支持取消，没有 Result 状态。
+            NeoForge.EVENT_BUS.post(event)
+            !event.isCanceled
           }
           if (!dropped.isEmpty) {
             if (InventoryUtils.spawnStackInWorld(position, dropped, Some(facing), Some(validator)) == null)

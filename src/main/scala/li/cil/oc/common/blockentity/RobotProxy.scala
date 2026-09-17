@@ -191,7 +191,9 @@ class RobotProxy(pos: BlockPos, state: BlockState, val robot: Robot)
 
   override def saveForClient(nbt: CompoundTag): Unit = robot.saveForClient(nbt)
 
-  override def getRenderBoundingBox: AABB = robot.getRenderBoundingBox
+  // 1.21.1：`getRenderBoundingBox` 已从方块实体挪到渲染器，不再可覆写。
+  // `Robot` 原本也没有覆写它，行为等同 NeoForge 的默认实现（该坐标上的单位立方体）。
+  def getRenderBoundingBox: AABB = new AABB(robot.getBlockPos)
 
   override def setChanged(): Unit = robot.setChanged()
 

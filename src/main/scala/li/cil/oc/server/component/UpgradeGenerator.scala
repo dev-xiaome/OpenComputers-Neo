@@ -18,11 +18,12 @@ import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.StackOption
 import li.cil.oc.util.StackOption._
-import net.neoforged.neoforge.common.ForgeHooks
+import li.cil.oc.util.RegistryAccessHelper
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.entity.item.ItemEntity
+import net.minecraft.world.item.crafting.RecipeType
 import net.minecraft.nbt.CompoundTag
 
 class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends AbstractManagedEnvironment with DeviceInfo {
@@ -52,7 +53,8 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends Ab
     val count = args.optInteger(0, 64)
     val stack = host.mainInventory.getItem(host.selectedSlot)
     if (stack.isEmpty) return result((), "selected slot is empty")
-    if (ForgeHooks.getBurnTime(stack, null) <= 0) {
+    // NeoForge 1.21.1 把 ForgeHooks.getBurnTime 挪到了 ItemStack 的扩展方法上。
+    if (stack.getBurnTime(RecipeType.SMELTING) <= 0) {
       return result((), "selected slot does not contain fuel")
     }
     val container: ItemStack = stack.getCraftingRemainingItem
@@ -166,7 +168,7 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends Ab
     super.update()
     if (remainingTicks <= 0 && inventory.isDefined) {
       val stack = inventory.get
-      remainingTicks = ForgeHooks.getBurnTime(stack, null)
+      remainingTicks = stack.getBurnTime(RecipeType.SMELTING)
       if (remainingTicks > 0) {
         updateClient()
         stack.shrink(1)
@@ -214,9 +216,8 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends Ab
 
   override def loadData(nbt: CompoundTag): Unit = {
     super.loadData(nbt)
-      inventory = StackOption(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound("inventory")))
     if (nbt.contains(InventoryTag)) {
-      inventory = StackOption(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(InventoryTag)))
+      inventory = StackOption(ItemStack.parseOptional(RegistryAccessHelper.getOrEmpty(), nbt.getCompound(InventoryTag)))
     }
     remainingTicks = nbt.getInt(RemainingTicksTag)
   }
@@ -224,7 +225,12 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends Ab
   override def saveData(nbt: CompoundTag): Unit = {
     super.saveData(nbt)
     inventory match {
-      case SomeStack(stack) => nbt.setNewCompoundTag(InventoryTag, stack.save)
+      case SomeStack(stack) =>
+        // ItemStack#save 在 1.21.1 是返回编码结果，且需要 HolderLookup.Provider。
+        stack.save(RegistryAccessHelper.getOrEmpty()) match {
+          case tag: CompoundTag => nbt.put(InventoryTag, tag)
+          case _ =>
+        }
       case _ =>
     }
     if (remainingTicks > 0) {

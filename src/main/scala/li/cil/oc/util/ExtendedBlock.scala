@@ -4,8 +4,6 @@ import net.minecraft.world.level.block.Block
 import net.minecraft.core.Direction
 import net.minecraft.tags.BlockTags
 import net.minecraft.world.level.block.state.BlockState
-import net.neoforged.neoforge.fluids.IFluidBlock
-import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
 
 import scala.language.implicitConversions
 
@@ -24,17 +22,15 @@ object ExtendedBlock {
     def getBlockHardness(position: BlockPosition) = position.world.get.getBlockState(position.toBlockPos).getDestroySpeed(position.world.get, position.toBlockPos)
 
     @Deprecated
-    def getComparatorInputOverride(position: BlockPosition, side: Direction) = block.getAnalogOutputSignal(position.world.get.getBlockState(position.toBlockPos), position.world.get, position.toBlockPos)
+    def getComparatorInputOverride(position: BlockPosition, side: Direction) = {
+      // 1.21.1：BlockBehaviour#getAnalogOutputSignal 仍是 protected，
+      // 公开入口改到了 BlockState 上（BlockStateBase#getAnalogOutputSignal(Level, BlockPos)）。
+      val level = position.world.get
+      level.getBlockState(position.toBlockPos).getAnalogOutputSignal(level, position.toBlockPos)
+    }
   }
 
-  implicit def extendedFluidBlock(block: IFluidBlock): ExtendedFluidBlock = new ExtendedFluidBlock(block)
-
-  class ExtendedFluidBlock(val block: IFluidBlock) {
-    def drain(position: BlockPosition, action: FluidAction) = block.drain(position.world.get, position.toBlockPos, action)
-
-    def canDrain(position: BlockPosition) = block.canDrain(position.world.get, position.toBlockPos)
-
-    def getFilledPercentage(position: BlockPosition) = block.getFilledPercentage(position.world.get, position.toBlockPos)
-  }
+  // NeoForge 1.21.1 移除了 IFluidBlock，随之取消 ExtendedFluidBlock 扩展
+  // （世界中的流体统一由 LiquidBlock 承载，相关逻辑见 FluidUtils）。
 
 }
