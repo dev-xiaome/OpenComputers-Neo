@@ -102,6 +102,10 @@ class OpenComputersNeo(modBus: IEventBus, container: ModContainer) {
       }
     })
   })
+
+  // 无人值守的开机链路自检（临时脚手架，默认完全关闭；见 BootSelfTest 的说明）。
+  // 放在主类构造期而不是客户端初始化里，这样专用服务端上也能用。
+  li.cil.oc.common.init.BootSelfTest.register()
 }
 
 object OpenComputersNeo {

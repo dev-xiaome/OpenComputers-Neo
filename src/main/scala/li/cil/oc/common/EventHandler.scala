@@ -149,16 +149,6 @@ object EventHandler {
   }
 
   def onServerTickEnd(): Unit = {
-    // 临时自检：到点后 dump 屏幕内容（默认关闭，见 dumpNearbyScreens）。
-    if (screenDumpAt.nonEmpty) {
-      screenDumpElapsed += 1
-      if (screenDumpElapsed >= screenDumpAt.head) {
-        screenDumpAt = screenDumpAt.tail
-        try dumpNearbyScreens() catch {
-          case t: Throwable => OpenComputers.log.warn("Error dumping screens.", t)
-        }
-      }
-    }
     // 在一个 tick *之后* 清理机器，先给存档留出机会。
     val closed = mutable.ArrayBuffer.empty[Machine]
     machines.foreach(machine => if (machine.tryClose()) {
@@ -182,149 +172,10 @@ object EventHandler {
       }
     })
   }
-
-  /**
-   * 临时自检钩子（**默认关闭**）：只有显式传 `-Doc.autoboot=true` 时才生效。
-   *
-   * 玩家进入世界后，扫描身周一小片区域，把找到的机箱**关机再开机**一次，
-   * 等价于替玩家按一下机箱 GUI 上的电源键。
-   *
-   * 动机：存档里的机器是带着上次运行状态一起载入的，载入后不会再走
-   * `Machine#start`，所以无人值守跑 `runClient` 时根本看不到 BIOS / OpenOS 的启动日志。
-   * 有了这个钩子就能自动抓取完整开机链路（配合 `gradlew runClient -PquickPlay=<存档>`）。
-   *
-   * 不设置该系统属性时本方法立即返回，对正常游戏没有任何影响。
-   */
-  private def autoBootNearbyComputers(player: ServerPlayer): Unit = {
-    if (!java.lang.Boolean.getBoolean("oc.autoboot")) return
-    val level = player.level()
-    val origin = player.blockPosition()
-    val fill = java.lang.Boolean.getBoolean("oc.fillcomponents")
-    var found = 0
-    for (dx <- -24 to 24; dy <- -12 to 12; dz <- -24 to 24) {
-      val pos = origin.offset(dx, dy, dz)
-      level.getBlockEntity(pos) match {
-        case computer: li.cil.oc.common.tileentity.traits.Computer if computer.machine != null =>
-          found += 1
-          // 把当前槽位内容打出来，用来判断「物品到底还在不在、槽位数对不对」。
-          val slots = computer.getSlots
-          val contents = (0 until slots).map(slot => s"$slot=${computer.getStackInSlot(slot).getItem}").mkString(", ")
-          OpenComputers.log.info(s"[OC-DIAG] autoboot: 在 $pos 发现机器，tier=${computer match {
-            case c: li.cil.oc.common.tileentity.Case => c.tier.toString
-            case _ => "?"
-          }} slots=$slots 内容=[$contents]")
-          if (fill) fillComponents(computer)
-          computer.machine.stop()
-          computer.machine.start()
-        case _ =>
-      }
-    }
-    OpenComputers.log.info(s"[OC-DIAG] autoboot: 扫描完毕，共处理 $found 台机器。")
-    if (found > 0) {
-      // 开机后分几次读屏幕内容：OpenOS 加载模块需要时间，只读一次可能正好读到空屏。
-      // 这是判断「OpenOS 到底有没有跑起来」最直接的证据。
-      screenDumpLevel = level match {
-        case server: ServerLevel => server
-        case _ => null
-      }
-      screenDumpCenter = origin
-      screenDumpAt = List(200, 600, 1400, 3000)
-      screenDumpElapsed = 0
-    }
-  }
-
-  /** 临时自检状态（见 [[dumpNearbyScreens]]）。 */
-  private var screenDumpAt: List[Int] = Nil
-  private var screenDumpElapsed = 0
-  private var screenDumpLevel: ServerLevel = _
-  private var screenDumpCenter: net.minecraft.core.BlockPos = _
-
-  /**
-   * 临时自检：把附近屏幕的文本缓冲整屏打印到日志里。
-   *
-   * 这是判断「BIOS 是否成功加载 OpenOS、内核是否跑起来」最直接的证据——
-   * 前面所有日志都只能证明「没有报错」，只有屏幕内容能证明「确实跑起来了」。
-   * 同时把机器自身的运行状态与最后一次错误一并打出来。
-   */
-  private def dumpNearbyScreens(): Unit = {
-    val level = screenDumpLevel
-    val origin = screenDumpCenter
-    if (level == null || origin == null) return
-    var screens = 0
-    OpenComputers.log.info(s"[OC-DIAG] ===== 屏幕 dump（开机后第 $screenDumpElapsed tick）=====")
-    for (dx <- -24 to 24; dy <- -12 to 12; dz <- -24 to 24) {
-      val pos = origin.offset(dx, dy, dz)
-      level.getBlockEntity(pos) match {
-        case screen: li.cil.oc.common.tileentity.traits.TextBuffer =>
-          val buffer = screen.buffer
-          if (buffer != null) {
-            screens += 1
-            OpenComputers.log.info(
-              s"[OC-DIAG] 屏幕 $pos 内容（${buffer.getWidth}x${buffer.getHeight} " +
-                s"power=${buffer.getPowerState} depth=${buffer.getColorDepth}）:")
-            for (row <- 0 until buffer.getHeight) {
-              val text = (0 until buffer.getWidth)
-                .map(col => buffer.getCodePoint(col, row))
-                .takeWhile(_ != 0)
-                .map(cp => new String(Character.toChars(cp)))
-                .mkString
-              OpenComputers.log.info(s"[OC-DIAG]   |$text|")
-            }
-          }
-        case computer: li.cil.oc.common.tileentity.traits.Computer if computer.machine != null =>
-          val machine = computer.machine
-          val slots = computer.getSlots
-          val contents = (0 until slots).map(s => s"$s=${computer.getStackInSlot(s).getItem}").mkString(", ")
-          OpenComputers.log.info(
-            s"[OC-DIAG] 机器 $pos: isRunning=${machine.isRunning} isPaused=${machine.isPaused} " +
-              s"lastError=${Option(machine.lastError).getOrElse("<无>")} " +
-              s"components=${machine.components.size} 槽位=[$contents]")
-        case _ =>
-      }
-    }
-    OpenComputers.log.info(s"[OC-DIAG] 屏幕 dump 完毕，共 $screens 块屏幕。")
-    // 强制存盘一次：无人值守时游戏窗口在后台，自动存盘不会触发，
-    // 存一次盘才能用外部工具核对「物品是否真的写进了存档」。只在最后一次做，避免反复卡服。
-    if (screenDumpAt.isEmpty) {
-      val server = level.getServer
-      if (server != null) {
-        server.saveEverything(false, true, true)
-        OpenComputers.log.info("[OC-DIAG] 已强制存盘一次。")
-      }
-    }
-  }
-
-  /**
-   * 临时自检用（只有 `-Doc.fillcomponents=true` 时才调用）：往机箱里塞一整套能开机的组件。
-   *
-   * 目的是把「开机链路是否正常」与「玩家存档里的机箱是否已经被写坏」这两件事分开验证。
-   * 组件清单抄自 `/oc_spawnComputer`（APU + 内存 + 硬盘 + BIOS + OpenOS），另加一张显卡，
-   * 这样接上屏幕就能看到 shell。
-   */
-  private def fillComponents(computer: AnyRef): Unit = computer match {
-    case be: net.minecraft.world.level.block.entity.BlockEntity if be.getLevel != null =>
-      val pos = li.cil.oc.util.BlockPosition(be.getBlockPos.getX, be.getBlockPos.getY, be.getBlockPos.getZ, be.getLevel)
-      def give(name: String, count: Int): Unit = {
-        val info = li.cil.oc.api.Items.get(name)
-        if (info == null) OpenComputers.log.warn(s"[OC-DIAG] autoboot: 找不到物品 $name")
-        else li.cil.oc.util.InventoryUtils.insertIntoInventoryAt(info.createItemStack(count), pos)
-      }
-      give(li.cil.oc.Constants.ItemName.APUCreative, 1)
-      give(li.cil.oc.Constants.ItemName.RAMTier6, 2)
-      give(li.cil.oc.Constants.ItemName.HDDTier3, 1)
-      give(li.cil.oc.Constants.ItemName.LuaBios, 1)
-      give(li.cil.oc.Constants.ItemName.OpenOS, 1)
-      give(li.cil.oc.Constants.ItemName.GraphicsCardTier3, 1)
-      OpenComputers.log.info("[OC-DIAG] autoboot: 已尝试填充一整套组件。")
-    case _ =>
-  }
-
   def playerLoggedIn(e: PlayerEvent.PlayerLoggedInEvent): Unit = {
     e.getEntity match {
       case _: FakePlayer => // 不处理。
       case player: ServerPlayer =>
-        // 临时自检钩子，默认关闭（见 autoBootNearbyComputers 的说明）。
-        autoBootNearbyComputers(player)
         // 原实现会在这里提示「原生 Lua 不可用，已回退到 LuaJ」。
         // 原生 Lua（`server/machine/luac`）按 docs/PROGRESS.md 第 7 条不再移植，
         // 只有 LuaJ 一种架构，因此这条告警已删除。
