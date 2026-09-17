@@ -1,38 +1,23 @@
 package li.cil.oc.api.detail;
 
-import li.cil.oc.api.driver.Block;
 import li.cil.oc.api.driver.Converter;
 import li.cil.oc.api.driver.EnvironmentProvider;
 import li.cil.oc.api.driver.InventoryProvider;
-import li.cil.oc.api.driver.Item;
-import li.cil.oc.api.driver.SidedBlock;
+import li.cil.oc.api.driver.DriverItem;
+import li.cil.oc.api.driver.DriverBlock;
 import li.cil.oc.api.network.EnvironmentHost;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.items.IItemHandler;
 
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.Set;
 
 public interface DriverAPI {
-    /**
-     * Registers a new driver for a block component.
-     * <br>
-     * Whenever the neighboring blocks of an Adapter block change, it checks if
-     * there exists a driver for the changed block, and if it is configured to
-     * interface that block type connects it to the component network.
-     * <br>
-     * This must be called in the init phase, <em>not</em> the pre- or post-init
-     * phases.
-     *
-     * @param driver the driver for a block component.
-     * @deprecated Use {@link SidedBlock} instead.
-     */
-    @Deprecated // TODO Remove in OC 1.7
-    void add(Block driver);
-
     /**
      * Registers a new side-aware block driver.
      * <br>
@@ -45,7 +30,7 @@ public interface DriverAPI {
      *
      * @param driver the driver to register.
      */
-    void add(SidedBlock driver);
+    void add(DriverBlock driver);
 
     /**
      * Registers a new driver for an item component.
@@ -58,7 +43,7 @@ public interface DriverAPI {
      *
      * @param driver the driver for an item component.
      */
-    void add(Item driver);
+    void add(DriverItem driver);
 
     /**
      * Registers a new type converter.
@@ -102,36 +87,15 @@ public interface DriverAPI {
      * Note that several drivers for a single block can exist. Because of this
      * block drivers are always encapsulated in a 'compound' driver, which is
      * what will be returned here. In other words, you should will <em>not</em>
-     * get actual instances of drivers registered via {@link #add(li.cil.oc.api.driver.Block)}.
+     * get actual instances of drivers registered via {@link #add(DriverBlock)}.
      *
      * @param world the world containing the block.
-     * @param x     the X coordinate of the block.
-     * @param y     the Y coordinate of the block.
-     * @param z     the Z coordinate of the block.
-     * @return a driver for the block, or <tt>null</tt> if there is none.
-     * @deprecated Use {@link #driverFor(Level, int, int, int, Direction)},
-     * passing <tt>UNKNOWN</tt> if the side is to be ignored.
-     */
-    @Deprecated // TODO Remove in OC 1.7
-    Block driverFor(Level world, int x, int y, int z);
-
-    /**
-     * Looks up a driver for the block at the specified position in the
-     * specified world.
-     * <br>
-     * Note that several drivers for a single block can exist. Because of this
-     * block drivers are always encapsulated in a 'compound' driver, which is
-     * what will be returned here. In other words, you should will <em>not</em>
-     * get actual instances of drivers registered via {@link #add(li.cil.oc.api.driver.Block)}.
-     *
-     * @param world the world containing the block.
-     * @param x     the X coordinate of the block.
-     * @param y     the Y coordinate of the block.
-     * @param z     the Z coordinate of the block.
+     * @param pos   the position of the block.
      * @param side  the side of the block.
-     * @return a driver for the block, or <tt>null</tt> if there is none.
+     * @return a driver for the block, or {@code null} if there is none.
      */
-    SidedBlock driverFor(Level world, int x, int y, int z, Direction side);
+    @Nullable
+    DriverBlock driverFor(Level world, BlockPos pos, Direction side);
 
     /**
      * Looks up a driver for the specified item stack.
@@ -142,9 +106,10 @@ public interface DriverAPI {
      *
      * @param stack the item stack to get a driver for.
      * @param host  the type that will host the environment created by returned driver.
-     * @return a driver for the item, or <tt>null</tt> if there is none.
+     * @return a driver for the item, or {@code null} if there is none.
      */
-    Item driverFor(ItemStack stack, Class<? extends EnvironmentHost> host);
+    @Nullable
+    DriverItem driverFor(ItemStack stack, Class<? extends EnvironmentHost> host);
 
     /**
      * Looks up a driver for the specified item stack.
@@ -157,19 +122,20 @@ public interface DriverAPI {
      * stuff, such as querying slot types and tier.
      *
      * @param stack the item stack to get a driver for.
-     * @return a driver for the item, or <tt>null</tt> if there is none.
+     * @return a driver for the item, or {@code null} if there is none.
      */
-    Item driverFor(ItemStack stack);
+    @Nullable
+    DriverItem driverFor(ItemStack stack);
 
     /**
      * Looks up the environment associated with the specified item stack.
      * <br>
      * This will use the registered {@link EnvironmentProvider}s to find
      * an environment type for the specified item stack. If none can be
-     * found, returns <tt>null</tt>.
+     * found, returns {@code null}.
      *
      * @param stack the item stack to get the environment type for.
-     * @return the type of environment associated with the stack, or <tt>null</tt>.
+     * @return the type of environment associated with the stack, or {@code null}.
      * @deprecated Use {@link #environmentsFor(ItemStack)} instead.
      */
     @Deprecated
@@ -188,32 +154,20 @@ public interface DriverAPI {
     Set<Class<?>> environmentsFor(ItemStack stack);
 
     /**
-     * Get an inventory implementation providing access to an item inventory.
+     * Get an IItemHandler implementation providing access to an item inventory.
      * <br>
      * This will use the registered {@link InventoryProvider}s to find an
-     * inventory implementation providing access to the specified stack.
-     * If none can be found, returns <tt>null</tt>.
+     * IItemHandler implementation providing access to the specified stack.
+     * If none can be found, returns {@code null}.
      * <br>
-     * Note that the specified <tt>player</tt> may be null, but will usually
+     * Note that the specified {@code player} may be null, but will usually
      * be the <em>fake player</em> of the agent making use of this API.
      *
      * @param stack  the item stack to get the inventory access for.
-     * @param player the player holding the item. May be <tt>null</tt>.
-     * @return the inventory implementation interfacing the stack, or <tt>null</tt>.
+     * @param player the player holding the item. May be {@code null}.
+     * @return the IItemHandler implementation interfacing the stack, or {@code null}.
      */
-    IItemHandler inventoryFor(ItemStack stack, Player player);
-
-    /**
-     * Get a list of all registered block drivers.
-     * <br>
-     * This is intended to allow checking for particular drivers using more
-     * customized logic.
-     * <br>
-     * The returned collection is read-only.
-     *
-     * @return the list of all registered block drivers.
-     */
-    Collection<Block> blockDrivers();
+    IItemHandler itemHandlerFor(ItemStack stack, Player player);
 
     /**
      * Get a list of all registered item drivers.
@@ -225,5 +179,5 @@ public interface DriverAPI {
      *
      * @return the list of all registered item drivers.
      */
-    Collection<Item> itemDrivers();
+    Collection<DriverItem> itemDrivers();
 }

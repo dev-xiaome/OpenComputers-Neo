@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CDn",
+    "PDp",
+    "CDn"
+  ],
+  "key": {
+    "n": {
+      "item": "minecraft:netherite_scrap"
+    },
+    "p": {
+      "tag": "forge:pistons"
+    },
+    "D": {
+      "tag": "opencomputers_neo:materialdisk"
+    },
+    "P": {
+      "tag": "opencomputers_neo:materialcircuitboardprinted"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip4"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:hdd4"
+  }
+}

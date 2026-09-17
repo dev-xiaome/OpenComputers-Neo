@@ -1,12 +1,6 @@
 {
-    "parent":  "minecraft:block/cube",
-    "textures":  {
-                     "particle":  "opencomputers_neo:block/generictop",
-                     "down":  "opencomputers_neo:block/generictop",
-                     "up":  "opencomputers_neo:block/hologramtop1",
-                     "north":  "opencomputers_neo:block/hologramside",
-                     "south":  "opencomputers_neo:block/hologramside",
-                     "west":  "opencomputers_neo:block/hologramside",
-                     "east":  "opencomputers_neo:block/hologramside"
-                 }
+    "parent": "opencomputers_neo:block/hologram",
+    "textures": {
+        "top": "opencomputers_neo:block/hologram2_top"
+    }
 }

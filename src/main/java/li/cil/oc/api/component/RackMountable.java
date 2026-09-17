@@ -4,9 +4,11 @@ import li.cil.oc.api.network.Analyzable;
 import li.cil.oc.api.network.ComponentHost;
 import li.cil.oc.api.network.ManagedEnvironment;
 import li.cil.oc.api.util.StateAware;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.items.IItemHandler;
+import net.minecraft.world.Container;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.nbt.CompoundTag;
 
 /**
  * Use this interface on environments provided by drivers for items that can
@@ -19,8 +21,8 @@ import net.neoforged.neoforge.items.IItemHandler;
  * defined by the rack's configuration.
  * <br>
  * Note: mountables may implement the {@link ComponentHost} interface and
- * {@link IItemHandler}. In this case, if they contain a redstone card and have
- * a state of <tt>State.IsWorking</tt> the rack will visually connect to
+ * {@link Container}. In this case, if they contain a redstone card and have
+ * a state of {@link State#IsWorking} the rack will visually connect to
  * redstone, for example. Same goes for abstract bus cards, and potentially
  * more things in the future.
  * <br>
@@ -61,10 +63,12 @@ public interface RackMountable extends ManagedEnvironment, StateAware {
      * imprecise on the server side, since they'll have been sent in a
      * pointlessly compressed fashion (because MC is a dummy like that).
      *
-     * @param player the player activating the mountable.
-     * @param hitX   the relative x coordinate of the activation on the mountable.
-     * @param hitY   the relative y coordinate of the activation on the mountable.
+     * @param player   the player activating the mountable.
+     * @param hand     the hand the player used.
+     * @param heldItem the item held in that hand.
+     * @param hitX     the relative x coordinate of the activation on the mountable.
+     * @param hitY     the relative y coordinate of the activation on the mountable.
      * @return whether the activation was handled (e.g. GUI opened).
      */
-    boolean onActivate(Player player, float hitX, float hitY);
+    boolean onActivate(Player player, InteractionHand hand, ItemStack heldItem, float hitX, float hitY);
 }

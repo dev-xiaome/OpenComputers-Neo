@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "BBB",
+    "BAN"
+  ],
+  "key": {
+    "B": {
+      "tag": "opencomputers_neo:materialbuttongroup"
+    },
+    "A": {
+      "tag": "opencomputers_neo:materialarrowkey"
+    },
+    "N": {
+      "tag": "opencomputers_neo:materialnumpad"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:keyboard"
+  }
+}

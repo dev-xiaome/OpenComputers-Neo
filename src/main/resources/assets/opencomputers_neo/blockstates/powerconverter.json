@@ -1,7 +1,5 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/powerconverter"
-                          }
-                 }
+    "variants": {
+        "": { "model": "opencomputers_neo:block/powerconverter" }
+    }
 }

@@ -41,7 +41,7 @@ private class ReadOnlyWrapper(val fileSystem: api.fs.FileSystem) extends api.fs.
 
   override def close() = fileSystem.close()
 
-  override def load(nbt: CompoundTag) = fileSystem.load(nbt)
+  override def loadData(nbt: CompoundTag): Unit = fileSystem.loadData(nbt)
 
-  override def save(nbt: CompoundTag) = fileSystem.save(nbt)
+  override def saveData(nbt: CompoundTag): Unit = fileSystem.saveData(nbt)
 }

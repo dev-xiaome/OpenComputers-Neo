@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「电路板」（原 `li.cil.oc.common.item.CircuitBoard`）。 */
-class CircuitBoard(props: Item.Properties) extends Item(props) with traits.Delegate
+class CircuitBoard(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem

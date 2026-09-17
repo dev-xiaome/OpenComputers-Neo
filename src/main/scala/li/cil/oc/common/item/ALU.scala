@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「逻辑单元 ALU」（原 `li.cil.oc.common.item.ALU`）。 */
-class ALU(props: Item.Properties) extends Item(props) with traits.Delegate
+class ALU(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem

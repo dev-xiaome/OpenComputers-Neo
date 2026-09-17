@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「天使升级」（原 `li.cil.oc.common.item.UpgradeAngel`）。 */
-class UpgradeAngel(props: Item.Properties) extends Item(props) with traits.Delegate with traits.ItemTier
+class UpgradeAngel(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier

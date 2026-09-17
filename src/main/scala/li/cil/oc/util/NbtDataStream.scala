@@ -2,14 +2,8 @@ package li.cil.oc.util
 
 import net.minecraft.nbt.CompoundTag
 
-/**
- * 把二维 `Short` 数组（屏幕颜色缓冲）序列化进 NBT。
- *
- * 1.21.1 的 NBT API 已把 `getInteger`/`setInteger` 等改名为 `getInt`/`putInt`，
- * 布尔查询由 `hasKey` 改为 `contains`；其余逻辑与原版一致。
- */
 object NbtDataStream {
-  def getShortArray(nbt: CompoundTag, key: String, array2d: Array[Array[Short]], w: Int, h: Int): Boolean = {
+  def getShortArray(nbt: CompoundTag, key: String, array2d: Array[Array[Short]], w: Int, h: Int) : Boolean = {
     if (!nbt.contains(key)) {
       return false
     }
@@ -27,7 +21,7 @@ object NbtDataStream {
     true
   }
 
-  def getIntArrayLegacy(nbt: CompoundTag, key: String, array2d: Array[Array[Short]], w: Int, h: Int): Boolean = {
+  def getIntArrayLegacy(nbt: CompoundTag, key: String, array2d: Array[Array[Short]], w: Int, h: Int) : Boolean = {
     if (!nbt.contains(key)) {
       return false
     }
@@ -52,4 +46,9 @@ object NbtDataStream {
     array.foreach(memWriter.writeShort(_))
     nbt.putByteArray(key, rawByteWriter.toByteArray)
   }
+
+  def getOptBoolean(nbt: CompoundTag, key: String, df: Boolean): Boolean = if (nbt.contains(key)) nbt.getBoolean(key) else df
+  def getOptString(nbt: CompoundTag, key: String, df: String): String = if (nbt.contains(key)) nbt.getString(key) else df
+  def getOptNbt(nbt: CompoundTag, key: String): CompoundTag = if (nbt.contains(key)) nbt.getCompound(key) else new CompoundTag
+  def getOptInt(nbt: CompoundTag, key: String, df: Int): Int = if (nbt.contains(key)) nbt.getInt(key) else df
 }

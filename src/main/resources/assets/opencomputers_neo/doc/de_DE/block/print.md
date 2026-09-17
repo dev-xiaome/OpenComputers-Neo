@@ -1,6 +1,6 @@
 # 3D-Druck
 
-![Any way you want me.](block:opencomputers:print)
+![Any way you want me.](block:OpenComputers:print)
 
 3D-Drucke werden mittels eines [3D-Druckers](printer.md) erstellt. Obwohl sie primär als Dekoration gedacht sind, können sie auf Redstonesignale reagieren oder Signale aussenden und damit einige wenige Zusatzfunktionen zur Verfügung stellen.
 

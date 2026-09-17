@@ -1,7 +1,7 @@
 package li.cil.oc.api.driver.item;
 
 import li.cil.oc.api.network.EnvironmentHost;
-import li.cil.oc.api.driver.Item;
+import li.cil.oc.api.driver.DriverItem;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -11,7 +11,7 @@ import net.minecraft.world.item.ItemStack;
  * This is useful for drivers for components that should only go into certain
  * environments, such as robot specific upgrades.
  */
-public interface HostAware extends Item {
+public interface HostAware extends DriverItem {
     /**
      * Used to determine the item types this driver handles.
      * <br>
@@ -22,7 +22,7 @@ public interface HostAware extends Item {
      *
      * @param stack the item to check.
      * @param host  the type of host the environment would live in.
-     * @return <tt>true</tt> if the item is supported; <tt>false</tt> otherwise.
+     * @return {@code true} if the item is supported; {@code false} otherwise.
      */
     boolean worksWith(ItemStack stack, Class<? extends EnvironmentHost> host);
 }

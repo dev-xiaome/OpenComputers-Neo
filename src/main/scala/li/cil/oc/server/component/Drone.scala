@@ -1,29 +1,31 @@
 package li.cil.oc.server.component
 
 import java.util
-
 import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.Settings
 import li.cil.oc.api.Network
 import li.cil.oc.api.driver.DeviceInfo
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.common.entity
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.InventoryUtils
-import net.minecraft.sounds.SoundEvents
-import net.minecraft.sounds.SoundSource
-import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.core.Direction
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
+import scala.collection.convert.ImplicitConversionsToScala._
+import net.minecraft.world.entity.item.ItemEntity
+import net.minecraft.sounds.SoundEvents
+import net.minecraft.sounds.SoundSource
+import net.minecraft.world.phys.Vec3
 
-class Drone(val agent: entity.Drone) extends prefab.ManagedEnvironment with Agent with DeviceInfo {
+class Drone(val agent: entity.Drone) extends AbstractManagedEnvironment with Agent with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
     withComponent("drone").
     withConnector(Settings.get.bufferDrone).
@@ -37,21 +39,16 @@ class Drone(val agent: entity.Drone) extends prefab.ManagedEnvironment with Agen
     DeviceAttribute.Capacity -> agent.inventorySize.toString
   )
 
-  // 1.21.1：`deviceInfo` 是 Scala `Map`，而接口要求 `java.util.Map`，需显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   override protected def checkSideForAction(args: Arguments, n: Int) =
     args.checkSideAny(n)
 
-  override protected def suckableItems(side: Direction) = entitiesInBlock(position) ++ super.suckableItems(side)
+  override protected def suckableItems(side: Direction): util.List[ItemEntity] = entitiesInBlock(classOf[ItemEntity], position) ++ super.suckableItems(side)
 
-  override protected def onSuckCollect(entity: ItemEntity): Unit = {
-    // 1.21.1：`ItemEntity#getEntityItem` → `getItem`。
-    if (InventoryUtils.insertIntoInventory(entity.getItem, inventory, slots = Option(insertionSlots))) {
-      // 1.21.1：`Level#playSoundAtEntity` 已被移除，改为 `Level#playSound` +
-      // `SoundEvents.ITEM_PICKUP`（即原版 "random.pop" 音效）；`Level#rand` → `Level#random`。
-      world.playSound(null, agent.getX, agent.getY, agent.getZ, SoundEvents.ITEM_PICKUP, SoundSource.PLAYERS, 0.2f,
-        ((world.random.nextFloat - world.random.nextFloat) * 0.7f + 1) * 2)
+  override protected def onSuckCollect(entity: ItemEntity) = {
+    if (InventoryUtils.insertIntoInventory(entity.getItem, InventoryUtils.asItemHandler(inventory), slots = Option(insertionSlots))) {
+      world.playSound(agent.player, agent.getX, agent.getY, agent.getZ, SoundEvents.ITEM_PICKUP, SoundSource.NEUTRAL, 0.2f, ((world.random.nextFloat - world.random.nextFloat) * 0.7f + 1) * 2)
     }
   }
 
@@ -95,19 +92,17 @@ class Drone(val agent: entity.Drone) extends prefab.ManagedEnvironment with Agen
   }
 
   @Callback(doc = "function():number -- Get the current distance to the target position.")
-  def getOffset(context: Context, args: Arguments): Array[AnyRef] =
-    // 1.21.1：`Entity#getDistance(x, y, z)` 已移除，改用 `distanceToSqr` 后开方（语义一致）。
-    result(math.sqrt(agent.distanceToSqr(agent.targetX, agent.targetY, agent.targetZ)))
-
-  @Callback(doc = "function():number -- Get the current velocity in m/s.")
-  def getVelocity(context: Context, args: Arguments): Array[AnyRef] = {
-    // 1.21.1：`Entity#motionX/Y/Z` 字段 → `getDeltaMovement()`（返回 `Vec3`）。
-    val velocity = agent.getDeltaMovement
-    result(math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z) * 20) // per second
+  def getOffset(context: Context, args: Arguments): Array[AnyRef] = {
+    val v3d = agent.getTarget()
+    result(agent.position.distanceTo(new Vec3(v3d.x, v3d.y, v3d.z)))
   }
 
+  @Callback(doc = "function():number -- Get the current velocity in m/s.")
+  def getVelocity(context: Context, args: Arguments): Array[AnyRef] =
+    result(agent.getDeltaMovement.length * 20) // per second
+
   @Callback(doc = "function():number -- Get the maximum velocity, in m/s.")
-  def getMaxVelocity(context: Context, args: Arguments): Array[AnyRef] = {
+  def getV1elocity(context: Context, args: Arguments): Array[AnyRef] = {
     result(agent.maxVelocity * 20) // per second
   }
 

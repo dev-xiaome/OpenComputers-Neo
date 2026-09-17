@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「磁盘（材料）」（原 `li.cil.oc.common.item.Disk`）。 */
-class Disk(props: Item.Properties) extends Item(props) with traits.Delegate
+class Disk(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem

@@ -1,83 +1,69 @@
 package li.cil.oc.client.gui
 
-import li.cil.oc.Localization
+import com.mojang.blaze3d.systems.RenderSystem
 import li.cil.oc.client.Textures
 import li.cil.oc.client.gui.widget.ProgressBar
-import li.cil.oc.common.container
-import li.cil.oc.common.container.ComponentSlot
-import net.minecraft.client.gui.GuiGraphics
+import li.cil.oc.common.menu
+import li.cil.oc.common.menu.ComponentSlot
+import li.cil.oc.util.RenderState
 import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Inventory
+import com.mojang.blaze3d.vertex.PoseStack
+import net.minecraft.client.gui.GuiGraphics
 
-import scala.jdk.CollectionConverters._
-
-/**
- * 打印机界面（原 1.7.10 的 `li.cil.oc.client.gui.Printer`）。
- *
- * 三个进度条分别表示材料、墨水与打印进度，鼠标悬停在材料 / 墨水条上时显示具体数值。
- *
- * ==1.21.1 迁移要点==
- *  - `drawGuiContainerBackgroundLayer` 拆成
- *    [[CustomGuiContainer.drawSecondaryBackgroundLayer]]（底图 + 刷新进度条数值）+
- *    父类自动调用的 `drawWidgets`（画进度条）+ 父类自动调用的 `drawInventorySlots`。
- *    因此界面**不再**自己调 `drawWidgets()` / `drawInventorySlots()`，否则会画两遍。
- *  - `func_146978_c(x, y, w, h, mouseX, mouseY)`（1.7.10 `GuiScreen` 的
- *    「鼠标是否在矩形内」）→ [[isHovering]]，参数同样是**界面内**坐标。
- *  - `inventoryContainer.getSlot(i).getStack` → `menu.getSlot(i).getItem`。
- */
-class Printer(menu: container.Printer, playerInventory: Inventory, title: Component)
-  extends DynamicGuiContainer[container.Printer](menu, playerInventory, title) {
+class Printer(state: menu.Printer, playerInventory: Inventory, name: Component)
+  extends DynamicGuiContainer(state, playerInventory, name) {
 
   imageWidth = 176
   imageHeight = 166
 
-  private val materialBar = addWidgetToContainer(new ProgressBar(40, 21) {
-    override def width: Int = 62
+  private val materialBar = addCustomWidget(new ProgressBar(40, 21) {
+    override def width = 62
 
-    override def height: Int = 12
+    override def height = 12
 
-    override def barTexture = Textures.guiPrinterMaterial
-  })
-  private val inkBar = addWidgetToContainer(new ProgressBar(40, 53) {
-    override def width: Int = 62
-
-    override def height: Int = 12
-
-    override def barTexture = Textures.guiPrinterInk
-  })
-  private val progressBar = addWidgetToContainer(new ProgressBar(105, 20) {
-    override def width: Int = 46
-
-    override def height: Int = 46
-
-    override def barTexture = Textures.guiPrinterProgress
+    override def barTexture = Textures.GUI.PrinterMaterial
   })
 
-  override protected def drawSecondaryForegroundLayer(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
-    super.drawSecondaryForegroundLayer(guiGraphics, mouseX, mouseY)
-    guiGraphics.drawString(font,
-      Localization.localizeImmediately(menu.printer.getInventoryName),
-      8, 6, 0x404040, false)
+  private val inkBar = addCustomWidget(new ProgressBar(40, 53) {
+    override def width = 62
 
-    if (isHovering(materialBar.x, materialBar.y, materialBar.width, materialBar.height, mouseX, mouseY)) {
-      val tooltip = new java.util.ArrayList[String]()
-      tooltip.add(menu.amountMaterial + "/" + menu.printer.maxAmountMaterial)
-      copiedDrawHoveringText(tooltip, mouseX, mouseY, font)
+    override def height = 12
+
+    override def barTexture = Textures.GUI.PrinterInk
+  })
+
+  private val progressBar = addCustomWidget(new ProgressBar(105, 20) {
+    override def width = 46
+
+    override def height = 46
+
+    override def barTexture = Textures.GUI.PrinterProgress
+  })
+
+  override def drawSecondaryForegroundLayer(graphics: GuiGraphics, mouseX: Int, mouseY: Int) = {
+    super.drawSecondaryForegroundLayer(graphics, mouseX, mouseY)
+    RenderState.pushAttrib()
+    if (isHovering(materialBar.x, materialBar.y, materialBar.width, materialBar.height, mouseX - leftPos, mouseY - topPos)) {
+      val tooltip: java.util.List[Component] = java.util.List.of(Component.literal(inventoryContainer.amountMaterial + "/" + inventoryContainer.maxAmountMaterial))
+      graphics.renderComponentTooltip(font, tooltip, mouseX - leftPos, mouseY - topPos)
     }
-    if (isHovering(inkBar.x, inkBar.y, inkBar.width, inkBar.height, mouseX, mouseY)) {
-      val tooltip = new java.util.ArrayList[String]()
-      tooltip.add(menu.amountInk + "/" + menu.printer.maxAmountInk)
-      copiedDrawHoveringText(tooltip, mouseX, mouseY, font)
+    if (isHovering(inkBar.x, inkBar.y, inkBar.width, inkBar.height, mouseX - leftPos, mouseY - topPos)) {
+      val tooltip: java.util.List[Component] = java.util.List.of(Component.literal(inventoryContainer.amountInk + "/" + inventoryContainer.maxAmountInk))
+      graphics.renderComponentTooltip(font, tooltip, mouseX - leftPos, mouseY - topPos)
     }
+    RenderState.popAttrib()
   }
 
-  override protected def drawSecondaryBackgroundLayer(guiGraphics: GuiGraphics): Unit = {
-    guiGraphics.blit(Textures.guiPrinter, leftPos, topPos, 0, 0, imageWidth, imageHeight)
-    materialBar.level = menu.amountMaterial / menu.printer.maxAmountMaterial.toDouble
-    inkBar.level = menu.amountInk / menu.printer.maxAmountInk.toDouble
-    progressBar.level = menu.progress
+  override def renderBg(graphics: GuiGraphics, dt: Float, mouseX: Int, mouseY: Int): Unit = {
+    RenderSystem.setShaderColor(1, 1, 1, 1)
+    graphics.blit(Textures.GUI.Printer, leftPos, topPos, 0, 0, imageWidth, imageHeight)
+    materialBar.level = inventoryContainer.amountMaterial / inventoryContainer.maxAmountMaterial.toDouble
+    inkBar.level = inventoryContainer.amountInk / inventoryContainer.maxAmountInk.toDouble
+    progressBar.level = inventoryContainer.progress
+    drawWidgets(graphics)
+    drawInventorySlots(graphics)
   }
 
-  /** 打印机不画「槽位不可用」的占位图标（与原实现一致）。 */
-  override protected def drawDisabledSlot(guiGraphics: GuiGraphics, slot: ComponentSlot): Unit = {}
+  override protected def drawDisabledSlot(graphics: GuiGraphics, slot: ComponentSlot): Unit = {}
 }

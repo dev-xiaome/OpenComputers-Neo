@@ -1,6 +1,6 @@
 # Microcontroller
 
-![Don't belittle it.](block:opencomputers:microcontroller)
+![Don't belittle it.](block:OpenComputers:microcontroller)
 
 Microcontrollers are built using a [microcontroller case](../item/microcontrollerCase1.md) in the [assembler](assembler.md). They have less functionality compared to [computers](../general/computer.md), but are cheaper to build. In particular, they *can not* interact with external components.
 

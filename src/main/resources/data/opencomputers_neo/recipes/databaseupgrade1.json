@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "iAi",
+    "CHC",
+    "iPi"
+  ],
+  "key": {
+    "i": {
+      "tag": "forge:ingots/iron"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip1"
+    },
+    "P": {
+      "tag": "opencomputers_neo:materialcircuitboardprinted"
+    },
+    "A": {
+      "tag": "opencomputers_neo:analyzer"
+    },
+    "H": {
+      "tag": "opencomputers_neo:hdd1"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:databaseupgrade1"
+  }
+}

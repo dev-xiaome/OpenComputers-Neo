@@ -54,6 +54,12 @@ foreach ($g in $globs) {
         if ((Test-Path $p) -and (-not $files.Contains($p))) { $files.Add($p) }
     }
 }
+# OCCE keeps some .java files inside src/main/scala (e.g. common/blockentity/BlockEntityTypes.java).
+# Those Java files reference Scala classes, so they cannot go through compileJava (which runs
+# before compileScala). scalac can read .java sources for signature resolution, so pass them along.
+Get-ChildItem $src -Recurse -File -Filter '*.java' -ErrorAction SilentlyContinue |
+    ForEach-Object { if (-not $files.Contains($_.FullName)) { $files.Add($_.FullName) } }
+
 Write-Output ("sources: {0}, classpath entries: {1}" -f $files.Count, $jars.Count)
 
 # 显式列出「按 glob 展开后一个文件都没匹配到」的条目：否则 glob 写错会静默漏编译。

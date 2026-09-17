@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "rC",
+    " B"
+  ],
+  "key": {
+    "r": {
+      "item": "minecraft:redstone_torch"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip1"
+    },
+    "B": {
+      "tag": "opencomputers_neo:materialcard"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:redstonecard1"
+  }
+}

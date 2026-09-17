@@ -14,36 +14,24 @@ import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network._
-import li.cil.oc.api.prefab
-import li.cil.oc.server.component.traits.InventorySlots
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.util.ExtendedNBT._
-import net.minecraft.world.entity.item.ItemEntity
+import li.cil.oc.util.StackOption
+import li.cil.oc.util.StackOption._
+import net.neoforged.neoforge.common.ForgeHooks
+
+import scala.collection.convert.ImplicitConversionsToJava._
 import net.minecraft.world.item.ItemStack
+import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity
 
-import scala.jdk.CollectionConverters._
-
-/**
- * 发电机升级（燃料队列 + 供电）。
- *
- * ==1.21.1 迁移要点==
- *  - `TileEntityFurnace.isItemFuel / getItemBurnTime` 已随 `TileEntityFurnace` 移除：
- *    1.21.1 的燃料判定是 [[net.minecraft.world.level.block.entity.AbstractFurnaceBlockEntity#isFuel]]，
- *    燃烧时间走 NeoForge 的 `ItemStack#getBurnTime`（`FURNACE_FUELS` 数据表驱动）。
- *    两者底层都是 `getBurnTime(null)`，因此这里保持一致的取值方式。
- *  - `Item#getContainerItem` → `ItemStack#getCraftingRemainingItem`（合成剩余物语义，空栈而非 `null`）。
- *  - `IInventory` → `IItemHandler`：写槽位统一走 [[InventorySlots]]。
- *  - `player.inventory` → `player.getInventory`（1.21.1 的 `Inventory` 仍实现 `Container`，
- *    `add` 会把放不下的部分留在栈内）。
- */
-class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends prefab.ManagedEnvironment with DeviceInfo {
+class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
     withComponent("generator", Visibility.Neighbors).
     withConnector().
     create()
 
-  var inventory: Option[ItemStack] = None
+  var inventory: StackOption = EmptyStack
 
   var remainingTicks = 0
 
@@ -55,32 +43,28 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends pr
     DeviceAttribute.Capacity -> "1"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   // ----------------------------------------------------------------------- //
 
   @Callback(doc = """function([count:number]):boolean -- Tries to insert fuel from the selected slot into the generator's queue.""")
   def insert(context: Context, args: Arguments): Array[AnyRef] = {
     val count = args.optInteger(0, 64)
-    val stack = host.mainInventory.getStackInSlot(host.selectedSlot)
-    if (stack == null || stack.isEmpty) return result((), "selected slot is empty")
-    if (!AbstractFurnaceBlockEntity.isFuel(stack)) {
+    val stack = host.mainInventory.getItem(host.selectedSlot)
+    if (stack.isEmpty) return result((), "selected slot is empty")
+    if (ForgeHooks.getBurnTime(stack, null) <= 0) {
       return result((), "selected slot does not contain fuel")
     }
     val container: ItemStack = stack.getCraftingRemainingItem
     val inQueue: ItemStack = inventory match {
-      case Some(q) if q != null && !q.isEmpty =>
-        // 旧实现分两步比较「物品 + 损伤值」与 NBT；1.21.1 的 components 已涵盖两者。
-        if (!ItemStack.isSameItemSameComponents(q, stack)) {
+      case SomeStack(q) if q != null && q.getCount > 0 =>
+        if (!ItemStack.matches(q, stack)) {
           return result((), "different fuel type already queued")
         }
         q
-      case _ => null
+      case _ => ItemStack.EMPTY
     }
-    val space = Option(inQueue) match {
-      case Some(q) if q != null && !q.isEmpty => q.getMaxStackSize - q.getCount
-      case _ => stack.getMaxStackSize
-    }
+    val space = if (inQueue.isEmpty) stack.getMaxStackSize else inQueue.getMaxStackSize - inQueue.getCount
     if (space == 0) {
       return result((), "queue is full")
     }
@@ -89,36 +73,28 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends pr
     val fuelToInsert: ItemStack = stack.split(insertLimit)
 
     // remove the fuel from the inventory
-    if (stack.isEmpty) {
-      InventorySlots.setStack(InventorySlots.wrap(host.mainInventory), host.selectedSlot, null)
+    if (stack.getCount == 0) {
+      host.mainInventory.setItem(host.selectedSlot, ItemStack.EMPTY)
     } else {
-      InventorySlots.setStack(InventorySlots.wrap(host.mainInventory), host.selectedSlot, stack)
+      host.mainInventory.setItem(host.selectedSlot, stack)
     }
 
     // add empty containers to inventory
-    if (container != null && !container.isEmpty) {
-      container.setCount(fuelToInsert.getCount)
-      val beforeAdd = container.getCount
-      host.player.getInventory.add(container)
-      if (container.getCount == beforeAdd) {
+    if (!container.isEmpty) {
+      container.grow(fuelToInsert.getCount - 1)
+      if (!host.player.getInventory.add(container)) {
         // no containers could be placed in inventory, give back the fuel
-        InventorySlots.setStack(InventorySlots.wrap(host.mainInventory), host.selectedSlot, previousSelectedFuel)
+        host.mainInventory.setItem(host.selectedSlot, previousSelectedFuel)
         return result(false, "no space in inventory for fuel containers")
       } else if (container.getCount > 0) {
-        // not all the containers could be inserted in the inventory:
-        // 1.7.10 的 `EntityPlayer#entityDropItem` 等价于生成一个初始 `motionY = offsetY` 的掉落物。
-        val world = host.world
-        val entity = new ItemEntity(world, host.xPosition(), host.yPosition(), host.zPosition(), container.copy)
-        entity.setDeltaMovement(0, -0.25, 0)
-        world.addFreshEntity(entity)
+        // not all the containers could be inserted in the inventory
+        host.player.spawnAtLocation(container.copy, -0.25f)
       }
     }
 
-    if (inQueue != null) {
-      fuelToInsert.grow(inQueue.getCount)
-    }
-
-    inventory = Option(fuelToInsert)
+    // could be zero
+    fuelToInsert.grow(inQueue.getCount)
+    inventory = StackOption(fuelToInsert)
 
     result(true, insertLimit)
   }
@@ -126,7 +102,7 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends pr
   @Callback(doc = """function():number -- Get the size of the item stack in the generator's queue.""")
   def count(context: Context, args: Arguments): Array[AnyRef] = {
     inventory match {
-      case Some(stack) => result(stack.getCount, stack.getHoverName.getString)
+      case SomeStack(stack) => result(stack.getCount, stack.getItem.getName(stack).getString)
       case _ => result(0)
     }
   }
@@ -138,58 +114,47 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends pr
       return result(true) // it is allowed to remove zero
     }
     val inQueue: ItemStack = inventory match {
-      case Some(q) if q != null && !q.isEmpty => q
-      case _ => null
+      case SomeStack(q) if !q.isEmpty && q.getCount > 0 => q
+      case _ => ItemStack.EMPTY
     }
-    if (inQueue == null) {
+    if (inQueue.isEmpty) {
       return result(false, "queue is empty")
     }
-    val previousSelectedItem: ItemStack = host.mainInventory.getStackInSlot(host.selectedSlot) match {
-      case s: ItemStack if s != null && !s.isEmpty => s.copy
-      case _ => null
-    }
-    val selectedEmptyContainer: Option[ItemStack] = inQueue.getCraftingRemainingItem match {
-      case requiredContainer if requiredContainer != null && !requiredContainer.isEmpty => previousSelectedItem match {
-        case slotItem: ItemStack if
-          slotItem != null &&
-            !slotItem.isEmpty &&
-            ItemStack.isSameItemSameComponents(slotItem, requiredContainer) => Option(slotItem.copy)
+    val previousSelectedItem: ItemStack = host.mainInventory.getItem(host.selectedSlot).copy
+    val emptyContainer: ItemStack = inQueue.getCraftingRemainingItem match {
+      case requiredContainer if !requiredContainer.isEmpty && requiredContainer.getCount > 0 => previousSelectedItem match {
+        case slotItem: ItemStack if !slotItem.isEmpty &&
+          slotItem.getItem == requiredContainer.getItem &&
+          ItemStack.isSameItemSameTags(slotItem, requiredContainer) => slotItem.copy
         case _ => return result(false, "removing this fuel requires the appropriate container in the selected slot")
       }
-      case _ => None // nothing to do, nothing required
+      case _ => ItemStack.EMPTY // nothing to do, nothing required
     }
 
-    val removeLimit: Int = math.min(inQueue.getCount, selectedEmptyContainer match {
-      case Some(emptyContainer) => emptyContainer.getCount
-      case _ => count
-    })
+    val removeLimit: Int = math.min(inQueue.getCount, if (emptyContainer.isEmpty) count else emptyContainer.getCount)
 
     // backup in case of failure
     val previousQueue = inQueue.copy
     val forUser = inQueue.split(removeLimit)
-    selectedEmptyContainer match {
-      case Some(emptyContainer) =>
-        emptyContainer.split(removeLimit)
-        if (emptyContainer.isEmpty) {
-          InventorySlots.setStack(InventorySlots.wrap(host.mainInventory), host.selectedSlot, null)
-        } else {
-          InventorySlots.decrStackSize(host.mainInventory, host.selectedSlot, removeLimit)
-        }
-      case _ => // do nothing
+    if (!emptyContainer.isEmpty) {
+      emptyContainer.split(removeLimit)
+      if (emptyContainer.isEmpty) {
+        host.mainInventory.setItem(host.selectedSlot, ItemStack.EMPTY)
+      } else {
+        host.mainInventory.removeItem(host.selectedSlot, removeLimit)
+      }
     }
-    // `Inventory#add` 会把放不进玩家物品栏的部分留在传入的栈里，
-    // 因此「数量没变」才表示一个都没能放进（对应 1.7.10 返回 false 的情形）。
-    val beforeAdd = forUser.getCount
-    host.player.getInventory.add(forUser)
-    if (forUser.getCount == beforeAdd) {
-      // no inventory space available for fuel
-      InventorySlots.setStack(InventorySlots.wrap(host.mainInventory), host.selectedSlot, previousSelectedItem)
-      inventory = Option(previousQueue)
-      result(false, "no inventory space available for fuel")
+    // add splits the input stack by reference
+    if (!host.player.getInventory.add(forUser)) {
+      // returns false if NO items were inserted
+      host.mainInventory.setItem(host.selectedSlot, previousSelectedItem)
+      inventory = StackOption(previousQueue)
+      result (false, "no inventory space available for fuel")
     } else {
-      previousQueue.grow(forUser.getCount)
-      inventory = if (previousQueue.isEmpty) None else Option(previousQueue)
-      result(true, removeLimit - forUser.getCount)
+      val actualRemoval: Int = removeLimit - forUser.getCount
+      previousQueue.shrink(actualRemoval) // reduce it by how much was given to the user
+      inventory = StackOption(previousQueue)
+      result(true, actualRemoval)
     }
   }
 
@@ -201,15 +166,13 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends pr
     super.update()
     if (remainingTicks <= 0 && inventory.isDefined) {
       val stack = inventory.get
-      // 1.7.10: `TileEntityFurnace.getItemBurnTime(stack)`；
-      // 1.21.1 走 NeoForge 数据表驱动的 `ItemStack#getBurnTime`（与 `isFuel` 同源）。
-      remainingTicks = stack.getBurnTime(null)
+      remainingTicks = ForgeHooks.getBurnTime(stack, null)
       if (remainingTicks > 0) {
         updateClient()
         stack.shrink(1)
-        if (stack.isEmpty) {
-          // do not put container in inventory (we left the container when fuel was inserted)
-          inventory = None
+        if (stack.getCount <= 0) {
+            // do not put container in inventory (we left the container when fuel was inserted)
+            inventory = EmptyStack
         }
       }
     }
@@ -233,37 +196,39 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends pr
     super.onDisconnect(node)
     if (node == this.node) {
       inventory match {
-        case Some(stack) =>
-          val world = host.world
-          val entity = new ItemEntity(world, host.xPosition(), host.yPosition(), host.zPosition(), stack.copy())
-          entity.setDeltaMovement(0, 0.04, 0)
+        case SomeStack(stack) =>
+          val world = host.getEnvironmentLevel
+          val entity = new ItemEntity(world, host.xPosition, host.yPosition, host.zPosition, stack.copy())
+          entity.setDeltaMovement(entity.getDeltaMovement.add(0, 0.04, 0))
           entity.setPickUpDelay(5)
           world.addFreshEntity(entity)
-          inventory = None
+          inventory = EmptyStack
         case _ =>
       }
       remainingTicks = 0
     }
   }
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
-    if (nbt.contains("inventory")) {
-      // 1.21.1 的物品反序列化需要注册表访问器（旧 `ItemStack.loadItemStackFromNBT`）。
-      inventory = Option(ItemStack.parseOptional(host.world.registryAccess(), nbt.getCompound("inventory"))).
-        filterNot(_.isEmpty)
+  private final val InventoryTag = "inventory"
+  private final val RemainingTicksTag = "remainingTicks"
+
+  override def loadData(nbt: CompoundTag): Unit = {
+    super.loadData(nbt)
+      inventory = StackOption(ItemStack.of(nbt.getCompound("inventory")))
+    if (nbt.contains(InventoryTag)) {
+      inventory = StackOption(ItemStack.of(nbt.getCompound(InventoryTag)))
     }
-    remainingTicks = nbt.getInt("remainingTicks")
+    remainingTicks = nbt.getInt(RemainingTicksTag)
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    super.save(nbt)
+  override def saveData(nbt: CompoundTag): Unit = {
+    super.saveData(nbt)
     inventory match {
-      case Some(stack) => nbt.setNewCompoundTag("inventory", tag => tag.merge(li.cil.oc.util.ExtendedNBT.encodeStack(stack)))
+      case SomeStack(stack) => nbt.setNewCompoundTag(InventoryTag, stack.save)
       case _ =>
     }
     if (remainingTicks > 0) {
-      nbt.putInt("remainingTicks", remainingTicks)
+      nbt.putInt(RemainingTicksTag, remainingTicks)
     }
   }
 }

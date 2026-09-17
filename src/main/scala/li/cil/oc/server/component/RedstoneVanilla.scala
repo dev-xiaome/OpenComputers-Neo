@@ -12,12 +12,14 @@ import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
-import li.cil.oc.common.tileentity.traits.{RedstoneAware, RedstoneChangedEventArgs}
+import li.cil.oc.common.blockentity.traits.{RedstoneAware, RedstoneChangedEventArgs}
 import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.ExtendedWorld._
+import li.cil.oc.util.ExtendedBlock._
+import li.cil.oc.util.ExtendedLevel._
+import li.cil.oc.util.RotationHelper
 import net.minecraft.core.Direction
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 
 trait RedstoneVanilla extends RedstoneSignaller with DeviceInfo {
   def redstone: EnvironmentHost with RedstoneAware
@@ -33,28 +35,24 @@ trait RedstoneVanilla extends RedstoneSignaller with DeviceInfo {
     DeviceAttribute.Width -> "1"
   )
 
-  // 1.21.1：`DeviceInfo#getDeviceInfo` 返回 `java.util.Map`，Scala 的 `Map` 需要显式转换。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
-  // 1.21.1：`ForgeDirection.VALID_DIRECTIONS` → `Direction.values()`。
-  // 顺序完全一致（DOWN=0, UP=1, NORTH=2, SOUTH=3, WEST=4, EAST=5），
-  // 因此下面 `valuesToMap` 里用 `ordinal` 当下标仍然正确。
-  protected val SIDE_RANGE: Array[Direction] = Direction.values()
+  protected val SIDE_RANGE: Array[Direction] = Direction.values
 
   // ----------------------------------------------------------------------- //
   @Callback(direct = true, doc = "function([side:number]):number or table -- Get the redstone input (all sides, or optionally on the specified side)")
   def getInput(context: Context, args: Arguments): Array[AnyRef] = {
     getOptionalSide(args) match {
-      case Some(side: Int) => result(redstone.getInput(fromOrdinal(side)))
-      case _ => result(valuesToMap(redstone.getInput).asJava)
+      case Some(side: Int) => result(redstone.getInput(side))
+      case _ => result(valuesToMap(redstone.getInput))
     }
   }
 
   @Callback(direct = true, doc = "function([side:number]):number or table -- Get the redstone output (all sides, or optionally on the specified side)")
   def getOutput(context: Context, args: Arguments): Array[AnyRef] = {
     getOptionalSide(args) match {
-      case Some(side: Int) => result(redstone.getOutput(fromOrdinal(side)))
-      case _ => result(valuesToMap(redstone.getOutput).asJava)
+      case Some(side: Int) => result(redstone.getOutput(side))
+      case _ => result(valuesToMap(redstone.getOutput))
     }
   }
 
@@ -66,7 +64,7 @@ trait RedstoneVanilla extends RedstoneSignaller with DeviceInfo {
         ret = new java.lang.Integer(redstone.getOutput(side))
         redstone.setOutput(side, value)
       case (value: util.Map[_, _], _) =>
-        ret = valuesToMap(redstone.getOutput).asJava
+        ret = valuesToMap(redstone.getOutput)
         redstone.setOutput(value)
     }) {
       if (Settings.get.redstoneDelay > 0)
@@ -79,14 +77,11 @@ trait RedstoneVanilla extends RedstoneSignaller with DeviceInfo {
   def getComparatorInput(context: Context, args: Arguments): Array[AnyRef] = {
     val side = checkSide(args, 0)
     val blockPos = BlockPosition(redstone).offset(side)
-    if (redstone.world.blockExists(blockPos)) {
-      val blockState = redstone.world.getBlockState(blockPos)
-      // 1.21.1：`Block#hasComparatorInputOverride` 与
-      // `Block#getComparatorInputOverride(World, x, y, z, side)` 已合并为
-      // `BlockState#hasAnalogOutputSignal` / `BlockState#getAnalogOutputSignal(Level, BlockPos)`
-      // —— 注意新签名**没有**方向参数（方向信息已并入方块状态）。
-      if (blockState.hasAnalogOutputSignal) {
-        return result(blockState.getAnalogOutputSignal(redstone.world, blockPos.toChunkCoordinates))
+    if (redstone.getEnvironmentLevel.blockExists(blockPos)) {
+      val block = redstone.getEnvironmentLevel.getBlock(blockPos)
+      if (redstone.getEnvironmentLevel.getBlockState(blockPos.toBlockPos).hasAnalogOutputSignal) {
+        val comparatorOverride = block.getComparatorInputOverride(blockPos, side.getOpposite)
+        return result(comparatorOverride)
       }
     }
     result(0)
@@ -104,9 +99,6 @@ trait RedstoneVanilla extends RedstoneSignaller with DeviceInfo {
   }
 
   // ----------------------------------------------------------------------- //
-
-  /** 把 Lua 侧的方向序号（0..5，等于 `Direction#ordinal`）还原为 `Direction`。 */
-  private def fromOrdinal(ordinal: Int): Direction = Direction.values()(ordinal)
 
   private def getOptionalSide(args: Arguments): Option[Int] = {
     if (args.count == 1)
@@ -127,8 +119,6 @@ trait RedstoneVanilla extends RedstoneSignaller with DeviceInfo {
     val side = args.checkInteger(index)
     if (side < 0 || side > 5)
       throw new IllegalArgumentException("invalid side")
-    // 1.21.1：`ForgeDirection.getOrientation(i)` → `Direction.from3DDataValue(i)`，
-    // `RedstoneAware#toGlobal` 的签名也已经是 `Direction => Direction`。
     redstone.toGlobal(Direction.from3DDataValue(side))
   }
 

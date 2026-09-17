@@ -9,7 +9,7 @@ import li.cil.oc.util.ScalaClosure._
 import li.cil.repack.org.luaj.vm2.LuaValue
 import li.cil.repack.org.luaj.vm2.Varargs
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToScala._
 
 class ComputerAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
   override def initialize(): Unit = {
@@ -32,7 +32,7 @@ class ComputerAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
 
     computer.set("totalMemory", (_: Varargs) => LuaValue.valueOf(owner.memory))
 
-    computer.set("pushSignal", (args: Varargs) => LuaValue.valueOf(machine.signal(args.checkjstring(1), toSimpleJavaObjects(args, 2).toSeq: _*)))
+    computer.set("pushSignal", (args: Varargs) => LuaValue.valueOf(machine.signal(args.checkjstring(1), toSimpleJavaObjects(args, 2): _*)))
 
     // And it's /tmp address...
     computer.set("tmpAddress", (_: Varargs) => {
@@ -60,28 +60,25 @@ class ComputerAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
     computer.set("maxEnergy", (_: Varargs) => LuaValue.valueOf(node.asInstanceOf[Connector].globalBufferSize))
 
     computer.set("getArchitectures", (args: Varargs) => {
-      // Scala 2.13：`host.internalComponents` 是 java.lang.Iterable，需要显式 asScala；
-      // `allArchitectures` 是 java.util.Collection，同样需要转换。
-      machine.host.internalComponents.asScala.map(stack => (stack, api.Driver.driverFor(stack))).collectFirst {
-        case (stack, processor: MutableProcessor) => processor.allArchitectures.asScala.toSeq
+      machine.host.internalComponents.map(stack => (stack, api.Driver.driverFor(stack))).collectFirst {
+        case (stack, processor: MutableProcessor) => processor.allArchitectures.toSeq
         case (stack, processor: Processor) => Seq(processor.architecture(stack))
       } match {
-        case Some(architectures) =>
-          LuaValue.listOf(architectures.map(arch => api.Machine.getArchitectureName(arch)).map(LuaValue.valueOf).toArray)
+        case Some(architectures) => LuaValue.listOf(architectures.map(api.Machine.getArchitectureName).map(LuaValue.valueOf).toArray)
         case _ => LuaValue.tableOf()
       }
     })
 
     computer.set("getArchitecture", (args: Varargs) => {
-      machine.host.internalComponents.asScala.map(stack => (stack, api.Driver.driverFor(stack))).collectFirst {
+      machine.host.internalComponents.map(stack => (stack, api.Driver.driverFor(stack))).collectFirst {
         case (stack, processor: Processor) => LuaValue.valueOf(api.Machine.getArchitectureName(processor.architecture(stack)))
       }.getOrElse(LuaValue.NONE)
     })
 
     computer.set("setArchitecture", (args: Varargs) => {
       val archName = args.checkjstring(1)
-      machine.host.internalComponents.asScala.map(stack => (stack, api.Driver.driverFor(stack))).collectFirst {
-        case (stack, processor: MutableProcessor) => processor.allArchitectures.asScala.find(arch => api.Machine.getArchitectureName(arch) == archName) match {
+      machine.host.internalComponents.map(stack => (stack, api.Driver.driverFor(stack))).collectFirst {
+        case (stack, processor: MutableProcessor) => processor.allArchitectures.find(arch => api.Machine.getArchitectureName(arch) == archName) match {
           case Some(archClass) =>
             if (archClass != processor.architecture(stack)) {
               processor.setArchitecture(stack, archClass)

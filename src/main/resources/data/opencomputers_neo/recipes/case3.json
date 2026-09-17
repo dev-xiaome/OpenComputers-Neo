@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "dCd",
+    "bcb",
+    "dPd"
+  ],
+  "key": {
+    "d": {
+      "tag": "forge:gems/diamond"
+    },
+    "c": {
+      "tag": "forge:chests"
+    },
+    "b": {
+      "item": "minecraft:iron_bars"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip3"
+    },
+    "P": {
+      "tag": "opencomputers_neo:materialcircuitboardprinted"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:case3"
+  }
+}

@@ -9,11 +9,11 @@ import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.FluidUtils
 import li.cil.oc.util.InventoryUtils
 
-trait InventoryTransfer extends traits.WorldAware with traits.SideRestricted {
+trait InventoryTransfer extends traits.LevelAware with traits.SideRestricted {
   // Return None on success, else Some("failure reason")
   def onTransferContents(): Option[String]
 
-  @Callback(doc = """function(sourceSide:number, sinkSide:number[, count:number[, sourceSlot:number[, sinkSlot:number]]]):number -- Transfer some items between two inventories.""")
+  @Callback(doc = """function(sourceSide:number, sinkSide:number[, count:number[, sourceSlot:number[, sinkSlot:number]]]):boolean -- Transfer some items between two inventories.""")
   def transferItem(context: Context, args: Arguments): Array[AnyRef] = {
     val sourceSide = checkSideForAction(args, 0)
     val sourcePos = position.offset(sourceSide)
@@ -26,8 +26,8 @@ trait InventoryTransfer extends traits.WorldAware with traits.SideRestricted {
         result((), reason)
       case _ =>
         val extractor = if (args.count > 3) {
-          val sourceSlot = args.checkSlot(InventoryUtils.inventoryAt(sourcePos).getOrElse(throw new IllegalArgumentException("no inventory")), 3)
-          val sinkSlot = args.optSlot(InventoryUtils.inventoryAt(sinkPos).getOrElse(throw new IllegalArgumentException("no inventory")), 4, -1)
+          val sourceSlot = args.checkSlot(InventoryUtils.inventoryAt(sourcePos, sourceSide.getOpposite).getOrElse(throw new IllegalArgumentException("no inventory")), 3)
+          val sinkSlot = args.optSlot(InventoryUtils.inventoryAt(sinkPos, sinkSide.getOpposite).getOrElse(throw new IllegalArgumentException("no inventory")), 4, -1)
 
           InventoryUtils.getTransferBetweenInventoriesSlotsAt(sourcePos, sourceSide.getOpposite, sourceSlot, sinkPos, Option(sinkSide.getOpposite), if (sinkSlot < 0) None else Option(sinkSlot), count)
         }

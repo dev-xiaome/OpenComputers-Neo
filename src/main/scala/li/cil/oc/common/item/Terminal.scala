@@ -3,53 +3,87 @@ package li.cil.oc.common.item
 import li.cil.oc.util.ItemStackNBTExtensions._
 
 import java.util
-
+import com.google.common.base.Strings
+import li.cil.oc.Constants
 import li.cil.oc.Localization
 import li.cil.oc.Settings
-import net.minecraft.world.entity.player.Player
+import li.cil.oc.api
+import li.cil.oc.client.{Textures, gui}
+import li.cil.oc.common.component
+import li.cil.oc.common.blockentity.traits.BaseBlockEntity
+import net.minecraft.client.Minecraft
+import net.neoforged.api.distmarker.Dist
+import net.neoforged.api.distmarker.OnlyIn
+import net.neoforged.neoforge.common.extensions.IForgeItem
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
+import net.minecraft.network.chat.Component
+import net.minecraft.world.item.TooltipFlag
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.InteractionResultHolder
+import net.minecraft.world.InteractionHand
 
-/**
- * 「终端」（原 `li.cil.oc.common.item.Terminal`）。
- *
- * 1.21.1 迁移要点：
- *  - `registerIcons` / `icon(stack, pass)` 已删除：1.21.1 的开关外观改由
- *    `ItemProperties` 模型谓词（`overrides`）或物品模型的 `custom_model_data` 表达，
- *    具体在客户端阶段实现（见 docs/PORTING.md 第 6 步）。
- *  - `player.openGui(OpenComputers, GuiType.Terminal.id, ...)` → `player.openMenu(MenuProvider)`；
- *    终端菜单属于 `common/container`，尚未移植，这里保留 TODO 占位。
- */
-class Terminal(props: Item.Properties) extends Item(props) with traits.Delegate {
+class Terminal(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+  def hasServer(stack: ItemStack) = stack.hasTag && stack.getTag.contains(Settings.namespace + "server")
 
-  def hasServer(stack: ItemStack): Boolean =
-    stack.hasTag() && stack.getTag().contains(Settings.namespace + "server")
-
-  override def tooltipLines(stack: ItemStack, player: Player,
-                            tooltip: util.List[String], advanced: Boolean): Unit = {
-    super.tooltipLines(stack, player, tooltip, advanced)
+  @OnlyIn(Dist.CLIENT)
+  override def appendHoverText(stack: ItemStack, level: Level, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+    super.appendHoverText(stack, level, tooltip, flag)
     if (hasServer(stack)) {
-      val server = stack.getTag().getString(Settings.namespace + "server")
-      if (server.length > 13) {
-        tooltip.add("§8" + server.substring(0, 13) + "...§7")
-      }
-      else {
-        tooltip.add("§8" + server + "§7")
-      }
+      val server = stack.getTag.getString(Settings.namespace + "server")
+      tooltip.add(Component.literal("§8" + server.substring(0, 13) + "...§7"))
     }
   }
 
-  override def onItemRightClick(stack: ItemStack, world: Level, player: Player): ItemStack = {
-    if (!player.isShiftKeyDown && stack.hasTag()) {
-      val key = stack.getTag().getString(Settings.namespace + "key")
-      val server = stack.getTag().getString(Settings.namespace + "server")
-      if (key != null && !key.isEmpty && server != null && !server.isEmpty) {
-        // TODO(菜单): 1.21.1 改用 `player.openMenu(...)` 打开终端；
-        // 需要 `common/container/Terminal` 与 `MenuType` 移植完成后接线。
-        player.swing(net.minecraft.world.InteractionHand.MAIN_HAND)
+  //@OnlyIn(Dist.CLIENT)
+  //override def getModelLocation(stack: ItemStack) = {
+  //  if (hasServer(stack)) Textures.Item.TerminalOn else Textures.Item.TerminalOff
+  //}
+
+
+  override def use(stack: ItemStack, level: Level, player: Player): InteractionResultHolder[ItemStack] = {
+    if (!player.isCrouching && stack.hasTag) {
+      val key = stack.getTag.getString(Settings.namespace + "key")
+      val server = stack.getTag.getString(Settings.namespace + "server")
+      if (key != null && key.nonEmpty && server != null && server.nonEmpty) {
+        if (level.isClientSide) {
+          if (stack.hasTag) {
+            val address = stack.getTag.getString(Settings.namespace + "server")
+            val key = stack.getTag.getString(Settings.namespace + "key")
+            if (!Strings.isNullOrEmpty(key) && !Strings.isNullOrEmpty(address)) {
+              component.TerminalServer.loaded.find(address) match {
+                case Some(term) if term != null && term.rack != null => term.rack match {
+                  case rack: BaseBlockEntity with api.internal.Rack => {
+                    def inRange = player.isAlive && !rack.isRemoved && player.distanceToSqr(rack.x + 0.5, rack.y + 0.5, rack.z + 0.5) < term.range * term.range
+                    if (inRange) {
+                      if (term.sidedKeys.contains(key)) showGui(stack, key, term, () => inRange)
+                      else player.displayClientMessage(Localization.Terminal.InvalidKey, true)
+                    }
+                    else player.displayClientMessage(Localization.Terminal.OutOfRange, true)
+                  }
+                  case _ => // Eh?
+                }
+                case _ => player.displayClientMessage(Localization.Terminal.OutOfRange, true)
+              }
+            }
+          }
+        }
+        player.swing(InteractionHand.MAIN_HAND)
       }
     }
-    super.onItemRightClick(stack, world, player)
+    super.use(stack, level, player)
+  }
+
+  @OnlyIn(Dist.CLIENT)
+  private def showGui(stack: ItemStack, key: String, term: component.TerminalServer, inRange: () => Boolean): Unit = {
+    Minecraft.getInstance.pushGuiLayer(new gui.Screen(term.buffer, true, () => true, () => {
+      // Check if someone else bound a term to our server.
+      if (stack.getTag.getString(Settings.namespace + "key") != key) Minecraft.getInstance.popGuiLayer
+      // Check whether we're still in range.
+      if (!inRange()) Minecraft.getInstance.popGuiLayer
+      true
+    }))
   }
 }

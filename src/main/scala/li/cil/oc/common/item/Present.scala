@@ -7,46 +7,41 @@ import li.cil.oc.OpenComputers
 import li.cil.oc.api
 import li.cil.oc.util.InventoryUtils
 import li.cil.oc.util.ItemUtils
-import net.minecraft.sounds.SoundEvents
-import net.minecraft.sounds.SoundSource
-import net.minecraft.world.InteractionHand
-import net.minecraft.world.InteractionResultHolder
-import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
-import net.minecraft.world.level.Level
+import net.minecraft.world.item.crafting.RecipeManager
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
 import scala.collection.mutable
+import net.minecraft.world.item.CreativeModeTab
+import net.minecraft.core.NonNullList
+import net.minecraft.world.level.Level
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.InteractionResultHolder
+import net.minecraft.world.InteractionResult
+import net.minecraft.world.level.block.SoundType
+import net.minecraft.sounds.SoundSource
+import net.minecraft.sounds.SoundEvents
 
-/**
- * 「礼包」（原 `li.cil.oc.common.item.Present`）：右键随机获得一件 OC 物品。
- *
- * 1.21.1 迁移要点：
- *  - `stack.stackSize` → `stack.getCount` / `stack.shrink` / `stack.setCount`
- *  - `world.playSoundAtEntity(player, "random.levelup", ...)` →
- *    `world.playSound(null, x, y, z, SoundEvents.PLAYER_LEVELUP, ...)`
- *  - `world.isRemote` → `world.isClientSide`
- */
-class Present(props: Item.Properties) extends Item(props) with traits.Delegate {
-
-  showInItemList = false
-
-  override def use(world: Level, player: Player, hand: InteractionHand): InteractionResultHolder[ItemStack] = {
-    val stack = player.getItemInHand(hand)
+class Present(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+  override def use(stack: ItemStack, level: Level, player: Player): InteractionResultHolder[ItemStack] = {
     if (stack.getCount > 0) {
-      if (!world.isClientSide) {
-        world.playSound(null, player.getX, player.getY, player.getZ,
-          SoundEvents.PLAYER_LEVELUP, SoundSource.PLAYERS, 0.2f, 1f)
+      stack.shrink(1)
+      if (!level.isClientSide) {
+        level.playSound(player, player.getX, player.getY, player.getZ, SoundEvents.PLAYER_LEVELUP, SoundSource.MASTER, 0.2f, 1f)
+        Present.recipeManager = level.getRecipeManager
         val present = Present.nextPresent()
         InventoryUtils.addToPlayerInventory(present, player)
       }
-      stack.shrink(1)
     }
-    InteractionResultHolder.sidedSuccess(stack, world.isClientSide)
+    new InteractionResultHolder(InteractionResult.sidedSuccess(level.isClientSide), stack)
   }
 }
 
 object Present {
+  private var recipeManager: RecipeManager = null
+
   private lazy val Presents = {
     val result = mutable.ArrayBuffer.empty[ItemStack]
 
@@ -55,7 +50,7 @@ object Present {
       if (item != null) {
         val stack = item.createItemStack(1)
         // Only if it can be crafted (wasn't disabled in the config).
-        if (ItemUtils.getIngredients(stack).nonEmpty) {
+        if (ItemUtils.getIngredients(recipeManager, stack).nonEmpty) {
           for (i <- 0 until weight) result += stack
         }
       }
@@ -147,5 +142,5 @@ object Present {
 
   private val rng = new Random()
 
-  def nextPresent(): ItemStack = Presents(rng.nextInt(Presents.length)).copy()
+  private def nextPresent(): ItemStack = Presents(rng.nextInt(Presents.length)).copy()
 }

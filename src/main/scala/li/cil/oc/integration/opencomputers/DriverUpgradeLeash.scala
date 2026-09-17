@@ -16,7 +16,7 @@ object DriverUpgradeLeash extends Item with HostAware {
     api.Items.get(Constants.ItemName.LeashUpgrade))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) =
-    if (host.world != null && host.world.isClientSide) null
+    if (host.getEnvironmentLevel != null && host.getEnvironmentLevel.isClientSide) null
     else host match {
       case entity: Entity => new component.UpgradeLeash(entity)
       case _ => null

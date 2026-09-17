@@ -1,17 +1,15 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/**
- * 「无人机外壳」（原 `li.cil.oc.common.item.DroneCase`）。
- *
- * 对应 `Constants.ItemName.DroneCaseTier1 / Tier2 / Creative`。
- */
-class DroneCase(props: Item.Properties, override val tier: Int)
-  extends Item(props) with traits.Delegate with traits.ItemTier {
+class DroneCase(props: Properties, val tier: Int) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier {
+  @Deprecated
+  override def getDescriptionId = super.getDescriptionId + tier
 
-  override protected def tierFromDriver(stack: ItemStack): Int = tier
+  override protected def tierFromDriver(stack: ItemStack) = tier
 
-  override protected def tooltipName: Option[String] = Option(super.unlocalizedName)
+  override protected def tooltipName = Option(unlocalizedName)
 }

@@ -22,7 +22,7 @@ public interface MachineAPI {
      * A list of all <em>registered</em> architectures.
      * <br>
      * Note that registration is optional, although automatic when calling
-     * {@link #create(li.cil.oc.api.machine.MachineHost)} with a not yet
+     * {@link #create(MachineHost)} with a not yet
      * registered architecture. What this means is that unless a mod providing
      * a custom architecture also registers it, you may not see it in this list
      * until it also created a new machine using that architecture.

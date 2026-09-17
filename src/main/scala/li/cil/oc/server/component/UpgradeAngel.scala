@@ -3,22 +3,22 @@ package li.cil.oc.server.component
 import java.util
 
 import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.Settings
 import li.cil.oc.api.Network
 import li.cil.oc.api.driver.DeviceInfo
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
+import li.cil.oc.api.network.Node
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 
 // Note-to-self: this has a component to allow the robot telling it has the
 // upgrade.
-// TODO Remove component in OC 1.7 (device info is sufficient)
-class UpgradeAngel extends prefab.ManagedEnvironment with DeviceInfo {
-  override val node = Network.newNode(this, Visibility.Network).
-    withComponent("angel").
+class UpgradeAngel extends AbstractManagedEnvironment with DeviceInfo {
+  override val node: Node = Network.newNode(this, Visibility.Network).
     create()
 
   private final lazy val deviceInfo = Map(
@@ -29,6 +29,5 @@ class UpgradeAngel extends prefab.ManagedEnvironment with DeviceInfo {
     DeviceAttribute.Capacity -> Settings.get.maxNetworkPacketSize.toString
   )
 
-  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 }

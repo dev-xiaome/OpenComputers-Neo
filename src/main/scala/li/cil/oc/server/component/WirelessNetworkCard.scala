@@ -16,9 +16,10 @@ import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
 import li.cil.oc.util.BlockPosition
+import li.cil.oc.util.ExtendedLevel._
 import net.minecraft.nbt.CompoundTag
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 import scala.language.implicitConversions
 
 abstract class WirelessNetworkCard(host: EnvironmentHost) extends NetworkCard(host) with WirelessEndpoint {
@@ -28,20 +29,22 @@ abstract class WirelessNetworkCard(host: EnvironmentHost) extends NetworkCard(ho
     create()
 
   protected def wirelessCostPerRange: Double
-  
+
   protected def maxWirelessRange: Double
-  
+
   protected def shouldSendWiredTraffic: Boolean
-  
+
   var strength = maxWirelessRange
-    
-  override def x = BlockPosition(host).x
 
-  override def y = BlockPosition(host).y
+  def position = BlockPosition(host)
 
-  override def z = BlockPosition(host).z
+  override def x = position.x
 
-  override def world = host.world
+  override def y = position.y
+
+  override def z = position.z
+
+  override def getWirelessLevel = host.getEnvironmentLevel
 
   def receivePacket(packet: Packet, source: WirelessEndpoint): Unit = {
     val (dx, dy, dz) = ((source.x + 0.5) - host.xPosition, (source.y + 0.5) - host.yPosition, (source.z + 0.5) - host.zPosition)
@@ -85,7 +88,7 @@ abstract class WirelessNetworkCard(host: EnvironmentHost) extends NetworkCard(ho
   private def checkPower(): Unit = {
     val cost = wirelessCostPerRange
     if (cost > 0 && !Settings.get.ignorePower) {
-      if (!node.tryChangeBuffer(-strength * cost)) {
+      if (!node.asInstanceOf[Connector].tryChangeBuffer(-strength * cost)) {
         throw new IOException("not enough energy")
       }
     }
@@ -97,8 +100,7 @@ abstract class WirelessNetworkCard(host: EnvironmentHost) extends NetworkCard(ho
 
   override def update(): Unit = {
     super.update()
-    // 1.21.1：`Level#getTotalWorldTime` → `Level#getGameTime`。
-    if (world.getGameTime % 20 == 0) {
+    if (getWirelessLevel.getGameTime % 20 == 0) {
       api.Network.updateWirelessNetwork(this)
     }
   }
@@ -112,25 +114,25 @@ abstract class WirelessNetworkCard(host: EnvironmentHost) extends NetworkCard(ho
 
   override def onDisconnect(node: Node): Unit = {
     super.onDisconnect(node)
-    // 1.21.1：`Level#blockExists(x, y, z)` → `Level#isLoaded(BlockPos)`
-    // （`ExtendedWorld` 里以 `BlockPosition` 为参数提供同名封装）。
-    if (node == this.node || !li.cil.oc.util.ExtendedWorld.extendedWorld(world).blockExists(BlockPosition(x, y, z, world))) {
+    if (node == this.node || !getWirelessLevel.isLoaded(position)) {
       api.Network.leaveWirelessNetwork(this)
     }
   }
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
-    if (nbt.contains("strength")) {
-      strength = nbt.getDouble("strength") max 0 min maxWirelessRange
+  private final val StrengthTag = "strength"
+
+  override def loadData(nbt: CompoundTag): Unit = {
+    super.loadData(nbt)
+    if (nbt.contains(StrengthTag)) {
+      strength = nbt.getDouble(StrengthTag) max 0 min maxWirelessRange
     }
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    super.save(nbt)
-    nbt.putDouble("strength", strength)
+  override def saveData(nbt: CompoundTag): Unit = {
+    super.saveData(nbt)
+    nbt.putDouble(StrengthTag, strength)
   }
 }
 
@@ -158,8 +160,7 @@ object WirelessNetworkCard {
       DeviceAttribute.Width -> maxWirelessRange.toString
     )
 
-    // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
     override protected def isPacketAccepted(packet: Packet, distance: Double): Boolean = {
       if (distance <= maxWirelessRange && (distance > 0 || shouldSendWiredTraffic)) {
@@ -193,7 +194,6 @@ object WirelessNetworkCard {
       DeviceAttribute.Width -> maxWirelessRange.toString
     )
     
-    // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo
   }
 }

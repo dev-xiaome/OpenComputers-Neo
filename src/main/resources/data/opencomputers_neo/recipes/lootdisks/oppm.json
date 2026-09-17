@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "tag": "opencomputers_neo:floppy"
+    },
+    {
+      "tag": "opencomputers_neo:materialinterweb"
+    }
+  ],
+  "result": {
+    "item": "opencomputers_neo:floppy",
+    "nbt": {
+      "oc:data": {
+        "oc:fs.label": "oppm"
+      },
+      "oc:lootFactory": "opencomputers_neo:oppm",
+      "oc:color": 9,
+      "display": {
+        "Name": "{\"text\":\"OPPM (Package Manager)\"}"
+      }
+    }
+  }
+}

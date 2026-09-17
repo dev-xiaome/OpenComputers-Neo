@@ -1,32 +1,39 @@
 package li.cil.oc.common.block
 
-import li.cil.oc.common.GuiType
-import li.cil.oc.common.tileentity
+import li.cil.oc.common.menu.MenuTypes
+import li.cil.oc.common.blockentity
+import li.cil.oc.common.blockentity.BlockEntityTypes
+import net.minecraft.world.level.block.state.BlockBehaviour.Properties
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.server.level.{ServerPlayer => ServerPlayerEntity}
 import net.minecraft.core.BlockPos
-import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.world.level.block.state.{BlockBehaviour, BlockState}
+import net.minecraft.world.phys.shapes.{BooleanOp => IBooleanFunction}
+import net.minecraft.world.phys.shapes.{CollisionContext => ISelectionContext}
+import net.minecraft.world.phys.shapes.VoxelShape
+import net.minecraft.world.phys.shapes.{Shapes => VoxelShapes}
+import net.minecraft.world.level.{BlockGetter => IBlockReader}
+import net.minecraft.world.level.{Level => World}
+import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
 
-/**
- * 3D 打印机（原 1.7.10 `Printer`，提供 `printer3d` 组件）。
- *
- * 1.21.1 迁移要点：
- *  - 混入 [[traits.SpecialBlock]] / [[traits.StateAware]]（比较器按工作状态输出）/
- *    [[traits.GUI]]（`guiType` = `GuiType.Printer`）；
- *  - 原 `isBlockSolid` / `isSideSolid` 只把**下面**视为实心：1.21.1 已由「碰撞形状 +
- *    面坚固判定」取代，不再覆写（见 [[traits.SpecialBlock]] 的说明）；
- *  - `hasTileEntity` / `createTileEntity` → `hasBlockEntity` / `createBlockEntity`，
- *    构造为 `new tileentity.Printer(pos, state)`；
- *  - 整套图标系统删除。
- *
- * 纹理（原 `customTextures` 面序 DOWN, UP, NORTH, SOUTH, WEST, EAST）：
- * 下 = 未指定（沿用 `GenericTop`），上 = `PrinterTop`，
- * 北 / 南 / 西 / 东 = `PrinterSide`。
- */
-class Printer(properties: BlockBehaviour.Properties = SimpleBlock.properties())
-  extends SimpleBlock(properties) with traits.SpecialBlock with traits.StateAware with traits.GUI {
+class Printer(props: Properties) extends SimpleBlock(props) with traits.StateAware with traits.GUI with traits.Tickable {
+  val blockShape = {
+    val base = Block.box(0, 0, 0, 16, 8, 16)
+    val pillars = VoxelShapes.or(Block.box(0, 8, 0, 3, 13, 3), Block.box(13, 8, 0, 16, 13, 3),
+      Block.box(13, 8, 13, 16, 13, 16), Block.box(0, 8, 13, 3, 13, 16))
+    val ring = VoxelShapes.join(Block.box(0, 13, 0, 16, 16, 16),
+      Block.box(3, 13, 3, 13, 16, 13), IBooleanFunction.ONLY_FIRST)
+    VoxelShapes.or(base, pillars, ring)
+  }
 
-  override def guiType = GuiType.Printer
+  override def getShape(state: BlockState, world: IBlockReader, pos: BlockPos, ctx: ISelectionContext): VoxelShape = blockShape
 
-  override def createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity =
-    new tileentity.Printer(pos, state)
+  override def openGui(player: ServerPlayerEntity, world: World, pos: BlockPos): Unit = world.getBlockEntity(pos) match {
+    case te: blockentity.Printer => MenuTypes.openPrinterGui(player, te)
+    case _ =>
+  }
+
+  override def newBlockEntity(pos: BlockPos, state: BlockState) = new blockentity.Printer(pos, state)
+
+  override def getBlockEntityType: BlockEntityType[_ <: BlockEntity] = BlockEntityTypes.PRINTER.get()
 }

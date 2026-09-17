@@ -1,11 +1,14 @@
 package li.cil.oc.api.network;
 
 import net.minecraft.core.Direction;
+import net.minecraft.world.Container;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 
 /**
- * This interface is like {@link net.neoforged.neoforge.items.IItemHandler} is to
- * an inventory: it allows an environment to
+ * This interface is like {@link net.minecraft.world.inventory.ISidedInventory} is to
+ * {@link Container}, it allows an environment to
  * specify different node access for its different sides.
  * <br>
  * This interface is intended to be used on tile entities that are environments.
@@ -18,7 +21,7 @@ public interface SidedEnvironment {
     /**
      * The node this environment uses for the specified side.
      * <br>
-     * This is the side aware version of the normal {@link li.cil.oc.api.network.Environment#node}
+     * This is the side aware version of the normal {@link Environment#node}
      * method.
      * <br>
      * The provided side is relative to the environment, i.e. when the tile
@@ -28,7 +31,7 @@ public interface SidedEnvironment {
      *
      * @param side the side to get the node for.
      * @return the node for the specified side.
-     * @see li.cil.oc.api.network.Environment#node
+     * @see Environment#node
      */
     Node sidedNode(Direction side);
 
@@ -36,19 +39,18 @@ public interface SidedEnvironment {
      * Whether the environment provides a node to connect to on the specified
      * side.
      * <br>
-     * For each side the environment returns <tt>false</tt> here, it should
-     * return <tt>null</tt> from {@link #sidedNode}, and for each side it
-     * returns <tt>true</tt> for it should return a node.
+     * For each side the environment returns {@code false} here, it should
+     * return {@code null} from {@link #sidedNode}, and for each side it
+     * returns {@code true} for it should return a node.
      * <br>
      * This is intended for the client side, i.e. rendering related things,
      * since nodes are not created on the client side.
      * <br>
-     * The side is relative to the environment, same as for <tt>sidedNode</tt>.
-     * <br>
-     * 仅客户端调用；1.21.1 已移除 {@code @SideOnly}。
+     * The side is relative to the environment, same as for {@link #sidedNode}.
      *
      * @param side the side to check for.
      * @return whether the environment provides a node for the specified side.
      */
+    @OnlyIn(Dist.CLIENT)
     boolean canConnect(Direction side);
 }

@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "tag": "opencomputers_neo:hologram3"
+    },
+    {
+      "tag": "opencomputers_neo:screen4"
+    }
+  ],
+  "result": {
+    "item": "opencomputers_neo:holoscreen4"
+  }
+}

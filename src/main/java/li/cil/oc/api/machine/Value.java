@@ -29,7 +29,7 @@ public interface Value extends Persistable {
      *                  instance of the computer running the script that made
      *                  the call.
      * @param arguments the arguments passed to the method.
-     * @return the current value at the specified index, or <tt>null</tt>.
+     * @return the current value at the specified index, or {@code null}.
      */
     Object apply(Context context, Arguments arguments);
 
@@ -57,7 +57,7 @@ public interface Value extends Persistable {
      *                  the call.
      * @param arguments the arguments passed to the method.
      * @return the result of the call.
-     * @throws java.lang.RuntimeException if this value is not callable.
+     * @throws RuntimeException if this value is not callable.
      */
     Object[] call(Context context, Arguments arguments);
 

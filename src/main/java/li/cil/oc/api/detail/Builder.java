@@ -37,7 +37,7 @@ public interface Builder<T extends Node> {
          * @param name       the name of the component.
          * @param visibility the visibility of the component.
          * @return a builder for a node that is also a component.
-         * @see li.cil.oc.api.network.Component
+         * @see Component
          */
         ComponentBuilder withComponent(String name, Visibility visibility);
 
@@ -49,7 +49,7 @@ public interface Builder<T extends Node> {
          *
          * @param name the name of the component.
          * @return a builder for a node that is also a component.
-         * @see li.cil.oc.api.network.Component
+         * @see Component
          */
         ComponentBuilder withComponent(String name);
 
@@ -63,7 +63,7 @@ public interface Builder<T extends Node> {
          *
          * @param bufferSize the size of the local energy buffer.
          * @return a builder for a node that is also a connector.
-         * @see li.cil.oc.api.network.Connector
+         * @see Connector
          */
         ConnectorBuilder withConnector(double bufferSize);
 
@@ -74,7 +74,7 @@ public interface Builder<T extends Node> {
          * of zero.
          *
          * @return a builder for a node that is also a connector.
-         * @see li.cil.oc.api.network.Connector
+         * @see Connector
          */
         ConnectorBuilder withConnector();
     }
@@ -94,7 +94,7 @@ public interface Builder<T extends Node> {
          *
          * @param bufferSize the size of the local energy buffer.
          * @return a builder for a node that is also a connector.
-         * @see li.cil.oc.api.network.Connector
+         * @see Connector
          */
         ComponentConnectorBuilder withConnector(double bufferSize);
 
@@ -105,7 +105,7 @@ public interface Builder<T extends Node> {
          * of zero.
          *
          * @return a builder for a node that is also a connector.
-         * @see li.cil.oc.api.network.Connector
+         * @see Connector
          */
         ComponentConnectorBuilder withConnector();
     }
@@ -125,7 +125,7 @@ public interface Builder<T extends Node> {
          * @param name       the name of the component.
          * @param visibility the visibility of the component.
          * @return a builder for a node that is also a component.
-         * @see li.cil.oc.api.network.Component
+         * @see Component
          */
         ComponentConnectorBuilder withComponent(String name, Visibility visibility);
 
@@ -137,7 +137,7 @@ public interface Builder<T extends Node> {
          *
          * @param name the name of the component.
          * @return a builder for a node that is also a component.
-         * @see li.cil.oc.api.network.Component
+         * @see Component
          */
         ComponentConnectorBuilder withComponent(String name);
     }

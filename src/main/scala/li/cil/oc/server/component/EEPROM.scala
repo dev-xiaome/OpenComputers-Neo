@@ -14,11 +14,12 @@ import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import net.minecraft.nbt.CompoundTag
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 
-class EEPROM extends prefab.ManagedEnvironment with DeviceInfo {
+class EEPROM extends AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Neighbors).
     withComponent("eeprom", Visibility.Neighbors).
     withConnector().
@@ -45,8 +46,7 @@ class EEPROM extends prefab.ManagedEnvironment with DeviceInfo {
     DeviceAttribute.Size -> Settings.get.eepromSize.toString
   )
 
-  // 1.21.1：`deviceInfo` 是 Scala `Map`，而接口要求 `java.util.Map`，需显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   // ----------------------------------------------------------------------- //
 
@@ -116,21 +116,26 @@ class EEPROM extends prefab.ManagedEnvironment with DeviceInfo {
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
-    codeData = nbt.getByteArray(Settings.namespace + "eeprom")
-    if (nbt.contains(Settings.namespace + "label")) {
-      label = nbt.getString(Settings.namespace + "label")
+  private final val EEPROMTag = Settings.namespace + "eeprom"
+  private final val LabelTag = Settings.namespace + "label"
+  private final val ReadonlyTag = Settings.namespace + "readonly"
+  private final val UserdataTag = Settings.namespace + "userdata"
+
+  override def loadData(nbt: CompoundTag): Unit = {
+    super.loadData(nbt)
+    codeData = nbt.getByteArray(EEPROMTag)
+    if (nbt.contains(LabelTag)) {
+      label = nbt.getString(LabelTag)
     }
-    readonly = nbt.getBoolean(Settings.namespace + "readonly")
-    volatileData = nbt.getByteArray(Settings.namespace + "userdata")
+    readonly = nbt.getBoolean(ReadonlyTag)
+    volatileData = nbt.getByteArray(UserdataTag)
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    super.save(nbt)
-    nbt.putByteArray(Settings.namespace + "eeprom", codeData)
-    nbt.putString(Settings.namespace + "label", label)
-    nbt.putBoolean(Settings.namespace + "readonly", readonly)
-    nbt.putByteArray(Settings.namespace + "userdata", volatileData)
+  override def saveData(nbt: CompoundTag): Unit = {
+    super.saveData(nbt)
+    nbt.putByteArray(EEPROMTag, codeData)
+    nbt.putString(LabelTag, label)
+    nbt.putBoolean(ReadonlyTag, readonly)
+    nbt.putByteArray(UserdataTag, volatileData)
   }
 }

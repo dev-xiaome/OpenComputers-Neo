@@ -1,7 +1,8 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/charger"
-                          }
-                 }
+    "variants": {
+        "facing=north": { "model": "opencomputers_neo:block/charger" },
+        "facing=south": { "model": "opencomputers_neo:block/charger", "y": 180 },
+        "facing=west":  { "model": "opencomputers_neo:block/charger", "y": 270 },
+        "facing=east":  { "model": "opencomputers_neo:block/charger", "y": 90 }
+    }
 }

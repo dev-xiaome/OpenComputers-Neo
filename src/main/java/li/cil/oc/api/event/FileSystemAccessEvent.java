@@ -1,11 +1,14 @@
 package li.cil.oc.api.event;
 
+import net.neoforged.bus.api.ICancellableEvent;
+
 import li.cil.oc.api.network.Node;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.bus.api.Event;
-import net.neoforged.bus.api.ICancellableEvent;
+
+import javax.annotation.Nullable;
 
 /**
  * Events for handling file system access and representing it on the client.
@@ -18,8 +21,6 @@ import net.neoforged.bus.api.ICancellableEvent;
  * <br>
  * Canceling this event is provided to allow registering higher priority
  * event handlers that override default behavior.
- * <br>
- * 取消事件（{@link ICancellableEvent#setCanceled(boolean)}）即可阻止默认行为。
  */
 public class FileSystemAccessEvent extends Event implements ICancellableEvent {
     protected String sound;
@@ -45,7 +46,6 @@ public class FileSystemAccessEvent extends Event implements ICancellableEvent {
      */
     protected FileSystemAccessEvent(String sound, BlockEntity tileEntity, CompoundTag data) {
         this.sound = sound;
-        // 1.21.1：BlockEntity 的坐标通过 getBlockPos() 取得，level 通过 getLevel() 取得。
         this.world = tileEntity.getLevel();
         this.x = tileEntity.getBlockPos().getX() + 0.5;
         this.y = tileEntity.getBlockPos().getY() + 0.5;
@@ -76,9 +76,10 @@ public class FileSystemAccessEvent extends Event implements ICancellableEvent {
 
     /**
      * The name of the sound effect to play for the file system.
+     * If sound is null, returns empty string
      */
     public String getSound() {
-        return sound;
+        return sound != null ? sound : "";
     }
 
     /**
@@ -112,10 +113,10 @@ public class FileSystemAccessEvent extends Event implements ICancellableEvent {
     /**
      * The tile entity hosting the file system.
      * <br>
-     * <em>Important</em>: this can be <tt>null</tt>, which is usually the
+     * <em>Important</em>: this can be {@code null}, which is usually the
      * case when the container is an entity or item.
      */
-    public BlockEntity getTileEntity() {
+    public BlockEntity getBlockEntity() {
         return tileEntity;
     }
 

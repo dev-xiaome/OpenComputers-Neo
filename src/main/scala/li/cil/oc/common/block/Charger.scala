@@ -1,75 +1,69 @@
 package li.cil.oc.common.block
 
 import li.cil.oc.Settings
-import li.cil.oc.common.GuiType
-import li.cil.oc.common.tileentity
-import net.minecraft.core.{BlockPos, Direction}
-import net.minecraft.world.InteractionResult
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.level.{BlockGetter, Level}
+import li.cil.oc.common.menu.MenuTypes
+import li.cil.oc.common.block.property.PropertyRotatable
+import li.cil.oc.common.blockentity
+import li.cil.oc.common.blockentity.BlockEntityTypes
+import li.cil.oc.integration.util.Wrench
+import li.cil.oc.server.PacketSender
+import net.minecraft.world.level.block.state.BlockBehaviour.Properties
 import net.minecraft.world.level.block.Block
-import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.world.level.block.state.{BlockBehaviour, BlockState}
-import net.minecraft.world.phys.BlockHitResult
+import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.entity.player.{Player => PlayerEntity}
+import net.minecraft.server.level.{ServerPlayer => ServerPlayerEntity}
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.level.block.state.{StateDefinition => StateContainer}
+import net.minecraft.core.Direction
+import net.minecraft.world.{InteractionHand => Hand}
+import net.minecraft.core.BlockPos
+import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
+import net.minecraft.world.level.{BlockGetter => IBlockReader}
+import net.minecraft.world.level.{Level => World}
 
-/**
- * 充电机（原 1.7.10 `Charger`）。
- *
- * 1.21.1 迁移要点：
- *  - `canConnectRedstone` → [[SimpleBlockHooks.canConnectRedstoneTo]]，这里固定返回 `true`
- *    （充电机允许任意面接红石，用来反转充/放电）。
- *  - `onBlockActivated` → [[SimpleBlockHooks.useBlock]]；扳手切换充/放电方向的分支保留，
- *    但 `integration.util.Wrench` 未移植，判断恒为 `false`。
- *  - `PacketSender.sendChargerState(charger)` 已按原实现接回（见 [[useBlock]]）。
- *  - `getIcon` / `customTextures` / `Textures.Charger.*` 全部删除，面纹理改由模型 JSON 指定。
- *
- * 纹理（原 `customTextures` 面序 DOWN, UP, NORTH, SOUTH, WEST, EAST）：
- * 下 / 上 = 未指定，北 = `ChargerSide`，南 = `ChargerFront`，西 / 东 = `ChargerSide`。
- * 原状态贴图：`ChargerFrontOn`、`ChargerSideOn`。
- */
-class Charger(properties: BlockBehaviour.Properties = SimpleBlock.properties())
-  extends RedstoneAware(properties) with traits.PowerAcceptor with traits.StateAware with traits.GUI {
+class Charger(props: Properties) extends RedstoneAware(props) with traits.PowerAcceptor with traits.StateAware with traits.GUI with traits.Tickable {
+  protected override def createBlockStateDefinition(builder: StateContainer.Builder[Block, BlockState]) =
+    builder.add(PropertyRotatable.Facing)
+
+  // ----------------------------------------------------------------------- //
 
   override def energyThroughput = Settings.get.chargerRate
 
-  override def guiType = GuiType.Charger
+  override def openGui(player: ServerPlayerEntity, world: World, pos: BlockPos): Unit = world.getBlockEntity(pos) match {
+    case te: blockentity.Charger => MenuTypes.openChargerGui(player, te)
+    case _ =>
+  }
 
-  override def createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity =
-    new tileentity.Charger(pos, state)
-
-  // ----------------------------------------------------------------------- //
-  // 红石
-  // ----------------------------------------------------------------------- //
-
-  override def canConnectRedstoneTo(state: BlockState, level: BlockGetter, pos: BlockPos, side: Direction): Boolean = true
+  override def newBlockEntity(pos: BlockPos, state: BlockState) = new blockentity.Charger(pos, state)
 
   // ----------------------------------------------------------------------- //
-  // 交互 / 邻居变化
+
+  override def canConnectRedstone(state: BlockState, world: IBlockReader, pos: BlockPos, side: Direction): Boolean = true
+
   // ----------------------------------------------------------------------- //
 
-  override def useBlock(state: BlockState, level: Level, pos: BlockPos, player: Player, hit: BlockHitResult): InteractionResult = {
-    // 原：`Wrench.holdsApplicableWrench(player, BlockPosition(x, y, z))`
-    val holdsWrench = false // TODO(integration.util.Wrench): 扳手集成移植后恢复判断
-    if (holdsWrench) level.getBlockEntity(pos) match {
-      case charger: tileentity.Charger =>
-        if (!level.isClientSide) {
+  override def localOnBlockActivated(world: World, pos: BlockPos, player: PlayerEntity, hand: Hand, heldItem: ItemStack, side: Direction, hitX: Float, hitY: Float, hitZ: Float) =
+    if (Wrench.holdsApplicableWrench(player, pos)) world.getBlockEntity(pos) match {
+      case charger: blockentity.Charger =>
+        if (!world.isClientSide) {
           charger.invertSignal = !charger.invertSignal
           charger.chargeSpeed = 1.0 - charger.chargeSpeed
-          // 服务端发专用 ChargerState 包（对齐 OCCE）。
-          li.cil.oc.server.PacketSender.sendChargerState(charger)
-          // TODO(integration.util.Wrench): 原为 `Wrench.wrenchUsed(player, BlockPosition(x, y, z))`
+          PacketSender.sendChargerState(charger)
+          Wrench.wrenchUsed(player, pos)
         }
-        InteractionResult.sidedSuccess(level.isClientSide)
-      case _ => InteractionResult.PASS
+        true
+      case _ => false
     }
-    else super.useBlock(state, level, pos, player, hit)
-  }
+    else super.localOnBlockActivated(world, pos, player, hand, heldItem, side, hitX, hitY, hitZ)
 
-  override def onNeighborBlockChange(state: BlockState, level: Level, pos: BlockPos, neighborBlock: Block): Unit = {
-    level.getBlockEntity(pos) match {
-      case charger: tileentity.Charger => charger.onNeighborChanged()
+  @Deprecated
+  override def neighborChanged(state: BlockState, world: World, pos: BlockPos, block: Block, fromPos: BlockPos, b: Boolean): Unit = {
+    world.getBlockEntity(pos) match {
+      case charger: blockentity.Charger => charger.onNeighborChanged()
       case _ =>
     }
-    super.onNeighborBlockChange(state, level, pos, neighborBlock)
+    super.neighborChanged(state, world, pos, block, fromPos, b)
   }
+
+  override def getBlockEntityType: BlockEntityType[_ <: BlockEntity] = BlockEntityTypes.CHARGER.get()
 }

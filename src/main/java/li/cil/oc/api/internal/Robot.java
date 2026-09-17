@@ -1,9 +1,11 @@
 package li.cil.oc.api.internal;
 
-import li.cil.oc.api.network.Environment;
 import li.cil.oc.api.network.EnvironmentHost;
-import net.neoforged.neoforge.fluids.capability.IFluidHandler;
-import net.neoforged.neoforge.items.IItemHandler;
+import li.cil.oc.api.network.Environment;
+import net.minecraft.world.Container;
+import net.minecraft.world.WorldlyContainer;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 
 /**
  * This interface allows interaction with robots.
@@ -17,9 +19,11 @@ import net.neoforged.neoforge.items.IItemHandler;
  * follows:
  * <ul>
  * <li>Tool</li>
- * <li><tt>equipmentInventory.getSlots()</tt> hot-swappable components.</li>
- * <li><tt>mainInventory.getSlots()</tt> internal inventory slots.</li>
- * <li><tt>componentCount</tt> hard-wired components.</li>
+ * <li>{@link #equipmentInventory}.{@link Container#getContainerSize getContainerSize}
+ * hot-swappable components.</li>
+ * <li>{@link #mainInventory}.{@link Container#getContainerSize getContainerSize}
+ * internal inventory slots.</li>
+ * <li>{@link #componentCount} hard-wired components.</li>
  * </ul>
  * Note that there may be no hot-swappable (or even built-in) components or
  * no inventory, depending on the configuration of the robot. The hard-wired
@@ -27,7 +31,7 @@ import net.neoforged.neoforge.items.IItemHandler;
  * <br>
  * This interface is <em>not meant to be implemented</em>, just used.
  */
-public interface Robot extends Agent, Environment, EnvironmentHost, Tiered, IItemHandler, IFluidHandler {
+public interface Robot extends Agent, Environment, EnvironmentHost, Tiered, WorldlyContainer {
     /**
      * The number of built-in components in this robot.
      */
@@ -39,11 +43,11 @@ public interface Robot extends Agent, Environment, EnvironmentHost, Tiered, IIte
      * This operates on the underlying, real inventory, as described in the
      * comment on top of this class.
      * <br>
-     * This will return <tt>null</tt> for slots that do not contain components,
+     * This will return {@code null} for slots that do not contain components,
      * or components that do not have an environment (on the calling side).
      *
      * @param index the index of the slot from which to get the environment.
-     * @return the environment for that slot, or <tt>null</tt>.
+     * @return the environment for that slot, or {@code null}.
      */
     Environment getComponentInSlot(int index);
 
@@ -72,8 +76,8 @@ public interface Robot extends Agent, Environment, EnvironmentHost, Tiered, IIte
      * This is explicitly meant for client side use, to allow upgrade renderers
      * to know whether to resume animations or not, based on whether the robot
      * is currently powered on or not.
-     * <br>
-     * 仅客户端调用；1.21.1 已移除 {@code @SideOnly}，请勿在服务端调用本方法。
      */
+    @OnlyIn(Dist.CLIENT)
     boolean shouldAnimate();
 }
+

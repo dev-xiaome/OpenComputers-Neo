@@ -1,64 +1,83 @@
 package li.cil.oc.client.renderer.tileentity
 
+import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.blaze3d.vertex.PoseStack
+import com.mojang.blaze3d.vertex.VertexConsumer
 import li.cil.oc.client.Textures
-import li.cil.oc.common.tileentity
+import li.cil.oc.client.renderer.RenderTypes
+import li.cil.oc.common.blockentity.NetSplitter
+import li.cil.oc.util.RenderState
+import net.minecraft.client.renderer.MultiBufferSource
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer
-import net.minecraft.client.renderer.{MultiBufferSource, RenderType}
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider
 import net.minecraft.core.Direction
+import net.minecraft.world.inventory.InventoryMenu
 
-/**
- * 网络分离器（NetSplitter）的活动指示灯渲染器。
- *
- * ==1.7.10 到 1.21.1 的迁移要点==
- *  - `Tessellator` 加 `GL11` 矩阵，改成 `PoseStack` 加 `VertexConsumer`；
- *    每个「敞开」的面叠一张 NetSplitterOn 贴图，几何与 1.7.10 一致。
- *  - 原外层的提前返回条件是 `openSides.contains(!isInverted)`：1.7.10 的 `openSides`
- *    是一个「面标记的集合」，1.21.1 的 `traits.OpenSides#openSides` 是
- *    `Array[Boolean]`（索引即 `Direction#ordinal`），因此改写成「存在任意敞开的面」。
- *    单个面是否绘制仍然走 `isSideOpen`（它已经包含反相器语义）。
- *  - `glScaled(1.0025, -1.0025, 1.0025)` 里的 y 轴取反是为了配合 1.7.10 的贴图方向；
- *    1.21.1 用顶点顺序表达贴图方向，不使用负缩放（负缩放会翻转三角形绕序导致背面剔除）。
- */
-class NetSplitterRenderer extends BlockEntityRenderer[tileentity.NetSplitter] {
+class NetSplitterRenderer(ctx: BlockEntityRendererProvider.Context) extends BlockEntityRenderer[NetSplitter] {
 
-  override def render(t: tileentity.NetSplitter, partialTicks: Float, pose: PoseStack,
-                      buffer: MultiBufferSource, light: Int, overlay: Int): Unit = {
-    if (t == null) return
-    if (!t.openSides.exists(open => open)) return
+  override def render(splitter: NetSplitter, dt: Float, stack: PoseStack, buffer: MultiBufferSource, light: Int, overlay: Int): Unit = {
+    RenderState.checkError(getClass.getName + ".render: entering")
 
-    val sprite = RenderUtil.sprite(Textures.Block.NetSplitterOn)
-    if (sprite == null) return
+    RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F)
 
-    val vc = buffer.getBuffer(RenderType.translucent())
-    val l = RenderUtil.fullBright
+    if (splitter.openSides.contains(!splitter.isInverted)) {
+      stack.pushPose()
 
-    pose.pushPose()
-    pose.translate(0.5, 0.5, 0.5)
-    pose.scale(1.0025f, 1.0025f, 1.0025f)
-    pose.translate(-0.5, -0.5, -0.5)
+      stack.translate(0.5, 0.5, 0.5)
+      RenderState.mirrorScale(stack, 1.0025f, -1.0025f, 1.0025f)
+      stack.translate(-0.5, -0.5, -0.5)
 
-    // 顶点顺序均为「从该面外侧看：左下、右下、右上、左上」，因此法线朝外、
-    // 贴图正立（RenderUtil.drawSpriteQuad 的 UV 约定：顶点 0、1 取贴图下沿）。
-    if (t.isSideOpen(Direction.DOWN)) {
-      RenderUtil.drawSpriteQuad(pose, vc, sprite, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, l, overlay)
+      RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS)
+
+      val r = buffer.getBuffer(RenderTypes.BLOCK_OVERLAY)
+      val sideActivity = Textures.getSprite(Textures.Block.NetSplitterOn)
+      val matrix = stack.last.pose
+
+      if (splitter.isSideOpen(Direction.DOWN)) {
+        r.vertex(matrix, 0, 1, 0).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
+        r.vertex(matrix, 1, 1, 0).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+        r.vertex(matrix, 1, 1, 1).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
+        r.vertex(matrix, 0, 1, 1).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
+      }
+
+      if (splitter.isSideOpen(Direction.UP)) {
+        r.vertex(matrix, 0, 0, 0).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
+        r.vertex(matrix, 0, 0, 1).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
+        r.vertex(matrix, 1, 0, 1).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+        r.vertex(matrix, 1, 0, 0).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
+      }
+
+      if (splitter.isSideOpen(Direction.NORTH)) {
+        r.vertex(matrix, 1, 1, 0).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
+        r.vertex(matrix, 0, 1, 0).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
+        r.vertex(matrix, 0, 0, 0).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
+        r.vertex(matrix, 1, 0, 0).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+      }
+
+      if (splitter.isSideOpen(Direction.SOUTH)) {
+        r.vertex(matrix, 0, 1, 1).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
+        r.vertex(matrix, 1, 1, 1).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
+        r.vertex(matrix, 1, 0, 1).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
+        r.vertex(matrix, 0, 0, 1).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+      }
+
+      if (splitter.isSideOpen(Direction.WEST)) {
+        r.vertex(matrix, 0, 1, 0).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
+        r.vertex(matrix, 0, 1, 1).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
+        r.vertex(matrix, 0, 0, 1).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
+        r.vertex(matrix, 0, 0, 0).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+      }
+
+      if (splitter.isSideOpen(Direction.EAST)) {
+        r.vertex(matrix, 1, 1, 1).uv(sideActivity.getU0, sideActivity.getV1).endVertex()
+        r.vertex(matrix, 1, 1, 0).uv(sideActivity.getU1, sideActivity.getV1).endVertex()
+        r.vertex(matrix, 1, 0, 0).uv(sideActivity.getU1, sideActivity.getV0).endVertex()
+        r.vertex(matrix, 1, 0, 1).uv(sideActivity.getU0, sideActivity.getV0).endVertex()
+      }
+
+      stack.popPose()
     }
-    if (t.isSideOpen(Direction.UP)) {
-      RenderUtil.drawSpriteQuad(pose, vc, sprite, 0, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, l, overlay)
-    }
-    if (t.isSideOpen(Direction.NORTH)) {
-      RenderUtil.drawSpriteQuad(pose, vc, sprite, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, l, overlay)
-    }
-    if (t.isSideOpen(Direction.SOUTH)) {
-      RenderUtil.drawSpriteQuad(pose, vc, sprite, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, l, overlay)
-    }
-    if (t.isSideOpen(Direction.WEST)) {
-      RenderUtil.drawSpriteQuad(pose, vc, sprite, 0, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, l, overlay)
-    }
-    if (t.isSideOpen(Direction.EAST)) {
-      RenderUtil.drawSpriteQuad(pose, vc, sprite, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 1, 1, l, overlay)
-    }
 
-    pose.popPose()
+    RenderState.checkError(getClass.getName + ".render: leaving")
   }
 }

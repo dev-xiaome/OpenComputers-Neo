@@ -1,12 +1,20 @@
 {
-    "parent":  "minecraft:block/cube",
-    "textures":  {
-                     "particle":  "opencomputers_neo:block/keyboard",
-                     "down":  "opencomputers_neo:block/keyboard",
-                     "up":  "opencomputers_neo:block/keyboard",
-                     "north":  "opencomputers_neo:block/keyboard",
-                     "south":  "opencomputers_neo:block/keyboard",
-                     "west":  "opencomputers_neo:block/keyboard",
-                     "east":  "opencomputers_neo:block/keyboard"
-                 }
+    "parent": "block/block",
+    "textures": {
+        "all": "opencomputers_neo:block/keyboard",
+        "particle": "opencomputers_neo:block/generic_top"
+    },
+    "elements": [
+        {   "from": [ 1, 4, 15 ],
+            "to": [ 15, 12, 16 ],
+            "faces": {
+                "down":  { "uv": [ 1, 15, 15, 16 ], "texture": "#all" },
+                "up":    { "uv": [ 1, 15, 15, 16 ], "texture": "#all" },
+                "north": { "uv": [ 1, 4, 15, 12 ], "texture": "#all" },
+                "south": { "uv": [ 1, 4, 15, 12 ], "texture": "#all" },
+                "west":  { "uv": [ 15, 4, 16, 12 ], "texture": "#all" },
+                "east":  { "uv": [ 15, 4, 16, 12 ], "texture": "#all" }
+            }
+        }
+    ]
 }

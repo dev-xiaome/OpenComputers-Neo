@@ -1,7 +1,6 @@
 package li.cil.oc.server.component
 
 import java.util
-
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
@@ -13,35 +12,20 @@ import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
-import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.util.InventoryUtils
-import net.minecraft.world.InteractionHand
-import net.minecraft.world.entity.player.{Inventory, Player}
-import net.minecraft.world.inventory.TransientCraftingContainer
+
+import scala.collection.convert.ImplicitConversionsToJava._
+import net.minecraft.world.inventory
+import net.minecraft.world.inventory.AbstractContainerMenu
+import net.minecraft.world.inventory.ResultContainer
+import net.minecraft.world.inventory.ResultSlot
+import net.minecraft.world.item.crafting.RecipeType
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.Container
 import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.crafting.{CraftingInput, CraftingRecipe, RecipeHolder, RecipeType}
-import net.neoforged.neoforge.common.NeoForge
-import net.neoforged.neoforge.event.entity.player.{PlayerDestroyItemEvent, PlayerEvent}
 
-import scala.collection.mutable
-import scala.jdk.CollectionConverters._
-import scala.util.control.Breaks._
-
-/**
- * 合成升级：让机器人在自己的物品栏左上角 3x3 区域合成物品。
- *
- * ==1.21.1 迁移要点==
- *  - `InventoryCrafting` + `CraftingManager.findMatchingRecipe` 已移除：
- *    改用 `CraftingInput` + `RecipeManager#getRecipeFor(RecipeType.CRAFTING, ...)`，
- *    产物由 `Recipe#assemble(input, registryAccess)` 计算。
- *  - `net.minecraft.inventory.IInventory` → 1.21.1 的 `Container`
- *    （`Player#getInventory` 仍是 `Container`，`getItem/setItem/removeItem` 一一对应旧方法）。
- *  - `FMLCommonHandler.firePlayerCraftingEvent` → `NeoForge.EVENT_BUS.post(PlayerEvent.ItemCraftedEvent)`。
- *  - `Item#hasContainerItem/getContainerItem` → `ItemStack#hasCraftingRemainingItem/getCraftingRemainingItem`。
- *  - `Item#doesContainerItemLeaveCraftingGrid` 已移除（Forge 的默认实现恒为 `true`），
- *    因此容器物品一律进入 surplus，语义与旧版默认行为一致。
- */
-class UpgradeCrafting(val host: EnvironmentHost with internal.Robot) extends prefab.ManagedEnvironment with DeviceInfo {
+class UpgradeCrafting(val host: EnvironmentHost with internal.Robot) extends AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
     withComponent("crafting").
     create()
@@ -53,86 +37,64 @@ class UpgradeCrafting(val host: EnvironmentHost with internal.Robot) extends pre
     DeviceAttribute.Product -> "MultiCombinator-9S"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   @Callback(doc = """function([count:number]):number -- Tries to craft the specified number of items in the top left area of the inventory.""")
   def craft(context: Context, args: Arguments): Array[AnyRef] = {
     val count = args.optInteger(0, 64) max 0 min 64
-    result(CraftingInventory.craft(count).toSeq: _*)
+    result(CraftingContainer.craft(count): _*)
   }
 
-  /**
-   * 3x3 合成网格。
-   *
-   * 复用 `TransientCraftingContainer` 以获得 `CraftingContainer#asCraftInput` 等实现；
-   * 它只在 `stillValid` 中才会用到 `AbstractContainerMenu`，而合成升级从不需要该判定，
-   * 因此传入 `null`（不构造假的 `MenuType`）。
-   */
-  private object CraftingInventory extends TransientCraftingContainer(null, 3, 3) {
-    var amountPossible = 0
-
+  private object CraftingContainer extends inventory.TransientCraftingContainer(new AbstractContainerMenu(null, 0) {
+    override def stillValid(player: Player) = true
+    override def quickMoveStack(player: Player, i: Int) = ItemStack.EMPTY
+  }, 3, 3) {
     def craft(wantedCount: Int): Seq[_] = {
       val player = host.player
-      load(player.getInventory)
-      val recipeManager = host.world.getRecipeManager
-      val registry = host.world.registryAccess()
+      copyItemsFromHost(player.inventory)
       var countCrafted = 0
-      var originalResult: ItemStack = null
-      breakable {
-        while (countCrafted < wantedCount) {
-          val input = asCraftInput
-          val holder: RecipeHolder[CraftingRecipe] =
-            recipeManager.getRecipeFor[CraftingInput, CraftingRecipe](RecipeType.CRAFTING, input, host.world).orElse(null)
-          if (holder == null) break()
-          val result = holder.value().assemble(input, registry)
-          if (result == null || result.isEmpty || result.getCount < 1) break()
-          if (originalResult == null) {
-            originalResult = result
-          } else if (!ItemStack.isSameItemSameComponents(originalResult, result)) {
-            break()
+      val manager = host.getEnvironmentLevel.getRecipeManager
+      val initialCraft = manager.getRecipeFor(RecipeType.CRAFTING, CraftingContainer: inventory.CraftingContainer, host.getEnvironmentLevel)
+      if (initialCraft.isPresent) {
+        def tryCraft() : Boolean = {
+          val craft = manager.getRecipeFor(RecipeType.CRAFTING, CraftingContainer: inventory.CraftingContainer, host.getEnvironmentLevel)
+          if (craft != initialCraft) {
+            return false
           }
-          countCrafted += result.getCount
-          NeoForge.EVENT_BUS.post(new PlayerEvent.ItemCraftedEvent(player, result, this))
-          val surplus = mutable.ArrayBuffer.empty[ItemStack]
-          for (slot <- 0 until getContainerSize) {
-            val stack = getItem(slot)
-            if (stack != null && !stack.isEmpty) {
-              // 1.7.10 的 `decrStackSize(slot, 1)`（返回值即被消耗的那一个）。
-              val consumed = removeItem(slot, 1)
-              val ingredient = if (consumed != null && !consumed.isEmpty) consumed else stack
-              if (ingredient.hasCraftingRemainingItem) {
-                val container = ingredient.getCraftingRemainingItem
-                if (container.isDamageableItem && container.getDamageValue > container.getMaxDamage) {
-                  NeoForge.EVENT_BUS.post(new PlayerDestroyItemEvent(player, container, InteractionHand.MAIN_HAND))
-                }
-                else surplus += container
-              }
-            }
+
+          val craftResult = new ResultContainer
+          val craftingSlot = new ResultSlot(player, CraftingContainer, craftResult, 0, 0, 0)
+          val craftedResult = craft.get.assemble(this, host.getEnvironmentLevel.registryAccess())
+          craftResult.setItem(0, craftedResult)
+          if (!craftingSlot.hasItem)
+            return false
+
+          val stack = craftingSlot.remove(1)
+          countCrafted += stack.getCount max 1
+          craftingSlot.onTake(player, stack)
+          val taken = stack
+          copyItemsToHost(player.inventory)
+          if (taken.getCount > 0) {
+            InventoryUtils.addToPlayerInventory(taken, player)
           }
-          save(player.getInventory)
-          InventoryUtils.addToPlayerInventory(result, player)
-          for (stack <- surplus) {
-            InventoryUtils.addToPlayerInventory(stack, player)
-          }
-          load(player.getInventory)
+          copyItemsFromHost(player.inventory)
+          true
+        }
+        while (countCrafted < wantedCount && tryCraft()) {
+          //
         }
       }
-      Seq(originalResult != null, countCrafted)
+      Seq(countCrafted > 0, countCrafted)
     }
 
-    def load(inventory: Inventory): Unit = {
-      amountPossible = Int.MaxValue
+    def copyItemsFromHost(inventory: Container): Unit = {
       for (slot <- 0 until getContainerSize) {
         val stack = inventory.getItem(toParentSlot(slot))
-        // `NonNullList` 不接受 `null`，用空栈表示空槽位。
-        setItem(slot, if (stack == null) ItemStack.EMPTY else stack)
-        if (stack != null && !stack.isEmpty) {
-          amountPossible = math.min(amountPossible, stack.getCount)
-        }
+        setItem(slot, stack)
       }
     }
 
-    def save(inventory: Inventory): Unit = {
+    def copyItemsToHost(inventory: Container): Unit = {
       for (slot <- 0 until getContainerSize) {
         inventory.setItem(toParentSlot(slot), getItem(slot))
       }
@@ -144,5 +106,4 @@ class UpgradeCrafting(val host: EnvironmentHost with internal.Robot) extends pre
       row * 4 + col
     }
   }
-
 }

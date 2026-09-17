@@ -1,0 +1,12 @@
+{
+    "parent":  "minecraft:block/cube",
+    "textures":  {
+                     "particle":  "opencomputers_neo:block/generictop",
+                     "down":  "opencomputers_neo:block/generictop",
+                     "up":  "opencomputers_neo:block/accesspointtop",
+                     "north":  "opencomputers_neo:block/switchside",
+                     "south":  "opencomputers_neo:block/switchside",
+                     "west":  "opencomputers_neo:block/switchside",
+                     "east":  "opencomputers_neo:block/switchside"
+                 }
+}

@@ -1,0 +1,31 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "iRi",
+    "CBC",
+    "oPo"
+  ],
+  "key": {
+    "i": {
+      "tag": "forge:ingots/iron"
+    },
+    "o": {
+      "tag": "forge:obsidian"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip1"
+    },
+    "P": {
+      "tag": "opencomputers_neo:materialcircuitboardprinted"
+    },
+    "B": {
+      "tag": "opencomputers_neo:componentbus1"
+    },
+    "R": {
+      "tag": "opencomputers_neo:ram2"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:server1"
+  }
+}

@@ -3,21 +3,22 @@ package li.cil.oc.util
 import scala.annotation.tailrec
 
 /**
- * 基于 Viktor Klang 的 Scala 枚举实现
- * （https://gist.github.com/viktorklang/1057513）。
- *
- * 2.13 迁移：`Vector` / `AtomicReference` 语义未变，仅在 `equals` 中做了空值保护。
+ * https://gist.github.com/viktorklang/1057513
  */
 trait ScalaEnum {
-  import java.util.concurrent.atomic.AtomicReference // Concurrency paranoia
 
-  type EnumVal <: Value // This is a type that needs to be found in the implementing class
+  import java.util.concurrent.atomic.AtomicReference
 
-  private val _values = new AtomicReference(Vector[EnumVal]()) // Stores our enum values
+  //Concurrency paranoia
 
-  // Adds an EnumVal to our storage, uses CCAS to make sure it's thread safe, returns the ordinal
+  type EnumVal <: Value //This is a type that needs to be found in the implementing class
+
+  private val _values = new AtomicReference(Vector[EnumVal]()) //Stores our enum values
+
+  //Adds an EnumVal to our storage, uses CCAS to make sure it's thread safe, returns the ordinal
   @tailrec private final def addEnumVal(newVal: EnumVal): Int = {
-    import _values.{get, compareAndSet => CAS}
+    import _values.get
+    import _values.{compareAndSet => CAS}
     val oldVec = get
     val newVec = oldVec :+ newVal
     if ((get eq oldVec) && CAS(oldVec, newVec))
@@ -26,22 +27,23 @@ trait ScalaEnum {
       addEnumVal(newVal)
   }
 
-  def values: Vector[EnumVal] = _values.get // Here you can get all the enums that exist for this type
+  def values: Vector[EnumVal] = _values.get
 
-  // This is the trait that we need to extend our EnumVal type with, it does the book-keeping for us
-  protected trait Value { self: EnumVal => // Enforce that no one mixes in Value in a non-EnumVal type
-    final val ordinal = addEnumVal(this) // Adds the EnumVal and returns the ordinal
+  //Here you can get all the enums that exist for this type
 
-    def name: String // All enum values should have a name
+  //This is the trait that we need to extend our EnumVal type with, it does the book-keeping for us
+  protected trait Value {
+    self: EnumVal =>
+    //Enforce that no one mixes in Value in a non-EnumVal type
+    final val ordinal = addEnumVal(this) //Adds the EnumVal and returns the ordinal
 
-    override def toString: String = name // And that name is used for the toString operation
+    def name: String //All enum values should have a name
 
-    override def equals(other: Any): Boolean = other match {
-      case ref: AnyRef => this eq ref
-      case _ => false
-    }
+    override def toString = name //And that name is used for the toString operation
 
-    override def hashCode: Int = 31 * (this.getClass.## + name.## + ordinal)
+    override def equals(other: Any) = this eq other.asInstanceOf[AnyRef]
+
+    override def hashCode = 31 * (this.getClass.## + name.## + ordinal)
   }
 
 }

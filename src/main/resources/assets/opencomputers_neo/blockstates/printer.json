@@ -1,7 +1,5 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/printer"
-                          }
-                 }
+    "variants": {
+        "": { "model": "opencomputers_neo:block/printer" }
+    }
 }

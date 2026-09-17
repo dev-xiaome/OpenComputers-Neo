@@ -81,14 +81,13 @@ object ZipFileInputStreamFileSystem {
     build[String, ArchiveDirectory]()
 
   def fromFile(file: io.File, innerPath: String) = ZipFileInputStreamFileSystem.synchronized {
+    println("zip loading")
     try {
       Option(cache.get(file.getPath + ":" + innerPath, new Callable[ArchiveDirectory] {
         def call = {
           val zip = new ZipFile(file.getPath)
           try {
             val cleanedPath = innerPath.stripPrefix("/").stripSuffix("/") + "/"
-            // 只要归档中存在以根路径开头的条目即视为有效根；
-            // 不要求归档里显式含有目录条目，否则缺少目录条目的压缩包会整棵树都读不到。
             var hasRoot = false
             val directories = mutable.Set.empty[ArchiveDirectory]
             val files = mutable.Set.empty[ArchiveFile]
@@ -108,7 +107,6 @@ object ZipFileInputStreamFileSystem {
             val directoriesByPath = mutable.Map.empty[String, ArchiveDirectory]
             for (dir <- directories) directoriesByPath += dir.path -> dir
 
-            // 归档里可能没有父目录条目，此时按需补出虚拟目录，避免文件被整棵丢弃。
             def getOrCreateDir(path: String): ArchiveDirectory = {
               directoriesByPath.getOrElseUpdate(path, {
                 val dir = new ArchiveDirectory(new java.util.zip.ZipEntry(cleanedPath + (if (path.isEmpty) "" else path + "/")), cleanedPath)
@@ -126,7 +124,7 @@ object ZipFileInputStreamFileSystem {
               if (entry.path.length > 0) {
                 val parentPath = entry.path.substring(0, math.max(entry.path.lastIndexOf('/'), 0))
                 val parentDir = getOrCreateDir(parentPath)
-                // 已经挂过的条目不要重复添加。
+                // Avoid duplicate additions if already mapped previously
                 if (!parentDir.children.contains(entry)) {
                   parentDir.children += entry
                 }

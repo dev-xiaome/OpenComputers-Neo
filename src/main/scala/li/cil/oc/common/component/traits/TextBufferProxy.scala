@@ -3,19 +3,8 @@ package li.cil.oc.common.component.traits
 import li.cil.oc.util
 import li.cil.oc.api
 import li.cil.oc.api.internal.TextBuffer
-import li.cil.oc.util.PackedColor
+import li.cil.oc.util.{ExtendedUnicodeHelper, PackedColor}
 
-import scala.jdk.CollectionConverters._
-
-/**
- * 文本缓冲的公共实现（对应 1.7.10 的 `common.component.traits.TextBufferProxy`）。
- *
- * 1.21.1 迁移要点：
- *  - 旧版用 `scala.collection.JavaConversions` 提供的隐式转换，Scala 2.13 已移除，
- *    这里显式 `import scala.jdk.CollectionConverters._`。
- *  - 旧版 `ExtendedUnicodeHelper.length(s)`（未移植）改为 `String#codePointCount`，
- *    语义一致：返回码点数量而非 `char` 数量。
- */
 trait TextBufferProxy extends api.internal.TextBuffer {
   def data: util.TextBuffer
 
@@ -23,19 +12,10 @@ trait TextBufferProxy extends api.internal.TextBuffer {
 
   override def getHeight: Int = data.height
 
-  /**
-   * 切换色彩深度。
-   *
-   * 旧版把 `data.format = ...` 当作方法体最后一个表达式，靠隐式转换为 `Boolean`；
-   * 1.21.1 直接显式比较前后深度（与 `util.TextBuffer#format_=` 的语义一致：
-   * 只有深度真正变化时才做重打包）。
-   */
   override def setColorDepth(depth: api.internal.TextBuffer.ColorDepth): Boolean = {
     if (depth.ordinal > getMaximumColorDepth.ordinal)
       throw new IllegalArgumentException("unsupported depth")
-    val previous = data.format.depth
     data.format = PackedColor.Depth.format(depth)
-    previous != depth
   }
 
   override def getColorDepth: TextBuffer.ColorDepth = data.format.depth
@@ -44,7 +24,7 @@ trait TextBufferProxy extends api.internal.TextBuffer {
 
   override def setPaletteColor(index: Int, color: Int): Unit = data.format match {
     case palette: PackedColor.MutablePaletteFormat =>
-      palette.update(index, color)
+      palette(index) = color
       onBufferPaletteChange(index)
     case _ => throw new Exception("palette not available")
   }
@@ -110,9 +90,10 @@ trait TextBufferProxy extends api.internal.TextBuffer {
   }
 
   def set(col: Int, row: Int, s: String, vertical: Boolean): Unit = {
-    val sLength = s.codePointCount(0, s.length)
+    val sLength = ExtendedUnicodeHelper.length(s)
     if (col < data.width && (col >= 0 || -col < sLength)) {
-      // 保证字符串不会被无谓地写长，特别是避免给客户端发送过多数据。
+      // Make sure the string isn't longer than it needs to be, in particular to
+      // avoid sending too much data to our clients.
       val (x, y, truncated) =
       if (vertical) {
         if (row < 0) (col, 0, truncate(s, sLength, -row, data.height))
@@ -195,3 +176,4 @@ trait TextBufferProxy extends api.internal.TextBuffer {
     else data.color(row)(column)
   }
 }
+

@@ -1,0 +1,25 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "i i",
+    "CwC",
+    "iPi"
+  ],
+  "key": {
+    "i": {
+      "tag": "forge:ingots/iron"
+    },
+    "w": {
+      "item": "minecraft:crafting_table"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip1"
+    },
+    "P": {
+      "tag": "opencomputers_neo:materialcircuitboardprinted"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:craftingupgrade"
+  }
+}

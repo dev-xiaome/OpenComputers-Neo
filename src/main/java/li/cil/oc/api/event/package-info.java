@@ -3,3 +3,5 @@
  * of its functionality.
  */
 package li.cil.oc.api.event;
+
+import li.cil.oc.api.API;

@@ -15,7 +15,7 @@ import li.cil.oc.api.network.EnvironmentHost;
  * </pre>
  * <br>
  * You can get a reference to a server either via the above cast, or via a
- * {@link li.cil.oc.api.internal.Rack#getMountable(int)}.
+ * {@link Rack#getMountable(int)}.
  * <br>
  * The only purpose is to allow identifying node environments as servers
  * via the API, i.e. without having to link against internal classes. This

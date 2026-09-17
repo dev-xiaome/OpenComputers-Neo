@@ -1,0 +1,8 @@
+{
+    "parent": "opencomputers_neo:block/case",
+    "textures": {
+        "east": "opencomputers_neo:block/case_side_running",
+        "west": "opencomputers_neo:block/case_side_running",
+        "south": "opencomputers_neo:block/case_back_running"
+    }
+}

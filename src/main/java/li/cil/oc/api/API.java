@@ -1,13 +1,7 @@
 package li.cil.oc.api;
 
 import com.typesafe.config.Config;
-import li.cil.oc.api.detail.DriverAPI;
-import li.cil.oc.api.detail.FileSystemAPI;
-import li.cil.oc.api.detail.ItemAPI;
-import li.cil.oc.api.detail.MachineAPI;
-import li.cil.oc.api.detail.ManualAPI;
-import li.cil.oc.api.detail.NanomachinesAPI;
-import li.cil.oc.api.detail.NetworkAPI;
+import li.cil.oc.api.detail.*;
 
 /**
  * Central reference for the API.
@@ -16,9 +10,9 @@ import li.cil.oc.api.detail.NetworkAPI;
  * package instead. This class is initialized by OpenComputers in the
  * pre-init phase, so it should not be used before the init phase.
  */
-public class API {
-    public static final String ID_OWNER = "OpenComputers|Core";
-    public static final String VERSION = "6.0.0-alpha";
+public final class API {
+    public static final String ID_OWNER = "opencomputers|core";
+    public static final String VERSION = "7.0.0-alpha";
 
     // ----------------------------------------------------------------------- //
 
@@ -45,6 +39,7 @@ public class API {
     public static ManualAPI manual = null;
     public static NanomachinesAPI nanomachines = null;
     public static NetworkAPI network = null;
+    public static AudioAPI audio = null;
 
     // ----------------------------------------------------------------------- //
 

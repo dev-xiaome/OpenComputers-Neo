@@ -1,46 +1,35 @@
 package li.cil.oc.server.component
 
 import java.util
-
 import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.driver.DeviceInfo
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.event.SignChangeEvent
-import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.internal
+import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.Message
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.ExtendedWorld._
-import net.minecraft.core.Direction
-import net.minecraft.network.chat.Component
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.server.level.ServerLevel
-import net.minecraft.world.entity.player.Player
+import li.cil.oc.util.ExtendedLevel._
 import net.minecraft.world.item.ItemStack
-import net.minecraft.world.level.block.entity.SignBlockEntity
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.core.Direction
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.common.util.FakePlayerFactory
+import net.neoforged.bus.api.Event
+
+import scala.collection.convert.ImplicitConversionsToJava._
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.world.level.block.entity.SignBlockEntity
+import net.minecraft.world.entity.player.Player
+import net.minecraft.network.chat.Component
 import net.neoforged.neoforge.event.level.BlockEvent
 
-import scala.jdk.CollectionConverters._
-
-/**
- * 告示牌升级（读写告示牌文本）。
- *
- * ==1.21.1 迁移要点==
- *  - `TileEntitySign` → [[net.minecraft.world.level.block.entity.SignBlockEntity]]；
- *    `signText: Array[String]` 变为 `SignText` + `Component[]`（`getFrontText` / `setText`）。
- *  - `World#canMineBlock` 已移除，用 `Level#mayInteract`（含出生点保护判定）替代。
- *  - `BlockEvent.BreakEvent` 构造器变为 `(Level, BlockPos, BlockState, Player)`，metadata 参数消失。
- *  - NeoForge 事件没有 `Event.Result`，只通过 `ICancellableEvent#isCanceled` 判断。
- *  - `FakePlayerFactory` 迁到 `net.neoforged.neoforge.common.util`。
- *  - Scala 2.13 中 `String#lines` 解析为 Java 的 `Stream`，改用 `linesIterator`。
- */
-abstract class UpgradeSign extends prefab.ManagedEnvironment with DeviceInfo {
+abstract class UpgradeSign extends AbstractManagedEnvironment with DeviceInfo {
   private final lazy val deviceInfo = Map(
     DeviceAttribute.Class -> DeviceClass.Generic,
     DeviceAttribute.Description -> "Sign upgrade",
@@ -48,17 +37,17 @@ abstract class UpgradeSign extends prefab.ManagedEnvironment with DeviceInfo {
     DeviceAttribute.Product -> "Labelizer Deluxe"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   def host: EnvironmentHost
 
-  /** 告示牌正面四行文本拼成的多行字符串（旧 `signText.mkString("\n")`）。 */
-  private def signTextOf(sign: SignBlockEntity): String =
-    sign.getFrontText.getMessages(false).map(_.getString).mkString("\n")
+  private def getAllMessages(sign: SignBlockEntity): Seq[Component] = {
+    (0 until 4).map(i => sign.getFrontText.getMessage(i, false))
+  }
 
   protected def getValue(tileEntity: Option[SignBlockEntity]): Array[AnyRef] = {
     tileEntity match {
-      case Some(sign) => result(signTextOf(sign))
+      case Some(sign) => result(getAllMessages(sign).map(_.getString).mkString("\n"))
       case _ => result((), "no sign")
     }
   }
@@ -68,61 +57,54 @@ abstract class UpgradeSign extends prefab.ManagedEnvironment with DeviceInfo {
       case Some(sign) =>
         val player = host match {
           case robot: internal.Robot => robot.player
-          case _ => FakePlayerFactory.get(host.world.asInstanceOf[ServerLevel], Settings.get.fakePlayerProfile)
+          case _ => FakePlayerFactory.get(host.getEnvironmentLevel.asInstanceOf[ServerLevel], Settings.get.fakePlayerProfile)
         }
 
         val lines = text.linesIterator.padTo(4, "").map(line => if (line.length > 15) line.substring(0, 15) else line).toArray
-        // 显式标注为 `Array[Component]`：`Component.literal` 返回的是 `MutableComponent`，
-        // 而数组在 Scala 中是不变的，`SignChangeEvent` 需要 `Component[]`。
-        val components: Array[Component] = lines.map(line => Component.literal(line))
 
-        if (!canChangeSign(player, sign, components)) {
+        if (!canChangeSign(player, sign, lines)) {
           return result((), "not allowed")
         }
 
-        // `SignText` 不可变，每次 `setMessage` 都返回新实例。
-        var signText = sign.getFrontText
-        for (i <- components.indices) {
-          signText = signText.setMessage(i, components(i))
+        var frontText = sign.getFrontText
+        for (i <- lines.indices) {
+          frontText = frontText.setMessage(i, Component.literal(lines(i)))
         }
-        sign.setText(signText, true)
-        val pos = sign.getBlockPos
-        host.world.markBlockForUpdate(BlockPosition(pos.getX, pos.getY, pos.getZ, host.world))
+        sign.setText(frontText, true)
+        sign.setChanged()
+        host.getEnvironmentLevel.notifyBlockUpdate(sign.getBlockPos)
 
-        NeoForge.EVENT_BUS.post(new SignChangeEvent.Post(sign, components))
+        NeoForge.EVENT_BUS.post(new SignChangeEvent.Post(sign, lines))
 
-        result(signTextOf(sign))
+        result(getAllMessages(sign).mkString("\n"))
       case _ => result((), "no sign")
     }
   }
 
   protected def findSign(side: Direction) = {
     val hostPos = BlockPosition(host)
-    host.world.getTileEntity(hostPos) match {
+    host.getEnvironmentLevel.getBlockEntity(hostPos) match {
       case sign: SignBlockEntity => Option(sign)
-      case _ => host.world.getTileEntity(hostPos.offset(side)) match {
+      case _ => host.getEnvironmentLevel.getBlockEntity(hostPos.offset(side)) match {
         case sign: SignBlockEntity => Option(sign)
         case _ => None
       }
     }
   }
 
-  private def canChangeSign(player: Player, tileEntity: SignBlockEntity, lines: Array[Component]): Boolean = {
-    val pos = tileEntity.getBlockPos
-    // 1.7.10 的 `World#canMineBlock` 在 1.21.1 的等价物：`Level#mayInteract`。
-    if (!host.world.mayInteract(player, pos)) {
+  private def canChangeSign(player: Player, tileEntity: SignBlockEntity, lines: Array[String]): Boolean = {
+    if (!host.getEnvironmentLevel.mayInteract(player, tileEntity.getBlockPos)) {
       return false
     }
-
-    val event = new BlockEvent.BreakEvent(host.world, pos, host.world.getBlockState(pos), player)
+    val event = new BlockEvent.BreakEvent(host.getEnvironmentLevel, tileEntity.getBlockPos, tileEntity.getLevel.getBlockState(tileEntity.getBlockPos), player)
     NeoForge.EVENT_BUS.post(event)
-    if (event.isCanceled) {
+    if (event.isCanceled || event.getResult == Event.Result.DENY) {
       return false
     }
 
     val signEvent = new SignChangeEvent.Pre(tileEntity, lines)
     NeoForge.EVENT_BUS.post(signEvent)
-    !signEvent.isCanceled
+    !(signEvent.isCanceled || signEvent.getResult == Event.Result.DENY)
   }
 
   override def onMessage(message: Message): Unit = {
@@ -130,9 +112,9 @@ abstract class UpgradeSign extends prefab.ManagedEnvironment with DeviceInfo {
     if (message.name == "tablet.use") message.source.host match {
       case machine: api.machine.Machine => (machine.host, message.data) match {
         case (tablet: internal.Tablet, Array(nbt: CompoundTag, stack: ItemStack, player: Player, blockPos: BlockPosition, side: Direction, hitX: java.lang.Float, hitY: java.lang.Float, hitZ: java.lang.Float)) =>
-          host.world.getTileEntity(blockPos) match {
+          host.getEnvironmentLevel.getBlockEntity(blockPos) match {
             case sign: SignBlockEntity =>
-              nbt.putString("signText", signTextOf(sign))
+              nbt.putString("signText", getAllMessages(sign).map(_.getString).mkString("\n"))
             case _ =>
           }
         case _ => // Ignore.

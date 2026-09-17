@@ -3,6 +3,7 @@ package li.cil.oc.server.network
 import li.cil.oc.Settings
 import li.cil.oc.api.network
 import li.cil.oc.api.network.{Node => ImmutableNode}
+import li.cil.oc.common.item.data.NodeData
 import net.minecraft.nbt.CompoundTag
 
 trait Connector extends network.Connector with Node {
@@ -112,23 +113,19 @@ trait Connector extends network.Connector with Node {
   override def onDisconnect(node: ImmutableNode): Unit = {
     super.onDisconnect(node)
     if (node == this) {
-      // 1.7.10 写法 `this.synchronized(distributor = None)` 在 2.13 下会因为
-      // 「赋值表达式作为 synchronized 的参数」被判成命名参数，这里显式写成块。
-      this.synchronized {
-        distributor = None
-      }
+      this.synchronized(this.distributor = None)
     }
   }
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
-    localBuffer = nbt.getDouble("buffer")
+  override def loadData(nbt: CompoundTag): Unit = {
+    super.loadData(nbt)
+    localBuffer = nbt.getDouble(NodeData.BufferTag)
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    super.save(nbt)
-    nbt.putDouble("buffer", math.min(localBuffer, localBufferSize))
+  override def saveData(nbt: CompoundTag): Unit = {
+    super.saveData(nbt)
+    nbt.putDouble(NodeData.BufferTag, math.min(localBuffer, localBufferSize))
   }
 }

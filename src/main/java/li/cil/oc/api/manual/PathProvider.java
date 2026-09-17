@@ -1,6 +1,7 @@
 package li.cil.oc.api.manual;
 
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 
 /**
@@ -13,33 +14,31 @@ import net.minecraft.world.level.Level;
  * This way you can easily make entries in your documentation available the
  * same way OpenComputers does it itself.
  * <br>
- * Note that you can use the special variable <tt>%LANGUAGE%</tt> in your
+ * Note that you can use the special variable {@code %LANGUAGE%} in your
  * paths, for language agnostic paths. These will be resolved to the currently
- * set language, falling back to <tt>en_US</tt>, during actual content lookup.
+ * set language, falling back to {@code en_us}, during actual content lookup.
  */
 public interface PathProvider {
     /**
      * Get the path to the documentation page for the provided item stack.
      * <br>
-     * Return <tt>null</tt> if there is no known page for this item, allowing
+     * Return {@code null} if there is no known page for this item, allowing
      * other providers to be queried.
      *
      * @param stack the stack to get the documentation path to.
-     * @return the path to the page, <tt>null</tt> if none is known.
+     * @return the path to the page, {@code null} if none is known.
      */
     String pathFor(ItemStack stack);
 
     /**
      * Get the path to the documentation page for the provided block.
      * <br>
-     * Return <tt>null</tt> if there is no known page for this item, allowing
+     * Return {@code null} if there is no known page for this item, allowing
      * other providers to be queried.
      *
      * @param world the world containing the block.
-     * @param x     the X coordinate of the block.
-     * @param y     the Y coordinate of the block.
-     * @param z     the Z coordinate of the block.
-     * @return the path to the page, <tt>null</tt> if none is known.
+     * @param pos   the position coordinate of the block.
+     * @return the path to the page, {@code null} if none is known.
      */
-    String pathFor(Level world, int x, int y, int z);
+    String pathFor(Level world, BlockPos pos);
 }

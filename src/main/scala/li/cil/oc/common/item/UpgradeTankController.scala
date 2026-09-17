@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「储罐控制器升级」（原 `li.cil.oc.common.item.UpgradeTankController`）。 */
-class UpgradeTankController(props: Item.Properties) extends Item(props) with traits.Delegate with traits.ItemTier
+class UpgradeTankController(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier

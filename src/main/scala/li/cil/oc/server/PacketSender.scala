@@ -1,53 +1,119 @@
 package li.cil.oc.server
 
 import com.google.common.cache.{Cache, CacheBuilder}
+import li.cil.oc.api.audio.{AudioHost, AudioReceiver}
 import li.cil.oc.{Settings, api}
 import li.cil.oc.api.event.{FileSystemAccessEvent, NetworkActivityEvent}
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.Node
 import li.cil.oc.common._
+import li.cil.oc.common.audio.Instruction
 import li.cil.oc.common.nanomachines.ControllerImpl
-import li.cil.oc.common.tileentity.Waypoint
-import li.cil.oc.common.tileentity.traits._
+import li.cil.oc.common.blockentity.Waypoint
+import li.cil.oc.common.blockentity.traits._
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.PackedColor
-import net.minecraft.world.entity.player.Player
-import net.minecraft.server.level.ServerPlayer
-import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.world.item.ItemStack
-import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.nbt.NbtIo
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.world.level.Level
-import net.neoforged.neoforge.common.NeoForge
 import net.minecraft.core.Direction
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.core.BlockPos
+import net.neoforged.neoforge.common.NeoForge
+import net.neoforged.neoforge.registries.ForgeRegistries
 
 import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
 import scala.collection.mutable
+import net.minecraft.server.level.ServerPlayer
+import net.minecraft.world.inventory.AbstractContainerMenu
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.world.entity.player.Player
+import net.minecraft.core.particles.ParticleOptions
+import net.minecraft.world.level.Level
+import net.minecraft.sounds.SoundSource
+
+import scala.jdk.CollectionConverters._
 
 object PacketSender {
-  /**
-   * 把 OC 的方块实体 trait 还原成 `BlockEntity`。
-   *
-   * 1.7.10 里 `common.tileentity.traits.TileEntity` 直接继承原版 `TileEntity`，所以
-   * `trait` 静态类型就能当方块实体传给网络层。1.21.1 的 `BlockEntity` 必须带构造参数，
-   * trait 无法继承它，改成声明自类型 `self: BlockEntity`——但**自类型不会暴露给调用方**，
-   * 因此 `AbstractBusAware` / `Computer` / `RedstoneAware` 等静态类型在这里无法直接使用。
-   * 由于每个具体实现都必然是 `BlockEntity`（自类型保证），这里给出安全的隐式转换。
-   */
-  private implicit def traitTileEntityAsBlockEntity(t: li.cil.oc.common.tileentity.traits.TileEntity): BlockEntity =
-    t.asInstanceOf[BlockEntity]
-
-  def sendAbstractBusState(t: AbstractBusAware): Unit = {
-    val pb = new SimplePacketBuilder(PacketType.AbstractBusState)
-
-    pb.writeTileEntity(t)
-    pb.writeBoolean(t.isAbstractBusAvailable)
-
-    pb.sendToPlayersNearTileEntity(t)
+  def sendSoundCardData(host: AudioHost, address: String, volume: Byte, receivers: java.util.Set[AudioReceiver], instructions: java.util.Queue[Instruction]): Unit = {
+    val pb = new CompressedPacketBuilder(PacketType.SoundCardData)
+    val pos = host.position()
+    pb.writeInt(host.getId)
+    pb.writeUTF(address)
+    pb.writeInt(instructions.size)
+    for (inst <- instructions.asScala) {
+      inst match {
+        case Instruction.Open(channel) =>
+          pb.writeByte(0)
+          pb.writeByte(channel)
+        case Instruction.Close(channel) =>
+          pb.writeByte(1)
+          pb.writeByte(channel)
+        case Instruction.SetWave(channel, wave) =>
+          pb.writeByte(2)
+          pb.writeByte(channel)
+          pb.writeInt(wave.ordinal())
+        case Instruction.Delay(delay) =>
+          pb.writeByte(3)
+          pb.writeInt(delay)
+        case Instruction.SetFM(channel, modulatorIndex, index) =>
+          pb.writeByte(4)
+          pb.writeByte(channel)
+          pb.writeInt(modulatorIndex)
+          pb.writeFloat(index)
+        case Instruction.ResetFM(channel) =>
+          pb.writeByte(5)
+          pb.writeByte(channel)
+        case Instruction.SetAM(channel, modulatorIndex) =>
+          pb.writeByte(6)
+          pb.writeByte(channel)
+          pb.writeInt(modulatorIndex)
+        case Instruction.ResetAM(channel) =>
+          pb.writeByte(7)
+          pb.writeByte(channel)
+        case Instruction.SetADSR(channel, attack, decay, attenuation, release) =>
+          pb.writeByte(8)
+          pb.writeByte(channel)
+          pb.writeInt(attack)
+          pb.writeInt(decay)
+          pb.writeFloat(attenuation)
+          pb.writeInt(release)
+        case Instruction.ResetEnvelope(channel) =>
+          pb.writeByte(9)
+          pb.writeByte(channel)
+        case Instruction.SetVolume(channel, volume) =>
+          pb.writeByte(10)
+          pb.writeByte(channel)
+          pb.writeFloat(volume)
+        case Instruction.SetFrequency(channel, frequency) =>
+          pb.writeByte(11)
+          pb.writeByte(channel)
+          pb.writeFloat(frequency)
+        case Instruction.SetWhiteNoise(channel) =>
+          pb.writeByte(12)
+          pb.writeByte(channel)
+        case Instruction.SetLFSR(channel, initial, mask) =>
+          pb.writeByte(13)
+          pb.writeByte(channel)
+          pb.writeInt(initial)
+          pb.writeInt(mask)
+      }
+    }
+    pb.writeByte(volume)
+    pb.writeInt(receivers.size())
+    for (receiver <- receivers.asScala) {
+      pb.writeUTF(if (receiver.level() != null) receiver.level().dimension().toString else "")
+      val pos = receiver.position()
+      pb.writeFloat(pos.x.toFloat)
+      pb.writeFloat(pos.y.toFloat)
+      pb.writeFloat(pos.z.toFloat)
+      pb.writeShort(receiver.distance().toShort)
+      pb.writeUTF(receiver.address())
+    }
+    pb.sendToAllPlayers()
   }
 
-  def sendAdapterState(t: tileentity.Adapter): Unit = {
+  def sendAdapterState(t: blockentity.Adapter): Unit = {
     val pb = new SimplePacketBuilder(PacketType.AdapterState)
 
     pb.writeTileEntity(t)
@@ -64,7 +130,7 @@ object PacketSender {
     pb.sendToPlayer(player)
   }
 
-  def sendChargerState(t: tileentity.Charger): Unit = {
+  def sendChargerState(t: blockentity.Charger): Unit = {
     val pb = new SimplePacketBuilder(PacketType.ChargerState)
 
     pb.writeTileEntity(t)
@@ -94,7 +160,7 @@ object PacketSender {
     val pb = new SimplePacketBuilder(PacketType.ColorChange)
 
     pb.writeTileEntity(t)
-    pb.writeInt(t.color)
+    pb.writeInt(t.getColor)
 
     pb.sendToPlayersNearTileEntity(t)
   }
@@ -109,6 +175,15 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
+  def sendMachineItemState(player: ServerPlayer, stack: ItemStack, isRunning: Boolean): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.MachineItemStateResponse)
+
+    pb.writeItemStack(stack)
+    pb.writeBoolean(isRunning)
+
+    pb.sendToPlayer(player)
+  }
+
   def sendComputerUserList(t: Computer, list: Array[String]): Unit = {
     val pb = new SimplePacketBuilder(PacketType.ComputerUserList)
 
@@ -120,18 +195,17 @@ object PacketSender {
   }
 
   def sendContainerUpdate(c: AbstractContainerMenu, nbt: CompoundTag, player: ServerPlayer): Unit = {
-    // 1.21.1：`CompoundTag#hasNoTags` → `isEmpty`；`Container#windowId` → `AbstractContainerMenu#containerId`。
     if (!nbt.isEmpty) {
       val pb = new SimplePacketBuilder(PacketType.ContainerUpdate)
 
-      pb.writeByte(c.containerId.toByte)
+      pb.writeInt(c.containerId)
       pb.writeNBT(nbt)
 
       pb.sendToPlayer(player)
     }
   }
 
-  def sendDisassemblerActive(t: tileentity.Disassembler, active: Boolean): Unit = {
+  def sendDisassemblerActive(t: blockentity.Disassembler, active: Boolean): Unit = {
     val pb = new SimplePacketBuilder(PacketType.DisassemblerActiveChange)
 
     pb.writeTileEntity(t)
@@ -154,7 +228,7 @@ object PacketSender {
       if (lastHostTimeout == null || lastHostTimeout <= System.currentTimeMillis()) {
         val event = host match {
           case t: BlockEntity => new FileSystemAccessEvent.Server(name, t, node)
-          case _ => new FileSystemAccessEvent.Server(name, host.world, host.xPosition, host.yPosition, host.zPosition, node)
+          case _ => new FileSystemAccessEvent.Server(name, host.getEnvironmentLevel, host.xPosition, host.yPosition, host.zPosition, node)
         }
         NeoForge.EVENT_BUS.post(event)
         if (!event.isCanceled) {
@@ -164,13 +238,13 @@ object PacketSender {
 
           pb.writeUTF(event.getSound)
           NbtIo.write(event.getData, pb)
-          event.getTileEntity match {
+          event.getBlockEntity match {
             case t: BlockEntity =>
               pb.writeBoolean(true)
               pb.writeTileEntity(t)
             case _ =>
               pb.writeBoolean(false)
-              pb.writeDimension(event.getWorld)
+              pb.writeUTF(event.getWorld.dimension.location.toString)
               pb.writeDouble(event.getX)
               pb.writeDouble(event.getY)
               pb.writeDouble(event.getZ)
@@ -180,40 +254,80 @@ object PacketSender {
         }
       }
     }
-}
+  }
 
-  def sendNetworkActivity(node: Node, host: EnvironmentHost) = {
+  def sendFileSystemActivity(node: Node, host: EnvironmentHost) = {
+    val diskActivityPacketDelay = Settings.get.diskActivitySoundDelay
+
+    if (diskActivityPacketDelay >= 0) {
+      val hostTimeouts = fileSystemAccessTimeouts.synchronized {
+        fileSystemAccessTimeouts.getOrElseUpdate(node, CacheBuilder.newBuilder().concurrencyLevel(Settings.get.threads).maximumSize(250).expireAfterWrite(diskActivityPacketDelay, TimeUnit.MILLISECONDS).build[String, java.lang.Long]())
+      }
+      val cacheKey = host match {
+        case t: BlockEntity => t.getBlockPos.toString
+        case _ => s"${host.xPosition},${host.yPosition},${host.zPosition}"
+      }
+      val lastHostTimeout = hostTimeouts.getIfPresent(cacheKey)
+      if (lastHostTimeout == null || lastHostTimeout <= System.currentTimeMillis()) {
+        val event = host match {
+          case t: BlockEntity => new FileSystemAccessEvent.Server(null, t, node)
+          case _ => new FileSystemAccessEvent.Server(null, host.getEnvironmentLevel, host.xPosition, host.yPosition, host.zPosition, node)
+        }
+        NeoForge.EVENT_BUS.post(event)
+        if (!event.isCanceled) {
+          hostTimeouts.put(cacheKey, System.currentTimeMillis() + diskActivityPacketDelay)
+
+          val pb = new SimplePacketBuilder(PacketType.FileSystemActivity)
+
+          pb.writeUTF(event.getSound)
+          NbtIo.write(event.getData, pb)
+          event.getBlockEntity match {
+            case t: BlockEntity =>
+              pb.writeBoolean(true)
+              pb.writeTileEntity(t)
+            case _ =>
+              pb.writeBoolean(false)
+              pb.writeUTF(event.getWorld.dimension.location.toString)
+              pb.writeDouble(event.getX)
+              pb.writeDouble(event.getY)
+              pb.writeDouble(event.getZ)
+          }
+
+          pb.sendToPlayersNearHost(host, Option(Settings.get.maxNetworkClientSoundPacketDistance))
+        }
+      }
+    }
+  }
+
+  def sendNetworkActivity(node: Node, host: EnvironmentHost): Unit = {
 
     val event = host match {
       case t: BlockEntity => new NetworkActivityEvent.Server(t, node)
-      case _ => new NetworkActivityEvent.Server(host.world, host.xPosition, host.yPosition, host.zPosition, node)
+      case _ => new NetworkActivityEvent.Server(host.getEnvironmentLevel, host.xPosition, host.yPosition, host.zPosition, node)
     }
     NeoForge.EVENT_BUS.post(event)
-    // TODO(port): 1.7.10 的 `NetworkActivityEvent` 可取消（`event.isCanceled`）；
-    // 1.21.1 的 `li.cil.oc.api.event.NetworkActivityEvent` 没有实现 `ICancellableEvent`，
-    // API 里也没有 `setCanceled`，所以这里只能无条件发包。若之后恢复可取消语义，
-    // 需要给该事件补上 `ICancellableEvent`。
+    if (!event.isCanceled) {
 
-    val pb = new SimplePacketBuilder(PacketType.NetworkActivity)
+      val pb = new SimplePacketBuilder(PacketType.NetworkActivity)
 
-    NbtIo.write(event.getData, pb)
-    event.getTileEntity match {
-      case t: BlockEntity =>
-        pb.writeBoolean(true)
-        pb.writeTileEntity(t)
-      case _ =>
-        pb.writeBoolean(false)
-        pb.writeDimension(event.getWorld)
-        pb.writeDouble(event.getX)
-        pb.writeDouble(event.getY)
-        pb.writeDouble(event.getZ)
+      NbtIo.write(event.getData, pb)
+      event.getBlockEntity match {
+        case t: BlockEntity =>
+          pb.writeBoolean(true)
+          pb.writeTileEntity(t)
+        case _ =>
+          pb.writeBoolean(false)
+          pb.writeUTF(event.getWorld.dimension.location.toString)
+          pb.writeDouble(event.getX)
+          pb.writeDouble(event.getY)
+          pb.writeDouble(event.getZ)
+      }
+
+      pb.sendToPlayersNearHost(host, Option(Settings.get.maxNetworkClientEffectPacketDistance))
     }
-
-    pb.sendToPlayersNearHost(host, Option(Settings.get.maxNetworkClientEffectPacketDistance))
   }
 
-  // 与 CE-1.20 一致：默认值用 `ItemStack.EMPTY`（1.7.10 的 `null` 在 1.21.1 里已被 EMPTY 取代）。
-  def sendFloppyChange(t: tileentity.DiskDrive, stack: ItemStack = ItemStack.EMPTY): Unit = {
+  def sendFloppyChange(t: blockentity.DiskDrive, stack: ItemStack = ItemStack.EMPTY): Unit = {
     val pb = new SimplePacketBuilder(PacketType.FloppyChange)
 
     pb.writeTileEntity(t)
@@ -222,7 +336,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendHologramClear(t: tileentity.Hologram): Unit = {
+  def sendHologramClear(t: blockentity.Hologram): Unit = {
     val pb = new SimplePacketBuilder(PacketType.HologramClear)
 
     pb.writeTileEntity(t)
@@ -230,7 +344,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendHologramColor(t: tileentity.Hologram, index: Int, value: Int): Unit = {
+  def sendHologramColor(t: blockentity.Hologram, index: Int, value: Int): Unit = {
     val pb = new SimplePacketBuilder(PacketType.HologramColor)
 
     pb.writeTileEntity(t)
@@ -240,7 +354,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendHologramPowerChange(t: tileentity.Hologram): Unit = {
+  def sendHologramPowerChange(t: blockentity.Hologram): Unit = {
     val pb = new SimplePacketBuilder(PacketType.HologramPowerChange)
 
     pb.writeTileEntity(t)
@@ -249,7 +363,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendHologramScale(t: tileentity.Hologram): Unit = {
+  def sendHologramScale(t: blockentity.Hologram): Unit = {
     val pb = new SimplePacketBuilder(PacketType.HologramScale)
 
     pb.writeTileEntity(t)
@@ -258,7 +372,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendHologramArea(t: tileentity.Hologram): Unit = {
+  def sendHologramArea(t: blockentity.Hologram): Unit = {
     val pb = new CompressedPacketBuilder(PacketType.HologramArea)
 
     pb.writeTileEntity(t)
@@ -276,7 +390,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendHologramValues(t: tileentity.Hologram): Unit = {
+  def sendHologramValues(t: blockentity.Hologram): Unit = {
     val pb = new CompressedPacketBuilder(PacketType.HologramValues)
 
     pb.writeTileEntity(t)
@@ -294,18 +408,18 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendHologramOffset(t: tileentity.Hologram): Unit = {
+  def sendHologramOffset(t: blockentity.Hologram): Unit = {
     val pb = new SimplePacketBuilder(PacketType.HologramTranslation)
 
     pb.writeTileEntity(t)
-    pb.writeDouble(t.translation.xCoord)
-    pb.writeDouble(t.translation.yCoord)
-    pb.writeDouble(t.translation.zCoord)
+    pb.writeDouble(t.translation.x)
+    pb.writeDouble(t.translation.y)
+    pb.writeDouble(t.translation.z)
 
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendHologramRotation(t: tileentity.Hologram): Unit = {
+  def sendHologramRotation(t: blockentity.Hologram): Unit = {
     val pb = new SimplePacketBuilder(PacketType.HologramRotation)
 
     pb.writeTileEntity(t)
@@ -317,7 +431,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendHologramRotationSpeed(t: tileentity.Hologram): Unit = {
+  def sendHologramRotationSpeed(t: blockentity.Hologram): Unit = {
     val pb = new SimplePacketBuilder(PacketType.HologramRotationSpeed)
 
     pb.writeTileEntity(t)
@@ -356,7 +470,7 @@ object PacketSender {
       case controller: ControllerImpl =>
         pb.writeBoolean(true)
         val nbt = new CompoundTag()
-        controller.save(nbt)
+        controller.saveData(nbt)
         pb.writeNBT(nbt)
       case _ =>
         pb.writeBoolean(false)
@@ -393,7 +507,7 @@ object PacketSender {
     }
   }
 
-  def sendNetSplitterState(t: tileentity.NetSplitter): Unit = {
+  def sendNetSplitterState(t: blockentity.NetSplitter): Unit = {
     val pb = new SimplePacketBuilder(PacketType.NetSplitterState)
 
     pb.writeTileEntity(t)
@@ -403,22 +517,22 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendParticleEffect(position: BlockPosition, name: String, count: Int, velocity: Double, direction: Option[Direction] = None): Unit = if (count > 0) {
+  def sendParticleEffect(position: BlockPosition, particleType: ParticleOptions, count: Int, velocity: Double, direction: Option[Direction] = None): Unit = if (count > 0) {
     val pb = new SimplePacketBuilder(PacketType.ParticleEffect)
 
-    pb.writeDimension(position.world.get)
+    pb.writeUTF(position.world.get.dimension.location.toString)
     pb.writeInt(position.x)
     pb.writeInt(position.y)
     pb.writeInt(position.z)
     pb.writeDouble(velocity)
     pb.writeDirection(direction)
-    pb.writeUTF(name)
+    pb.writeRegistryEntry(ForgeRegistries.PARTICLE_TYPES, particleType.getType())
     pb.writeByte(count.toByte)
 
     pb.sendToNearbyPlayers(position.world.get, position.x, position.y, position.z, Some(Settings.get.maxNetworkClientEffectPacketDistance / 2.0D))
   }
 
-  def sendPetVisibility(name: Option[String] = None, player: Option[ServerPlayer] = None) {
+  def sendPetVisibility(name: Option[String] = None, player: Option[ServerPlayer] = None): Unit = {
     val pb = new SimplePacketBuilder(PacketType.PetVisibility)
 
     name match {
@@ -450,7 +564,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendPrinting(t: tileentity.Printer, printing: Boolean): Unit = {
+  def sendPrinting(t: blockentity.Printer, printing: Boolean): Unit = {
     val pb = new SimplePacketBuilder(PacketType.PrinterState)
 
     pb.writeTileEntity(t)
@@ -459,33 +573,31 @@ object PacketSender {
     pb.sendToPlayersNearHost(t)
   }
 
-  def sendRackInventory(t: tileentity.Rack): Unit = {
+  def sendRackInventory(t: blockentity.Rack): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RackInventory)
 
-    // 1.21.1：方块实体的物品栏统一走 NeoForge 的 `IItemHandler`，
-    // `getSizeInventory` → `getSlots`，`getStackInSlot` 语义不变。
     pb.writeTileEntity(t)
-    pb.writeInt(t.getSlots)
-    for (slot <- 0 until t.getSlots) {
+    pb.writeInt(t.getContainerSize)
+    for (slot <- 0 until t.getContainerSize) {
       pb.writeInt(slot)
-      pb.writeItemStack(t.getStackInSlot(slot))
+      pb.writeItemStack(t.getItem(slot))
     }
 
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendRackInventory(t: tileentity.Rack, slot: Int): Unit = {
+  def sendRackInventory(t: blockentity.Rack, slot: Int): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RackInventory)
 
     pb.writeTileEntity(t)
     pb.writeInt(1)
     pb.writeInt(slot)
-    pb.writeItemStack(t.getStackInSlot(slot))
+    pb.writeItemStack(t.getItem(slot))
 
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendRackMountableData(t: tileentity.Rack, mountable: Int): Unit = {
+  def sendRackMountableData(t: blockentity.Rack, mountable: Int): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RackMountableData)
 
     pb.writeTileEntity(t)
@@ -495,13 +607,12 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendRaidChange(t: tileentity.Raid): Unit = {
+  def sendRaidChange(t: blockentity.Raid): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RaidStateChange)
 
     pb.writeTileEntity(t)
-    // 1.21.1 的空槽位是 `ItemStack.EMPTY`（不是 null），因此判空改用 `isEmpty`。
-    for (slot <- 0 until t.getSlots) {
-      pb.writeBoolean(!t.getStackInSlot(slot).isEmpty)
+    for (slot <- 0 until t.getContainerSize) {
+      pb.writeBoolean(!t.getItem(slot).isEmpty)
     }
 
     pb.sendToPlayersNearTileEntity(t)
@@ -512,15 +623,14 @@ object PacketSender {
 
     pb.writeTileEntity(t)
     pb.writeBoolean(t.isOutputEnabled)
-    // 1.21.1 的 `Direction` 没有 `VALID_DIRECTIONS`，用 `Direction.values()`。
-    for (d <- Direction.values()) {
+    for (d <- Direction.values) {
       pb.writeByte(t.getOutput(d))
     }
 
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendRobotAssembling(t: tileentity.Assembler, assembling: Boolean): Unit = {
+  def sendRobotAssembling(t: blockentity.Assembler, assembling: Boolean): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RobotAssemblingState)
 
     pb.writeTileEntity(t)
@@ -529,20 +639,20 @@ object PacketSender {
     pb.sendToPlayersNearHost(t)
   }
 
-  def sendRobotMove(t: tileentity.Robot, position: BlockPosition, direction: Direction): Unit = {
+  def sendRobotMove(t: blockentity.Robot, position: BlockPos, direction: Direction): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RobotMove)
 
     // Custom pb.writeTileEntity() with fake coordinates (valid for the client).
-    pb.writeDimension(t.proxy.world)
-    pb.writeInt(position.x)
-    pb.writeInt(position.y)
-    pb.writeInt(position.z)
+    pb.writeUTF(t.getEnvironmentLevel.dimension.location.toString)
+    pb.writeInt(position.getX)
+    pb.writeInt(position.getY)
+    pb.writeInt(position.getZ)
     pb.writeDirection(Option(direction))
 
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendRobotAnimateSwing(t: tileentity.Robot): Unit = {
+  def sendRobotAnimateSwing(t: blockentity.Robot): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RobotAnimateSwing)
 
     pb.writeTileEntity(t.proxy)
@@ -551,7 +661,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t, Option(Settings.get.maxNetworkClientEffectPacketDistance))
   }
 
-  def sendRobotAnimateTurn(t: tileentity.Robot): Unit = {
+  def sendRobotAnimateTurn(t: blockentity.Robot): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RobotAnimateTurn)
 
     pb.writeTileEntity(t.proxy)
@@ -561,7 +671,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t, Option(Settings.get.maxNetworkClientEffectPacketDistance))
   }
 
-  def sendRobotInventory(t: tileentity.Robot, slot: Int, stack: ItemStack): Unit = {
+  def sendRobotInventory(t: blockentity.Robot, slot: Int, stack: ItemStack): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RobotInventoryChange)
 
     pb.writeTileEntity(t.proxy)
@@ -571,7 +681,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendRobotLightChange(t: tileentity.Robot): Unit = {
+  def sendRobotLightChange(t: blockentity.Robot): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RobotLightChange)
 
     pb.writeTileEntity(t.proxy)
@@ -580,7 +690,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendRobotNameChange(t: tileentity.Robot): Unit = {
+  def sendRobotNameChange(t: blockentity.Robot): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RobotNameChange)
 
     pb.writeTileEntity(t.proxy)
@@ -594,7 +704,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendRobotSelectedSlotChange(t: tileentity.Robot): Unit = {
+  def sendRobotSelectedSlotChange(t: blockentity.Robot): Unit = {
     val pb = new SimplePacketBuilder(PacketType.RobotSelectedSlotChange)
 
     pb.writeTileEntity(t.proxy)
@@ -613,7 +723,7 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendSwitchActivity(t: tileentity.traits.SwitchLike): Unit = {
+  def sendSwitchActivity(t: blockentity.Relay): Unit = {
     val pb = new SimplePacketBuilder(PacketType.SwitchActivity)
 
     pb.writeTileEntity(t)
@@ -784,7 +894,7 @@ object PacketSender {
     pb.sendToPlayersNearHost(host)
   }
 
-  def sendScreenTouchMode(t: tileentity.Screen, value: Boolean): Unit = {
+  def sendScreenTouchMode(t: blockentity.Screen, value: Boolean): Unit = {
     val pb = new SimplePacketBuilder(PacketType.ScreenTouchMode)
 
     pb.writeTileEntity(t)
@@ -793,34 +903,48 @@ object PacketSender {
     pb.sendToPlayersNearTileEntity(t)
   }
 
-  def sendSound(world: Level, x: Double, y: Double, z: Double, frequency: Int, duration: Int): Unit = {
+  def sendSound(level: Level, x: Double, y: Double, z: Double, sound: ResourceLocation, category: SoundSource, range: Double): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.SoundEffect)
+
+    pb.writeUTF(level.dimension.location.toString)
+    pb.writeDouble(x)
+    pb.writeDouble(y)
+    pb.writeDouble(z)
+    pb.writeUTF(sound.toString)
+    pb.writeByte(category.ordinal())
+    pb.writeFloat(range.toFloat)
+
+    pb.sendToNearbyPlayers(level, x, y, z, Option(range))
+  }
+
+  def sendSound(level: Level, x: Double, y: Double, z: Double, frequency: Int, duration: Int): Unit = {
     val pb = new SimplePacketBuilder(PacketType.Sound)
 
     val blockPos = BlockPosition(x, y, z)
-    pb.writeDimension(world)
+    pb.writeUTF(level.dimension.location.toString)
     pb.writeInt(blockPos.x)
     pb.writeInt(blockPos.y)
     pb.writeInt(blockPos.z)
     pb.writeShort(frequency.toShort)
     pb.writeShort(duration.toShort)
 
-    pb.sendToNearbyPlayers(world, x, y, z, Option(Settings.get.maxNetworkClientSoundPacketDistance))
+    pb.sendToNearbyPlayers(level, x, y, z, Option(Settings.get.maxNetworkClientSoundPacketDistance))
   }
 
-  def sendSound(world: Level, x: Double, y: Double, z: Double, pattern: String): Unit = {
+  def sendSound(level: Level, x: Double, y: Double, z: Double, pattern: String): Unit = {
     val pb = new SimplePacketBuilder(PacketType.SoundPattern)
 
     val blockPos = BlockPosition(x, y, z)
-    pb.writeDimension(world)
+    pb.writeUTF(level.dimension.location.toString)
     pb.writeInt(blockPos.x)
     pb.writeInt(blockPos.y)
     pb.writeInt(blockPos.z)
     pb.writeUTF(pattern)
 
-    pb.sendToNearbyPlayers(world, x, y, z, Option(Settings.get.maxNetworkClientSoundPacketDistance))
+    pb.sendToNearbyPlayers(level, x, y, z, Option(Settings.get.maxNetworkClientSoundPacketDistance))
   }
 
-  def sendTransposerActivity(t: tileentity.Transposer): Unit = {
+  def sendTransposerActivity(t: blockentity.Transposer): Unit = {
     val pb = new SimplePacketBuilder(PacketType.TransposerActivity)
 
     pb.writeTileEntity(t)

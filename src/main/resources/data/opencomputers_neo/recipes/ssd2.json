@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "CCC",
+    "BPR",
+    "CcC"
+  ],
+  "key": {
+    "c": {
+      "tag": "opencomputers_neo:cpu2"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip3"
+    },
+    "P": {
+      "tag": "opencomputers_neo:materialcircuitboardprinted"
+    },
+    "B": {
+      "tag": "opencomputers_neo:componentbus3"
+    },
+    "R": {
+      "tag": "opencomputers_neo:ram5"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:ssd2"
+  }
+}

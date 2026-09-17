@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「区块加载升级」（原 `li.cil.oc.common.item.UpgradeChunkloader`）。 */
-class UpgradeChunkloader(props: Item.Properties) extends Item(props) with traits.Delegate with traits.ItemTier
+class UpgradeChunkloader(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier

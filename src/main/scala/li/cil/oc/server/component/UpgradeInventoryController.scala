@@ -14,12 +14,12 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
-import li.cil.oc.common.tileentity
-import li.cil.oc.server.component.traits.InventorySlots
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.common.blockentity
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedArguments._
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 
 object UpgradeInventoryController {
 
@@ -31,11 +31,10 @@ object UpgradeInventoryController {
       DeviceAttribute.Product -> "Item Cataloguer R1"
     )
 
-    // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo
   }
 
-  class Adapter(val host: EnvironmentHost) extends prefab.ManagedEnvironment with traits.WorldInventoryAnalytics with Common {
+  class Adapter(val host: EnvironmentHost) extends AbstractManagedEnvironment with traits.LevelInventoryAnalytics with Common {
     override val node = Network.newNode(this, Visibility.Network).
       withComponent("inventory_controller", Visibility.Network).
       create()
@@ -47,7 +46,7 @@ object UpgradeInventoryController {
     override protected def checkSideForAction(args: Arguments, n: Int) = args.checkSideAny(n)
   }
 
-  class Drone(val host: EnvironmentHost with internal.Agent) extends prefab.ManagedEnvironment with traits.InventoryAnalytics with traits.InventoryWorldControlMk2 with traits.WorldInventoryAnalytics with traits.ItemInventoryControl with Common {
+  class Drone(val host: EnvironmentHost with internal.Agent) extends AbstractManagedEnvironment with traits.ContainerAnalytics with traits.ContainerLevelControlMk2 with traits.LevelInventoryAnalytics with traits.ItemContainerControl with Common {
     override val node = Network.newNode(this, Visibility.Network).
       withComponent("inventory_controller", Visibility.Neighbors).
       create()
@@ -65,7 +64,7 @@ object UpgradeInventoryController {
     override protected def checkSideForAction(args: Arguments, n: Int) = args.checkSideAny(n)
   }
 
-  class Robot(val host: EnvironmentHost with tileentity.Robot) extends prefab.ManagedEnvironment with traits.InventoryAnalytics with traits.InventoryWorldControlMk2 with traits.WorldInventoryAnalytics with traits.ItemInventoryControl with Common {
+  class Robot(val host: EnvironmentHost with blockentity.Robot) extends AbstractManagedEnvironment with traits.ContainerAnalytics with traits.ContainerLevelControlMk2 with traits.LevelInventoryAnalytics with traits.ItemContainerControl with Common {
     override val node = Network.newNode(this, Visibility.Network).
       withComponent("inventory_controller", Visibility.Neighbors).
       create()
@@ -84,14 +83,11 @@ object UpgradeInventoryController {
 
     @Callback(doc = """function():boolean -- Swaps the equipped tool with the content of the currently selected inventory slot.""")
     def equip(context: Context, args: Arguments): Array[AnyRef] = {
-      // 1.21.1：`IInventory#getSizeInventory` → `IItemHandler#getSlots`；
-      // `IInventory#setInventorySlotContents` → `InventorySlots.setStack`（`IItemHandler` 只有抽取/插入语义）。
-      // 注意 `IItemHandler` 的空槽返回 `ItemStack.EMPTY`，`InventorySlots.setStack` 会把它当作清空处理。
-      if (inventory.getSlots > 0) {
-        val equipped = host.getStackInSlot(0)
-        val selected = inventory.getStackInSlot(selectedSlot)
-        InventorySlots.setStack(InventorySlots.wrap(host), 0, selected)
-        InventorySlots.setStack(InventorySlots.wrap(inventory), selectedSlot, equipped)
+      if (inventory.getContainerSize > 0) {
+        val equipped = host.getItem(0)
+        val selected = inventory.getItem(selectedSlot)
+        host.setItem(0, selected)
+        inventory.setItem(selectedSlot, equipped)
         result(true)
       }
       else result(false)

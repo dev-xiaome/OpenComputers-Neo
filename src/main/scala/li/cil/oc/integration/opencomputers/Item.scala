@@ -1,58 +1,54 @@
 package li.cil.oc.integration.opencomputers
+
 import li.cil.oc.util.ItemStackNBTExtensions._
 
-import com.google.common.base.Strings
 import li.cil.oc.Settings
 import li.cil.oc.api
-import li.cil.oc.api.driver
+import li.cil.oc.api.driver.DriverItem
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.internal
 import li.cil.oc.common.Tier
 import li.cil.oc.server.driver.Registry
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.item
 
 import scala.annotation.tailrec
 
-trait Item extends driver.Item {
+trait Item extends DriverItem {
   def worksWith(stack: ItemStack, host: Class[_ <: EnvironmentHost]): Boolean =
     worksWith(stack) && !Registry.blacklist.exists {
       case (blacklistedStack, blacklistedHost) =>
-        // 1.21.1：`ItemStack#isItemEqual` 已移除，改为「物品 + 数据组件」一起比较。
-        ItemStack.isSameItemSameComponents(stack, blacklistedStack) &&
+        ItemStack.isSameItem(stack, blacklistedStack) &&
           blacklistedHost.exists(_.isAssignableFrom(host))
     }
 
   override def tier(stack: ItemStack) = Tier.One
 
-  override def dataTag(stack: ItemStack) = Item.dataTag(stack)
+  override def dataTag(stack: ItemStack): CompoundTag = Item.dataTag(stack)
 
-  protected def isOneOf(stack: ItemStack, items: api.detail.ItemInfo*) = items.filter(_ != null).contains(api.Items.get(stack))
+  protected def isOneOf(stack: ItemStack, items: api.detail.ItemInfo*): Boolean = items.filter(_ != null).contains(api.Items.get(stack))
 
-  protected def isAdapter(host: Class[_ <: EnvironmentHost]) = classOf[internal.Adapter].isAssignableFrom(host)
+  protected def isAdapter(host: Class[_ <: EnvironmentHost]): Boolean = classOf[internal.Adapter].isAssignableFrom(host)
 
-  protected def isComputer(host: Class[_ <: EnvironmentHost]) = classOf[internal.Case].isAssignableFrom(host)
+  protected def isComputer(host: Class[_ <: EnvironmentHost]): Boolean = classOf[internal.Case].isAssignableFrom(host)
 
-  protected def isRobot(host: Class[_ <: EnvironmentHost]) = classOf[internal.Robot].isAssignableFrom(host)
+  protected def isRobot(host: Class[_ <: EnvironmentHost]): Boolean = classOf[internal.Robot].isAssignableFrom(host)
 
-  protected def isRotatable(host: Class[_ <: EnvironmentHost]) = classOf[internal.Rotatable].isAssignableFrom(host)
+  protected def isRotatable(host: Class[_ <: EnvironmentHost]): Boolean = classOf[internal.Rotatable].isAssignableFrom(host)
 
-  protected def isServer(host: Class[_ <: EnvironmentHost]) = classOf[internal.Server].isAssignableFrom(host)
+  protected def isServer(host: Class[_ <: EnvironmentHost]): Boolean = classOf[internal.Server].isAssignableFrom(host)
 
-  protected def isTablet(host: Class[_ <: EnvironmentHost]) = classOf[internal.Tablet].isAssignableFrom(host)
+  protected def isTablet(host: Class[_ <: EnvironmentHost]): Boolean = classOf[internal.Tablet].isAssignableFrom(host)
 
-  protected def isMicrocontroller(host: Class[_ <: EnvironmentHost]) = classOf[internal.Microcontroller].isAssignableFrom(host)
+  protected def isMicrocontroller(host: Class[_ <: EnvironmentHost]): Boolean = classOf[internal.Microcontroller].isAssignableFrom(host)
 
-  protected def isDrone(host: Class[_ <: EnvironmentHost]) = classOf[internal.Drone].isAssignableFrom(host)
+  protected def isDrone(host: Class[_ <: EnvironmentHost]): Boolean = classOf[internal.Drone].isAssignableFrom(host)
 }
 
 object Item {
-  def dataTag(stack: ItemStack) = {
-    // 1.21.1：`ItemStack` 没有 `put`，写 NBT 走隐式类的 `setTag`。
-    if (!stack.hasTag()) {
-      stack.setTag(new CompoundTag())
-    }
-    val nbt = stack.getTag()
+  def dataTag(stack: ItemStack): CompoundTag = {
+    val nbt = stack.getOrCreateTag
     if (!nbt.contains(Settings.namespace + "data")) {
       nbt.put(Settings.namespace + "data", new CompoundTag())
     }
@@ -67,10 +63,9 @@ object Item {
   }
 
   private def getTag(stack: ItemStack, keys: Array[String]): Option[CompoundTag] = {
-    // 1.21.1：`stackSize` → `isEmpty`。
-    if (stack == null || stack.isEmpty) None
-    else if (!stack.hasTag()) None
-    else getTag(stack.getTag(), keys)
+    if (stack == null || stack.getCount == 0 || stack == ItemStack.EMPTY) None
+    else if (!stack.hasTag) None
+    else getTag(stack.getTag, keys)
   }
 
   def address(stack: ItemStack): Option[String] = {

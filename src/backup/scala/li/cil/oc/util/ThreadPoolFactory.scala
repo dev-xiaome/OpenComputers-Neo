@@ -1,0 +1,110 @@
+package li.cil.oc.util
+
+import java.util.concurrent.{Executors, ScheduledExecutorService, ThreadFactory, TimeUnit}
+import java.util.concurrent.Future
+
+import li.cil.oc.OpenComputers
+import li.cil.oc.Settings
+
+import scala.collection.mutable
+
+/**
+ * OC 后台线程池工厂（文件保存、网络过滤等使用）。
+ *
+ * 1.21.1 / Java 21 迁移要点：
+ *  - `System.getSecurityManager` 自 Java 18 起被标记为废弃、Java 24 起彻底移除，
+ *    这里不再查询安全管理器，直接使用当前线程的线程组。
+ *  - `new ThreadFactory { def newThread(...) = ... }` 的过程语法补上 `Unit`。
+ */
+object ThreadPoolFactory {
+  val priority = {
+    // For InternetFilteringRuleTest, where Settings.get is not provided.
+    val custom = Option(Settings.get) match {
+      case None => -1
+      case Some(settings) => settings.threadPriority
+    }
+    if (custom < 1) Thread.MIN_PRIORITY + (Thread.NORM_PRIORITY - Thread.MIN_PRIORITY) / 2
+    else custom max Thread.MIN_PRIORITY min Thread.MAX_PRIORITY
+  }
+
+  def create(name: String, threads: Int): ScheduledExecutorService = Executors.newScheduledThreadPool(threads,
+    new ThreadFactory() {
+      private val baseName = "OpenComputers-" + name + "-"
+
+      private val threadNumber = new java.util.concurrent.atomic.AtomicInteger(1)
+
+      private val group = Thread.currentThread().getThreadGroup
+
+      def newThread(r: Runnable): Thread = {
+        val thread = new Thread(group, r, baseName + threadNumber.getAndIncrement)
+        if (!thread.isDaemon) {
+          thread.setDaemon(true)
+        }
+        if (thread.getPriority != priority) {
+          thread.setPriority(priority)
+        }
+        thread
+      }
+    })
+
+  val safePools: mutable.ArrayBuffer[SafeThreadPool] = mutable.ArrayBuffer.empty[SafeThreadPool]
+
+  def createSafePool(name: String, threads: Int): SafeThreadPool = {
+    val handler = new SafeThreadPool(name, threads)
+    safePools += handler
+    handler
+  }
+}
+
+/**
+ * 带自动重建能力的线程池包装（服务器未启动 / 线程池被关闭时按需重建）。
+ */
+class SafeThreadPool(val name: String, val threads: Int) {
+  private var _threadPool: ScheduledExecutorService = _
+
+  def withPool(f: ScheduledExecutorService => Future[_], requiresPool: Boolean = true): Option[Future[_]] = {
+    if (_threadPool == null) {
+      OpenComputers.log.warn("Error handling file saving: Did the server never start?")
+      if (requiresPool) {
+        OpenComputers.log.warn("Creating new thread pool.")
+        newThreadPool()
+      } else {
+        return None
+      }
+    } else if (_threadPool.isShutdown || _threadPool.isTerminated) {
+      OpenComputers.log.warn("Error handling file saving: Thread pool shut down!")
+      if (requiresPool) {
+        OpenComputers.log.warn("Creating new thread pool.")
+        newThreadPool()
+      } else {
+        return None
+      }
+    }
+    Option(f(_threadPool))
+  }
+
+  def newThreadPool(): Unit = {
+    if (_threadPool != null && !_threadPool.isTerminated) {
+      _threadPool.shutdownNow()
+    }
+    _threadPool = ThreadPoolFactory.create(name, threads)
+  }
+
+  def waitForCompletion(): Unit = withPool(threadPool => {
+    try {
+      threadPool.shutdown()
+      var terminated = threadPool.awaitTermination(15, TimeUnit.SECONDS)
+      if (!terminated) {
+        OpenComputers.log.warn("Warning: Completing all tasks has already taken 15 seconds!")
+        terminated = threadPool.awaitTermination(105, TimeUnit.SECONDS)
+        if (!terminated) {
+          OpenComputers.log.error("Warning: Completing all tasks has already taken two minutes! Aborting")
+          threadPool.shutdownNow()
+        }
+      }
+    } catch {
+      case e: InterruptedException => e.printStackTrace()
+    }
+    null
+  }, requiresPool = false)
+}

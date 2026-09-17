@@ -1,13 +1,13 @@
 package li.cil.oc.client.renderer.markdown.segment
 
-import java.net.URI
-
+import java.net.{MalformedURLException, URI, URL}
 import li.cil.oc.Localization
 import li.cil.oc.OpenComputers
 import li.cil.oc.api
 import li.cil.oc.client.Manual
 import li.cil.oc.client.renderer.markdown.MarkupFormat
 import net.minecraft.client.Minecraft
+import net.minecraft.Util
 
 private[markdown] class LinkSegment(parent: Segment, text: String, val url: String) extends TextSegment(parent, text) with InteractiveSegment {
   private final val normalColor = 0x66FF66
@@ -44,22 +44,15 @@ private[markdown] class LinkSegment(parent: Segment, text: String, val url: Stri
     (r << 16) | (g << 8) | b
   }
 
-  private def handleUrl(url: String): Unit = {
-    // 与 GuiChat 的处理方式一致：优先交给桌面浏览器打开。
+  private def handleUrl(urlStr: String): Unit = {
+    var url: URL = null
     try {
-      val desktop = Class.forName("java.awt.Desktop")
-      val instance = desktop.getMethod("getDesktop").invoke(null)
-      desktop.getMethod("browse", classOf[URI]).invoke(instance, new URI(url))
+      url = new URL(urlStr)
+    } catch {
+      case _: MalformedURLException =>
+        Minecraft.getInstance.player.sendSystemMessage(Localization.Chat.WarningLink("Malformed URL"))
     }
-    catch {
-      // 1.21.1：`Minecraft.getMinecraft` → `getInstance`、
-      // `thePlayer` → `player`、`addChatMessage` → `displayClientMessage(..., false)`。
-      case t: Throwable =>
-        val mc = Minecraft.getInstance()
-        if (mc != null && mc.player != null) {
-          mc.player.displayClientMessage(Localization.Chat.WarningLink(t.toString), false)
-        }
-    }
+    Util.getPlatform.openUrl(url)
   }
 
   override def toString(format: MarkupFormat.Value): String = format match {

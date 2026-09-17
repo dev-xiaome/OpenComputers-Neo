@@ -1,12 +1,7 @@
 {
-    "parent":  "minecraft:block/cube",
-    "textures":  {
-                     "particle":  "opencomputers_neo:block/motionsensortop",
-                     "down":  "opencomputers_neo:block/motionsensortop",
-                     "up":  "opencomputers_neo:block/motionsensortop",
-                     "north":  "opencomputers_neo:block/motionsensorside",
-                     "south":  "opencomputers_neo:block/motionsensorside",
-                     "west":  "opencomputers_neo:block/motionsensorside",
-                     "east":  "opencomputers_neo:block/motionsensorside"
-                 }
+    "parent": "block/cube_column",
+    "textures": {
+        "end": "opencomputers_neo:block/motionsensor_top",
+        "side": "opencomputers_neo:block/motionsensor_side"
+    }
 }

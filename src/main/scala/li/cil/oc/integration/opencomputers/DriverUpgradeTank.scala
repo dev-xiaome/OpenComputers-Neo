@@ -13,7 +13,7 @@ object DriverUpgradeTank extends Item with HostAware {
     api.Items.get(Constants.ItemName.TankUpgrade))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) =
-    if (host.world != null && host.world.isClientSide) null
+    if (host.getEnvironmentLevel != null && host.getEnvironmentLevel.isClientSide) null
     else new component.UpgradeTank(host, 16000)
 
   override def slot(stack: ItemStack) = Slot.Upgrade

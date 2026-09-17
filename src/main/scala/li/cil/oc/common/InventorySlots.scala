@@ -11,7 +11,6 @@ object InventorySlots {
       InventorySlot(Slot.Memory, Tier.One),
       InventorySlot(Slot.EEPROM, Tier.Any)
     ),
-
     Array(
       InventorySlot(Slot.Card, Tier.Two),
       InventorySlot(Slot.Card, Tier.One),
@@ -22,7 +21,6 @@ object InventorySlots {
       InventorySlot(Slot.CPU, Tier.Two),
       InventorySlot(Slot.EEPROM, Tier.Any)
     ),
-
     Array(
       InventorySlot(Slot.Card, Tier.Three),
       InventorySlot(Slot.Card, Tier.Two),
@@ -35,17 +33,28 @@ object InventorySlots {
       InventorySlot(Slot.CPU, Tier.Three),
       InventorySlot(Slot.EEPROM, Tier.Any)
     ),
-
     Array(
+      InventorySlot(Slot.Card, Tier.Four),
       InventorySlot(Slot.Card, Tier.Three),
       InventorySlot(Slot.Card, Tier.Three),
-      InventorySlot(Slot.Card, Tier.Three),
-      InventorySlot(Slot.Memory, Tier.Three),
-      InventorySlot(Slot.Memory, Tier.Three),
-      InventorySlot(Slot.HDD, Tier.Three),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.HDD, Tier.Four),
       InventorySlot(Slot.HDD, Tier.Three),
       InventorySlot(Slot.Floppy, Tier.One),
-      InventorySlot(Slot.CPU, Tier.Three),
+      InventorySlot(Slot.CPU, Tier.Four),
+      InventorySlot(Slot.EEPROM, Tier.Any)
+    ),
+    Array(
+      InventorySlot(Slot.Card, Tier.Four),
+      InventorySlot(Slot.Card, Tier.Four),
+      InventorySlot(Slot.Card, Tier.Four),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.HDD, Tier.Four),
+      InventorySlot(Slot.HDD, Tier.Four),
+      InventorySlot(Slot.Floppy, Tier.One),
+      InventorySlot(Slot.CPU, Tier.Four),
       InventorySlot(Slot.EEPROM, Tier.Any)
     )
   )
@@ -62,7 +71,6 @@ object InventorySlots {
       InventorySlot(Slot.HDD, Tier.Two),
       InventorySlot(Slot.EEPROM, Tier.Any)
     ),
-
     Array(
       InventorySlot(Slot.Card, Tier.Three),
       InventorySlot(Slot.Card, Tier.Two),
@@ -78,7 +86,6 @@ object InventorySlots {
       InventorySlot(Slot.Card, Tier.Two),
       InventorySlot(Slot.EEPROM, Tier.Any)
     ),
-
     Array(
       InventorySlot(Slot.Card, Tier.Three),
       InventorySlot(Slot.Card, Tier.Three),
@@ -98,24 +105,42 @@ object InventorySlots {
       InventorySlot(Slot.Card, Tier.Two),
       InventorySlot(Slot.EEPROM, Tier.Any)
     ),
-
     Array(
+      InventorySlot(Slot.Card, Tier.Four),
+      InventorySlot(Slot.Card, Tier.Four),
+      InventorySlot(Slot.CPU, Tier.Four),
+      InventorySlot(Slot.ComponentBus, Tier.Four),
+      InventorySlot(Slot.ComponentBus, Tier.Four),
+      InventorySlot(Slot.ComponentBus, Tier.Four),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.HDD, Tier.Four),
+      InventorySlot(Slot.HDD, Tier.Four),
+      InventorySlot(Slot.HDD, Tier.Four),
+      InventorySlot(Slot.HDD, Tier.Four),
       InventorySlot(Slot.Card, Tier.Three),
       InventorySlot(Slot.Card, Tier.Three),
-      InventorySlot(Slot.CPU, Tier.Three),
-      InventorySlot(Slot.ComponentBus, Tier.Three),
-      InventorySlot(Slot.ComponentBus, Tier.Three),
-      InventorySlot(Slot.ComponentBus, Tier.Three),
-      InventorySlot(Slot.Memory, Tier.Three),
-      InventorySlot(Slot.Memory, Tier.Three),
-      InventorySlot(Slot.Memory, Tier.Three),
-      InventorySlot(Slot.Memory, Tier.Three),
-      InventorySlot(Slot.HDD, Tier.Three),
-      InventorySlot(Slot.HDD, Tier.Three),
-      InventorySlot(Slot.HDD, Tier.Three),
-      InventorySlot(Slot.HDD, Tier.Three),
-      InventorySlot(Slot.Card, Tier.Three),
-      InventorySlot(Slot.Card, Tier.Three),
+      InventorySlot(Slot.EEPROM, Tier.Any)
+    ),
+    Array(
+      InventorySlot(Slot.Card, Tier.Four),
+      InventorySlot(Slot.Card, Tier.Four),
+      InventorySlot(Slot.CPU, Tier.Four),
+      InventorySlot(Slot.ComponentBus, Tier.Four),
+      InventorySlot(Slot.ComponentBus, Tier.Four),
+      InventorySlot(Slot.ComponentBus, Tier.Four),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.Memory, Tier.Four),
+      InventorySlot(Slot.HDD, Tier.Four),
+      InventorySlot(Slot.HDD, Tier.Four),
+      InventorySlot(Slot.HDD, Tier.Four),
+      InventorySlot(Slot.HDD, Tier.Four),
+      InventorySlot(Slot.Card, Tier.Four),
+      InventorySlot(Slot.Card, Tier.Four),
       InventorySlot(Slot.EEPROM, Tier.Any)
     )
   )

@@ -14,15 +14,16 @@ import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.Message
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
-import net.minecraft.world.entity.player.Player
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.mutable
+import net.minecraft.world.entity.player.Player
 
 // TODO key up when screen is disconnected from which the key down came
 // TODO key up after load for anything that was pressed
 
-class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with api.internal.Keyboard with DeviceInfo {
+class Keyboard(val host: EnvironmentHost) extends AbstractManagedEnvironment with api.internal.Keyboard with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
     withComponent("keyboard").
     create()
@@ -42,8 +43,7 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
     DeviceAttribute.Product -> "Fancytyper MX-Stone"
   )
 
-  // 1.21.1：`DeviceInfo#getDeviceInfo` 返回 `java.util.Map`，Scala 的 `Map` 需要显式转换。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   // ----------------------------------------------------------------------- //
 
@@ -51,9 +51,7 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
     pressedKeys.get(player) match {
       case Some(keys) => for ((code, char) <- keys) {
         if (Settings.get.inputUsername) {
-          // 1.21.1：`Entity#getCommandSenderName` → `getGameProfile.getName`
-          //（与 `common.tileentity.Keyboard` 的占位组件保持一致）。
-          signal(player, "key_up", char, code, player.getGameProfile.getName)
+          signal(player, "key_up", char, code, player.getName.getString)
         }
         else {
           signal(player, "key_up", char, code)
@@ -69,10 +67,10 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
   override def onMessage(message: Message) = {
     message.data match {
       case Array(p: Player, char: Character, code: Integer) if message.name == "keyboard.keyDown" =>
-        if (isUseableByPlayer(p)) {
+        if (isUsableByPlayer(p)) {
           pressedKeys.getOrElseUpdate(p, mutable.Map.empty[Integer, Character]) += code -> char
           if (Settings.get.inputUsername) {
-            signal(p, "key_down", char, code, p.getGameProfile.getName)
+            signal(p, "key_down", char, code, p.getName.getString)
           }
           else {
             signal(p, "key_down", char, code)
@@ -83,18 +81,25 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
           case Some(keys) if keys.contains(code) =>
             keys -= code
             if (Settings.get.inputUsername) {
-              signal(p, "key_up", char, code, p.getGameProfile.getName)
+              signal(p, "key_up", char, code, p.getName.getString)
             }
             else {
               signal(p, "key_up", char, code)
             }
           case _ =>
         }
+      case Array(p: Player, codePt: Integer) if message.name == "keyboard.textInput" =>
+        if (Settings.get.inputUsername) {
+          signal(p, "text_input", new String(Character.toChars(codePt)), p.getName.getString)
+        }
+        else {
+          signal(p, "text_input", new String(Character.toChars(codePt)))
+        }
       case Array(p: Player, value: String) if message.name == "keyboard.clipboard" =>
-        if (isUseableByPlayer(p)) {
+        if (isUsableByPlayer(p)) {
           for (line <- value.linesWithSeparators) {
             if (Settings.get.inputUsername) {
-              signal(p, "clipboard", line, p.getGameProfile.getName)
+              signal(p, "clipboard", line, p.getName.getString)
             }
             else {
               signal(p, "clipboard", line)
@@ -107,13 +112,11 @@ class Keyboard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with
 
   // ----------------------------------------------------------------------- //
 
-  def isUseableByPlayer(p: Player) = usableOverride match {
+  def isUsableByPlayer(p: Player) = usableOverride match {
     case Some(callback) => callback.isUsableByPlayer(this, p)
-    // 1.21.1：`Entity#getDistanceSq(x, y, z)` → `distanceToSqr(x, y, z)`
-    //（与 `common.tileentity.Keyboard` 的占位组件保持一致）。
     case _ => p.distanceToSqr(host.xPosition, host.yPosition, host.zPosition) <= 64
   }
 
   protected def signal(args: AnyRef*) =
-    node.sendToReachable("computer.checked_signal", args.toSeq: _*)
+    node.sendToReachable("computer.checked_signal", args: _*)
 }

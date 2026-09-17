@@ -4,24 +4,26 @@ import java.util
 
 import com.google.common.base.Charsets
 import li.cil.oc.api.machine.Arguments
+import li.cil.oc.util.ItemUtils
+import li.cil.oc.util.ResultWrapper
+import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.resources.ResourceLocation
+import net.neoforged.neoforge.registries.ForgeRegistries
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.mutable
 
 class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
-  // Scala 2.13：Java 接口要求 `java.util.Iterator`，Scala 的 Iterator 需要显式转换。
-  def iterator(): util.Iterator[AnyRef] = args.iterator.asJava
+  def iterator() = args.iterator
 
   def count() = args.length
 
   def checkAny(index: Int) = {
     checkIndex(index, "value")
     args(index) match {
-      // Scala 2.13：`Unit` 不能再当作模式/值使用（Unit companion object is not allowed）。
-      // 原语义是把「nil」统一成 null：null、None，以及装箱后的 unit 值 `()`。
-      case null | None | _: scala.runtime.BoxedUnit => null
+      case ResultWrapper.unit | None => null
       case arg => arg
     }
   }
@@ -190,15 +192,12 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
     else checkByteArray(index)
   }
 
-  // Java 接口签名是原始类型 `Map checkTable(int)`，Scala 侧必须返回 `java.util.Map`
-  // （返回 `AnyRef` 会触发 "incompatible type in overriding"）。
-  // Lua 表格在 Scala 侧可能是不可变 / 可变 Map，这里统一转成 Java Map 视图。
-  def checkTable(index: Int): util.Map[_, _] = {
+  def checkTable(index: Int) = {
     checkIndex(index, "table")
     args(index) match {
       case value: java.util.Map[_, _] => value
-      case value: Map[_, _] => value.asJava
-      case value: mutable.Map[_, _] => value.asJava
+      case value: Map[_, _] => value
+      case value: mutable.Map[_, _] => value
       case value => throw typeError(index, value, "table")
     }
   }
@@ -210,13 +209,17 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
 
   def checkItemStack(index: Int) = {
     val map = checkTable(index)
-    tableGet(map, "name") match {
+    map.get("name") match {
       case name: String =>
-        val damage = tableGet(map, "damage") match {
+        val damage = map.get("damage") match {
           case number: java.lang.Number => number.intValue
           case _ => 0
         }
-        val tag = ItemStacks.tagOf(tableGet(map, "tag"))
+        val tag = map.get("tag") match {
+          case ba: Array[Byte] => toNbtTagCompound(ba)
+          case s: String => toNbtTagCompound(s.getBytes(Charsets.UTF_8))
+          case _ => None
+        }
         makeStack(name, damage, tag)
       case _ => throw new IllegalArgumentException("invalid item stack")
     }
@@ -292,7 +295,7 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
   def isItemStack(index: Int) =
     isTable(index) && {
       val map = checkTable(index)
-      tableGet(map, "name") match {
+      map.get("name") match {
         case value: String => true
         case value: Array[Byte] => true
         case _ => false
@@ -303,17 +306,6 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
     case value: Array[Byte] => new String(value, Charsets.UTF_8)
     case value => value
   }.toArray
-
-  /**
-   * 统一的表格取值：`checkTable` 现在总是返回 `java.util.Map`（Scala 的 Map 已在
-   * `checkTable` 里转成 Java 视图），这里保留对 Scala Map 的兼容分支以防万一。
-   */
-  private def tableGet(table: Any, key: Any): Any = table match {
-    case value: java.util.Map[_, _] => value.asInstanceOf[java.util.Map[Any, Any]].get(key)
-    case value: Map[_, _] => value.asInstanceOf[Map[Any, Any]].getOrElse(key, null)
-    case value: mutable.Map[_, _] => value.asInstanceOf[mutable.Map[Any, Any]].getOrElse(key, null)
-    case _ => null
-  }
 
   private def isDefined(index: Int) = index >= 0 && index < args.length && args(index) != null
 
@@ -331,7 +323,7 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
       s"bad argument #${index + 1} (${typeName(have)} has no integer representation)")
 
   private def typeName(value: AnyRef): String = value match {
-    case null | None | _: scala.runtime.BoxedUnit => "nil"
+    case null | ResultWrapper.unit | None => "nil"
     case _: java.lang.Boolean => "boolean"
     case _: java.lang.Byte => "integer"
     case _: java.lang.Short => "integer"
@@ -346,8 +338,16 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
     case _ => value.getClass.getSimpleName
   }
 
-  private def makeStack(name: String, damage: Int, tag: Option[CompoundTag]) =
-    // TODO(1.21.1): 原实现用 `Item.itemRegistry.getObject(name)` + `ItemStack(item, 1, damage)`；
-    // 注册表与 damage 语义都变了，统一收敛到 ItemStacks。
-    ItemStacks.makeStack(name, damage, tag)
+  private def makeStack(name: String, damage: Int, tag: Option[CompoundTag]) = {
+    ForgeRegistries.ITEMS.getValue(new ResourceLocation(name)) match {
+      case item: Item =>
+        val stack = new ItemStack(item, 1)
+        stack.setDamageValue(damage)
+        tag.foreach(stack.setTag)
+        stack
+      case _ => throw new IllegalArgumentException("invalid item stack")
+    }
+  }
+
+  private def toNbtTagCompound(data: Array[Byte]) = Option(ItemUtils.loadTag(data))
 }

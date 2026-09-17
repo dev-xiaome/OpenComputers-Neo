@@ -1,7 +1,7 @@
 package li.cil.oc.api.internal;
 
 import li.cil.oc.api.network.Environment;
-import net.neoforged.neoforge.items.IItemHandler;
+import net.minecraft.world.Container;
 
 /**
  * This interface is implemented as a marker by adapters.
@@ -26,5 +26,5 @@ import net.neoforged.neoforge.items.IItemHandler;
  * via the API, i.e. without having to link against internal classes. This
  * also means that <em>you should not implement this</em>.
  */
-public interface Adapter extends Environment, IItemHandler {
+public interface Adapter extends Environment, Container {
 }

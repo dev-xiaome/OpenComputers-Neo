@@ -1,0 +1,28 @@
+{
+  "type": "opencomputers_neo:crafting_shaped_extended",
+  "pattern": [
+    "nCn",
+    "PBG",
+    "nCn"
+  ],
+  "key": {
+    "n": {
+      "tag": "opencomputers_neo:siliconnetherite"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip3"
+    },
+    "B": {
+      "tag": "opencomputers_neo:componentbus3"
+    },
+    "P": {
+      "tag": "opencomputers_neo:cpu4"
+    },
+    "G": {
+      "tag": "opencomputers_neo:graphicscard3"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:apu3"
+  }
+}

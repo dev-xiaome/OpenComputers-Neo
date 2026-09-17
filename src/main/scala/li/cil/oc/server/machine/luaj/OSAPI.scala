@@ -18,7 +18,7 @@ class OSAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
         else "%d/%m/%y %H:%M:%S"
       val time =
         if (args.narg > 1 && args.isnumber(2)) args.todouble(2)
-        else (machine.worldTime + 6000) * 60 * 60 / 1000
+        else ((machine.worldTime + 6000) * 60 * 60 / 1000).toDouble
 
       val dt = GameTimeFormatter.parse(time)
       def fmt(format: String) = {

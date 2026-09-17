@@ -1,1 +1,6 @@
-{"parent":"minecraft:item/generated","textures":{"layer0":"opencomputers_neo:item/upgradesolargenerator"}}
+{
+    "parent": "opencomputers_neo:item/flat",
+    "textures": {
+        "layer0": "opencomputers_neo:item/solargeneratorupgrade"
+    }
+}

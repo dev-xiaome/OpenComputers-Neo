@@ -4,40 +4,38 @@ import li.cil.oc.Constants
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.internal
+import li.cil.oc.api.internal.Microcontroller
 import li.cil.oc.common.Slot
 import li.cil.oc.common.Tier
 import li.cil.oc.common.item.data.MicrocontrollerData
 import li.cil.oc.util.ItemUtils
+import net.minecraft.world.Container
 import net.minecraft.world.item.ItemStack
-import net.neoforged.neoforge.items.IItemHandler
 
-import scala.jdk.CollectionConverters._
+import scala.collection.JavaConverters.asJavaIterable
+import scala.collection.convert.ImplicitConversionsToJava._
 
-/**
- * 单片机装配模板（对应 1.7.10 的 `common.template.MicrocontrollerTemplate`）。
- *
- * 1.21.1 迁移要点：物品栏参数 `IInventory` → `IItemHandler`（`getSizeInventory` → `getSlots`，
- * 空槽位是 `ItemStack.EMPTY` 而非 `null`，统一走 [[Template.stackAt]]）。
- */
 object MicrocontrollerTemplate extends Template {
   override protected val suggestedComponents = Array(
     "BIOS" -> hasComponent("eeprom") _)
 
-  override protected def hostClass = classOf[internal.Microcontroller]
+  override protected def hostClass: Class[Microcontroller] = classOf[internal.Microcontroller]
 
-  def selectTier1(stack: ItemStack) = api.Items.get(stack) == api.Items.get(Constants.ItemName.MicrocontrollerCaseTier1)
+  def selectTier1(stack: ItemStack): Boolean = api.Items.get(stack) == api.Items.get(Constants.ItemName.MicrocontrollerCaseTier1)
 
-  def selectTier2(stack: ItemStack) = api.Items.get(stack) == api.Items.get(Constants.ItemName.MicrocontrollerCaseTier2)
+  def selectTier2(stack: ItemStack): Boolean = api.Items.get(stack) == api.Items.get(Constants.ItemName.MicrocontrollerCaseTier2)
+  
+  def selectTier3(stack: ItemStack): Boolean = api.Items.get(stack) == api.Items.get(Constants.ItemName.MicrocontrollerCaseTier3)
 
-  def selectTierCreative(stack: ItemStack) = api.Items.get(stack) == api.Items.get(Constants.ItemName.MicrocontrollerCaseCreative)
+  def selectTierCreative(stack: ItemStack): Boolean = api.Items.get(stack) == api.Items.get(Constants.ItemName.MicrocontrollerCaseCreative)
 
-  def validate(inventory: IItemHandler): Array[AnyRef] = validateComputer(inventory)
+  def validate(inventory: Container): Array[AnyRef] = validateComputer(inventory)
 
-  def assemble(inventory: IItemHandler) = {
-    val items = (0 until inventory.getSlots).map(slot => stackAt(inventory, slot)).filter(_ != null)
+  def assemble(inventory: Container): Array[Object] = {
+    val items = (0 until inventory.getContainerSize).map(inventory.getItem)
     val data = new MicrocontrollerData()
     data.tier = caseTier(inventory)
-    data.components = items.drop(1).toArray
+    data.components = items.drop(1).filter(!_.isEmpty).toArray
     data.storedEnergy = Settings.get.bufferMicrocontroller.toInt
     val stack = data.createItemStack()
     val energy = Settings.get.microcontrollerBaseCost + complexity(inventory) * Settings.get.microcontrollerComplexityCost
@@ -45,9 +43,9 @@ object MicrocontrollerTemplate extends Template {
     Array(stack, Double.box(energy))
   }
 
-  def selectDisassembler(stack: ItemStack) = api.Items.get(stack) == api.Items.get(Constants.BlockName.Microcontroller)
+  def selectDisassembler(stack: ItemStack): Boolean = api.Items.get(stack) == api.Items.get(Constants.BlockName.Microcontroller)
 
-  def disassemble(stack: ItemStack, ingredients: Array[ItemStack]) = {
+  def disassemble(stack: ItemStack, ingredients: Array[ItemStack]): Array[ItemStack] = {
     val info = new MicrocontrollerData(stack)
     val itemName = Constants.ItemName.MicrocontrollerCase(info.tier)
 
@@ -66,7 +64,7 @@ object MicrocontrollerTemplate extends Template {
       Array(
         Tier.Two
       ),
-      Iterable(
+      asJavaIterable(Iterable(
         (Slot.Card, Tier.One),
         (Slot.Card, Tier.One),
         null,
@@ -74,7 +72,7 @@ object MicrocontrollerTemplate extends Template {
         (Slot.Memory, Tier.One),
         null,
         (Slot.EEPROM, Tier.Any)
-      ).map(toPair).asJava)
+      ).map(toPair)))
 
     // Tier 2
     api.IMC.registerAssemblerTemplate(
@@ -87,7 +85,7 @@ object MicrocontrollerTemplate extends Template {
       Array(
         Tier.Three
       ),
-      Iterable(
+      asJavaIterable(Iterable(
         (Slot.Card, Tier.Two),
         (Slot.Card, Tier.One),
         null,
@@ -95,8 +93,29 @@ object MicrocontrollerTemplate extends Template {
         (Slot.Memory, Tier.One),
         (Slot.Memory, Tier.One),
         (Slot.EEPROM, Tier.Any)
-      ).map(toPair).asJava)
+      ).map(toPair)))
 
+    // Tier 3
+    api.IMC.registerAssemblerTemplate(
+      "Microcontroller (Tier 3)",
+      "li.cil.oc.common.template.MicrocontrollerTemplate.selectTier3",
+      "li.cil.oc.common.template.MicrocontrollerTemplate.validate",
+      "li.cil.oc.common.template.MicrocontrollerTemplate.assemble",
+      hostClass,
+      null,
+      Array(
+        Tier.Four
+      ),
+      asJavaIterable(Iterable(
+        (Slot.Card, Tier.Two),
+        (Slot.Card, Tier.Two),
+        null,
+        (Slot.CPU, Tier.One),
+        (Slot.Memory, Tier.Two),
+        (Slot.Memory, Tier.One),
+        (Slot.EEPROM, Tier.Any)
+      ).map(toPair)))
+    
     // Creative
     api.IMC.registerAssemblerTemplate(
       "Microcontroller (Creative)",
@@ -116,7 +135,7 @@ object MicrocontrollerTemplate extends Template {
         Tier.Three,
         Tier.Three
       ),
-      Iterable(
+      asJavaIterable(Iterable(
         (Slot.Card, Tier.Three),
         (Slot.Card, Tier.Three),
         (Slot.Card, Tier.Three),
@@ -124,7 +143,7 @@ object MicrocontrollerTemplate extends Template {
         (Slot.Memory, Tier.Three),
         (Slot.Memory, Tier.Three),
         (Slot.EEPROM, Tier.Any)
-      ).map(toPair).asJava)
+      ).map(toPair)))
 
     // Disassembler
     api.IMC.registerDisassemblerTemplate(
@@ -133,10 +152,10 @@ object MicrocontrollerTemplate extends Template {
       "li.cil.oc.common.template.MicrocontrollerTemplate.disassemble")
   }
 
-  override protected def maxComplexity(inventory: IItemHandler) =
+  override protected def maxComplexity(inventory: Container): Int =
     if (caseTier(inventory) == Tier.Two) 5
-    else if (caseTier(inventory) == Tier.Four) 9001 // Creative
+    else if (caseTier(inventory) == Tier.Five) 9001 // Creative
     else 4
 
-  override protected def caseTier(inventory: IItemHandler) = ItemUtils.caseTier(stackAt(inventory, 0))
+  override protected def caseTier(inventory: Container): Int = ItemUtils.caseTier(inventory.getItem(0))
 }

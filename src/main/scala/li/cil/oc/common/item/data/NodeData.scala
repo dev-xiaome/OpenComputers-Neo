@@ -2,51 +2,53 @@ package li.cil.oc.common.item.data
 
 import li.cil.oc.Settings
 import li.cil.oc.api.network.Visibility
-import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.item.ItemStack
+import net.minecraft.nbt.CompoundTag
 
-/**
- * 组件物品的节点数据（原 1.7.10 的 `NodeData`）。
- *
- * 1.21.1 迁移要点：`getInteger` → `getInt`，`putInt` 与 `Visibility.ordinal` 语义不变。
- * 读取时用 [[Visibility#values]] 的边界做保护，避免旧存档里的越界序号直接抛异常。
- */
+// Generic one for items that are used as components; gets the items node info.
 class NodeData extends ItemData(null) {
   def this(stack: ItemStack) = {
     this()
-    load(stack)
+    loadData(stack)
   }
 
   var address: Option[String] = None
   var buffer: Option[Double] = None
   var visibility: Option[Visibility] = None
 
-  override def load(nbt: CompoundTag): Unit = {
-    val nodeNbt = nbt.getCompound(Settings.namespace + "data").getCompound("node")
-    if (nodeNbt.contains("address")) {
-      address = Option(nodeNbt.getString("address"))
+  private final val DataTag = Settings.namespace + "data"
+
+  override def loadData(nbt: CompoundTag): Unit = {
+    val nodeNbt = nbt.getCompound(DataTag).getCompound(NodeData.NodeTag)
+    if (nodeNbt.contains(NodeData.AddressTag)) {
+      address = Option(nodeNbt.getString(NodeData.AddressTag))
     }
-    if (nodeNbt.contains("buffer")) {
-      buffer = Option(nodeNbt.getDouble("buffer"))
+    if (nodeNbt.contains(NodeData.BufferTag)) {
+      buffer = Option(nodeNbt.getDouble(NodeData.BufferTag))
     }
-    if (nodeNbt.contains("visibility")) {
-      val index = nodeNbt.getInt("visibility")
-      val values = Visibility.values()
-      visibility = if (index >= 0 && index < values.length) Option(values(index)) else None
+    if (nodeNbt.contains(NodeData.VisibilityTag)) {
+      visibility = Option(Visibility.values()(nodeNbt.getInt(NodeData.VisibilityTag)))
     }
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    if (!nbt.contains(Settings.namespace + "data")) {
-      nbt.put(Settings.namespace + "data", new CompoundTag())
+  override def saveData(nbt: CompoundTag): Unit = {
+    if (!nbt.contains(DataTag)) {
+      nbt.put(DataTag, new CompoundTag())
     }
-    val dataNbt = nbt.getCompound(Settings.namespace + "data")
-    if (!dataNbt.contains("node")) {
-      dataNbt.put("node", new CompoundTag())
+    val dataNbt = nbt.getCompound(DataTag)
+    if (!dataNbt.contains(NodeData.NodeTag)) {
+      dataNbt.put(NodeData.NodeTag, new CompoundTag())
     }
-    val nodeNbt = dataNbt.getCompound("node")
-    address.foreach(nodeNbt.putString("address", _))
-    buffer.foreach(nodeNbt.putDouble("buffer", _))
-    visibility.foreach(value => nodeNbt.putInt("visibility", value.ordinal()))
+    val nodeNbt = dataNbt.getCompound(NodeData.NodeTag)
+    address.foreach(nodeNbt.putString(NodeData.AddressTag, _))
+    buffer.foreach(nodeNbt.putDouble(NodeData.BufferTag, _))
+    visibility.map(_.ordinal()).foreach(nodeNbt.putInt(NodeData.VisibilityTag, _))
   }
+}
+
+object NodeData {
+  final val NodeTag = "node"
+  final val AddressTag = "address"
+  final val BufferTag = "buffer"
+  final val VisibilityTag = "visibility"
 }

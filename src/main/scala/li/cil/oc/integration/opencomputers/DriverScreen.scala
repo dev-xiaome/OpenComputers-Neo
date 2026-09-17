@@ -7,7 +7,7 @@ import li.cil.oc.api.driver.item.HostAware
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.common.Slot
 import li.cil.oc.common.component
-import li.cil.oc.common.tileentity
+import li.cil.oc.common.blockentity
 import net.minecraft.world.item.ItemStack
 
 object DriverScreen extends Item with HostAware {
@@ -15,7 +15,7 @@ object DriverScreen extends Item with HostAware {
     api.Items.get(Constants.BlockName.ScreenTier1))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) = host match {
-    case screen: tileentity.Screen if screen.tier > 0 => new component.Screen(screen)
+    case screen: blockentity.Screen if screen.tier > 0 => new component.Screen(screen)
     case _ => new component.TextBuffer(host)
   }
 

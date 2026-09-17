@@ -1,7 +1,5 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/relay"
-                          }
-                 }
+    "variants": {
+        "": { "model": "opencomputers_neo:block/relay" }
+    }
 }

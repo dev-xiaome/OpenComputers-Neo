@@ -1,132 +1,147 @@
 package li.cil.oc.client.gui
 
+import com.mojang.blaze3d.systems.RenderSystem
 import li.cil.oc.Localization
 import li.cil.oc.client.Textures
 import li.cil.oc.client.gui.widget.ProgressBar
+import li.cil.oc.client.renderer.TextBufferRenderCache
+import li.cil.oc.client.renderer.font.TextBufferRenderData
 import li.cil.oc.client.{PacketSender => ClientPacketSender}
-import li.cil.oc.common.container
-import net.minecraft.client.gui.GuiGraphics
-import net.minecraft.network.chat.Component
+import li.cil.oc.common.menu
+import li.cil.oc.util.PackedColor
+import li.cil.oc.util.RenderState
+import li.cil.oc.util.TextBuffer
 import net.minecraft.world.entity.player.Inventory
+import net.minecraft.network.chat.Component
+import com.mojang.blaze3d.vertex.PoseStack
+import net.minecraft.client.gui.components.Button
+import com.mojang.blaze3d.vertex.Tesselator
+import com.mojang.blaze3d.vertex.DefaultVertexFormat
+import com.mojang.blaze3d.vertex.VertexFormat
+import net.minecraft.client.gui.GuiGraphics
 
-import scala.jdk.CollectionConverters._
-/**
- * 无人机界面（原 1.7.10 的 `li.cil.oc.client.gui.Drone`）。
- *
- * 界面构成：左侧一块 20x2 的「状态屏」，右侧 8 格物品栏，底部能量条与电源键。
- *
- * ==1.21.1 迁移要点==
- *  - 屏幕构造器固定为 `(menu, playerInventory, title)`；宿主无人机实体由
- *    `MenuTypes` 的客户端工厂从载荷里的实体 id 取回（`menu.drone`）。
- *  - `drawScreen` → [[render(GuiGraphics, Int, Int, Float)]]；
- *    `initGui()` → `init()`；`buttonList` → [[addButton]]。
- *  - `func_146978_c(...)` → [[isHovering]]；`func_146115_a` → [[ImageButton.hoveredState]]；
- *  - `Tessellator` 画选中框 → 一次 `GuiGraphics#blit`。
- *
- * ==降级说明==
- * 1.7.10 用 `traits.DisplayBuffer` + `renderer.gui.BufferRenderer` +
- * `renderer.font.TextBufferRenderData` 把无人机状态画成真正的点阵字体；
- * 那套文本缓冲区渲染子系统尚未移植，因此这里用一块深色底 + 一行状态文字占位。
- */
-class Drone(menu: container.Drone, playerInventory: Inventory, title: Component)
-  extends DynamicGuiContainer[container.Drone](menu, playerInventory, title) {
+import scala.jdk.javaapi.CollectionConverters.asJavaCollection
+
+class Drone(state: menu.Drone, playerInventory: Inventory, name: Component)
+  extends DynamicGuiContainer(state, playerInventory, name)
+  with traits.DisplayBuffer {
 
   imageWidth = 176
   imageHeight = 148
 
   protected var powerButton: ImageButton = _
 
-  private val bufferX = 9
-  private val bufferY = 9
-  private val bufferColumns = 20
-  private val bufferRows = 2
+  private val buffer = new TextBuffer(20, 2, new PackedColor.SingleBitFormat(0x33FF33))
+  private val bufferRenderer = new TextBufferRenderData {
+    private var _dirty = true
+
+    override def dirty = _dirty
+
+    override def dirty_=(value: Boolean): Unit = _dirty = value
+
+    override def data = buffer
+
+    override def viewport: (Int, Int) = buffer.size
+  }
+
+  override protected val bufferX = 9
+  override protected val bufferY = 9
+  override protected val bufferColumns = 80
+  override protected val bufferRows = 16
 
   private val inventoryX = 97
   private val inventoryY = 7
 
-  private val power: ProgressBar = addWidgetToContainer(new ProgressBar(28, 48))
+  private val power = addCustomWidget(new ProgressBar(28, 48))
 
   private val selectionSize = 20
   private val selectionsStates = 17
-  private val selectionStepV = 1 / selectionsStates.toDouble
+  private val selectionStepV = 1 / selectionsStates.toFloat
 
-  private def drone = menu.drone
+  override def render(graphics: GuiGraphics, mouseX: Int, mouseY: Int, dt: Float): Unit = {
+    powerButton.toggled = inventoryContainer.isRunning
+    bufferRenderer.dirty = inventoryContainer.statusText.linesIterator.zipWithIndex.exists {
+      case (line, i) => buffer.set(0, i, line, vertical = false)
+    }
+    super.render(graphics, mouseX, mouseY, dt)
+  }
 
-  override def init(): Unit = {
+  override protected def init(): Unit = {
     super.init()
-    powerButton = new ImageButton(0, leftPos + 7, topPos + 45, 18, 18, Textures.guiButtonPower, canToggle = true)
-    addButton(powerButton)
-    powerButton.actionPerformed = _ => onPowerButton()
+    powerButton = new ImageButton(leftPos + 7, topPos + 45, 18, 18, (_: Button) =>
+      ClientPacketSender.sendDronePower(inventoryContainer, !inventoryContainer.isRunning), Textures.GUI.ButtonPower, canToggle = true)
+    addRenderableWidget(powerButton)
   }
 
-  /** 原 `actionPerformed(button)`：0 号是电源键。 */
-  protected def onPowerButton(): Unit = {
-    ClientPacketSender.sendDronePower(drone, !drone.isRunning)
+  override protected def drawBuffer(stack: PoseStack): Unit = {
+    stack.translate(bufferX, bufferY, 0)
+    RenderState.disableEntityLighting()
+    RenderState.makeItBlend()
+    stack.scale(scale.toFloat, scale.toFloat, 1)
+    RenderState.pushAttrib()
+    RenderSystem.depthMask(false)
+    RenderSystem.setShaderColor(0.5f, 0.5f, 1f, 1f)
+    TextBufferRenderCache.render(stack, bufferRenderer)
+    RenderState.popAttrib()
   }
 
-  override def render(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int, partialTick: Float): Unit = {
-    if (powerButton != null) powerButton.toggled = drone.isRunning
-    super.render(guiGraphics, mouseX, mouseY, partialTick)
-  }
+  override protected def changeSize(w: Double, h: Double) = 2.0
 
-  override protected def drawSecondaryBackgroundLayer(guiGraphics: GuiGraphics): Unit = {
-    guiGraphics.blit(Textures.guiDrone, leftPos, topPos, 0, 0, imageWidth, imageHeight)
-    power.level = drone.globalBuffer.toDouble / math.max(drone.globalBufferSize.toDouble, 1.0)
-    if (drone.mainInventory.getSlots > 0) {
-      drawSelection(guiGraphics)
+  override protected def renderLabels(graphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit =
+    drawSecondaryForegroundLayer(graphics, mouseX, mouseY)
+
+  override protected def drawSecondaryForegroundLayer(graphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
+    drawBufferLayer(graphics.pose)
+    RenderState.pushAttrib()
+    if (isHovering(power.x, power.y, power.width, power.height, mouseX - leftPos, mouseY - topPos)) {
+      val tooltip = new java.util.ArrayList[Component]
+      val format = Localization.Computer.Power + ": %d%% (%d/%d)"
+      tooltip.add(Component.literal(format.format(
+        inventoryContainer.globalBuffer * 100 / math.max(inventoryContainer.globalBufferSize, 1),
+        inventoryContainer.globalBuffer, inventoryContainer.globalBufferSize)))
+      graphics.renderComponentTooltip(font, tooltip, mouseX - leftPos, mouseY - topPos)
     }
+    if (powerButton.isMouseOver(mouseX, mouseY)) {
+      val tooltip = new java.util.ArrayList[Component]
+      tooltip.addAll(asJavaCollection(if (inventoryContainer.isRunning) Localization.Computer.TurnOff.linesIterator.map(Component.literal).toIterable else Localization.Computer.TurnOn.linesIterator.map(Component.literal).toIterable))
+      graphics.renderComponentTooltip(font, tooltip, mouseX - leftPos, mouseY - topPos)
+    }
+    RenderState.popAttrib()
   }
 
-  override protected def drawSecondaryForegroundLayer(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
-    // TODO(client.renderer.gui.BufferRenderer): 见类注释的降级说明。
-    drawStatusPreview(guiGraphics)
+  override protected def renderBg(graphics: GuiGraphics, dt: Float, mouseX: Int, mouseY: Int): Unit = {
+    RenderSystem.setShaderColor(1, 1, 1, 1)
+    graphics.blit(Textures.GUI.Drone, leftPos, topPos, 0, 0, imageWidth, imageHeight)
+    power.level = inventoryContainer.globalBuffer.toFloat / math.max(inventoryContainer.globalBufferSize.toFloat, 1.0f)
+    drawWidgets(graphics)
+    if (inventoryContainer.otherInventory.getContainerSize > 0) {
+      drawSelection(graphics)
+    }
 
-    if (isHovering(power.x, power.y, power.width, power.height, mouseX, mouseY)) {
-      val tooltip = new java.util.ArrayList[String]()
-      tooltip.add(Localization.Computer.Power + ": " +
-        (drone.globalBuffer * 100 / math.max(drone.globalBufferSize, 1)) + "% (" +
-        drone.globalBuffer + "/" + drone.globalBufferSize + ")")
-      copiedDrawHoveringText(tooltip, mouseX, mouseY, font)
-    }
-    if (powerButton != null && powerButton.hoveredState) {
-      val tooltip = new java.util.ArrayList[String]()
-      tooltip.addAll(toJava(
-        (if (drone.isRunning) Localization.Computer.TurnOff else Localization.Computer.TurnOn)
-          .linesIterator.toSeq))
-      copiedDrawHoveringText(tooltip, mouseX, mouseY, font)
-    }
-  }
-
-  /** 无人机状态屏的占位绘制；见类注释的降级说明。 */
-  private def drawStatusPreview(guiGraphics: GuiGraphics): Unit = {
-    val w = bufferColumns * 6
-    val h = bufferRows * 9
-    guiGraphics.fill(leftPos + bufferX, topPos + bufferY, leftPos + bufferX + w, topPos + bufferY + h, 0xFF101010)
-    val status = if (drone.statusText == null || drone.statusText.isEmpty) "Drone" else drone.statusText
-    var lineY = topPos + bufferY + 1
-    for (line <- status.linesIterator.take(bufferRows)) {
-      guiGraphics.drawString(font, line, leftPos + bufferX + 1, lineY, 0xFF33FF33, false)
-      lineY += 9
-    }
+    drawInventorySlots(graphics)
   }
 
   // No custom slots, we just extend DynamicGuiContainer for the highlighting.
-  override protected def drawSlotBackground(guiGraphics: GuiGraphics, x: Int, y: Int): Unit = {}
+  override protected def drawSlotBackground(graphics: GuiGraphics, x: Int, y: Int): Unit = {}
 
-  /** 当前选中槽位的高亮框（原实现用 `Tessellator` 手写，这里等价于一次 blit）。 */
-  private def drawSelection(guiGraphics: GuiGraphics): Unit = {
-    val slot = drone.selectedSlot
+  private def drawSelection(graphics: GuiGraphics): Unit = {
+    val stack = graphics.pose
+    val slot = inventoryContainer.selectedSlot
     if (slot >= 0 && slot < 16) {
-      val now = System.currentTimeMillis() / 1000.0
-      // 帧号 0..16（原实现 `((now - now.toInt) * selectionsStates).toInt`）。
-      val frame = ((now - now.toInt) * selectionsStates).toInt
+      Textures.bind(Textures.GUI.RobotSelection)
+      val now = System.currentTimeMillis() % 1000 / 1000.0f
+      val offsetV = (now * selectionsStates).toInt * selectionStepV
       val x = leftPos + inventoryX - 1 + (slot % 4) * (selectionSize - 2)
       val y = topPos + inventoryY - 1 + (slot / 4) * (selectionSize - 2)
-      // UV 取法与 Robot 界面完全相同，理由见 `Robot#drawSelection` 的注释：
-      // 1.7.10 每帧只取 `selectionStepV`（1/17）的高度，而 1.21.1 的 blit 参数是 Int，
-      // 因此改用「贴图高 17、每次取 1 像素高」等价表达，否则 17 帧会叠在一起。
-      guiGraphics.blit(Textures.guiRobotSelection, x, y, selectionSize, selectionSize,
-        0f, frame.toFloat, 1, 1, 1, selectionsStates)
+
+      val t = Tesselator.getInstance
+      val r = t.getBuilder
+      r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
+      r.vertex(stack.last.pose, x, y, 0).uv(0, offsetV).endVertex()
+      r.vertex(stack.last.pose, x, y + selectionSize, 0).uv(0, offsetV + selectionStepV).endVertex()
+      r.vertex(stack.last.pose, x + selectionSize, y + selectionSize, 0).uv(1, offsetV + selectionStepV).endVertex()
+      r.vertex(stack.last.pose, x + selectionSize, y, 0).uv(1, offsetV).endVertex()
+      t.end()
     }
   }
 }

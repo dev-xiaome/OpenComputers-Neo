@@ -3,22 +3,13 @@ package li.cil.oc.util
 import li.cil.oc.api.internal.MultiTank
 import li.cil.oc.api.machine.Arguments
 import net.minecraft.core.Direction
+import net.neoforged.neoforge.fluids.{FluidStack, FluidType}
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
+import net.neoforged.neoforge.items.IItemHandler
 
 import scala.language.implicitConversions
+import net.minecraft.world.Container
 
-/**
- * `Arguments` 的扩展（含各类参数校验便捷方法）。
- *
- * 1.21.1 迁移要点：
- *  - `IInventory` → `IItemHandler`：`getSizeInventory` → `getSlots`
- *  - `FluidContainerRegistry.BUCKET_VOLUME` → [[FluidUtils.BucketVolume]]
- *  - `Direction.VALID_DIRECTIONS` 与 `Direction.getOrientation(i)` 已移除，
- *    分别改为 `Direction.values` 与 `Direction.from3DDataValue(i)`
- *  - `FluidTankInfo` 已移除，改用 [[FluidUtils.TankInfo]]；
- *    `IFluidHandler#getTankInfo` → `getTanks()` / `getFluidInTank(i)` / `getTankCapacity(i)`
- *  - 所有 `side` 参数仅用于兼容旧签名：1.21.1 的面过滤由能力提供方完成
- */
 object ExtendedArguments {
 
   implicit def extendedArguments(args: Arguments): ExtendedArguments = new ExtendedArguments(args)
@@ -28,22 +19,26 @@ object ExtendedArguments {
       if (!isDefined(index) || !hasValue(index)) default
       else math.max(0, math.min(64, args.checkInteger(index)))
 
-    def optFluidCount(index: Int, default: Int = FluidUtils.BucketVolume) =
+    def optFluidCount(index: Int, default: Int = FluidType.BUCKET_VOLUME) =
       if (!isDefined(index) || !hasValue(index)) default
       else math.max(0, args.checkInteger(index))
 
-    def checkSlot(inventory: net.neoforged.neoforge.items.IItemHandler, n: Int) = {
+    def checkSlot(inventory: IItemHandler, n: Int): Int = {
       val slot = args.checkInteger(n) - 1
-      if (inventory == null || slot < 0 || slot >= inventory.getSlots) {
+      if (slot < 0 || slot >= inventory.getSlots) {
         throw new IllegalArgumentException("invalid slot")
       }
       slot
     }
 
-    def optSlot(inventory: net.neoforged.neoforge.items.IItemHandler, index: Int, default: Int) = {
+    def optSlot(inventory: IItemHandler, index: Int, default: Int): Int = {
       if (!isDefined(index)) default
       else checkSlot(inventory, index)
     }
+
+    def checkSlot(inventory: Container, n: Int): Int = checkSlot(InventoryUtils.asItemHandler(inventory), n)
+
+    def optSlot(inventory: Container, index: Int, default: Int): Int = optSlot(InventoryUtils.asItemHandler(inventory), index, default)
 
     def checkTank(multi: MultiTank, n: Int) = {
       val tank = args.checkInteger(n) - 1
@@ -53,31 +48,30 @@ object ExtendedArguments {
       tank
     }
 
-    /** 校验并返回指定槽位的流体信息；槽位不存在时抛 `IllegalArgumentException`。 */
-    def checkTankInfo(handler: IFluidHandler, side: Direction, n: Int): FluidUtils.TankInfo = {
+    def checkTankProperties(handler: IFluidHandler, n: Int) = {
       val tank = args.checkInteger(n) - 1
-      if (handler == null || tank < 0 || tank >= handler.getTanks) {
+      if (tank < 0 || tank >= handler.getTanks) {
         throw new IllegalArgumentException("invalid tank index")
       }
-      FluidUtils.TankInfo(handler.getFluidInTank(tank), handler.getTankCapacity(tank))
+      new TankProperties(handler.getTankCapacity(tank), handler.getFluidInTank(tank))
     }
 
-    def optTankInfo(handler: IFluidHandler, side: Direction, n: Int, default: FluidUtils.TankInfo): FluidUtils.TankInfo = {
+    def optTankProperties(handler: IFluidHandler, n: Int, default: TankProperties) = {
       if (!isDefined(n)) default
-      else checkTankInfo(handler, side, n)
+      else checkTankProperties(handler, n)
     }
 
-    def checkSideAny(index: Int) = checkSide(index, Direction.values.toSeq: _*)
+    def checkSideAny(index: Int) = checkSide(index, Direction.values: _*)
 
     def optSideAny(index: Int, default: Direction) =
       if (!isDefined(index)) default
       else checkSideAny(index)
 
-    def checkSideExcept(index: Int, invalid: Direction*) = checkSide(index, Direction.values.filterNot(invalid.contains).toSeq: _*)
+    def checkSideExcept(index: Int, invalid: Direction*) = checkSide(index, Direction.values.filterNot(invalid.contains): _*)
 
     def optSideExcept(index: Int, default: Direction, invalid: Direction*) =
       if (!isDefined(index)) default
-      else checkSideExcept(index, invalid.toSeq: _*)
+      else checkSideExcept(index, invalid: _*)
 
     def checkSideForAction(index: Int) = checkSide(index, Direction.SOUTH, Direction.UP, Direction.DOWN)
 
@@ -111,5 +105,8 @@ object ExtendedArguments {
 
     private def hasValue(index: Int) = args.checkAny(index) != null
   }
+
+  @Deprecated
+  class TankProperties(val capacity: Int, val contents: FluidStack)
 
 }

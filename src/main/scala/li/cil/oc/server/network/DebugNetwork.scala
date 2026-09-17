@@ -8,7 +8,6 @@ object DebugNetwork {
   val cards = mutable.WeakHashMap.empty[DebugNode, Unit]
 
   def add(card: DebugNode): Unit = {
-    // Scala 2.13：`Unit` 伴生对象不能再作为值使用，unit 值统一写作 `()`。
     cards.put(card, ())
   }
 

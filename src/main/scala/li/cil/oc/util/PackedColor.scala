@@ -12,12 +12,14 @@ object PackedColor {
       case api.internal.TextBuffer.ColorDepth.OneBit => 1
       case api.internal.TextBuffer.ColorDepth.FourBit => 4
       case api.internal.TextBuffer.ColorDepth.EightBit => 8
+      case api.internal.TextBuffer.ColorDepth.SixteenBit => 16
     }
 
     def format(depth: api.internal.TextBuffer.ColorDepth) = depth match {
       case api.internal.TextBuffer.ColorDepth.OneBit => SingleBitFormat
       case api.internal.TextBuffer.ColorDepth.FourBit => new MutablePaletteFormat
       case api.internal.TextBuffer.ColorDepth.EightBit => new HybridFormat
+      case api.internal.TextBuffer.ColorDepth.SixteenBit => new SixteenBitFormat
     }
   }
 
@@ -47,9 +49,9 @@ object PackedColor {
 
     def isFromPalette(value: Int): Boolean = false
 
-    override def load(nbt: CompoundTag) {}
+    override def loadData(nbt: CompoundTag): Unit = {}
 
-    override def save(nbt: CompoundTag) {}
+    override def saveData(nbt: CompoundTag): Unit = {}
   }
 
   class SingleBitFormat(val color: Int) extends ColorFormat {
@@ -104,12 +106,12 @@ object PackedColor {
       0xCCCCCC, 0x336699, 0x9933CC, 0x333399,
       0x663300, 0x336600, 0xFF3333, 0x000000)
 
-    override def load(nbt: CompoundTag): Unit = {
+    override def loadData(nbt: CompoundTag): Unit = {
       val loaded = nbt.getIntArray("palette")
       Array.copy(loaded, 0, palette, 0, math.min(loaded.length, palette.length))
     }
 
-    override def save(nbt: CompoundTag): Unit = {
+    override def saveData(nbt: CompoundTag): Unit = {
       nbt.putIntArray("palette", palette)
     }
   }
@@ -161,6 +163,51 @@ object PackedColor {
         else {
           paletteIndex
         }
+      }
+    }
+
+    override def isFromPalette(value: Int) = value >= 0 && value < palette.length
+  }
+
+  class SixteenBitFormat extends MutablePaletteFormat {
+    override def depth = api.internal.TextBuffer.ColorDepth.SixteenBit
+
+    // RGB565: R=5bit, G=6bit, B=5bit = 65536色
+    private val rBits = 5
+    private val gBits = 6
+    private val bBits = 5
+
+    private def toRGB565(value: Int): Int = {
+      val (r, g, b) = extract(value)
+      val r5 = (r * ((1 << rBits) - 1.0) / 0xFF + 0.5).toInt
+      val g6 = (g * ((1 << gBits) - 1.0) / 0xFF + 0.5).toInt
+      val b5 = (b * ((1 << bBits) - 1.0) / 0xFF + 0.5).toInt
+      (r5 << (gBits + bBits)) | (g6 << bBits) | b5
+    }
+
+    private def fromRGB565(value: Int): Int = {
+      val r5 = (value >>> (gBits + bBits)) & 0x1F
+      val g6 = (value >>> bBits) & 0x3F
+      val b5 = value & 0x1F
+      val r = (r5 * 0xFF / ((1 << rBits) - 1.0) + 0.5).toInt
+      val g = (g6 * 0xFF / ((1 << gBits) - 1.0) + 0.5).toInt
+      val b = (b5 * 0xFF / ((1 << bBits) - 1.0) + 0.5).toInt
+      (r << rShift32) | (g << gShift32) | (b << bShift32)
+    }
+
+    override def inflate(value: Int): Int =
+      if (isFromPalette(value)) super.inflate(value)
+      else fromRGB565(value - palette.length)
+
+    override def deflate(value: Color): Byte = {
+      val paletteIndex = super.deflate(value)
+      if (value.isPalette) paletteIndex
+      else {
+        val deflated = (palette.length + toRGB565(value.value)).toByte
+        if (delta(inflate(deflated & 0xFF), value.value) < delta(inflate(paletteIndex & 0xFF), value.value))
+          deflated
+        else
+          paletteIndex
       }
     }
 

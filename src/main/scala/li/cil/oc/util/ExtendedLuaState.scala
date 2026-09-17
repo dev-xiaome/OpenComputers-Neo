@@ -9,7 +9,7 @@ import li.cil.repack.com.naef.jnlua.JavaFunction
 import li.cil.repack.com.naef.jnlua.LuaState
 import li.cil.repack.com.naef.jnlua.LuaType
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.math.ScalaNumber
@@ -24,7 +24,7 @@ object ExtendedLuaState {
       override def invoke(state: LuaState) = f(state)
     })
 
-    def pushValue(value: Any, memo: util.IdentityHashMap[Any, Int] = new util.IdentityHashMap()) {
+    def pushValue(value: Any, memo: util.IdentityHashMap[Any, Int] = new util.IdentityHashMap()): Unit = {
       val recursive = memo.size > 0
       val oldTop = lua.getTop
       if (memo.containsKey(value)) {
@@ -37,7 +37,7 @@ object ExtendedLuaState {
           case null => null
           case primitive => primitive.asInstanceOf[AnyRef]
         }) match {
-          case null | Unit | _: BoxedUnit => lua.pushNil()
+          case null | () | _: BoxedUnit => lua.pushNil()
           case value: java.lang.Boolean => lua.pushBoolean(value.booleanValue)
           case value: java.lang.Byte => lua.pushInteger(value.byteValue)
           case value: java.lang.Character => lua.pushString(String.valueOf(value))
@@ -50,8 +50,8 @@ object ExtendedLuaState {
           case value: Array[Byte] => lua.pushByteArray(value)
           case value: Array[_] => pushList(value, value.zipWithIndex.iterator, memo)
           case value: Value if Settings.get.allowUserdata => lua.pushJavaObjectRaw(value)
-          case value: Product => pushList(value, value.productIterator.zipWithIndex, memo)
           case value: Seq[_] => pushList(value, value.zipWithIndex.iterator, memo)
+          case value: Product => pushList(value, value.productIterator.zipWithIndex, memo)
           case value: java.util.Map[_, _] => pushTable(value, value.toMap, memo)
           case value: Map[_, _] => pushTable(value, value, memo)
           case value: mutable.Map[_, _] => pushTable(value, value.toMap, memo)
@@ -68,7 +68,7 @@ object ExtendedLuaState {
       }
     }
 
-    def pushList(obj: AnyRef, list: Iterator[(Any, Int)], memo: util.IdentityHashMap[Any, Int]): Unit = {
+    def pushList(obj: Any, list: Iterator[(Any, Int)], memo: util.IdentityHashMap[Any, Int]): Unit = {
       lua.newTable()
       val tableIndex = lua.getTop
       memo += obj -> tableIndex
@@ -83,7 +83,7 @@ object ExtendedLuaState {
       lua.pushValue(tableIndex)
     }
 
-    def pushTable(obj: AnyRef, map: Map[_, _], memo: util.IdentityHashMap[Any, Int]): Unit = {
+    def pushTable(obj: Any, map: Map[_, _], memo: util.IdentityHashMap[Any, Int]): Unit = {
       lua.newTable(0, map.size)
       val tableIndex = lua.getTop
       memo += obj -> tableIndex

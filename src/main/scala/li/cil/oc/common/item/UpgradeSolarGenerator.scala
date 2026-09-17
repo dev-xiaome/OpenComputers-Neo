@@ -2,8 +2,9 @@ package li.cil.oc.common.item
 
 import li.cil.oc.Settings
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「太阳能发电机升级」（原 `li.cil.oc.common.item.UpgradeSolarGenerator`）。 */
-class UpgradeSolarGenerator(props: Item.Properties) extends Item(props) with traits.Delegate with traits.ItemTier {
-  override protected def tooltipData: Seq[Any] = Seq((Settings.get.solarGeneratorEfficiency * 100).toInt)
+class UpgradeSolarGenerator(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier {
+  override protected def tooltipData = Seq((Settings.get.solarGeneratorEfficiency * 100).toInt)
 }

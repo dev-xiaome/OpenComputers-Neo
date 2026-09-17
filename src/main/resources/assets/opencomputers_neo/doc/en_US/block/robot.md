@@ -1,6 +1,6 @@
 # Robot
 
-![His name was Tobor.](block:opencomputers:robot)
+![His name was Tobor.](block:OpenComputers:robot)
 
 Unlike [computers](../general/computer.md), robots can move around and interact with the world much like a player can. They can *not* interact with external components, however! If you need to communicate with a [computer](../general/computer.md) or other robots, use a [wireless network card](../item/wlanCard1.md), or create some low-level protocol using redstone signals via a [redstone card](../item/redstoneCard1.md), for example.
 

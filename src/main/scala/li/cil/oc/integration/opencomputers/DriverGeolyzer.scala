@@ -14,7 +14,7 @@ object DriverGeolyzer extends Item with HostAware {
     api.Items.get(Constants.BlockName.Geolyzer))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) =
-    if (host.world != null && host.world.isClientSide) null
+    if (host.getEnvironmentLevel != null && host.getEnvironmentLevel.isClientSide) null
     else new component.Geolyzer(host)
 
   override def slot(stack: ItemStack) = Slot.Upgrade

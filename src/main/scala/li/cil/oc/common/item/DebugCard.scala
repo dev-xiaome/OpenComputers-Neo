@@ -1,60 +1,52 @@
 package li.cil.oc.common.item
 
+import java.util
+
 import li.cil.oc.Settings
 import li.cil.oc.Settings.DebugCardAccess
 import li.cil.oc.common.item.data.DebugCardData
-import net.minecraft.network.chat.Component
-import net.minecraft.world.InteractionHand
-import net.minecraft.world.InteractionResultHolder
-import net.minecraft.world.entity.player.Player
+import li.cil.oc.server.component.{DebugCard => CDebugCard}
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.common.extensions.IForgeItem
 import net.minecraft.world.level.Level
+import net.minecraft.world.InteractionResultHolder
+import net.minecraft.world.InteractionResult
+import net.minecraft.world.InteractionHand
+import net.minecraft.network.chat.Component
+import net.minecraft.world.entity.player.Player
+import net.minecraft.Util
 
-/**
- * 「调试卡」（原 `li.cil.oc.common.item.DebugCard`）。
- *
- * 1.21.1 迁移要点：
- *  - `player.getCommandSenderName` → `player.getScoreboardName`
- *  - `player.addChatComponentMessage(String)` →
- *    `player.displayClientMessage(Component.literal(...), false)`
- *  - `player.swingItem()` → `player.swing(hand)`
- *  - `server.component.DebugCard.AccessContext` 已改为 [[li.cil.oc.Settings.AccessContext]]
- *    （见 `common/item/data/DebugCardData.scala` 的说明）
- */
-class DebugCard(props: Item.Properties) extends Item(props) with traits.Delegate {
-
-  override protected def tooltipExtended(stack: ItemStack, tooltip: java.util.List[String]): Unit = {
+class DebugCard(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+  override protected def tooltipExtended(stack: ItemStack, tooltip: util.List[Component]): Unit = {
     super.tooltipExtended(stack, tooltip)
     val data = new DebugCardData(stack)
-    data.access.foreach(access => tooltip.add(s"§8${access.player}§r"))
+    data.access.foreach(access => tooltip.add(Component.literal(s"§8${access.player}§r")))
   }
 
-  override def use(world: Level, player: Player, hand: InteractionHand): InteractionResultHolder[ItemStack] = {
-    val stack = player.getItemInHand(hand)
-    if (!world.isClientSide && player.isShiftKeyDown) {
+  override def use(stack: ItemStack, level: Level, player: Player): InteractionResultHolder[ItemStack] = {
+    if (!level.isClientSide && player.isCrouching) {
       val data = new DebugCardData(stack)
-      val name = player.getScoreboardName
+      val name = player.getName
 
-      if (data.access.exists(_.player == name)) data.access = None
-      else {
-        val nonce = Settings.get.debugCardAccess match {
-          case wl: DebugCardAccess.Whitelist => wl.nonce(name) match {
+      if (data.access.exists(_.player == name.getString)) data.access = None
+      else data.access =
+        Some(CDebugCard.AccessContext(name.getString, Settings.get.debugCardAccess match {
+          case wl: DebugCardAccess.Whitelist => wl.nonce(name.getString) match {
             case Some(n) => n
             case None =>
-              player.displayClientMessage(
-                Component.literal("§cYou are not whitelisted to use debug card"), false)
-              player.swing(hand)
-              return InteractionResultHolder.sidedSuccess(stack, world.isClientSide)
+              player.sendSystemMessage(Component.literal("§cYou are not whitelisted to use debug card"))
+              player.swing(InteractionHand.MAIN_HAND)
+              return new InteractionResultHolder[ItemStack](InteractionResult.FAIL, stack)
           }
-          case _ => ""
-        }
-        data.access = Some(Settings.AccessContext(name, nonce))
-      }
 
-      data.save(stack)
-      player.swing(hand)
+          case _ => ""
+        }))
+
+      data.saveData(stack)
+      player.swing(InteractionHand.MAIN_HAND)
     }
-    InteractionResultHolder.sidedSuccess(stack, world.isClientSide)
+    new InteractionResultHolder(InteractionResult.sidedSuccess(level.isClientSide), stack)
   }
 }

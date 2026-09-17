@@ -56,16 +56,15 @@ public abstract class AbstractProvider implements BehaviorProvider {
     // ----------------------------------------------------------------------- //
 
     @Override
-    public CompoundTag writeToNBT(Behavior behavior) {
+    public CompoundTag save(Behavior behavior) {
         CompoundTag nbt = new CompoundTag();
-        // 1.21.1：NBTTagCompound#setString 改名为 putString。
         nbt.putString("provider", id);
         writeBehaviorToNBT(behavior, nbt);
         return nbt;
     }
 
     @Override
-    public Behavior readFromNBT(Player player, CompoundTag nbt) {
+    public Behavior load(Player player, CompoundTag nbt) {
         if (id.equals(nbt.getString("provider"))) {
             return readBehaviorFromNBT(player, nbt);
         } else {

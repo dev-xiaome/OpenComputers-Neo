@@ -3,14 +3,13 @@ package li.cil.oc.server.component
 import java.util
 
 import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
+import li.cil.oc.api.driver.DeviceInfo.{DeviceAttribute,DeviceClass}
 import li.cil.oc.api.network.EnvironmentHost
-import li.cil.oc.common.tileentity.traits.BundledRedstoneAware
-import li.cil.oc.common.tileentity.traits.RedstoneAware
+import li.cil.oc.common.blockentity.traits.BundledRedstoneAware
+import li.cil.oc.common.blockentity.traits.RedstoneAware
 import li.cil.oc.server.component
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 
 object Redstone {
 
@@ -37,8 +36,6 @@ object Redstone {
       DeviceAttribute.Width -> "16"
     )
 
-    // 1.21.1：`DeviceInfo#getDeviceInfo` 返回 `java.util.Map`，Scala 的 `Map` 需要显式转换。
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo
   }
-
 }

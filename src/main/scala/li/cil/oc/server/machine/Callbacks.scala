@@ -20,23 +20,21 @@ object Callbacks {
   private val cache = mutable.Map.empty[Class[_], immutable.Map[String, Callback]]
 
   def apply(host: Any) = host match {
-    // 复合方块环境（一个方块上叠了多个组件驱动）必须每次动态分析：
-    // 它的方法表由内部各驱动环境聚合而成，不能按宿主 Class 缓存。
     case multi: CompoundBlockEnvironment => dynamicAnalyze(host)
     case peripheral: ManagedPeripheral => dynamicAnalyze(host)
     case filtered: FilteredEnvironment => dynamicAnalyze(host)
-    case _ => cache.synchronized(cache.getOrElseUpdate(host.getClass, dynamicAnalyze(host)))
+    case _ => cache.getOrElseUpdate(host.getClass, dynamicAnalyze(host))
   }
 
   // Clear the cache; used when world is unloaded, mostly to allow reacting to
   // stuff (aka configs) that may influence which @Callbacks are enabled.
-  def clear(): Unit = cache.synchronized {
+  def clear(): Unit = {
     cache.clear()
   }
 
-  def fromClass(environment: Class[_]) = staticAnalyze(environment).toMap
+  def fromClass(environment: Class[_]) = staticAnalyze(environment)
 
-  private def dynamicAnalyze(host: Any): immutable.Map[String, Callback] = {
+  private def dynamicAnalyze(host: Any) = {
     val whitelists = mutable.Buffer.empty[Set[String]]
     val callbacks = mutable.Map.empty[String, Callback]
 
@@ -74,8 +72,6 @@ object Callbacks {
     // First collect whitelist and priority information, then sort and
     // fetch callbacks.
     (host match {
-      // 复合方块环境要把内部每个驱动环境分别展开，才能让白名单 / 优先级 / 过滤
-      // 各按自己的环境生效（CE-1.20 原样如此）。
       case multi: CompoundBlockEnvironment => multi.environments.map(env => process(env._2))
       case single => Seq(process(single))
     }).sortBy(-_._1).map(_._2).foreach(_ ())
@@ -83,7 +79,7 @@ object Callbacks {
     callbacks.toMap
   }
 
-  private def staticAnalyze(seed: Class[_], shouldAdd: Option[String => Boolean] = None, optCallbacks: Option[mutable.Map[String, Callback]] = None): mutable.Map[String, Callback] = {
+  private def staticAnalyze(seed: Class[_], shouldAdd: Option[String => Boolean] = None, optCallbacks: Option[mutable.Map[String, Callback]] = None) = {
     val callbacks = optCallbacks.getOrElse(mutable.Map.empty[String, Callback])
     var c: Class[_] = seed
     while (c != null && c != classOf[Object]) {
@@ -127,10 +123,7 @@ object Callbacks {
     override def apply(instance: AnyRef, context: Context, args: Arguments) = callWrapper.call(instance, context, args)
   }
 
-  // TODO(1.21.1): 上游是 Java 侧带 `@SuppressWarnings("ClassExplicitlyAnnotation")`
-  // 的 `PeripheralAnnotation` 类；本工程里被改成 Scala 动态代理（见同名的 `apply`）。
-  // 这里加 `@deprecated` 抑制 “object 没有参数列表” 的告警，语义与上游一致。
-  class PeripheralCallback(name: String) extends Callback((PeripheralAnnotation: @deprecated("", "")).apply(name)) {
+  class PeripheralCallback(name: String) extends Callback(new PeripheralAnnotation(name)) {
     override def apply(instance: AnyRef, context: Context, args: Arguments) =
       instance match {
         case peripheral: ManagedPeripheral => peripheral.invoke(name, context, args)

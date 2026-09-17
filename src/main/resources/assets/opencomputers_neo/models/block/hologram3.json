@@ -1,0 +1,6 @@
+{
+    "parent": "opencomputers_neo:block/hologram",
+    "textures": {
+        "top": "opencomputers_neo:block/hologram3_top"
+    }
+}

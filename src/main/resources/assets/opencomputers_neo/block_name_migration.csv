@@ -1,0 +1,533 @@
+# OpenComputers 3D Print block name migration
+# Format: legacy_name,modern_name
+# Covers Minecraft 1.12.2 -> 1.20.1 block/texture name changes
+# Lines where legacy==modern indicate blocks that were not renamed
+
+# ============================================================
+# WOOD - Logs
+# ============================================================
+log_oak,oak_log
+log_spruce,spruce_log
+log_birch,birch_log
+log_jungle,jungle_log
+log_acacia,acacia_log
+log_big_oak,dark_oak_log
+
+# ============================================================
+# WOOD - Planks
+# ============================================================
+planks_oak,oak_planks
+planks_spruce,spruce_planks
+planks_birch,birch_planks
+planks_jungle,jungle_planks
+planks_acacia,acacia_planks
+planks_big_oak,dark_oak_planks
+
+# ============================================================
+# WOOD - Leaves
+# ============================================================
+leaves_oak,oak_leaves
+leaves_spruce,spruce_leaves
+leaves_birch,birch_leaves
+leaves_jungle,jungle_leaves
+leaves_acacia,acacia_leaves
+leaves_big_oak,dark_oak_leaves
+
+# ============================================================
+# WOOD - Saplings
+# ============================================================
+sapling_oak,oak_sapling
+sapling_spruce,spruce_sapling
+sapling_birch,birch_sapling
+sapling_jungle,jungle_sapling
+sapling_acacia,acacia_sapling
+sapling_roofed_oak,dark_oak_sapling
+
+# ============================================================
+# WOOD - Slabs
+# ============================================================
+slab_oak,oak_slab
+slab_spruce,spruce_slab
+slab_birch,birch_slab
+slab_jungle,jungle_slab
+slab_acacia,acacia_slab
+slab_big_oak,dark_oak_slab
+
+# ============================================================
+# WOOD - Stairs
+# ============================================================
+oak_stairs,oak_stairs
+spruce_stairs,spruce_stairs
+birch_stairs,birch_stairs
+jungle_stairs,jungle_stairs
+acacia_stairs,acacia_stairs
+dark_oak_stairs,dark_oak_stairs
+
+# ============================================================
+# WOOD - Fences
+# ============================================================
+fence_oak,oak_fence
+fence_spruce,spruce_fence
+fence_birch,birch_fence
+fence_jungle,jungle_fence
+fence_acacia,acacia_fence
+fence_big_oak,dark_oak_fence
+
+# ============================================================
+# WOOD - Fence Gates
+# ============================================================
+fence_gate_oak,oak_fence_gate
+fence_gate_spruce,spruce_fence_gate
+fence_gate_birch,birch_fence_gate
+fence_gate_jungle,jungle_fence_gate
+fence_gate_acacia,acacia_fence_gate
+fence_gate_dark_oak,dark_oak_fence_gate
+
+# ============================================================
+# WOOD - Doors
+# ============================================================
+door_wood,oak_door
+door_spruce,spruce_door
+door_birch,birch_door
+door_jungle,jungle_door
+door_acacia,acacia_door
+door_dark_oak,dark_oak_door
+
+# ============================================================
+# WOOD - Trapdoors
+# ============================================================
+trapdoor,oak_trapdoor
+iron_trapdoor,iron_trapdoor
+
+# ============================================================
+# WOOD - Buttons
+# ============================================================
+wooden_button,oak_button
+stone_button,stone_button
+
+# ============================================================
+# WOOD - Pressure Plates
+# ============================================================
+wooden_pressure_plate,oak_pressure_plate
+stone_pressure_plate,stone_pressure_plate
+gold_pressure_plate,light_weighted_pressure_plate
+iron_pressure_plate,heavy_weighted_pressure_plate
+
+# ============================================================
+# WOOD - Signs
+# ============================================================
+standing_sign,oak_sign
+wall_sign,oak_wall_sign
+
+# ============================================================
+# STONE - Base Blocks
+# ============================================================
+stone,stone
+cobblestone,cobblestone
+mossy_cobblestone,mossy_cobblestone
+
+# ============================================================
+# STONE - Granite / Diorite / Andesite
+# ============================================================
+stone_granite,granite
+stone_granite_smooth,polished_granite
+stone_diorite,diorite
+stone_diorite_smooth,polished_diorite
+stone_andesite,andesite
+stone_andesite_smooth,polished_andesite
+
+# ============================================================
+# STONE - Stone Bricks
+# ============================================================
+stonebrick,stone_bricks
+stonebrick_mossy,mossy_stone_bricks
+stonebrick_cracked,cracked_stone_bricks
+stonebrick_chiseled,chiseled_stone_bricks
+
+# ============================================================
+# STONE - Walls
+# ============================================================
+cobblestone_wall,cobblestone_wall
+cobblestone_wall_mossy,mossy_cobblestone_wall
+
+# ============================================================
+# SLABS (non-wood)
+# ============================================================
+slab_stone,stone_slab
+slab_sandstone,sandstone_slab
+slab_red_sandstone,red_sandstone_slab
+slab_cobblestone,cobblestone_slab
+slab_brick,brick_slab
+slab_stone_brick,stone_brick_slab
+slab_nether_brick,nether_brick_slab
+slab_quartz,quartz_slab
+slab_purpur,purpur_slab
+
+# ============================================================
+# STAIRS (non-wood)
+# ============================================================
+stone_brick_stairs,stone_brick_stairs
+cobblestone_stairs,cobblestone_stairs
+brick_stairs,brick_stairs
+sandstone_stairs,sandstone_stairs
+red_sandstone_stairs,red_sandstone_stairs
+nether_brick_stairs,nether_brick_stairs
+quartz_stairs,quartz_stairs
+purpur_stairs,purpur_stairs
+
+# ============================================================
+# SANDSTONE
+# ============================================================
+sandstone_normal,sandstone
+sandstone_carved,chiseled_sandstone
+sandstone_smooth,smooth_sandstone
+red_sandstone_normal,red_sandstone
+red_sandstone_carved,chiseled_red_sandstone
+red_sandstone_smooth,smooth_red_sandstone
+
+# ============================================================
+# DIRT / GROUND
+# ============================================================
+dirt,dirt
+grass,grass_block
+grass_path,dirt_path
+podzol,podzol
+farmland,farmland
+sand,sand
+sand_red,red_sand
+gravel,gravel
+clay,clay
+
+# ============================================================
+# ORES
+# ============================================================
+coal_ore,coal_ore
+iron_ore,iron_ore
+gold_ore,gold_ore
+diamond_ore,diamond_ore
+emerald_ore,emerald_ore
+redstone_ore,redstone_ore
+lapis_ore,lapis_ore
+quartz_ore,nether_quartz_ore
+
+# ============================================================
+# MINERAL BLOCKS
+# ============================================================
+coal_block,coal_block
+iron_block,iron_block
+gold_block,gold_block
+diamond_block,diamond_block
+emerald_block,emerald_block
+redstone_block,redstone_block
+lapis_block,lapis_block
+
+# ============================================================
+# QUARTZ
+# ============================================================
+quartz_block_default,quartz_block
+quartz_block_chiseled,chiseled_quartz_block
+quartz_block_lines,quartz_pillar
+quartz_block_lines_top,quartz_pillar_top
+
+# ============================================================
+# PRISMARINE
+# ============================================================
+prismarine,prismarine
+prismarine_bricks,prismarine_bricks
+prismarine_dark,dark_prismarine
+
+# ============================================================
+# WOOL
+# ============================================================
+wool_colored_white,white_wool
+wool_colored_orange,orange_wool
+wool_colored_magenta,magenta_wool
+wool_colored_light_blue,light_blue_wool
+wool_colored_yellow,yellow_wool
+wool_colored_lime,lime_wool
+wool_colored_pink,pink_wool
+wool_colored_gray,gray_wool
+wool_colored_silver,light_gray_wool
+wool_colored_cyan,cyan_wool
+wool_colored_purple,purple_wool
+wool_colored_blue,blue_wool
+wool_colored_brown,brown_wool
+wool_colored_green,green_wool
+wool_colored_red,red_wool
+wool_colored_black,black_wool
+
+# ============================================================
+# CARPET
+# ============================================================
+carpet_white,white_carpet
+carpet_orange,orange_carpet
+carpet_magenta,magenta_carpet
+carpet_light_blue,light_blue_carpet
+carpet_yellow,yellow_carpet
+carpet_lime,lime_carpet
+carpet_pink,pink_carpet
+carpet_gray,gray_carpet
+carpet_silver,light_gray_carpet
+carpet_cyan,cyan_carpet
+carpet_purple,purple_carpet
+carpet_blue,blue_carpet
+carpet_brown,brown_carpet
+carpet_green,green_carpet
+carpet_red,red_carpet
+carpet_black,black_carpet
+
+# ============================================================
+# STAINED GLASS
+# ============================================================
+stained_glass_white,white_stained_glass
+stained_glass_orange,orange_stained_glass
+stained_glass_magenta,magenta_stained_glass
+stained_glass_light_blue,light_blue_stained_glass
+stained_glass_yellow,yellow_stained_glass
+stained_glass_lime,lime_stained_glass
+stained_glass_pink,pink_stained_glass
+stained_glass_gray,gray_stained_glass
+stained_glass_silver,light_gray_stained_glass
+stained_glass_cyan,cyan_stained_glass
+stained_glass_purple,purple_stained_glass
+stained_glass_blue,blue_stained_glass
+stained_glass_brown,brown_stained_glass
+stained_glass_green,green_stained_glass
+stained_glass_red,red_stained_glass
+stained_glass_black,black_stained_glass
+
+# ============================================================
+# STAINED GLASS PANES
+# ============================================================
+stained_glass_pane_white,white_stained_glass_pane
+stained_glass_pane_orange,orange_stained_glass_pane
+stained_glass_pane_magenta,magenta_stained_glass_pane
+stained_glass_pane_light_blue,light_blue_stained_glass_pane
+stained_glass_pane_yellow,yellow_stained_glass_pane
+stained_glass_pane_lime,lime_stained_glass_pane
+stained_glass_pane_pink,pink_stained_glass_pane
+stained_glass_pane_gray,gray_stained_glass_pane
+stained_glass_pane_silver,light_gray_stained_glass_pane
+stained_glass_pane_cyan,cyan_stained_glass_pane
+stained_glass_pane_purple,purple_stained_glass_pane
+stained_glass_pane_blue,blue_stained_glass_pane
+stained_glass_pane_brown,brown_stained_glass_pane
+stained_glass_pane_green,green_stained_glass_pane
+stained_glass_pane_red,red_stained_glass_pane
+stained_glass_pane_black,black_stained_glass_pane
+
+# ============================================================
+# HARDENED CLAY (Terracotta)
+# ============================================================
+hardened_clay,terracotta
+stained_hardened_clay_white,white_terracotta
+stained_hardened_clay_orange,orange_terracotta
+stained_hardened_clay_magenta,magenta_terracotta
+stained_hardened_clay_light_blue,light_blue_terracotta
+stained_hardened_clay_yellow,yellow_terracotta
+stained_hardened_clay_lime,lime_terracotta
+stained_hardened_clay_pink,pink_terracotta
+stained_hardened_clay_gray,gray_terracotta
+stained_hardened_clay_silver,light_gray_terracotta
+stained_hardened_clay_cyan,cyan_terracotta
+stained_hardened_clay_purple,purple_terracotta
+stained_hardened_clay_blue,blue_terracotta
+stained_hardened_clay_brown,brown_terracotta
+stained_hardened_clay_green,green_terracotta
+stained_hardened_clay_red,red_terracotta
+stained_hardened_clay_black,black_terracotta
+
+# ============================================================
+# GLAZED TERRACOTTA (added 1.12)
+# silver_ prefix -> light_gray_ is the only rename
+# ============================================================
+white_glazed_terracotta,white_glazed_terracotta
+orange_glazed_terracotta,orange_glazed_terracotta
+magenta_glazed_terracotta,magenta_glazed_terracotta
+light_blue_glazed_terracotta,light_blue_glazed_terracotta
+yellow_glazed_terracotta,yellow_glazed_terracotta
+lime_glazed_terracotta,lime_glazed_terracotta
+pink_glazed_terracotta,pink_glazed_terracotta
+gray_glazed_terracotta,gray_glazed_terracotta
+silver_glazed_terracotta,light_gray_glazed_terracotta
+cyan_glazed_terracotta,cyan_glazed_terracotta
+purple_glazed_terracotta,purple_glazed_terracotta
+blue_glazed_terracotta,blue_glazed_terracotta
+brown_glazed_terracotta,brown_glazed_terracotta
+green_glazed_terracotta,green_glazed_terracotta
+red_glazed_terracotta,red_glazed_terracotta
+black_glazed_terracotta,black_glazed_terracotta
+
+# ============================================================
+# CONCRETE
+# ============================================================
+concrete_white,white_concrete
+concrete_orange,orange_concrete
+concrete_magenta,magenta_concrete
+concrete_light_blue,light_blue_concrete
+concrete_yellow,yellow_concrete
+concrete_lime,lime_concrete
+concrete_pink,pink_concrete
+concrete_gray,gray_concrete
+concrete_silver,light_gray_concrete
+concrete_cyan,cyan_concrete
+concrete_purple,purple_concrete
+concrete_blue,blue_concrete
+concrete_brown,brown_concrete
+concrete_green,green_concrete
+concrete_red,red_concrete
+concrete_black,black_concrete
+
+# ============================================================
+# CONCRETE POWDER
+# ============================================================
+concrete_powder_white,white_concrete_powder
+concrete_powder_orange,orange_concrete_powder
+concrete_powder_magenta,magenta_concrete_powder
+concrete_powder_light_blue,light_blue_concrete_powder
+concrete_powder_yellow,yellow_concrete_powder
+concrete_powder_lime,lime_concrete_powder
+concrete_powder_pink,pink_concrete_powder
+concrete_powder_gray,gray_concrete_powder
+concrete_powder_silver,light_gray_concrete_powder
+concrete_powder_cyan,cyan_concrete_powder
+concrete_powder_purple,purple_concrete_powder
+concrete_powder_blue,blue_concrete_powder
+concrete_powder_brown,brown_concrete_powder
+concrete_powder_green,green_concrete_powder
+concrete_powder_red,red_concrete_powder
+concrete_powder_black,black_concrete_powder
+
+# ============================================================
+# SHULKER BOXES (added 1.11)
+# silver_ prefix -> light_gray_ is the only rename
+# ============================================================
+white_shulker_box,white_shulker_box
+orange_shulker_box,orange_shulker_box
+magenta_shulker_box,magenta_shulker_box
+light_blue_shulker_box,light_blue_shulker_box
+yellow_shulker_box,yellow_shulker_box
+lime_shulker_box,lime_shulker_box
+pink_shulker_box,pink_shulker_box
+gray_shulker_box,gray_shulker_box
+silver_shulker_box,light_gray_shulker_box
+cyan_shulker_box,cyan_shulker_box
+purple_shulker_box,purple_shulker_box
+blue_shulker_box,blue_shulker_box
+brown_shulker_box,brown_shulker_box
+green_shulker_box,green_shulker_box
+red_shulker_box,red_shulker_box
+black_shulker_box,black_shulker_box
+
+# ============================================================
+# NETHER
+# ============================================================
+netherrack,netherrack
+nether_brick,nether_bricks
+nether_brick_fence,nether_brick_fence
+magma,magma_block
+nether_wart_block,nether_wart_block
+soul_sand,soul_sand
+glowstone,glowstone
+portal,nether_portal
+
+# ============================================================
+# END
+# ============================================================
+end_stone,end_stone
+end_bricks,end_stone_bricks
+purpur_block,purpur_block
+purpur_pillar,purpur_pillar
+
+# ============================================================
+# FLOWERS & PLANTS
+# ============================================================
+yellow_flower,dandelion
+red_flower,poppy
+blue_orchid,blue_orchid
+allium,allium
+azure_bluet,azure_bluet
+red_tulip,red_tulip
+orange_tulip,orange_tulip
+white_tulip,white_tulip
+pink_tulip,pink_tulip
+oxeye_daisy,oxeye_daisy
+double_plant_sunflower,sunflower
+double_plant_syringa,lilac
+double_plant_grass,tall_grass
+double_plant_fern,large_fern
+double_plant_rose,rose_bush
+double_plant_paeonia,peony
+tallgrass,short_grass
+deadbush,dead_bush
+waterlily,lily_pad
+vine,vine
+reeds,sugar_cane
+
+# ============================================================
+# MUSHROOMS
+# ============================================================
+brown_mushroom,brown_mushroom
+red_mushroom,red_mushroom
+brown_mushroom_block,brown_mushroom_block
+red_mushroom_block,red_mushroom_block
+mycelium,mycelium
+
+# ============================================================
+# ICE & SNOW
+# ============================================================
+snow_layer,snow
+snow,snow_block
+ice,ice
+packed_ice,packed_ice
+
+# ============================================================
+# MISC NATURE
+# ============================================================
+sponge,sponge
+wet_sponge,wet_sponge
+hay_block,hay_block
+melon_block,melon
+pumpkin,pumpkin
+lit_pumpkin,jack_o_lantern
+bone_block,bone_block
+slime,slime_block
+
+# ============================================================
+# UTILITY / FUNCTIONAL BLOCKS
+# ============================================================
+crafting_table,crafting_table
+furnace,furnace
+lit_furnace,furnace
+bookshelf,bookshelf
+jukebox,jukebox
+noteblock,note_block
+tnt,tnt
+chest,chest
+trapped_chest,trapped_chest
+ender_chest,ender_chest
+beacon,beacon
+anvil,anvil
+iron_bars,iron_bars
+glass_pane,glass_pane
+brewing_stand,brewing_stand
+cauldron,cauldron
+enchanting_table,enchanting_table
+daylight_detector,daylight_detector
+comparator,comparator
+repeater,repeater
+tripwire_hook,tripwire_hook
+lever,lever
+flower_pot,flower_pot
+dispenser,dispenser
+dropper,dropper
+hopper,hopper
+observer,observer
+
+# ============================================================
+# STRUCTURE / BASE BLOCKS
+# ============================================================
+obsidian,obsidian
+bedrock,bedrock
+brick,bricks
+glass,glass

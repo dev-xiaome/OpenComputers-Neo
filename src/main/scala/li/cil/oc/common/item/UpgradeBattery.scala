@@ -4,32 +4,25 @@ import li.cil.oc.Settings
 import li.cil.oc.api.driver.item.Chargeable
 import li.cil.oc.common.item.data.NodeData
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/**
- * 「电池升级」（原 `li.cil.oc.common.item.UpgradeBattery`）。
- *
- * 1.21.1 迁移要点：
- *  - 删除 `parent: Delegator`，`unlocalizedName` 由基类按 `tier` 自动拼出。
- *  - 1.21.1 的 `Item` 没有可覆写的 `getDamage` / `setDamage`，耐久条改由
- *    [[Item#isBarVisible]] / [[Item#getBarWidth]] 控制，因此旧的 `damage` / `maxDamage`
- *    只作为 OC 内部语义保留（供 `ItemCosts` 等调用）。
- */
-class UpgradeBattery(props: Item.Properties, override val tier: Int)
-  extends Item(props) with traits.Delegate with traits.ItemTier with Chargeable {
+class UpgradeBattery(props: Properties, val tier: Int) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier with traits.Chargeable {
+  @Deprecated
+  override def getDescriptionId = super.getDescriptionId + tier
 
-  override protected def tooltipName: Option[String] = Option(super.unlocalizedName)
+  override protected def tooltipName = Option(unlocalizedName)
 
-  override protected def tooltipData: Seq[Any] = Seq(Settings.get.bufferCapacitorUpgrades(tier).toInt)
+  override protected def tooltipData = Seq(Settings.get.bufferCapacitorUpgrades(tier).toInt)
 
-  override def isDamageable(stack: ItemStack): Boolean = true
+  override def isBarVisible(stack: ItemStack) = true
 
-  override def getDamage(stack: ItemStack): Int = {
+  override def getBarWidth(stack: ItemStack): Int = {
     val data = new NodeData(stack)
-    ((1 - data.buffer.getOrElse(0.0) / Settings.get.bufferCapacitorUpgrades(tier)) * 100).toInt
+    val ratio = data.buffer.getOrElse(0.0) / Settings.get.bufferCapacitorUpgrades(tier)
+    Math.round(ratio * 13.0f).toInt
   }
-
-  override def getMaxDamage(stack: ItemStack): Int = 100
 
   // ----------------------------------------------------------------------- //
 
@@ -41,14 +34,21 @@ class UpgradeBattery(props: Item.Properties, override val tier: Int)
       case Some(value) => value
       case _ => 0.0
     }
-    if (amount < 0) amount // TODO support discharging
-    else {
-      val charge = math.min(amount, Settings.get.bufferCapacitorUpgrades(tier).toInt - buffer)
-      if (!simulate) {
-        data.buffer = Option(buffer + charge)
-        data.save(stack)
-      }
-      amount - charge
-    }
+    traits.Chargeable.applyCharge(amount, buffer, Settings.get.bufferCapacitorUpgrades(tier), used => if (!simulate) {
+      data.buffer = Option(buffer + used)
+      data.saveData(stack)
+    })
   }
+
+  override def maxCharge(stack: ItemStack): Double = Settings.get.bufferCapacitorUpgrades(tier)
+
+  override def getCharge(stack: ItemStack): Double = new NodeData(stack).buffer.getOrElse(0.0)
+
+  override def setCharge(stack: ItemStack, amount: Double): Unit = {
+    val data = new NodeData(stack)
+    data.buffer = Option((0.0 max amount) min maxCharge(stack))
+    data.saveData(stack)
+  }
+
+  override def canExtract(stack: ItemStack): Boolean = true
 }

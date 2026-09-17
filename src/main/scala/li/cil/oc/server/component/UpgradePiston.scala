@@ -5,7 +5,6 @@ import java.util
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
-import li.cil.oc.Settings
 import li.cil.oc.api.Network
 import li.cil.oc.api.driver.DeviceInfo
 import li.cil.oc.api.network.EnvironmentHost
@@ -14,18 +13,44 @@ import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.Visibility
-import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedArguments._
-import li.cil.oc.util.ExtendedWorld._
-import net.minecraft.core.Direction
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
+import net.minecraft.core.{BlockPos, Direction}
+
+import scala.collection.convert.ImplicitConversionsToJava._
+import net.minecraft.world.level.block.Blocks
 import net.minecraft.sounds.SoundEvents
-import net.minecraft.sounds.SoundSource
+import net.minecraft.world.level.material.PushReaction
 import net.minecraft.world.level.block.piston.PistonBaseBlock
+import net.minecraft.sounds.SoundSource
 
-import scala.jdk.CollectionConverters._
+protected object PistonTraits {
+  trait ExtendAware {
+    val host: EnvironmentHost
+    def pushOrigin(side: Direction): BlockPosition = BlockPosition(host)
+    def pushDirection(args: Arguments, index: Int): Direction
+  }
 
-abstract class UpgradePiston(val host: EnvironmentHost) extends prefab.ManagedEnvironment with DeviceInfo {
+  trait DroneLike extends ExtendAware {
+    def pushDirection(args: Arguments, index: Int): Direction = args.optSideAny(index, Direction.SOUTH)
+  }
+
+  trait RotatableLike extends ExtendAware {
+    val rotatable: internal.Rotatable with EnvironmentHost
+    def pushDirection(args: Arguments, index: Int): Direction = rotatable.toGlobal(args.optSideForAction(index, Direction.SOUTH))
+  }
+
+  trait TabletLike extends ExtendAware {
+    val tablet: internal.Tablet
+    override def pushOrigin(side: Direction): BlockPosition =
+      if (side == Direction.DOWN && tablet.player.getEyeHeight > 1) super.pushOrigin(side).offset(Direction.DOWN)
+      else super.pushOrigin(side)
+  }
+}
+
+abstract class UpgradePiston(val host: EnvironmentHost) extends AbstractManagedEnvironment with DeviceInfo with PistonTraits.ExtendAware {
   override val node = Network.newNode(this, Visibility.Network).
     withComponent("piston").
     withConnector().
@@ -38,55 +63,76 @@ abstract class UpgradePiston(val host: EnvironmentHost) extends prefab.ManagedEn
     DeviceAttribute.Product -> "Displacer II+"
   )
 
-  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
-  def pushDirection(args: Arguments, index: Int): Direction
+  val isSticky: Boolean = false
 
-  def pushOrigin(side: Direction) = BlockPosition(host)
+  @Callback(doc = """function():boolean -- Returns true if the piston is sticky, i.e. it can also pull.""")
+  def isSticky(context: Context, args: Arguments): Array[AnyRef] = result(isSticky)
+
+  protected def doPistonAction(context: Context, side: Direction, extending: Boolean): Array[AnyRef] = {
+    val sound = if (extending) SoundEvents.PISTON_EXTEND.getLocation else SoundEvents.PISTON_CONTRACT.getLocation
+    val hostPos = pushOrigin(side).toBlockPos
+    val piston = (if (isSticky) Blocks.STICKY_PISTON else Blocks.PISTON).asInstanceOf[PistonBaseBlock]
+
+    if (!extending) {
+      if (!isSticky) {
+        // this is a bug in oc code
+        throw new NoSuchMethodError("piston is not sticky. does not have pull")
+      }
+      // make sure that any obstruction block has breaking mobility
+      val innerBlockPos = hostPos.relative(side): BlockPos
+      val innerBlockState = host.getEnvironmentLevel.getBlockState(innerBlockPos)
+      if (innerBlockState != null) {
+        if (!innerBlockState.isAir) {
+          if (innerBlockState.getPistonPushReaction != PushReaction.DESTROY) {
+            return result(false, "path is obstructed")
+          }
+        }
+      }
+    }
+
+    if (piston.moveBlocks(host.getEnvironmentLevel, hostPos, side, extending)) {
+      // send piston extend sound to clients
+      host.synchronized(ServerPacketSender.sendSound(
+        host.getEnvironmentLevel, hostPos.getX, hostPos.getY, hostPos.getZ,
+        sound, SoundSource.BLOCKS, range = 15.0))
+      context.pause(1.0 / 20.0)
+      result(true)
+    } else {
+      result(false, "move failed")
+    }
+  }
 
   @Callback(doc = """function([side:number]):boolean -- Tries to push the block on the specified side of the container of the upgrade. Defaults to front.""")
   def push(context: Context, args: Arguments): Array[AnyRef] = {
-    val side = pushDirection(args, 0)
-    val hostPos = pushOrigin(side)
-    val blockPos = hostPos.offset(side)
-    // 1.21.1：`Block#tryExtend`（1.7.10）已被移除，活塞的「能否推动」判定改为静态的
-    // `PistonBaseBlock.isPushable(state, level, pos, pushDirection, allowOverpowered, pistonFacing)`。
-    // 这里保留原语义：只判断目标方块能否被推动，推动动作本身由下方直接清除方块完成。
-    val pushable = PistonBaseBlock.isPushable(
-      host.world.getBlockState(blockPos.toChunkCoordinates),
-      host.world, blockPos.toChunkCoordinates, side, false, side)
-    if (!host.world.isAirBlock(blockPos) && node.tryChangeBuffer(-Settings.get.pistonCost) && pushable) {
-      host.world.setBlockToAir(blockPos)
-      // 1.21.1：`World#playSoundEffect(x, y, z, name, volume, pitch)` →
-      // `Level#playSound(player, x, y, z, SoundEvent, SoundSource, volume, pitch)`；
-      // 原字符串音效名 `"tile.piston.out"` 对应 `SoundEvents.PISTON_EXTEND`。
-      host.world.playSound(null: net.minecraft.world.entity.player.Player,
-        BlockPosition(host).x + 0.5, BlockPosition(host).y + 0.5, BlockPosition(host).z + 0.5,
-        SoundEvents.PISTON_EXTEND, SoundSource.BLOCKS,
-        0.5f, host.world.random.nextFloat() * 0.25f + 0.6f)
-      context.pause(0.5)
-      result(true)
-    }
-    else result(false)
+    val side = pushDirection(args, index = 0)
+    doPistonAction(context, side, true)
+  }
+}
+
+abstract class UpgradeStickyPiston(host: EnvironmentHost) extends UpgradePiston(host) {
+  override val isSticky: Boolean = true
+
+  @Callback(doc = """function([side:number]):boolean -- Tries to reach out to the side given (default front) and pull a block similar to a vanilla sticky piston.""")
+  def pull(context: Context, args: Arguments): Array[AnyRef] = {
+    val side = pushDirection(args, index = 0)
+    doPistonAction(context, side, false)
   }
 }
 
 object UpgradePiston {
+  class Drone(drone: internal.Drone) extends UpgradePiston(drone) with PistonTraits.DroneLike
 
-  class Drone(drone: internal.Drone) extends UpgradePiston(drone) {
-    override def pushDirection(args: Arguments, index: Int) = args.optSideAny(index, Direction.SOUTH)
-  }
+  class Rotatable(val rotatable: internal.Rotatable with EnvironmentHost) extends UpgradePiston(rotatable) with PistonTraits.RotatableLike
 
-  class Tablet(tablet: internal.Tablet) extends Rotatable(tablet) {
-    // 1.21.1：`Entity#getEyeHeight` 变成方法 `getEyeHeight()`。
-    override def pushOrigin(side: Direction) =
-      if (side == Direction.DOWN && tablet.player.getEyeHeight() > 1) super.pushOrigin(side).offset(Direction.DOWN)
-      else super.pushOrigin(side)
-  }
+  class Tablet(val tablet: internal.Tablet) extends Rotatable(tablet) with PistonTraits.TabletLike
+}
 
-  class Rotatable(val rotatable: internal.Rotatable with EnvironmentHost) extends UpgradePiston(rotatable) {
-    override def pushDirection(args: Arguments, index: Int) = rotatable.toGlobal(args.optSideForAction(index, Direction.SOUTH))
-  }
+object UpgradeStickyPiston {
+  class Drone(drone: internal.Drone) extends UpgradeStickyPiston(drone) with PistonTraits.DroneLike
 
+  class Rotatable(val rotatable: internal.Rotatable with EnvironmentHost) extends UpgradeStickyPiston(rotatable) with PistonTraits.RotatableLike
+
+  class Tablet(val tablet: internal.Tablet) extends Rotatable(tablet) with PistonTraits.TabletLike
 }

@@ -7,10 +7,9 @@ import li.cil.oc.api
 import li.cil.oc.api.fs.Mode
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
-// 1.21.1：原 `net.minecraftforge.common.util.Constants.NBT` 已移除，改用 `Tag.TAG_*` 常量。
-import net.minecraft.nbt.Tag
 
 import scala.collection.mutable
+import net.minecraft.nbt.Tag
 
 trait OutputStreamFileSystem extends InputStreamFileSystem {
   private val handles = mutable.Map.empty[Int, OutputHandle]
@@ -47,35 +46,36 @@ trait OutputStreamFileSystem extends InputStreamFileSystem {
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
+  private final val OutputTag = "output"
+  private final val HandleTag = "handle"
+  private final val PathTag = "path"
 
-    // 1.21.1：`tagCount` / `getCompoundTagAt` → `size()` / `getCompound(i)`；
-    // `getInteger` → `getInt`。
-    val handlesNbt = nbt.getList("output", Tag.TAG_COMPOUND)
-    for (i <- 0 until handlesNbt.size()) {
-      val handleNbt = handlesNbt.getCompound(i)
-      val handle = handleNbt.getInt("handle")
-      val path = handleNbt.getString("path")
+  override def loadData(nbt: CompoundTag): Unit = {
+    super.loadData(nbt)
+
+    val handlesNbt = nbt.getList(OutputTag, Tag.TAG_COMPOUND)
+    (0 until handlesNbt.size).map(handlesNbt.getCompound).foreach(handleNbt => {
+      val handle = handleNbt.getInt(HandleTag)
+      val path = handleNbt.getString(PathTag)
       openOutputHandle(handle, path, Mode.Append) match {
         case Some(fileHandle) => handles += handle -> fileHandle
         case _ => // The source file seems to have changed since last time.
       }
-    }
+    })
   }
 
-  override def save(nbt: CompoundTag) = this.synchronized {
-    super.save(nbt)
+  override def saveData(nbt: CompoundTag): Unit = this.synchronized {
+    super.saveData(nbt)
 
     val handlesNbt = new ListTag()
     for (file <- handles.values) {
       assert(!file.isClosed)
       val handleNbt = new CompoundTag()
-      handleNbt.putInt("handle", file.handle)
-      handleNbt.putString("path", file.path)
+      handleNbt.putInt(HandleTag, file.handle)
+      handleNbt.putString(PathTag, file.path)
       handlesNbt.add(handleNbt)
     }
-    nbt.put("output", handlesNbt)
+    nbt.put(OutputTag, handlesNbt)
   }
 
   // ----------------------------------------------------------------------- //

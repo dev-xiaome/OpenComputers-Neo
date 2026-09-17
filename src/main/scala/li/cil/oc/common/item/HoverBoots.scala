@@ -1,114 +1,100 @@
 package li.cil.oc.common.item
 
 import li.cil.oc.Settings
+import li.cil.oc.client.renderer.item.HoverBootRenderer
 import li.cil.oc.common.item.data.HoverBootsData
-import net.minecraft.world.effect.MobEffectInstance
-import net.minecraft.world.effect.MobEffects
-import net.minecraft.world.entity.Entity
-import net.minecraft.world.entity.EquipmentSlot
+import li.cil.oc.util.ItemColorizer
+import net.minecraft.world.effect.{MobEffectInstance, MobEffects}
+import net.minecraft.world.entity.{Entity, EquipmentSlot}
+import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.entity.player.Player
-import net.minecraft.world.item.ArmorItem
-import net.minecraft.world.item.ArmorMaterials
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.Item.Properties
+import net.minecraft.world.item.{ArmorItem, ArmorMaterials, ItemStack}
 import net.minecraft.world.level.Level
+import net.minecraft.world.level.block.{Blocks, LayeredCauldronBlock}
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/**
- * 「悬浮靴」（原 `li.cil.oc.common.item.HoverBoots`）。
- *
- * 降级说明（依赖未移植内容）：
- *  - `ItemArmor(ItemArmor.ArmorMaterial.DIAMOND, 0, 3)` →
- *    [[ArmorItem]](`ArmorMaterials.DIAMOND`, `ArmorItem.Type.BOOTS`)。
- *  - `@SideOnly(Dist.CLIENT) getArmorModel` / `HoverBootRenderer`（`client.renderer.item`）
- *    与 `registerIcons` / `getIconFromDamageForRenderPass` 全部删除：
- *    1.21.1 的护甲外观走护甲模型 JSON + 装备纹理，染色走
- *    `RegisterColorHandlersEvent.Item` + `ItemColor`（客户端阶段实现）。
- *  - `getArmorTexture` / `getColorFromItemStack` / `onArmorTick` / `onEntityItemUpdate`
- *    这些 1.7.10 的护甲钩子在 1.21.1 已不存在：
- *    - 掉电减速改由 [[inventoryTick]] 在检测到玩家穿戴时施加（等价语义）；
- *    - 「放进炼药锅洗掉染色」依赖 `ItemEntity` 的特殊更新钩子，1.21.1 无对应入口，
- *      作为 TODO 保留。
- *  - 能量条：1.21.1 用 [[isBarVisible]] + [[getBarWidth]] 表达，代替
- *    `getDisplayDamage` / `getMaxDamage`。
- */
-class HoverBoots(props: Item.Properties)
-  extends ArmorItem(ArmorMaterials.DIAMOND, ArmorItem.Type.BOOTS, props)
-    with traits.SimpleItem with traits.Chargeable {
-
+class HoverBoots(props: Properties) extends ArmorItem(ArmorMaterials.DIAMOND, ArmorItem.Type.BOOTS, props) with IForgeItem with traits.SimpleItem with traits.Chargeable {
   override def maxCharge(stack: ItemStack): Double = Settings.get.bufferHoverBoots
 
-  override def getCharge(stack: ItemStack): Double = new HoverBootsData(stack).charge
+  override def getCharge(stack: ItemStack): Double =
+    new HoverBootsData(stack).charge
 
   override def setCharge(stack: ItemStack, amount: Double): Unit = {
     val data = new HoverBootsData(stack)
     data.charge = math.min(maxCharge(stack), math.max(0, amount))
-    data.save(stack)
+    data.saveData(stack)
   }
 
   override def canCharge(stack: ItemStack): Boolean = true
 
   override def charge(stack: ItemStack, amount: Double, simulate: Boolean): Double = {
     val data = new HoverBootsData(stack)
-    if (amount < 0) {
-      val remainder = math.min(0, data.charge + amount)
-      if (!simulate) {
-        data.charge = math.max(0, data.charge + amount)
-        data.save(stack)
-      }
-      remainder
-    }
-    else {
-      val remainder = -math.min(0, Settings.get.bufferHoverBoots - (data.charge + amount))
-      if (!simulate) {
-        data.charge = math.min(Settings.get.bufferHoverBoots, data.charge + amount)
-        data.save(stack)
-      }
-      remainder
+    traits.Chargeable.applyCharge(amount, data.charge, Settings.get.bufferHoverBoots, used => if (!simulate) {
+      data.charge += used
+      data.saveData(stack)
+    })
+  }
+
+  //@TODO replace with IItemRenderProperties
+  //@OnlyIn(Dist.CLIENT)
+  //override def getArmorModel[A <: HumanoidModel[_]](entityLiving: LivingEntity, itemStack: ItemStack, armorSlot: EquipmentSlot, _default: A): A = {
+  //  if (armorSlot == slot) {
+  //    HoverBootRenderer.lightColor = if (ItemColorizer.hasColor(itemStack)) ItemColorizer.getColor(itemStack) else 0x66DD55
+  //    HoverBootRenderer.asInstanceOf[A]
+  //  }
+  //  else super.getArmorModel(entityLiving, itemStack, armorSlot, _default)
+  //}
+
+  override def getArmorTexture(stack: ItemStack, entity: Entity, slot: EquipmentSlot, subType: String): String = {
+    if (entity.level.isClientSide) HoverBootRenderer.texture.toString
+    else null
+  }
+
+  override def onArmorTick(stack: ItemStack, level: Level, player: Player): Unit = {
+    super.onArmorTick(stack, level, player)
+    if (!Settings.get.ignorePower && player.getEffect(MobEffects.MOVEMENT_SLOWDOWN) == null && getCharge(stack) == 0) {
+      player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 20, 1))
     }
   }
 
-  // ----------------------------------------------------------------------- //
-  // 能量条
-  // ----------------------------------------------------------------------- //
+  override def onEntityItemUpdate(stack: ItemStack, entity: ItemEntity): Boolean = {
+    if (entity != null && entity.level != null && !entity.level.isClientSide && ItemColorizer.hasColor(stack)) {
+      val pos = entity.blockPosition
+      val state = entity.level.getBlockState(pos)
+      if (state.getBlock == Blocks.CAULDRON) {
+        val level = state.getValue(LayeredCauldronBlock.LEVEL).toInt
+        if (level > 0) {
+          ItemColorizer.removeColor(stack)
+          entity.level.setBlock(pos, state.setValue(LayeredCauldronBlock.LEVEL, Int.box(level - 1)), 3)
+          return true
+        }
+      }
+    }
+    super.onEntityItemUpdate(stack, entity)
+  }
 
   override def isBarVisible(stack: ItemStack): Boolean = true
-
+  
   override def getBarWidth(stack: ItemStack): Int = {
-    val max = Settings.get.bufferHoverBoots
-    if (max <= 0) 0 else math.round(13 * (getCharge(stack) / max).toFloat) max 0 min 13
+    val data = new HoverBootsData(stack)
+    val ratio = data.charge / Settings.get.bufferHoverBoots
+    Math.round(ratio * 13.0f).toInt
   }
 
-  override def getBarColor(stack: ItemStack): Int = 0x66DD55
+  override def getMaxDamage(stack: ItemStack): Int = Settings.get.bufferHoverBoots.toInt
 
-  // ----------------------------------------------------------------------- //
-  // 行为
-  // ----------------------------------------------------------------------- //
+  // Always show energy bar.
+  override def isDamaged(stack: ItemStack): Boolean = true
 
-  override def inventoryTick(stack: ItemStack, world: Level, entity: Entity, slot: Int, selected: Boolean): Unit = {
-    entity match {
-      case player: Player if !world.isClientSide =>
-        // 1.7.10 的 `onArmorTick` 语义：穿在身上且没电时给缓慢效果。
-        if (!Settings.get.ignorePower && (player.getItemBySlot(EquipmentSlot.FEET) eq stack) &&
-          getCharge(stack) <= 0.0 && !player.hasEffect(MobEffects.MOVEMENT_SLOWDOWN)) {
-          player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 20, 1))
-        }
-        // TODO(事件): 原版还有「把靴子丢进炼药锅洗掉染色」的行为，
-        // 1.21.1 没有 `Item#onEntityItemUpdate`，需要改用 `ItemEntity` 的 tick 事件
-        // （`common/event`）在移植后实现。
-      case _ =>
-    }
-  }
-}
+  // Contradictory as it may seem with the above, this avoids actual damage value changing.
+  override def canBeDepleted: Boolean = false
 
-object HoverBoots {
-  /** 默认属性：唯一堆叠、不可修复（原 `setNoRepair()`）。 */
-  def defaultProps(): Item.Properties =
-    new net.minecraft.world.item.Item.Properties().stacksTo(1).setNoRepair()
+  override def setDamage(stack: ItemStack, damage: Int): Unit = {
+    // Subtract energy when taking damage instead of actually damaging the item.
+    charge(stack, -damage, simulate = false)
 
-  /** 充满电的悬浮靴（原 `Items.createChargedHoverBoots`）。 */
-  def createChargedHoverBoots(): ItemStack = {
-    val data = new HoverBootsData()
-    data.charge = Settings.get.bufferHoverBoots
-    data.createItemStack()
+    // Set to 0 for old boots that may have been damaged before.
+    super.setDamage(stack, 0)
   }
 }

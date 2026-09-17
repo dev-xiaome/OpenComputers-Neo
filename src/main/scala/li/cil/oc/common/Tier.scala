@@ -8,5 +8,7 @@ object Tier {
   final val Four = 3
   final val Five = 4
   final val Six = 5
+  final val Seven = 6
+  final val Eight = 7
   final val Any = Int.MaxValue
 }

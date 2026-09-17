@@ -1,7 +1,5 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/adapter"
-                          }
-                 }
+    "variants": {
+        "": { "model": "opencomputers_neo:block/adapter" }
+    }
 }

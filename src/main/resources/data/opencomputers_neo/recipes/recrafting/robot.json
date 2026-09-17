@@ -1,0 +1,14 @@
+{
+  "type": "opencomputers_neo:crafting_shapeless_extended",
+  "ingredients": [
+    {
+      "item": "opencomputers_neo:robot"
+    },
+    {
+      "item": "opencomputers_neo:eeprom"
+    }
+  ],
+  "result": {
+    "item": "opencomputers_neo:robot"
+  }
+}

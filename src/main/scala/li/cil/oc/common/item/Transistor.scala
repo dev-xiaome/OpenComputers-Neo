@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「晶体管」（原 `li.cil.oc.common.item.Transistor`）。 */
-class Transistor(props: Item.Properties) extends Item(props) with traits.Delegate
+class Transistor(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem

@@ -1,70 +1,76 @@
 package li.cil.oc.common.item.traits
 
-import li.cil.oc.Settings
+import li.cil.oc.integration.Mods
+import li.cil.oc.integration.opencomputers.ModOpenComputers
+import li.cil.oc.{Settings, api}
+import net.minecraft.core.Direction
+import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.common.capabilities.{Capability, ForgeCapabilities, ICapabilityProvider}
+import net.neoforged.neoforge.common.util.{LazyOptional, NonNullSupplier}
+import net.neoforged.neoforge.energy.IEnergyStorage
 
-/**
- * 可充电物品（原 1.7.10 的 `Chargeable`）。
- *
- * 1.21.1 迁移要点：
- *  - 原文件通过 ASM（`@Injectable.InterfaceList`）给物品注入 AE2 / IC2 / Mekanism /
- *    CoFH RF 的接口。1.21.1 已移除 coremod（见 docs/PORTING.md「架构层」），
- *    这些第三方模组也不在本项目移植范围内，因此这里只保留 OC 自身的充电语义。
- *  - 若将来要对接 NeoForge 的能量能力，应改为实现 `IEnergyStorage` 并在
- *    `RegisterCapabilitiesEvent` 里注册，而不是给物品加接口。
- *  - TODO(集成): `getEnergyStored` / `getEnergy` / `getMaxTransfer` 等外部能量单位的
- *    换算率原本来自 `li.cil.oc.integration.util.Power`（集成层，未移植），
- *    目前统一按 1:1 处理；集成层移植后请换回正确比率。
- */
-trait Chargeable extends li.cil.oc.api.driver.item.Chargeable {
+// TODO Forge power capabilities.
+trait Chargeable extends api.driver.item.Chargeable {
 
-  /** 最大可存储能量（单位与 `getCharge` 一致，即 OC 自身能量单位）。 */
   def maxCharge(stack: ItemStack): Double
 
-  /** 当前已存储能量。 */
   def getCharge(stack: ItemStack): Double
 
-  /** 设置已存储能量。 */
   def setCharge(stack: ItemStack, amount: Double): Unit
 
-  /**
-   * 是否需要按 metadata 区分子类型。
-   * 1.21.1 不再使用 damage 派发，恒为 `false`；保留以兼容旧调用点。
-   */
-  def isMetadataSpecific(stack: ItemStack): Boolean = false
+  def canExtract(stack: ItemStack): Boolean = false
+}
 
-  // 以下为原先对外部能量体系的适配表面。1.21.1 下不再有对应的注入接口，
-  // 但部分转换代码（如充电器）仍会调用，因此保留。
+object Chargeable {
+  val KEY = ResourceLocation.fromNamespaceAndPath(ModOpenComputers.getMod.id, "chargeable")
 
-  /** 原 CoFH RF `getEnergyStored`。 */
-  def getEnergyStored(stack: ItemStack): Int = getCharge(stack).toInt
+  def convertForgeEnergyToOpenComputers(fe: Int): Double = fe / Settings.get.ratioForgeEnergy
 
-  /** 原 CoFH RF `getMaxEnergyStored`。 */
-  def getMaxEnergyStored(stack: ItemStack): Int = maxCharge(stack).toInt
+  def convertOpenComputersToForgeEnergy(oc: Double): Int = (oc * Settings.get.ratioForgeEnergy).toInt
 
-  /** 原 CoFH RF `receiveEnergy`。 */
-  def receiveEnergy(stack: ItemStack, maxReceive: Int, simulate: Boolean): Int =
-    maxReceive - charge(stack, maxReceive, simulate).toInt
+  def applyCharge(amount: Double, current: Double, maximum: Double, save: Double => Unit): Double = {
+    val target = current + amount
+    val result = (target max 0) min maximum
+    val used = result - current
+    val unused = amount - used
+    if (used > Double.MinPositiveValue || used < -Double.MinPositiveValue) {
+      save(used)
+    }
+    unused
+  }
 
-  /** 原 CoFH RF `extractEnergy`。 */
-  def extractEnergy(stack: ItemStack, maxExtract: Int, simulate: Boolean): Int =
-    maxExtract - charge(stack, -maxExtract, simulate).toInt
+  class Provider(stack: ItemStack, item: li.cil.oc.common.item.traits.Chargeable) extends ICapabilityProvider with NonNullSupplier[Provider] with IEnergyStorage {
+    private val wrapper = LazyOptional.of(this)
 
-  /** 原 Mekanism `getEnergy`。 */
-  def getEnergy(stack: ItemStack): Double = getCharge(stack)
+    def get = this
 
-  /** 原 Mekanism `setEnergy`。 */
-  def setEnergy(stack: ItemStack, amount: Double): Unit = setCharge(stack, amount)
+    def invalidate() = wrapper.invalidate
 
-  /** 原 Mekanism `getMaxEnergy`。 */
-  def getMaxEnergy(stack: ItemStack): Double = maxCharge(stack)
+    override def getCapability[T](capability: Capability[T], facing: Direction): LazyOptional[T] = {
+      if (capability == ForgeCapabilities.ENERGY) wrapper.cast[T]
+      else LazyOptional.empty[T]
+    }
 
-  /** 原 Mekanism `canSend`。 */
-  def canSend(stack: ItemStack): Boolean = false
+    def receiveEnergy(maxReceive: Int, simulate: Boolean): Int =
+      // Chargeable.charge() returns the amount UNUSED
+      // IEnergyStorage wants the amount USED
+      maxReceive - convertOpenComputersToForgeEnergy(item.charge(stack, convertForgeEnergyToOpenComputers(maxReceive), simulate))
 
-  /** 原 Mekanism `canReceive`。 */
-  def canReceive(stack: ItemStack): Boolean = true
+    def extractEnergy(maxExtract: Int, simulate: Boolean): Int = {
+      if (canExtract) {
+        -receiveEnergy(-maxExtract, simulate)
+      } else {
+        0
+      }
+    }
 
-  /** 原 Mekanism `getMaxTransfer`。 */
-  def getMaxTransfer(stack: ItemStack): Double = Settings.get.chargeRateTablet
+    def getEnergyStored: Int = convertOpenComputersToForgeEnergy(item.getCharge(stack))
+
+    def getMaxEnergyStored: Int = convertOpenComputersToForgeEnergy(item.maxCharge(stack))
+
+    def canExtract: Boolean = item.canExtract(stack)
+
+    def canReceive: Boolean = item.canCharge(stack)
+  }
 }

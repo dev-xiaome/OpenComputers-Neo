@@ -4,17 +4,20 @@ import java.io.InvalidObjectException
 import java.security.InvalidParameterException
 
 import li.cil.oc.api.network.{Environment, Message, Node}
-import net.minecraft.world.entity.player.Player
-import net.minecraft.nbt.CompoundTag
 import li.cil.oc.api.internal.TextBuffer.ColorDepth
 import li.cil.oc.api
 import li.cil.oc.common.component.traits.{TextBufferProxy, VideoRamDevice, VideoRamRasterizer}
+import net.neoforged.api.distmarker.Dist
+import net.neoforged.api.distmarker.OnlyIn
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.entity.player.Player
+import com.mojang.blaze3d.vertex.PoseStack
 
 class GpuTextBuffer(val owner: String, val id: Int, val data: li.cil.oc.util.TextBuffer) extends traits.TextBufferProxy {
 
-  // GPU 显存不加入网络、也不可被网络检索；这里必须实现只是因为
-  // api 的 TextBuffer 继承了 Environment。
-  override def node: Node = {
+  // the gpu ram does not join nor is searchable to the network
+  // this field is required because the api TextBuffer is an Environment
+  override def node(): Node = {
     throw new InvalidObjectException("GpuTextBuffers do not have nodes")
   }
 
@@ -30,14 +33,14 @@ class GpuTextBuffer(val owner: String, val id: Int, val data: li.cil.oc.util.Tex
   override def onBufferCopy(col: Int, row: Int, w: Int, h: Int, tx: Int, ty: Int): Unit = dirty = true
   override def onBufferFill(col: Int, row: Int, w: Int, h: Int, c: Int): Unit = dirty = true
 
-  override def load(nbt: CompoundTag): Unit = {
+  override def loadData(nbt: CompoundTag): Unit = {
     // the data is initially dirty because other devices don't know about it yet
-    data.load(nbt)
+    data.loadData(nbt)
     dirty = true
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    data.save(nbt)
+  override def saveData(nbt: CompoundTag): Unit = {
+    data.saveData(nbt)
     dirty = false
   }
 
@@ -52,13 +55,15 @@ class GpuTextBuffer(val owner: String, val id: Int, val data: li.cil.oc.util.Tex
   override def setViewport(width: Int, height: Int): Boolean = false
   override def setMaximumColorDepth(depth: ColorDepth): Unit = {}
   override def getMaximumColorDepth: ColorDepth = data.format.depth
-  override def renderText: Boolean = false
+  @OnlyIn(Dist.CLIENT)
+  override def renderText(stack: PoseStack): Boolean = false
   override def renderWidth: Int = 0
   override def renderHeight: Int = 0
   override def setRenderingEnabled(enabled: Boolean): Unit = {}
   override def isRenderingEnabled: Boolean = false
   override def keyDown(character: Char, code: Int, player: Player): Unit = {}
   override def keyUp(character: Char, code: Int, player: Player): Unit = {}
+  override def textInput(codePt: Int, player: Player): Unit = {}
   override def clipboard(value: String, player: Player): Unit = {}
   override def mouseDown(x: Double, y: Double, button: Int, player: Player): Unit = {}
   override def mouseDrag(x: Double, y: Double, button: Int, player: Player): Unit = {}

@@ -1,5 +1,7 @@
 package li.cil.oc.api.manual;
 
+import net.minecraft.client.gui.GuiGraphics;
+
 /**
  * This allows implementing custom image renderers.
  * <br>
@@ -8,14 +10,14 @@ package li.cil.oc.api.manual;
  * provider. A renderer will then be used to draw something at the position
  * of the image tag.
  * <br>
- * Built-in image renderers are <tt>item</tt>, <tt>block</tt> and <tt>oredict</tt>.
+ * Built-in image renderers are {@code item}, {@code block} and {@code oredict}.
  */
 public interface ImageRenderer {
     /**
      * The width of the area this renderer uses.
      * <br>
      * This is used to offset the OpenGL state properly before calling
-     * {@link #render(int, int)}, to correctly align the image horizontally.
+     * {@link #render(GuiGraphics, int, int)}, to correctly align the image horizontally.
      *
      * @return the width of the rendered image.
      */
@@ -25,7 +27,7 @@ public interface ImageRenderer {
      * The height of the area this renderer uses.
      * <br>
      * This is used to offset the OpenGL state properly before calling
-     * {@link #render(int, int)}, as well as to know where to resume rendering
+     * {@link #render(GuiGraphics, int, int)}, as well as to know where to resume rendering
      * other content below the image.
      *
      * @return the height of the rendered image.
@@ -40,8 +42,9 @@ public interface ImageRenderer {
      * (getWidth,getHeight,*), i.e. translation and scaling are taken care
      * of for you.
      *
-     * @param mouseX the X position of the mouse relative to the element.
-     * @param mouseY the Y position of the mouse relative to the element.
+     * @param graphics the render transformation for this image
+     * @param mouseX   the X position of the mouse relative to the element.
+     * @param mouseY   the Y position of the mouse relative to the element.
      */
-    void render(int mouseX, int mouseY);
+    void render(GuiGraphics graphics, int mouseX, int mouseY);
 }

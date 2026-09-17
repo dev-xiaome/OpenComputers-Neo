@@ -14,7 +14,7 @@ object DriverEEPROM extends Item {
     api.Items.get(Constants.ItemName.EEPROM))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) =
-    if (host.world != null && host.world.isClientSide) null
+    if (host.getEnvironmentLevel != null && host.getEnvironmentLevel.isClientSide) null
     else new component.EEPROM()
 
   override def slot(stack: ItemStack) = Slot.EEPROM

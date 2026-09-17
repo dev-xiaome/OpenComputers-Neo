@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "iCi",
+    "ps ",
+    "iPi"
+  ],
+  "key": {
+    "i": {
+      "tag": "forge:ingots/iron"
+    },
+    "s": {
+      "tag": "forge:rods/wooden"
+    },
+    "p": {
+      "tag": "forge:pistons"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip1"
+    },
+    "P": {
+      "tag": "opencomputers_neo:materialcircuitboardprinted"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:diskdrive"
+  }
+}

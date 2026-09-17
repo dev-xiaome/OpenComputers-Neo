@@ -4,12 +4,11 @@ import java.io
 import java.io.FileNotFoundException
 
 import li.cil.oc.api.fs.Mode
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.nbt.ListTag
-// 1.21.1：原 `net.minecraftforge.common.util.Constants.NBT` 已移除，改用 `Tag.TAG_*` 常量。
-import net.minecraft.nbt.Tag
 
 import scala.collection.mutable
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.ListTag
+import net.minecraft.nbt.Tag
 
 trait VirtualFileSystem extends OutputStreamFileSystem {
   protected val root = new VirtualDirectory
@@ -127,14 +126,23 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag) = {
-    if (!this.isInstanceOf[Buffered]) root.load(nbt)
-    super.load(nbt) // Last to ensure streams can be re-opened.
+  override def loadData(nbt: CompoundTag): Unit = {
+    //println(s"Loading file data, NBT contains root: ${nbt.contains("root")}")
+    if (nbt.contains("root", 10)) {
+      root.loadData(nbt.getCompound("root"))
+    }
+    if (!this.isInstanceOf[Buffered]) root.loadData(nbt)
+    super.loadData(nbt) // Last to ensure streams can be re-opened.
   }
 
-  override def save(nbt: CompoundTag) = {
-    super.save(nbt) // First to allow flushing.
-    if (!this.isInstanceOf[Buffered]) root.save(nbt)
+  override def saveData(nbt: CompoundTag): Unit = {
+    super.saveData(nbt) // First to allow flushing.
+    if (!this.isInstanceOf[Buffered]) {
+      val fsNbt = new CompoundTag()
+      root.saveData(fsNbt)
+      nbt.put("root", fsNbt)
+    }
+    if (!this.isInstanceOf[Buffered]) root.saveData(nbt)
   }
 
   // ----------------------------------------------------------------------- //
@@ -150,12 +158,12 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
 
     var lastModified = System.currentTimeMillis()
 
-    def load(nbt: CompoundTag): Unit = {
+    def loadData(nbt: CompoundTag): Unit = {
       if (nbt.contains("lastModified"))
         lastModified = nbt.getLong("lastModified")
     }
 
-    def save(nbt: CompoundTag): Unit = {
+    def saveData(nbt: CompoundTag): Unit = {
       nbt.putLong("lastModified", lastModified)
     }
 
@@ -183,20 +191,20 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
       else {
         if (mode == Mode.Write) {
           data.clear()
-          lastModified = System.currentTimeMillis()
+          this.lastModified = System.currentTimeMillis()
         }
         handle = Some(new VirtualOutputHandle(this, owner, id, path))
         handle
       }
 
-    override def load(nbt: CompoundTag): Unit = {
-      super.load(nbt)
+    override def loadData(nbt: CompoundTag): Unit = {
+      super.loadData(nbt)
       data.clear()
       data ++= nbt.getByteArray("data")
     }
 
-    override def save(nbt: CompoundTag): Unit = {
-      super.save(nbt)
+    override def saveData(nbt: CompoundTag): Unit = {
+      super.saveData(nbt)
       nbt.putByteArray("data", data.toArray)
     }
 
@@ -220,7 +228,7 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
       if (children.contains(name)) false
       else {
         children += name -> new VirtualDirectory
-        lastModified = System.currentTimeMillis()
+        this.lastModified = System.currentTimeMillis()
         true
       }
 
@@ -228,7 +236,7 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
       children.get(name) match {
         case Some(child) if child.canDelete =>
           children -= name
-          lastModified = System.currentTimeMillis()
+          this.lastModified = System.currentTimeMillis()
           true
         case _ => false
       }
@@ -240,37 +248,38 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
         case None =>
           val child = new VirtualFile
           children += name -> child
-          lastModified = System.currentTimeMillis()
+          this.lastModified = System.currentTimeMillis()
           Some(child)
         case _ => None // Directory.
       }
 
-    override def load(nbt: CompoundTag): Unit = {
-      super.load(nbt)
-      // 1.21.1：`getList(k, type)` 仍以 `Tag.TAG_COMPOUND` 传入；
-      // `tagCount` / `getCompoundTagAt` 分别改为 `size()` / `getCompound(i)`。
-      val childrenNbt = nbt.getList("children", Tag.TAG_COMPOUND)
-      for (i <- 0 until childrenNbt.size()) {
-        val childNbt = childrenNbt.getCompound(i)
+    private final val ChildrenTag = "children"
+    private final val IsDirectoryTag = "isDirectory"
+    private final val NameTag = "name"
+
+    override def loadData(nbt: CompoundTag): Unit = {
+      super.loadData(nbt)
+      val childrenNbt = nbt.getList(ChildrenTag, Tag.TAG_COMPOUND)
+      (0 until childrenNbt.size).map(childrenNbt.getCompound).foreach(childNbt => {
         val child =
-          if (childNbt.getBoolean("isDirectory")) new VirtualDirectory
+          if (childNbt.getBoolean(IsDirectoryTag)) new VirtualDirectory
           else new VirtualFile
-        child.load(childNbt)
-        children += childNbt.getString("name") -> child
-      }
+        child.loadData(childNbt)
+        children += childNbt.getString(NameTag) -> child
+      })
     }
 
-    override def save(nbt: CompoundTag): Unit = {
-      super.save(nbt)
+    override def saveData(nbt: CompoundTag): Unit = {
+      super.saveData(nbt)
       val childrenNbt = new ListTag()
       for ((childName, child) <- children) {
         val childNbt = new CompoundTag()
-        childNbt.putBoolean("isDirectory", child.isDirectory)
-        childNbt.putString("name", childName)
-        child.save(childNbt)
+        childNbt.putBoolean(IsDirectoryTag, child.isDirectory)
+        childNbt.putString(NameTag, childName)
+        child.saveData(childNbt)
         childrenNbt.add(childNbt)
       }
-      nbt.put("children", childrenNbt)
+      nbt.put(ChildrenTag, childrenNbt)
     }
 
     override def get(path: Iterable[String]) =
@@ -313,8 +322,7 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
         if (count == 0) -1
         else {
           val n = math.min(len, count)
-          // Scala 2.13 的 `ArrayOps#view` 不再接受区间参数，改用 `Array.copy`。
-          Array.copy(file.data, position, b, off, n)
+          file.data.view(position, file.data.length).copyToArray(b, off, n)
           position += n
           n
         }

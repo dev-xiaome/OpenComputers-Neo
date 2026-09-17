@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "iPi",
+    "MDM",
+    "iCi"
+  ],
+  "key": {
+    "i": {
+      "tag": "forge:nuggets/iron"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip2"
+    },
+    "M": {
+      "tag": "opencomputers_neo:ram1"
+    },
+    "P": {
+      "tag": "opencomputers_neo:cpu3"
+    },
+    "D": {
+      "tag": "opencomputers_neo:diskdrive"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:raid"
+  }
+}

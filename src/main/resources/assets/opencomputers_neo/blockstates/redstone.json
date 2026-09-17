@@ -1,7 +1,5 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/redstone"
-                          }
-                 }
+    "variants": {
+        "": { "model": "opencomputers_neo:block/redstone" }
+    }
 }

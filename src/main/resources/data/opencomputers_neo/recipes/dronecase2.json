@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "EcE",
+    "CMC",
+    "EBE"
+  ],
+  "key": {
+    "c": {
+      "item": "minecraft:compass"
+    },
+    "E": {
+      "tag": "forge:end_stones"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip2"
+    },
+    "B": {
+      "tag": "opencomputers_neo:componentbus3"
+    },
+    "M": {
+      "tag": "opencomputers_neo:microcontrollercase2"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:dronecase2"
+  }
+}

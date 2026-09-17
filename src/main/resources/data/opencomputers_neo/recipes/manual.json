@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    {
+      "item": "minecraft:book"
+    },
+    {
+      "tag": "opencomputers_neo:circuitchip1"
+    }
+  ],
+  "result": {
+    "item": "opencomputers_neo:manual"
+  }
+}

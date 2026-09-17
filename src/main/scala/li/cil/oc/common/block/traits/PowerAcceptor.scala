@@ -1,21 +1,25 @@
 package li.cil.oc.common.block.traits
 
-import li.cil.oc.common.block.SimpleBlockHooks
+import java.util
+
+import li.cil.oc.common.block.SimpleBlock
 import li.cil.oc.util.Tooltip
-import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.TooltipFlag
 import net.minecraft.world.item.ItemStack
+import net.minecraft.network.chat.Component
+import net.minecraft.world.level.BlockGetter
 
-/** 接受能量输入的方块：提示里额外显示最大输入功率（对应 1.7.10 的 `block.traits.PowerAcceptor`）。 */
-trait PowerAcceptor extends SimpleBlockHooks {
-  // 注意：Scala 的自类型不会被继承，[[SimpleBlockHooks]] 的子 trait 必须重新声明 `self: Block`。
-  self: net.minecraft.world.level.block.Block =>
+import scala.collection.convert.ImplicitConversionsToScala._
 
+trait PowerAcceptor extends SimpleBlock {
   def energyThroughput: Double
 
   // ----------------------------------------------------------------------- //
 
-  override protected def tooltipTail(stack: ItemStack, player: Player, tooltip: java.util.List[String], advanced: Boolean): Unit = {
-    super.tooltipTail(stack, player, tooltip, advanced)
-    tooltip.addAll(Tooltip.extended("PowerAcceptor", energyThroughput.toInt))
+  override protected def tooltipTail(stack: ItemStack, world: BlockGetter, tooltip: util.List[Component], advanced: TooltipFlag): Unit = {
+    super.tooltipTail(stack, world, tooltip, advanced)
+    for (curr <- Tooltip.extended("poweracceptor", energyThroughput.toInt)) {
+      tooltip.add(Component.literal(curr).setStyle(Tooltip.DefaultStyle))
+    }
   }
 }

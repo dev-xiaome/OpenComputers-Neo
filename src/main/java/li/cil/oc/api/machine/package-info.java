@@ -17,3 +17,5 @@
  * fashion, such as {@link li.cil.oc.api.internal.Robot}.
  */
 package li.cil.oc.api.machine;
+
+import li.cil.oc.api.API;

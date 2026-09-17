@@ -8,9 +8,8 @@ import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.common.Slot
 import li.cil.oc.common.Tier
 import li.cil.oc.common.item
-import li.cil.oc.common.item.Delegator
-import li.cil.oc.common.tileentity.traits.BundledRedstoneAware
-import li.cil.oc.common.tileentity.traits.RedstoneAware
+import li.cil.oc.common.blockentity.traits.BundledRedstoneAware
+import li.cil.oc.common.blockentity.traits.RedstoneAware
 import li.cil.oc.integration.util.BundledRedstone
 import li.cil.oc.integration.util.WirelessRedstone
 import li.cil.oc.server.component
@@ -22,7 +21,7 @@ object DriverRedstoneCard extends Item with HostAware {
     api.Items.get(Constants.ItemName.RedstoneCardTier2))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) =
-    if (host.world != null && host.world.isClientSide) null
+    if (host.getEnvironmentLevel != null && host.getEnvironmentLevel.isClientSide) null
     else {
       val isAdvanced = tier(stack) == Tier.Two
       val hasBundled = BundledRedstone.isAvailable && isAdvanced
@@ -43,8 +42,8 @@ object DriverRedstoneCard extends Item with HostAware {
   override def slot(stack: ItemStack) = Slot.Card
 
   override def tier(stack: ItemStack) =
-    Delegator.subItem(stack) match {
-      case Some(card: item.RedstoneCard) => card.tier
+    stack.getItem match {
+      case card: item.RedstoneCard => card.tier
       case _ => Tier.One
     }
 

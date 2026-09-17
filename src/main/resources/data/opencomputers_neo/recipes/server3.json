@@ -1,0 +1,31 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "dRd",
+    "CBC",
+    "oPo"
+  ],
+  "key": {
+    "d": {
+      "tag": "forge:gems/diamond"
+    },
+    "o": {
+      "tag": "forge:obsidian"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip3"
+    },
+    "P": {
+      "tag": "opencomputers_neo:materialcircuitboardprinted"
+    },
+    "B": {
+      "tag": "opencomputers_neo:componentbus3"
+    },
+    "R": {
+      "tag": "opencomputers_neo:ram6"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:server3"
+  }
+}

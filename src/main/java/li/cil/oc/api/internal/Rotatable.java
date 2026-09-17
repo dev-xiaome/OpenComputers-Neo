@@ -1,12 +1,13 @@
 package li.cil.oc.api.internal;
 
+import li.cil.oc.api.driver.DriverItem;
 import net.minecraft.core.Direction;
 
 /**
  * This interface is implemented by the computer case and robot tile entities
  * to allow item components to query the orientation of their host, i.e. to
  * allow getting the facing of the tile entity passed to their drivers'
- * {@link li.cil.oc.api.driver.Item#createEnvironment(net.minecraft.item.ItemStack, li.cil.oc.api.network.EnvironmentHost)}
+ * {@link DriverItem#createEnvironment(net.minecraft.world.item.ItemStack, li.cil.oc.api.network.EnvironmentHost)}
  * method.
  * <br>
  * This interface is <em>not meant to be implemented</em>, just used.
@@ -20,9 +21,9 @@ public interface Rotatable {
      * <pre>
      * class SomeDriver implements li.cil.oc.api.driver.Item {
      *     // ...
-     *     ManagedEnvironment createEnvironment(ItemStack stack, BlockEntity tileentity) {
+     *     ManagedEnvironment createEnvironment(ItemStack stack, TileEntity tileentity) {
      *         if (tileentity instanceof Rotatable) {
-     *             Direction facing = ((Rotatable)tileentity).facing();
+     *             ForgeDirection facing = ((Rotatable)tileentity).facing();
      *             // Do something with facing.
      *         }
      *     }
@@ -35,7 +36,7 @@ public interface Rotatable {
 
     /**
      * Converts a facing relative to the block's <em>local</em> coordinate
-     * system to a <tt>global orientation</tt>, using south as the standard
+     * system to a <em>global</em> orientation, using south as the standard
      * orientation.
      * <br>
      * For example, if the block is facing east, calling this with south will
@@ -47,7 +48,7 @@ public interface Rotatable {
     Direction toGlobal(Direction value);
 
     /**
-     * Converts a <tt>global</tt> orientation to a facing relative to the
+     * Converts a <em>global</em> orientation to a facing relative to the
      * block's <em>local</em> coordinate system, using south as the standard
      * orientation.
      * <br>

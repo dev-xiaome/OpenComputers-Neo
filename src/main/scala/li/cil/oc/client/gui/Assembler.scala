@@ -1,130 +1,108 @@
 package li.cil.oc.client.gui
 
+import com.mojang.blaze3d.systems.RenderSystem
 import li.cil.oc.Localization
-import li.cil.oc.client.Textures
+import li.cil.oc.client.{Textures, PacketSender => ClientPacketSender}
 import li.cil.oc.client.gui.widget.ProgressBar
-import li.cil.oc.client.{PacketSender => ClientPacketSender}
-import li.cil.oc.common.container
-import li.cil.oc.common.container.ComponentSlot
+import li.cil.oc.common.menu
+import li.cil.oc.common.menu.ComponentSlot
 import li.cil.oc.common.template.AssemblerTemplates
-import net.minecraft.client.gui.GuiGraphics
-import net.minecraft.network.chat.Component
+import li.cil.oc.util.RenderState
 import net.minecraft.world.entity.player.Inventory
+import net.minecraft.network.chat.Component
 import net.minecraft.world.inventory.Slot
+import net.minecraft.client.gui.components.Button
+import net.minecraft.client.gui.GuiGraphics
 
 import scala.jdk.CollectionConverters._
 
-/**
- * 装配机界面（原 1.7.10 的 `li.cil.oc.client.gui.Assembler`）。
- *
- * 界面功能：放一张模板（外壳 / 软盘 / EEPROM …），装配机会按模板校验槽位，
- * 校验通过后「运行」按钮亮起，点击即开始装配，进度条显示装配进度。
- *
- * ==1.21.1 迁移要点==
- *  - `initGui()` → `init()`；`add(buttonList, button)` → `addRenderableWidget`（见 [[addButton]]）；
- *  - `inventorySlots.inventorySlots`（1.7.10 的双层写法）→ `inventorySlots`（本身就是 `IndexedSeq[Slot]`）；
- *  - `slot.getHasStack` → `slot.hasItem`；`slot.getStack` → `slot.getItem`；
- *  - `Component#getUnformattedText` → `Component#getString`；
- *  - `func_146115_a` → [[ImageButton.hoveredState]]；
- *  - `func_146978_c(...)` → [[isHovering]]；
- *  - `drawHoveringText(tooltip: java.util.List[String], ...)`（1.7.10 里被本类**重载**过）
- *    在这里统一走 [[copiedDrawHoveringText]]，避免与 [[CustomGuiContainer.drawHoveringText]]
- *    的 `Component` 版本产生歧义。
- */
-class Assembler(menu: container.Assembler, playerInventory: Inventory, title: Component)
-  extends DynamicGuiContainer[container.Assembler](menu, playerInventory, title) {
+class Assembler(val state: menu.Assembler, playerInventory: Inventory, name: Component)
+  extends DynamicGuiContainer(state, playerInventory, name) {
 
   imageWidth = 176
   imageHeight = 192
+
+  for (slot <- menu.slots.asScala) slot match {
+    case component: ComponentSlot => component.changeListener = Option(onSlotChanged)
+    case _ =>
+  }
+
+  private def onSlotChanged(slot: Slot): Unit = {
+    runButton.active = canBuild
+    runButton.toggled = !runButton.active
+    info = validate
+  }
 
   var info: Option[(Boolean, Component, Array[Component])] = None
 
   protected var runButton: ImageButton = _
 
-  private val progress: ProgressBar = addWidgetToContainer(new ProgressBar(28, 92))
+  private val progress = addCustomWidget(new ProgressBar(28, 92))
 
-  override def init(): Unit = {
+  private def validate = AssemblerTemplates.select(inventoryContainer.getSlot(0).getItem).map(_.validate(inventoryContainer.otherInventory))
+
+  private def canBuild = !inventoryContainer.isAssembling && validate.exists(_._1)
+
+  override protected def init(): Unit = {
     super.init()
-
-    // 槽位内容变化时重新校验模板（原实现在构造器里挂监听）。
-    for (slot <- inventorySlots) slot match {
-      case component: ComponentSlot => component.changeListener = Option(onSlotChanged)
-      case _ =>
-    }
-
-    runButton = new ImageButton(0, leftPos + 7, topPos + 89, 18, 18, Textures.guiButtonRun, canToggle = true)
-    addButton(runButton)
-    runButton.actionPerformed = _ => onRunButton()
-    refreshRunButton()
+    runButton = new ImageButton(leftPos + 7, topPos + 89, 18, 18, (b: Button) => if (canBuild) ClientPacketSender.sendRobotAssemblerStart(inventoryContainer), Textures.GUI.ButtonRun, canToggle = true)
+    addRenderableWidget(runButton)
   }
 
-  private def onSlotChanged(slot: Slot): Unit = refreshRunButton()
+  override protected def renderLabels(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
+    drawSecondaryForegroundLayer(guiGraphics, mouseX, mouseY)
 
-  private def refreshRunButton(): Unit = {
-    if (runButton != null) {
-      runButton.enabled = canBuild
-      runButton.toggled = !runButton.enabled
-    }
-    info = validate
-  }
-
-  /** 原 `validate`：按模板校验当前槽位。 */
-  private def validate: Option[(Boolean, Component, Array[Component])] =
-    AssemblerTemplates.select(menu.getSlot(0).getItem).map(_.validate(menu.otherInventory))
-
-  private def canBuild: Boolean = !menu.isAssembling && validate.exists(_._1)
-
-  /** 原 `actionPerformed(button)`：点「运行」时通知服务端开始装配。 */
-  protected def onRunButton(): Unit = {
-    refreshRunButton()
-    if (canBuild) {
-      ClientPacketSender.sendRobotAssemblerStart(menu.assembler)
+    for (slot <- 0 until menu.slots.size()) {
+      drawSlotHighlight(guiGraphics, menu.getSlot(slot))
     }
   }
 
-  override protected def drawSecondaryForegroundLayer(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
-    if (!menu.isAssembling) {
+  override def drawSecondaryForegroundLayer(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
+    RenderState.pushAttrib()
+    if (!inventoryContainer.isAssembling) {
       val message =
-        if (!menu.getSlot(0).hasItem) {
+        if (!inventoryContainer.getSlot(0).hasItem) {
           Localization.Assembler.InsertTemplate
         }
         else info match {
           case Some((_, value, _)) if value != null => value.getString
-          case _ if menu.getSlot(0).hasItem => Localization.Assembler.CollectResult
+          case _ if inventoryContainer.getSlot(0).hasItem => Localization.Assembler.CollectResult
           case _ => ""
         }
       guiGraphics.drawString(font, message, 30, 94, 0x404040, false)
-      if (runButton != null && runButton.hoveredState) {
-        val tooltip = new java.util.ArrayList[String]()
-        tooltip.add(Localization.Assembler.Run)
+      if (runButton.isMouseOver(mouseX, mouseY)) {
+        val tooltip = new java.util.ArrayList[Component]
+        tooltip.add(Component.literal(Localization.Assembler.Run))
         info.foreach {
-          case (valid, _, warnings) if valid && warnings.length > 0 =>
-            tooltip.addAll(toJava(warnings.map(_.getString).toSeq))
-          case _ =>
+          case (valid, _, warnings) => if (valid && warnings.length > 0) {
+            warnings.foreach(w => tooltip.add(w))
+          }
         }
-        copiedDrawHoveringText(tooltip, mouseX, mouseY, font)
+        guiGraphics.renderComponentTooltip(font, tooltip, mouseX - leftPos, mouseY - topPos)
       }
     }
-    else if (isHovering(progress.x, progress.y, progress.width, progress.height, mouseX, mouseY)) {
-      val tooltip = new java.util.ArrayList[String]()
-      val timeRemaining = formatTime(menu.assemblyRemainingTime)
-      tooltip.add(Localization.Assembler.Progress(menu.assemblyProgress, timeRemaining))
-      copiedDrawHoveringText(tooltip, mouseX, mouseY, font)
+    else if (isHovering(progress.x, progress.y, progress.width, progress.height, mouseX - leftPos, mouseY - topPos)) {
+      val tooltip = new java.util.ArrayList[Component]
+      val timeRemaining = formatTime(inventoryContainer.assemblyRemainingTime)
+      tooltip.add(Component.literal(Localization.Assembler.Progress(inventoryContainer.assemblyProgress, timeRemaining)))
+      guiGraphics.renderComponentTooltip(font, tooltip, mouseX - leftPos, mouseY - topPos)
     }
+    RenderState.popAttrib()
   }
 
-  private def formatTime(seconds: Int): String = {
-    // Assembly times should not / rarely exceed one hour, so this is good enough.
+  private def formatTime(seconds: Int) = {
     if (seconds < 60) f"0:$seconds%02d"
     else f"${seconds / 60}:${seconds % 60}%02d"
   }
 
-  override protected def drawSecondaryBackgroundLayer(guiGraphics: GuiGraphics): Unit = {
-    guiGraphics.blit(Textures.guiRobotAssembler, leftPos, topPos, 0, 0, imageWidth, imageHeight)
-    if (menu.isAssembling) progress.level = menu.assemblyProgress / 100.0
+  override protected def renderBg(guiGraphics: GuiGraphics, dt: Float, mouseX: Int, mouseY: Int): Unit = {
+    RenderSystem.setShaderColor(1, 1, 1, 1)
+    guiGraphics.blit(Textures.GUI.RobotAssembler, leftPos, topPos, 0, 0, imageWidth, imageHeight)
+    if (inventoryContainer.isAssembling) progress.level = inventoryContainer.assemblyProgress / 100.0
     else progress.level = 0
+    drawWidgets(guiGraphics)
+    drawInventorySlots(guiGraphics)
   }
 
-  /** 装配机不画「槽位不可用」的占位图标（与原实现一致）。 */
   override protected def drawDisabledSlot(guiGraphics: GuiGraphics, slot: ComponentSlot): Unit = {}
 }

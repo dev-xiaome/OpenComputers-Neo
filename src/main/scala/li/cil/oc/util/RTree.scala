@@ -2,13 +2,9 @@ package li.cil.oc.util
 
 import scala.collection.mutable
 
-/**
- * 三维 R 树（原实现未直接使用 Minecraft API，逻辑保持不变）。
- *
- * 2.13 迁移：`mutable.Set` 的 `+=` / `-=` / `++=` 与 `Iterable.foldRight` 语义未变，
- * 这里仅补齐过程语法的显式 `Unit` 返回类型并给几处推导加上类型标注。
- */
 class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, Double, Double)) {
+  private type Coordinate = (Double, Double, Double)
+  
   if (M < 2) throw new IllegalArgumentException("maxEntries must be larger or equal to 2.")
 
   // Used for quick checks whether values are in the tree, e.g. for updates.
@@ -18,16 +14,16 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
 
   private var root = new NonLeaf()
 
-  def apply(value: Data): Option[(Double, Double, Double)] = this.synchronized {
-    entries.get(value).fold(None: Option[(Double, Double, Double)])(position => Some(position.bounds.min.asTuple))
+  def apply(value: Data): Option[Coordinate] = this.synchronized {
+    entries.get(value).fold(None: Option[Coordinate])(position => Some(position.bounds.min.asTuple))
   }
 
   // Allows debug rendering of the tree.
-  def allBounds = this.synchronized(root.allBounds(0))
+  def allBounds: Iterable[((Coordinate, Coordinate), Int)] = this.synchronized(root.allBounds(0))
 
   def add(value: Data): Boolean = this.synchronized {
     val replaced = remove(value)
-    val entry = new Leaf(value, new Point(value))
+    val entry = new Leaf(value, new Point(coordinate(value)))
     entries += value -> entry
     root.add(entry) match {
       case newNode if newNode != root => root = new NonLeaf(newNode, root)
@@ -52,14 +48,14 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
     }
   }
 
-  def query(from: (Double, Double, Double), to: (Double, Double, Double)) = this.synchronized {
+  def query(from: Coordinate, to: Coordinate): Iterable[Data] = this.synchronized {
     root.query(new Rectangle(new Point(from), new Point(to)))
   }
 
   private abstract class Node {
     def bounds: Rectangle
 
-    def allBounds(level: Int) = Iterable((bounds.asTuple, level))
+    def allBounds(level: Int): Iterable[((Coordinate, Coordinate), Int)] = Iterable((bounds.asTuple, level))
 
     def isLeaf = true
 
@@ -83,9 +79,9 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
 
     var bounds = new Rectangle(Point.PositiveInfinity, Point.NegativeInfinity)
 
-    override def allBounds(level: Int) = super.allBounds(level) ++ children.flatMap(_.allBounds(level + 1))
+    override def allBounds(level: Int): Iterable[((Coordinate, Coordinate), Int)] = super.allBounds(level) ++ children.flatMap(_.allBounds(level + 1))
 
-    override def isLeaf = children.headOption.exists(_.isInstanceOf[Leaf])
+    override def isLeaf: Boolean = children.headOption.exists(_.isInstanceOf[Leaf])
 
     def add(value: Node): Node = {
       assert(value != this)
@@ -178,7 +174,7 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
         children.foldRight(Iterable.empty[Data])((child, result) => result ++ child.query(query))
       else Iterable.empty[Data]
 
-    private def split(): NonLeaf = {
+    private def split() = {
       val values = children.toArray
       var seed1: Option[Node] = None
       var seed2: Option[Node] = None
@@ -203,7 +199,7 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
           val r1 = new SplitResult(mutable.Set(s1), s1.bounds)
           val r2 = new SplitResult(mutable.Set(s2), s2.bounds)
 
-          val list = mutable.Set.empty[Node] ++ values
+          val list = mutable.Set.empty ++ values
           list -= s1
           list -= s2
           while (list.nonEmpty) {
@@ -256,27 +252,27 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
   private class Leaf(val data: Data, point: Point) extends Node {
     val bounds = new Rectangle(point, point)
 
-    def entries = Iterable(this)
+    def entries: Iterable[Leaf] = Iterable(this)
 
-    def add(value: Node) = value
+    def add(value: Node): Node = value
 
-    def remove(value: Node) =
+    def remove(value: Node): Option[Leaf] =
       if (value == this) Some(this)
       else None
 
-    def query(query: Rectangle) =
+    def query(query: Rectangle): Iterable[Data] =
       if (query.intersects(bounds)) Iterable(data)
       else Iterable.empty
   }
 
   private class Point(val x: Double, val y: Double, val z: Double) {
-    def this(p: (Double, Double, Double)) = this(p._1, p._2, p._3)
+    def this(p: Coordinate) = this(p._1, p._2, p._3)
 
     def min(other: Point) = new Point(math.min(x, other.x), math.min(y, other.y), math.min(z, other.z))
 
     def max(other: Point) = new Point(math.max(x, other.x), math.max(y, other.y), math.max(z, other.z))
 
-    def asTuple = (x, y, z)
+    def asTuple: Coordinate = (x, y, z)
   }
 
   private object Point {
@@ -287,22 +283,22 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
   private class Rectangle(val min: Point, val max: Point) {
     def including(value: Rectangle) = new Rectangle(value.min min min, value.max max max)
 
-    def intersects(value: Rectangle) =
+    def intersects(value: Rectangle): Boolean =
       value.min.x <= max.x && value.min.y <= max.y && value.min.z <= max.z &&
         value.max.x >= min.x && value.max.y >= min.y && value.max.z >= min.z
 
-    def volume = {
+    def volume: Double = {
       val sx = max.x - min.x
       val sy = max.y - min.y
       val sz = max.z - min.z
       sx * sy * sz
     }
 
-    def asTuple = ((min.x, min.y, min.z), (max.x, max.y, max.z))
+    def asTuple: (Coordinate, Coordinate) = ((min.x, min.y, min.z), (max.x, max.y, max.z))
   }
 
   private object Rectangle {
-    def around(values: Iterable[Node]) = {
+    def around(values: Iterable[Node]): Rectangle = {
       var min = Point.PositiveInfinity
       var max = Point.NegativeInfinity
       for (value <- values) {
@@ -319,9 +315,9 @@ class RTree[Data](private val M: Int)(implicit val coordinate: Data => (Double, 
       bounds = bounds.including(value.bounds)
     }
 
-    def volume = bounds.volume
+    def volume: Double = bounds.volume
 
-    def volumeIncluding(value: Node) = bounds.including(value.bounds).volume
+    def volumeIncluding(value: Node): Double = bounds.including(value.bounds).volume
   }
 
 }

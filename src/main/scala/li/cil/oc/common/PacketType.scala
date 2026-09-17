@@ -3,9 +3,9 @@ package li.cil.oc.common
 object PacketType extends Enumeration {
   val
   // Server -> Client
-  AbstractBusState,
   AdapterState,
   Analyze,
+  SoundCardData,
   ChargerState,
   ClientLog,
   ColorChange,
@@ -68,6 +68,7 @@ object PacketType extends Enumeration {
   TextBufferMultiRawSetForeground,
   TextBufferPowerChange,
   ScreenTouchMode,
+  SoundEffect,
   Sound,
   SoundPattern,
   TransposerActivity,
@@ -81,7 +82,10 @@ object PacketType extends Enumeration {
   DronePower,
   KeyDown,
   KeyUp,
+  TextInput,
   Clipboard,
+  MachineItemStateRequest,
+  MachineItemStateResponse,
   MouseClickOrDrag,
   MouseScroll,
   MouseUp,
@@ -91,6 +95,7 @@ object PacketType extends Enumeration {
   RobotAssemblerStart,
   RobotStateRequest,
   ServerPower,
+  HoloScreenResize,
 
   EndOfList = Value
 }

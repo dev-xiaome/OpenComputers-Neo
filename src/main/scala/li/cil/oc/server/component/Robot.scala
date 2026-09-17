@@ -14,36 +14,41 @@ import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.common.ToolDurabilityProviders
-import li.cil.oc.common.tileentity
+import li.cil.oc.common.blockentity
 import li.cil.oc.server.PacketSender
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.util.StackOption
+import li.cil.oc.util.StackOption._
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.core.particles.ParticleTypes
 import net.minecraft.core.Direction
+import net.minecraft.resources.ResourceLocation
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
+import net.minecraft.nbt.CompoundTag
 
-class Robot(val agent: tileentity.Robot) extends prefab.ManagedEnvironment with Agent with DeviceInfo {
+class Robot(val agent: blockentity.Robot) extends AbstractManagedEnvironment with Agent with DeviceInfo {
   override val node = api.Network.newNode(this, Visibility.Network).
     withComponent("robot").
     withConnector(Settings.get.bufferRobot).
     create()
 
   val romRobot = Option(api.FileSystem.asManagedEnvironment(api.FileSystem.
-    fromClass(OpenComputers.getClass, Settings.resourceDomain, "lua/component/robot"), "robot"))
+    fromResource(new ResourceLocation(Settings.resourceDomain, "lua/component/robot")), "robot"))
 
   private final lazy val deviceInfo = Map(
     DeviceAttribute.Class -> DeviceClass.System,
     DeviceAttribute.Description -> "Robot",
     DeviceAttribute.Vendor -> Constants.DeviceInfo.DefaultVendor,
     DeviceAttribute.Product -> "Caterpillar",
-    DeviceAttribute.Capacity -> agent.getSizeInventory.toString
+    DeviceAttribute.Capacity -> agent.getContainerSize.toString
   )
 
-  // 1.21.1：`deviceInfo` 是 Scala `Map`，而接口要求 `java.util.Map`，需显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   // ----------------------------------------------------------------------- //
 
@@ -70,8 +75,8 @@ class Robot(val agent: tileentity.Robot) extends prefab.ManagedEnvironment with 
 
   @Callback(doc = "function():number -- Get the durability of the currently equipped tool.")
   def durability(context: Context, args: Arguments): Array[AnyRef] = {
-    Option(agent.equipmentInventory.getStackInSlot(0)) match {
-      case Some(item) =>
+    StackOption(agent.equipmentInventory.getItem(0)) match {
+      case SomeStack(item) =>
         ToolDurabilityProviders.getDurability(item) match {
           case Some(durability) => result(durability)
           case _ => result((), "tool cannot be damaged")
@@ -94,7 +99,7 @@ class Robot(val agent: tileentity.Robot) extends prefab.ManagedEnvironment with 
       val (something, what) = blockContent(direction)
       if (something) {
         context.pause(0.4)
-        PacketSender.sendParticleEffect(BlockPosition(agent), "crit", 8, 0.25, Some(direction))
+        PacketSender.sendParticleEffect(BlockPosition(agent), ParticleTypes.CRIT, 8, 0.25, Some(direction))
         result((), what)
       }
       else {
@@ -108,7 +113,7 @@ class Robot(val agent: tileentity.Robot) extends prefab.ManagedEnvironment with 
         else {
           node.changeBuffer(Settings.get.robotMoveCost)
           context.pause(0.4)
-          PacketSender.sendParticleEffect(BlockPosition(agent), "crit", 8, 0.25, Some(direction))
+          PacketSender.sendParticleEffect(BlockPosition(agent), ParticleTypes.CRIT, 8, 0.25, Some(direction))
           result((), "impossible move")
         }
       }
@@ -152,13 +157,15 @@ class Robot(val agent: tileentity.Robot) extends prefab.ManagedEnvironment with 
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
-    romRobot.foreach(_.load(nbt.getCompound("romRobot")))
+  private final val RomRobotTag = "romRobot"
+
+  override def loadData(nbt: CompoundTag): Unit = {
+    super.loadData(nbt)
+    romRobot.foreach(_.loadData(nbt.getCompound(RomRobotTag)))
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    super.save(nbt)
-    romRobot.foreach(fs => nbt.setNewCompoundTag("romRobot", fs.save))
+  override def saveData(nbt: CompoundTag): Unit = {
+    super.saveData(nbt)
+    romRobot.foreach(fs => nbt.setNewCompoundTag(RomRobotTag, fs.saveData))
   }
 }

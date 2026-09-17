@@ -5,3 +5,5 @@
  * with your components.
  */
 package li.cil.oc.api.component;
+
+import li.cil.oc.api.API;

@@ -4,65 +4,62 @@ import li.cil.oc.Constants
 import li.cil.oc.Settings
 import li.cil.oc.common.Tier
 import li.cil.oc.util.ExtendedNBT._
-import net.minecraft.nbt.{CompoundTag, Tag}
 import net.minecraft.world.item.ItemStack
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.Tag
 
-/**
- * 平板电脑数据（原 1.7.10 的 `TabletData`）。
- *
- * 1.21.1 迁移要点：
- *  - `NBT.TAG_COMPOUND` → [[Tag.TAG_COMPOUND]]
- *  - `ListTag#foreach` 由 [[li.cil.oc.util.ExtendedNBT.ExtendedListTag]] 提供
- *  - `ItemStack.loadItemStackFromNBT` → [[StackSerializer.loadItemStack]]
- *  - `nbt.setNewCompoundTag(name, stack.writeToNBT)` 的旧签名要求 `CompoundTag => Unit`，
- *    这里改用 `nbt.put(name, StackSerializer.toTag(stack))`
- */
 class TabletData extends ItemData(Constants.ItemName.Tablet) {
   def this(stack: ItemStack) = {
     this()
-    load(stack)
+    loadData(stack)
   }
 
-  var items: Array[Option[ItemStack]] = Array.fill[Option[ItemStack]](32)(None)
-  var isRunning: Boolean = false
-  var energy: Double = 0.0
-  var maxEnergy: Double = 0.0
-  var tier: Int = Tier.One
-  var container: Option[ItemStack] = None
+  var items = Array.fill[ItemStack](32)(ItemStack.EMPTY)
+  var isRunning = false
+  var energy = 0.0
+  var maxEnergy = 0.0
+  var tier = Tier.One
+  var container = ItemStack.EMPTY
 
-  override def load(nbt: CompoundTag): Unit = {
-    nbt.getList(Settings.namespace + "items", Tag.TAG_COMPOUND).foreach((slotNbt: CompoundTag) => {
-      val slot = slotNbt.getByte("slot")
+  private final val ItemsTag = Settings.namespace + "items"
+  private final val SlotTag = "slot"
+  private final val ItemTag = "item"
+  private final val IsRunningTag = Settings.namespace + "isRunning"
+  private final val EnergyTag = Settings.namespace + "energy"
+  private final val MaxEnergyTag = Settings.namespace + "maxEnergy"
+  private final val TierTag = Settings.namespace + "tier"
+  private final val ContainerTag = Settings.namespace + "container"
+
+  override def loadData(nbt: CompoundTag): Unit = {
+    nbt.getList(ItemsTag, Tag.TAG_COMPOUND).foreach((slotNbt: CompoundTag) => {
+      val slot = slotNbt.getByte(SlotTag)
       if (slot >= 0 && slot < items.length) {
-        val stack = StackSerializer.loadItemStack(slotNbt.getCompound("item"))
-        items(slot) = if (stack != null && !stack.isEmpty) Option(stack) else None
+        items(slot) = ItemStack.of(slotNbt.getCompound(ItemTag))
       }
     })
-    isRunning = nbt.getBoolean(Settings.namespace + "isRunning")
-    energy = nbt.getDouble(Settings.namespace + "energy")
-    maxEnergy = nbt.getDouble(Settings.namespace + "maxEnergy")
-    tier = nbt.getInt(Settings.namespace + "tier")
-    if (nbt.contains(Settings.namespace + "container")) {
-      val stack = StackSerializer.loadItemStack(nbt.getCompound(Settings.namespace + "container"))
-      container = if (stack != null && !stack.isEmpty) Option(stack) else None
+    isRunning = nbt.getBoolean(IsRunningTag)
+    energy = nbt.getDouble(EnergyTag)
+    maxEnergy = nbt.getDouble(MaxEnergyTag)
+    tier = nbt.getInt(TierTag)
+    if (nbt.contains(ContainerTag)) {
+      container = ItemStack.of(nbt.getCompound(ContainerTag))
     }
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    nbt.setNewTagList(Settings.namespace + "items",
+  override def saveData(nbt: CompoundTag): Unit = {
+    nbt.setNewTagList(ItemsTag,
       items.zipWithIndex collect {
-        case (Some(stack), slot) => (stack, slot)
+        case (stack, slot) if !stack.isEmpty => (stack, slot)
       } map {
         case (stack, slot) =>
           val slotNbt = new CompoundTag()
-          slotNbt.putByte("slot", slot.toByte)
-          slotNbt.put("item", StackSerializer.toTag(stack))
-          slotNbt
+          slotNbt.putByte(SlotTag, slot.toByte)
+          slotNbt.setNewCompoundTag(ItemTag, stack.save)
       })
-    nbt.putBoolean(Settings.namespace + "isRunning", isRunning)
-    nbt.putDouble(Settings.namespace + "energy", energy)
-    nbt.putDouble(Settings.namespace + "maxEnergy", maxEnergy)
-    nbt.putInt(Settings.namespace + "tier", tier)
-    container.foreach(stack => nbt.put(Settings.namespace + "container", StackSerializer.toTag(stack)))
+    nbt.putBoolean(IsRunningTag, isRunning)
+    nbt.putDouble(EnergyTag, energy)
+    nbt.putDouble(MaxEnergyTag, maxEnergy)
+    nbt.putInt(TierTag, tier)
+    if (!container.isEmpty) nbt.setNewCompoundTag(ContainerTag, container.save)
   }
 }

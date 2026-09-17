@@ -1,8 +1,10 @@
 package li.cil.oc.api;
 
-import li.cil.oc.api.network.EnvironmentHost;
 import li.cil.oc.api.fs.Label;
+import li.cil.oc.api.network.EnvironmentHost;
 import li.cil.oc.api.network.ManagedEnvironment;
+import li.cil.oc.api.network.Visibility;
+import net.minecraft.resources.ResourceLocation;
 
 /**
  * This class provides factory methods for creating file systems that are
@@ -10,41 +12,37 @@ import li.cil.oc.api.network.ManagedEnvironment;
  * <br>
  * File systems created this way and wrapped in a managed environment via
  * {@link #asManagedEnvironment} or its overloads will appear as
- * <tt>filesystem</tt> components in the component network. Note that the
- * component's visibility is set to <tt>Neighbors</tt> per default. If you wish
+ * {@code filesystem} components in the component network. Note that the
+ * component's visibility is set to {@link Visibility#Neighbors} per default. If you wish
  * to change the file system's visibility (e.g. like the disk drive does) you
  * must cast the environment's node to {@link li.cil.oc.api.network.Component}
  * and set the visibility to the desired value.
  * <br>
  * Note that these methods should <em>not</em> be called in the pre-init phase,
- * since the {@link li.cil.oc.api.API#fileSystem} may not have been initialized
+ * since the {@link API#fileSystem} may not have been initialized
  * at that time. Only start calling these methods in the init phase or later.
  */
 public final class FileSystem {
     /**
-     * Creates a new file system based on the location of a class.
+     * Creates a new file system based on a mod-specific resource location where
+     * the namespace refers to the mod and the resource path denotes a
+     * (mandatory) subpath relative to that mod's assets directory.
      * <br>
-     * This can be used to wrap a folder in the assets folder of your mod's JAR.
-     * The actual path is built like this:
-     * <pre>"/assets/" + domain + "/" + root</pre>
-     * <br>
-     * If the class is located in a JAR file, this will create a read-only file
-     * system based on that JAR file. If the class file is located in the native
-     * file system, this will create a read-only file system first trying from
-     * the actual location of the class file, and failing that by searching the
-     * class path (i.e. it'll look for a path constructed as described above).
+     * If {@code location} is stored in a JAR file, this will create a read-only
+     * file system based on that JAR file. If {@code location} is stored in the
+     * native file system, this will create a read-only file system from the the
+     * location constructed as described above (relative to the root of the
+     * namespace).
      * <br>
      * If the specified path cannot be located, the creation fails and this
-     * returns <tt>null</tt>.
+     * returns {@code null}.
      *
-     * @param clazz  the class whose containing JAR to wrap.
-     * @param domain the domain, usually your mod's ID.
-     * @param root   an optional subdirectory.
-     * @return a file system wrapping the specified folder.
+     * @param location the location where the file system's contents are stored.
+     * @return a file system wrapping the specified resource.
      */
-    public static li.cil.oc.api.fs.FileSystem fromClass(final Class<?> clazz, final String domain, final String root) {
+    public static li.cil.oc.api.fs.FileSystem fromResource(final ResourceLocation location) {
         if (API.fileSystem != null)
-            return API.fileSystem.fromClass(clazz, domain, root);
+            return API.fileSystem.fromResource(location);
         return null;
     }
 
@@ -54,7 +52,7 @@ public final class FileSystem {
      * This will create a folder, if necessary, and create a writable virtual
      * file system based in that folder. The actual path is based in a sub-
      * folder of the save folder. The actual path is built like this:
-     * <pre>"saves/" + WORLD_NAME + "/OpenComputers/" + root</pre>
+     * <pre>"saves/" + WORLD_NAME + "/opencomputers/" + root</pre>
      * The first part may differ, in particular for servers.
      * <br>
      * Usually the name will be the address of the node used to represent the
@@ -79,7 +77,7 @@ public final class FileSystem {
 
     /**
      * Same as {@link #fromSaveDirectory(String, long, boolean)} with the
-     * <tt>buffered</tt> parameter being true, i.e. will always create a
+     * {@code buffered} parameter being true, i.e. will always create a
      * buffered file system.
      *
      * @param root     the name of the file system.
@@ -96,7 +94,7 @@ public final class FileSystem {
      * Any contents created and written on this file system will be lost when
      * the node is removed from the network.
      * <br>
-     * This is used for computers' <tt>/tmp</tt> mount, for example.
+     * This is used for computers' {@code /tmp} mount, for example.
      *
      * @param capacity the capacity of the file system.
      * @return a file system residing in memory.
@@ -108,25 +106,7 @@ public final class FileSystem {
     }
 
     /**
-     * Creates a new file system based on a ComputerCraft mount.
-     * <br>
-     * This supports read-only and writable mounts from either CC 1.5x or
-     * CC 1.6x. The argument is kept untyped to avoid having the OC API
-     * depend on the CC API.
-     * <br>
-     * If the passed type is unsupported, this will throw an exception.
-     *
-     * @param mount the mount to wrap with a file system.
-     * @return a file system wrapping the specified mount.
-     */
-    public static li.cil.oc.api.fs.FileSystem fromComputerCraft(final Object mount) {
-        if (API.fileSystem != null)
-            return API.fileSystem.fromComputerCraft(mount);
-        return null;
-    }
-
-    /**
-     * Wrap a file system retrieved via one of the <tt>from???</tt> methods to
+     * Wrap a file system retrieved via one of the {@code from???} methods to
      * make it read-only.
      *
      * @param fileSystem the file system to wrap.
@@ -153,11 +133,11 @@ public final class FileSystem {
      * the disk event notifications to the client that are used to play disk
      * access sounds.
      * <br>
-     * The container may be <tt>null</tt>, if no such context can be provided.
+     * The container may be {@code null}, if no such context can be provided.
      * <br>
      * The access sound is the name of the sound effect to play when the file
      * system is accessed, for example by listing a directory or reading from
-     * a file. It may be <tt>null</tt> to create a silent file system.
+     * a file. It may be {@code null} to create a silent file system.
      * <br>
      * The speed multiplier controls how fast read and write operations on the
      * file system are. It must be a value in [1,6], and controls the access
@@ -172,7 +152,7 @@ public final class FileSystem {
      * @param accessSound the name of the sound effect to play when the file
      *                    system is accessed. This has to be the fully
      *                    qualified resource name, e.g.
-     *                    <tt>OpenComputers:floppy_access</tt>.
+     *                    {@code opencomputers:floppy_access}.
      * @param speed       the speed multiplier for this file system.
      * @return the network node wrapping the file system.
      */
@@ -195,7 +175,7 @@ public final class FileSystem {
      * @param accessSound the name of the sound effect to play when the file
      *                    system is accessed. This has to be the fully
      *                    qualified resource name, e.g.
-     *                    <tt>OpenComputers:floppy_access</tt>.
+     *                    {@code opencomputers:floppy_access}.
      * @param speed       the speed multiplier for this file system.
      * @return the network node wrapping the file system.
      */
@@ -218,7 +198,7 @@ public final class FileSystem {
      * @param accessSound the name of the sound effect to play when the file
      *                    system is accessed. This has to be the fully
      *                    qualified resource name, e.g.
-     *                    <tt>OpenComputers:floppy_access</tt>.
+     *                    {@code opencomputers:floppy_access}.
      * @return the network node wrapping the file system.
      */
     public static ManagedEnvironment asManagedEnvironment(final li.cil.oc.api.fs.FileSystem fileSystem, final Label label, final EnvironmentHost host, final String accessSound) {
@@ -238,7 +218,7 @@ public final class FileSystem {
      * @param accessSound the name of the sound effect to play when the file
      *                    system is accessed. This has to be the fully
      *                    qualified resource name, e.g.
-     *                    <tt>OpenComputers:floppy_access</tt>.
+     *                    {@code opencomputers:floppy_access}.
      * @return the network node wrapping the file system.
      */
     public static ManagedEnvironment asManagedEnvironment(final li.cil.oc.api.fs.FileSystem fileSystem, final String label, final EnvironmentHost host, final String accessSound) {

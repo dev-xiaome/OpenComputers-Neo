@@ -1,7 +1,5 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/endstone"
-                          }
-                 }
+    "variants": {
+        "": { "model": "minecraft:block/end_stone" }
+    }
 }

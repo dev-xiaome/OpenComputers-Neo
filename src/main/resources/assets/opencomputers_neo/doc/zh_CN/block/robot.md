@@ -1,6 +1,6 @@
 # 机器人
 
-![他的名字叫Tobor。](block:opencomputers:robot)
+![他的名字叫Tobor。](block:OpenComputers:robot)
 
 不像[电脑](../general/computer.md)，机器人可以像玩家一样进行移动并与世界互动。但是它们**不能**与外部组件交互！如果你需要让机器人与[电脑](../general/computer.md)或其他机器人通信，那么需要使用[无线网卡](../item/wlanCard1.md)。或者使用[红石卡](../item/redstoneCard1.md)并通过红石信号创建一些低级的通讯协议。
 

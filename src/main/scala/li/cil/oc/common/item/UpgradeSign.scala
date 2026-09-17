@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「告示牌升级」（原 `li.cil.oc.common.item.UpgradeSign`）。 */
-class UpgradeSign(props: Item.Properties) extends Item(props) with traits.Delegate with traits.ItemTier
+class UpgradeSign(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier

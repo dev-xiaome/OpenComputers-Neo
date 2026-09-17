@@ -1,6 +1,6 @@
 # Micro-contrôleur
 
-![Ne le sous-estimez pas.](block:opencomputers:microcontroller)
+![Ne le sous-estimez pas.](block:OpenComputers:microcontroller)
 
 Les micro-contrôleurs sont construits en utilisant un [boîtier pour micro-contrôleur](../item/microcontrollerCase1.md) dans l'[assembleur](assembler.md). Ils ont moins de fonctionnalités qu'un [ordinateur](../general/computer.md), mais coûtent moins cher à construire. En particulier, ils *ne peuvent pas* interagir avec des composants externes.
 

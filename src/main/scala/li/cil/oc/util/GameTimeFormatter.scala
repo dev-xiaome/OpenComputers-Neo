@@ -6,12 +6,6 @@ import java.util.TimeZone
 
 import scala.collection.mutable
 
-/**
- * `os.date` / `os.time` 使用的 strftime 风格时间格式化与解析。
- *
- * 2.13 迁移：`scala.collection.mutable.StringBuilder` 仍然可用；这里补齐
- * 过程语法的显式返回类型，其余逻辑保持原样。
- */
 object GameTimeFormatter {
   // Locale? What locale? Seriously though, since this would depend on the
   // server's locale I think it makes more sense to keep it English always.
@@ -66,7 +60,7 @@ object GameTimeFormatter {
     '%' -> (t => "%")
   )
 
-  def parse(time: Double): DateTime = {
+  def parse(time: Double) = {
     val calendar = new GregorianCalendar(TimeZone.getTimeZone("UTC"))
     calendar.setTimeInMillis((time * 1000).toLong)
 
@@ -81,7 +75,7 @@ object GameTimeFormatter {
       calendar.get(Calendar.SECOND))
   }
 
-  def format(format: String, time: DateTime): String = {
+  def format(format: String, time: DateTime) = {
     val result = new mutable.StringBuilder()
     val iterator = format.iterator
     while (iterator.hasNext) {

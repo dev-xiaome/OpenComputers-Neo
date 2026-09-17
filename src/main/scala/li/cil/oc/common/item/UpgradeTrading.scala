@@ -1,8 +1,9 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「交易升级」（原 `li.cil.oc.common.item.UpgradeTrading`）。 */
-class UpgradeTrading(props: Item.Properties) extends Item(props) with traits.Delegate with traits.ItemTier {
-  override protected def tooltipName: Option[String] = Option(super.unlocalizedName)
+class UpgradeTrading(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier {
+  override protected def tooltipName: Option[String] = Option(unlocalizedName)
 }

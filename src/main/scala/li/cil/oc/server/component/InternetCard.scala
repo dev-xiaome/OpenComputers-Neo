@@ -22,19 +22,23 @@ import li.cil.oc.api.Network
 import li.cil.oc.api.driver.DeviceInfo
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
+import li.cil.oc.api.Network
+import li.cil.oc.api.driver.DeviceInfo
 import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.api.prefab.AbstractValue
 import li.cil.oc.util.ThreadPoolFactory
 import net.neoforged.neoforge.server.ServerLifecycleHooks
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
+import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable
 
-class InternetCard extends prefab.ManagedEnvironment with DeviceInfo {
+class InternetCard extends AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
     withComponent("internet", Visibility.Neighbors).
     create()
@@ -52,8 +56,7 @@ class InternetCard extends prefab.ManagedEnvironment with DeviceInfo {
     DeviceAttribute.Product -> "SuperLink X-D4NK"
   )
 
-  // 1.21.1：`deviceInfo` 是 Scala `Map`，而接口要求 `java.util.Map`，需显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   // ----------------------------------------------------------------------- //
 
@@ -74,9 +77,7 @@ class InternetCard extends prefab.ManagedEnvironment with DeviceInfo {
       throw new IOException("too many open connections")
     }
     val post = if (args.isString(1)) Option(args.checkString(1)) else None
-    // 1.21.1（Scala 2.13）：`Arguments#checkTable` 返回的是 `java.util.Map`，
-    // 旧版靠 `JavaConversions` 隐式当 Scala `Map` 用；这里显式 `asScala`。
-    val headers: Map[String, String] = if (args.isTable(2)) args.checkTable(2).asInstanceOf[util.Map[AnyRef, AnyRef]].asScala.collect {
+    val headers = if (args.isTable(2)) args.checkTable(2).collect {
       case (key: String, value: AnyRef) => (key, value.toString)
     }.toMap
     else Map.empty[String, String]
@@ -212,10 +213,7 @@ object InternetCard {
 
           selector.select()
 
-          import scala.jdk.CollectionConverters._
-          // 1.21.1（Scala 2.13）：`Selector#selectedKeys` / `#keys` 返回 `java.util.Set`，
-          // 旧版靠 `JavaConversions` 隐式得到 Scala 集合的 `filter`，这里显式 `asScala`。
-          val selectedKeys = selector.selectedKeys.asScala
+          val selectedKeys = selector.selectedKeys
           val readableKeys = mutable.HashSet[SelectionKey]()
           selectedKeys.filter(_.isReadable).foreach(key => {
             key.attachment.asInstanceOf[() => Unit].apply()
@@ -224,7 +222,7 @@ object InternetCard {
 
           if(readableKeys.nonEmpty) {
             val newSelector = Selector.open()
-            selector.keys.asScala.filter(key => !readableKeys.contains(key)).foreach(key => {
+            selector.keys.filter(!readableKeys.contains(_)).foreach(key => {
               key.channel.register(newSelector, SelectionKey.OP_READ, key.attachment)
             })
             selector.close()
@@ -237,7 +235,7 @@ object InternetCard {
       }
     }
 
-    def add(e: (SocketChannel, () => Unit)) {
+    def add(e: (SocketChannel, () => Unit)): Unit = {
       toAccept.offer(e)
       selector.wakeup()
     }
@@ -288,8 +286,7 @@ object InternetCard {
         if (read == -1) result()
         else {
           setupSelector()
-          // 1.21.1（Scala 2.13）：`ArrayOps#view(from, until)` 已被移除，改用 `Arrays.copyOfRange`。
-          result(util.Arrays.copyOfRange(buffer.array, 0, read))
+          result(buffer.array.view.slice(0, read).toArray)
         }
       }
       else result(Array.empty[Byte])
@@ -371,19 +368,6 @@ object InternetCard {
 
   }
 
-  private def isNAT64Address(addr: Inet6Address): Boolean = {
-    val b = addr.getAddress
-    // 64:ff9b::/96 — NAT64 well-known prefix (RFC 6052)
-    b(0) == 0x00 && b(1) == 0x64 && b(2) == 0xff.toByte && b(3) == 0x9b.toByte &&
-      b(4) == 0 && b(5) == 0 && b(6) == 0 && b(7) == 0 &&
-      b(8) == 0 && b(9) == 0 && b(10) == 0 && b(11) == 0
-  }
-
-  private def extractNAT64EmbeddedAddress(addr: Inet6Address): InetAddress = {
-    val b = addr.getAddress
-    InetAddress.getByAddress(Array(b(12), b(13), b(14), b(15)))
-  }
-
   def isRequestAllowed(settings: Settings, inetAddress: InetAddress, host: String): Boolean = {
     if (!settings.internetAccessAllowed()) {
       false
@@ -396,14 +380,6 @@ object InternetCard {
           // block this request.
           if (InetAddresses.hasEmbeddedIPv4ClientAddress(inet6Address)) {
             val inet4in6Address = InetAddresses.getEmbeddedIPv4ClientAddress(inet6Address)
-            if (!rules.map(r => r.apply(inet4in6Address, host)).collectFirst({ case Some(r) => r }).getOrElse(true)) {
-              return false
-            }
-          }
-
-          // As above, but with NAT64 addresses.
-          if (isNAT64Address(inet6Address)) {
-            val inet4in6Address = extractNAT64EmbeddedAddress(inet6Address)
             if (!rules.map(r => r.apply(inet4in6Address, host)).collectFirst({ case Some(r) => r }).getOrElse(true)) {
               return false
             }
@@ -469,8 +445,7 @@ object InternetCard {
           if (read == 0) {
             readMore()
           }
-          // 见 TCPSocket#read：`ArrayOps#view(from, until)` 在 Scala 2.13 已被移除。
-          result(util.Arrays.copyOfRange(buffer.array, 0, read))
+          result(buffer.array.view.slice(0, read).toArray)
         }
       }
       else result(Array.empty[Byte])
@@ -536,9 +511,7 @@ object InternetCard {
     private class RequestSender(val url: URL, val post: Option[String], val headers: Map[String, String], val method: Option[String]) extends Callable[InputStream] {
       override def call() = try {
         checkLists(InetAddress.getByName(url.getHost), url.getHost)
-        // 1.21.1：`MinecraftServer.getServer` 静态入口已移除，改用 NeoForge 的
-        // `ServerLifecycleHooks.getCurrentServer`；`getServerProxy` → `getProxy`。
-        val proxy = Option(ServerLifecycleHooks.getCurrentServer).flatMap(server => Option(server.getProxy)).getOrElse(java.net.Proxy.NO_PROXY)
+        val proxy = ServerLifecycleHooks.getCurrentServer.proxy
         url.openConnection(proxy) match {
           case http: HttpURLConnection => try {
             http.setDoInput(true)

@@ -1,176 +1,208 @@
 package li.cil.oc.client
 
-import li.cil.oc.Settings
+import com.mojang.blaze3d.systems.RenderSystem
+import li.cil.oc.{Constants, OpenComputers, Settings}
+import li.cil.oc.common.Slot
+import li.cil.oc.common.Tier
+import net.minecraft.client.Minecraft
+import net.minecraft.client.renderer.texture.SimpleTexture
+import net.minecraft.client.renderer.texture.TextureAtlasSprite
+import net.minecraft.client.resources.model.ModelResourceLocation
 import net.minecraft.resources.ResourceLocation
+import net.minecraft.server.packs.resources.{ResourceManager, ResourceManagerReloadListener}
+import net.minecraft.world.inventory.InventoryMenu
+import net.neoforged.neoforge.client.event.RegisterClientReloadListenersEvent
+import net.neoforged.bus.api.SubscribeEvent
 
-/**
- * 客户端贴图位置总表。
- *
- * ==与 1.7.10 版的区别==
- *  - 原实现里除了一堆 `ResourceLocation` 还有大量 `IIcon` 字段（`iconOn` / `iconSideOn` …），
- *    由 `TextureStitchEvent` 在贴图注册时填充。NeoForge 1.21.1 已经**没有**
- *    `TextureStitchEvent`，`IIcon` 也整体被 `TextureAtlasSprite` 取代，
- *    因此这里只保留「位置」，取精灵统一走
- *    [[li.cil.oc.client.renderer.tileentity.RenderUtil.sprite]]。
- *  - 贴图目录按资源迁移规则改为 `textures/block`（原 `textures/blocks`）下的任意层级
- *    —— 见 `docs/PROGRESS.md` 的资源迁移记录；文件名一律小写。
- *  - 原 `init(TextureManager)` 负责把 GUI 贴图预绑定一遍（1.7.10 的 `bindTexture` 顺带
- *    把贴图加载进显存）。1.21.1 的 `TextureManager` 没有 `bindTexture`，
- *    贴图由 GPU 管线按需绑定，这个预热步骤**整体删除**。
- */
+import scala.collection.mutable
+
 object Textures {
-  private def gui(name: String): ResourceLocation =
-    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/gui/" + name)
+  object Font extends SimpleTextureBundle {
+    val Aliased = L("chars_aliased")
+    val AntiAliased = L("chars")
 
-  private def font(name: String): ResourceLocation =
-    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/font/" + name)
+    override protected def basePath = "font/%s"
+  }
 
-  private def block(name: String): ResourceLocation =
-    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/block/" + name)
+  object GUI extends SimpleTextureBundle {
+    val Background = L("background")
+    val Bar = L("bar")
+    val Borders = L("borders")
+    val ButtonDriveMode = L("button_drive_mode")
+    val ButtonPower = L("button_power")
+    val ButtonRange = L("button_range")
+    val ButtonRun = L("button_run")
+    val ButtonScroll = L("button_scroll")
+    val ButtonSide = L("button_side")
+    val ButtonRelay = L("button_relay")
+    val Computer = L("computer")
+    val Database = L("database")
+    val Database1 = L("database1")
+    val Database2 = L("database2")
+    val Disassembler = L("disassembler")
+    val Drive = L("drive")
+    val Drone = L("drone")
+    val KeyboardMissing = L("keyboard_missing")
+    val Manual = L("manual")
+    val ManualHome = L("manual_home")
+    val ManualMissingItem = L("manual_missing_item")
+    val ManualTab = L("manual_tab")
+    val Nanomachines = L("nanomachines_power")
+    val NanomachinesBar = L("nanomachines_power_bar")
+    val Printer = L("printer")
+    val PrinterInk = L("printer_ink")
+    val PrinterMaterial = L("printer_material")
+    val PrinterProgress = L("printer_progress")
+    val Rack = L("rack")
+    val Raid = L("raid")
+    val Range = L("range")
+    val Robot = L("robot")
+    val RobotAssembler = L("robot_assembler")
+    val RobotNoScreen = L("robot_noscreen")
+    val RobotSelection = L("robot_selection")
+    val Server = L("server")
+    val Slot = L("slot")
+    val UpgradeTab = L("upgrade_tab")
+    val Waypoint = L("waypoint")
 
-  /**
-   * 模型贴图的**完整文件路径**（`textures/model/<name>.png`）。
-   *
-   * 注意这里的语义与 [[block]] 的下游用法不同：`Textures.Model` 下的三个常量只被
-   * `RenderType#entityCutoutNoCull` 使用（独立绑定一张贴图，UV 用 0..1 的贴图内相对坐标，
-   * 见 `client.renderer.item.UpgradeRenderer#drawSimpleBlock`），因此必须是带
-   * `textures/` 前缀与 `.png` 后缀的完整路径。图集精灵查询走的是另一套路径规则
-   * （见 [[li.cil.oc.client.renderer.tileentity.RenderUtil.sprite]] 的规范化）。
-   */
-  private def model(name: String): ResourceLocation =
-    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/model/" + name + ".png")
+    override protected def basePath = "gui/%s"
+  }
 
-  /**
-   * 方块贴图的**完整文件路径**（`textures/block/<name>.png`，`<name>` 可含子目录）。
-   *
-   * 1.7.10 的 `bindTexture` 与 1.21.1 的 `RenderType#entityCutout*` /
-   * `RackMountableRenderEvent#renderOverlay` 都需要这种「完整文件路径」，
-   * 而方块图集查询需要的是相对 `textures/`、不带扩展名的「精灵路径」。
-   * 两者的差别是实机里紫黑方格（`missingno`）的常见来源，因此这里显式分开命名：
-   *  - 精灵查询：把 [[Block]] 下的常量交给 `RenderUtil.sprite`（内部会规范化）；
-   *  - 独立贴图绑定：用本方法。
-   */
-  def blockFile(name: String): ResourceLocation =
-    ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "textures/block/" + name + ".png")
+  object Icons extends SimpleTextureBundle {
+    private val ForSlotType = Slot.All.map(name => name -> L(name)).toMap
+    private val ForTier = Map(Tier.None -> L("na")) ++ (Tier.One to Tier.Four).map(tier => tier -> L("tier" + tier)).toMap
 
-  // ----------------------------------------------------------------------- //
-  // 字体
-  // ----------------------------------------------------------------------- //
+    def get(slotType: String) = ForSlotType.get(slotType).orNull
 
-  val fontAntiAliased: ResourceLocation = font("chars.png")
-  val fontAliased: ResourceLocation = font("chars_aliased.png")
+    def get(tier: Int) = ForTier.get(tier).orNull
 
-  // ----------------------------------------------------------------------- //
-  // GUI
-  // ----------------------------------------------------------------------- //
+    override protected def basePath = "icons/%s"
+  }
 
-  val guiBackground: ResourceLocation = gui("background.png")
-  val guiBar: ResourceLocation = gui("bar.png")
-  val guiBorders: ResourceLocation = gui("borders.png")
-  val guiButtonDriveMode: ResourceLocation = gui("button_drive_mode.png")
-  val guiButtonPower: ResourceLocation = gui("button_power.png")
-  val guiButtonRange: ResourceLocation = gui("button_range.png")
-  val guiButtonRun: ResourceLocation = gui("button_run.png")
-  val guiButtonScroll: ResourceLocation = gui("button_scroll.png")
-  val guiButtonSide: ResourceLocation = gui("button_side.png")
-  val guiButtonRelay: ResourceLocation = gui("button_switch.png")
-  val guiComputer: ResourceLocation = gui("computer.png")
-  val guiDatabase: ResourceLocation = gui("database.png")
-  val guiDatabase1: ResourceLocation = gui("database1.png")
-  val guiDatabase2: ResourceLocation = gui("database2.png")
-  val guiDisassembler: ResourceLocation = gui("disassembler.png")
-  val guiDrive: ResourceLocation = gui("drive.png")
-  val guiDrone: ResourceLocation = gui("drone.png")
-  val guiKeyboardMissing: ResourceLocation = gui("keyboard_missing.png")
-  val guiManual: ResourceLocation = gui("manual.png")
-  val guiManualHome: ResourceLocation = gui("manual_home.png")
-  val guiManualMissingItem: ResourceLocation = gui("manual_missing_item.png")
-  val guiManualTab: ResourceLocation = gui("manual_tab.png")
-  val guiPrinter: ResourceLocation = gui("printer.png")
-  val guiPrinterInk: ResourceLocation = gui("printer_ink.png")
-  val guiPrinterMaterial: ResourceLocation = gui("printer_material.png")
-  val guiPrinterProgress: ResourceLocation = gui("printer_progress.png")
-  val guiRack: ResourceLocation = gui("rack.png")
-  val guiRaid: ResourceLocation = gui("raid.png")
-  val guiRange: ResourceLocation = gui("range.png")
-  val guiRobot: ResourceLocation = gui("robot.png")
-  val guiRobotNoScreen: ResourceLocation = gui("robot_noscreen.png")
-  val guiRobotAssembler: ResourceLocation = gui("robot_assembler.png")
-  val guiRobotSelection: ResourceLocation = gui("robot_selection.png")
-  val guiServer: ResourceLocation = gui("server.png")
-  val guiSlot: ResourceLocation = gui("slot.png")
-  val guiUpgradeTab: ResourceLocation = gui("upgrade_tab.png")
-  val guiWaypoint: ResourceLocation = gui("waypoint.png")
+  object Model extends SimpleTextureBundle {
+    val UpgradeCrafting = L("crafting_upgrade")
+    val UpgradeGenerator = L("generator_upgrade")
+    val UpgradeInventory = L("inventory_upgrade")
+    val HologramEffect = L("hologram_effect")
+    val Drone = L("drone")
+    val Robot = L("robot")
 
-  val overlayNanomachines: ResourceLocation = gui("nanomachines_power.png")
-  val overlayNanomachinesBar: ResourceLocation = gui("nanomachines_power_bar.png")
+    override protected def basePath = "model/%s"
+  }
 
-  // ----------------------------------------------------------------------- //
-  // 方块 / 模型
-  //
-  // 下面这些原本是 `Textures.Xxx.iconYyy` 形式的 `IIcon` 字段（在方块实体渲染器里用），
-  // 现在统一挪进 [[Block]] / [[Model]] 子对象，只保留 `ResourceLocation`。
-  // ----------------------------------------------------------------------- //
+  object Item {
+    val DroneItem = ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, "item/drone")
+    val Robot = ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, "item/robot")
+    val TerminalOn = new ModelResourceLocation(Settings.resourceDomain, Constants.ItemName.Terminal + "_on", "inventory")
+    val TerminalOff = new ModelResourceLocation(Settings.resourceDomain, Constants.ItemName.Terminal + "_off", "inventory")
+  }
 
   object Block {
-    val AdapterOn: ResourceLocation = block("adapteron")
-    val CableCap: ResourceLocation = block("cablecap")
-    val ChargerFrontOn: ResourceLocation = block("chargerfronton")
-    val ChargerSideOn: ResourceLocation = block("chargersideon")
-    val DisassemblerSideOn: ResourceLocation = block("disassemblersideon")
-    val DisassemblerTopOn: ResourceLocation = block("disassemblertopon")
-    val GeolyzerTopOn: ResourceLocation = block("geolyzertopon")
-    val PowerDistributorSideOn: ResourceLocation = block("powerdistributorsideon")
-    val PowerDistributorTopOn: ResourceLocation = block("powerdistributortopon")
-    val AssemblerSideAssembling: ResourceLocation = block("assemblersideassembling")
-    val AssemblerSideOn: ResourceLocation = block("assemblersideon")
-    val AssemblerTopOn: ResourceLocation = block("assemblertopon")
-    val SwitchSideOn: ResourceLocation = block("switchsideon")
-    val NetSplitterOn: ResourceLocation = block("netsplitteron")
-    val TransposerOn: ResourceLocation = block("transposeron")
+    val AdapterOn = L("overlay/adapter_on")
+    val AssemblerSideAssembling = L("overlay/assembler_side_assembling")
+    val AssemblerSideOn = L("overlay/assembler_side_on")
+    val AssemblerTopOn = L("overlay/assembler_top_on")
+    val CaseFrontActivity = L("overlay/case_front_activity")
+    val CaseFrontError = L("overlay/case_front_error")
+    val CaseFrontOn = L("overlay/case_front_on")
+    val ChargerFrontOn = L("overlay/charger_front_on")
+    val ChargerSideOn = L("overlay/charger_side_on")
+    val DisassemblerSideOn = L("overlay/disassembler_side_on")
+    val DisassemblerTopOn = L("overlay/disassembler_top_on")
+    val DiskDriveFrontActivity = L("overlay/diskdrive_front_activity")
+    val GeolyzerTopOn = L("overlay/geolyzer_top_on")
+    val MicrocontrollerFrontLight = L("overlay/microcontroller_front_light")
+    val MicrocontrollerFrontOn = L("overlay/microcontroller_front_on")
+    val MicrocontrollerFrontError = L("overlay/microcontroller_front_error")
+    val NetSplitterOn = L("overlay/netsplitter_on")
+    val PowerDistributorSideOn = L("overlay/powerdistributor_side_on")
+    val PowerDistributorTopOn = L("overlay/powerdistributor_top_on")
+    val RackDiskDrive = L("rack_disk_drive")
+    val RackDiskDriveActivity = L("overlay/rack_disk_drive_activity")
+    val RackCapacitor = L("rack_capacitor")
+    val RackCapacitorOn = L("overlay/rack_capacitor_on")
+    val RackServer = L("rack_server")
+    val RackServerActivity = L("overlay/rack_server_activity")
+    val RackServerOn = L("overlay/rack_server_on")
+    val RackServerError = L("overlay/rack_server_error")
+    val RackServerNetworkActivity = L("overlay/rack_server_network_activity")
+    val RackTerminalServer = L("rack_terminal_server")
+    val RackTerminalServerOn = L("overlay/rack_terminal_server_on")
+    val RackTerminalServerPresence = L("overlay/rack_terminal_server_presence")
+    val RaidFrontActivity = L("overlay/raid_front_activity")
+    val RaidFrontError = L("overlay/raid_front_error")
+    val ScreenUpIndicator = L("overlay/screen_up_indicator")
+    val SwitchSideOn = L("overlay/switch_side_on")
+    val TransposerOn = L("overlay/transposer_on")
+    val Cable = L("cable")
+    val CableCap = L("cablecap")
+    val GenericTop = L("generic_top")
+    val NetSplitterSide = L("netsplitter_side")
+    val NetSplitterTop = L("netsplitter_top")
+    val RackFront = L("rack_front")
+    val RackSide = L("rack_side")
 
-    val CaseFrontOn: ResourceLocation = block("casefronton")
-    val CaseFrontError: ResourceLocation = block("casefronterror")
-    val CaseFrontActivity: ResourceLocation = block("casefrontactivity")
-    val DiskDriveFrontActivity: ResourceLocation = block("diskdrivefrontactivity")
-    val DiskDriveMountableActivity: ResourceLocation = block("diskdrivemountableactivity")
-    val HologramEffect: ResourceLocation = block("hologrameffect")
-    val MicrocontrollerFrontLight: ResourceLocation = block("microcontrollerfrontlight")
-    val MicrocontrollerFrontOn: ResourceLocation = block("microcontrollerfronton")
-    val MicrocontrollerFrontError: ResourceLocation = block("microcontrollerfronterror")
-    val RaidFrontError: ResourceLocation = block("raidfronterror")
-    val RaidFrontActivity: ResourceLocation = block("raidfrontactivity")
-    val Robot: ResourceLocation = block("robot")
-    val ScreenUpIndicator: ResourceLocation = block("screen/up_indicator")
+    object Screen {
+      val Single = Array(
+        L("screen/b"), L("screen/b"), L("screen/b2"),
+        L("screen/b2"), L("screen/b2"), L("screen/b2")
+      )
+      val SingleFront = Array(L("screen/f"), L("screen/f2"))
+      val Horizontal = Array(Array(Array(L("screen/bht"),L("screen/bhb"),L("screen/bht2"),L("screen/bht2"),L("screen/b2"),L("screen/b2")),Array(L("screen/bhm"),L("screen/bhm"),L("screen/bhm2"),L("screen/bhm2"),L("screen/b"),L("screen/b")),Array(L("screen/bhb"),L("screen/bht"),L("screen/bhb2"),L("screen/bhb2"),L("screen/b2"),L("screen/b2"))),Array(Array(L("screen/bhb2"),L("screen/bht2"),L("screen/bht"),L("screen/bhb"),L("screen/b2"),L("screen/b2")),Array(L("screen/bhm2"),L("screen/bhm2"),L("screen/bhm"),L("screen/bhm"),L("screen/b"),L("screen/b")),Array(L("screen/bht2"),L("screen/bhb2"),L("screen/bhb"),L("screen/bht"),L("screen/b2"),L("screen/b2"))))
+      val HorizontalFront = Array(Array(L("screen/fhb2"),L("screen/fhm2"),L("screen/fht2")),Array(L("screen/fhb"),L("screen/fhm"),L("screen/fht")))
+      val Vertical = Array(Array(Array(L("screen/b"),L("screen/b"),L("screen/bvt"),L("screen/bvt"),L("screen/bvt"),L("screen/bvt")),Array(L("screen/b"),L("screen/b"),L("screen/bvm"),L("screen/bvm"),L("screen/bvm"),L("screen/bvm")),Array(L("screen/b"),L("screen/b"),L("screen/bvb2"),L("screen/bvb2"),L("screen/bvb2"),L("screen/bvb2"))),Array(Array(L("screen/b2"),L("screen/b2"),L("screen/bvt"),L("screen/bvt"),L("screen/bht2"),L("screen/bhb2")),Array(L("screen/b"),L("screen/b"),L("screen/bvm"),L("screen/bvm"),L("screen/bhm2"),L("screen/bhm2")),Array(L("screen/b2"),L("screen/b2"),L("screen/bvb"),L("screen/bvb"),L("screen/bhb2"),L("screen/bht2"))))
+      val VerticalFront = Array(Array(L("screen/fvt"),L("screen/fvm"),L("screen/fvb2")),Array(L("screen/fvt"),L("screen/fvm"),L("screen/fvb")))
+      val Multi = Array(Array(Array(Array(L("screen/bht"),L("screen/bhb"),L("screen/btl"),L("screen/btr"),L("screen/bvb"),L("screen/bvt")),Array(L("screen/bhm"),L("screen/bhm"),L("screen/btm"),L("screen/btm"),L("screen/b"),L("screen/b")),Array(L("screen/bhb"),L("screen/bht"),L("screen/btr"),L("screen/btl"),L("screen/bvt"),L("screen/bvb"))),Array(Array(L("screen/b"),L("screen/b"),L("screen/bml"),L("screen/bmr"),L("screen/bvm"),L("screen/bvm")),Array(L("screen/b"),L("screen/b"),L("screen/bmm"),L("screen/bmm"),L("screen/b"),L("screen/b")),Array(L("screen/b"),L("screen/b"),L("screen/bmr"),L("screen/bml"),L("screen/bvm"),L("screen/bvt"))),Array(Array(L("screen/bht"),L("screen/bhb"),L("screen/bbl2"),L("screen/bbr2"),L("screen/bvt"),L("screen/bvb2")),Array(L("screen/bhm"),L("screen/bhm"),L("screen/bbm2"),L("screen/bbm2"),L("screen/b"),L("screen/b")),Array(L("screen/bhb"),L("screen/bht"),L("screen/bbr2"),L("screen/bbl2"),L("screen/bvb2"),L("screen/bvt")))),Array(Array(Array(L("screen/bhb2"),L("screen/bht2"),L("screen/btl"),L("screen/btr"),L("screen/bht2"),L("screen/bhb2")),Array(L("screen/bhm2"),L("screen/bhm2"),L("screen/btm"),L("screen/btm"),L("screen/b"),L("screen/b")),Array(L("screen/bht2"),L("screen/bhb2"),L("screen/btr"),L("screen/btl"),L("screen/bht2"),L("screen/bhb2"))),Array(Array(L("screen/b"),L("screen/b"),L("screen/bml"),L("screen/bml"),L("screen/bhm2"),L("screen/bhm2")),Array(L("screen/b"),L("screen/b"),L("screen/bmm"),L("screen/bmm"),L("screen/b"),L("screen/b")),Array(L("screen/b"),L("screen/b"),L("screen/bmr"),L("screen/bmr"),L("screen/bhm2"),L("screen/bhm2"))),Array(Array(L("screen/bhb2"),L("screen/bht2"),L("screen/bbl"),L("screen/bbr"),L("screen/bhb2"),L("screen/bht2")),Array(L("screen/bhm2"),L("screen/bhm2"),L("screen/bbm"),L("screen/bbm"),L("screen/b"),L("screen/b")),Array(L("screen/bht2"),L("screen/bhb2"),L("screen/bbr"),L("screen/bbl"),L("screen/bhb2"),L("screen/bht2")))))
+      val MultiFront = Array(Array(Array(L("screen/ftr"),L("screen/ftm"),L("screen/ftl")),Array(L("screen/fmr"),L("screen/fmm"),L("screen/fml")),Array(L("screen/fbr2"),L("screen/fbm2"),L("screen/fbl2"))),Array(Array(L("screen/ftr"),L("screen/ftm"),L("screen/ftl")),Array(L("screen/fmr"),L("screen/fmm"),L("screen/fml")),Array(L("screen/fbr"),L("screen/fbm"),L("screen/fbl"))))
 
-    val RackDiskDriveActivity: ResourceLocation = block("diskdrivemountableactivity")
-    val RackServerOn: ResourceLocation = block("serverfronton")
-    val RackServerError: ResourceLocation = block("serverfronterror")
-    val RackServerActivity: ResourceLocation = block("serverfrontactivity")
-    val RackServerNetworkActivity: ResourceLocation = block("serverfrontnetworkactivity")
-    val RackTerminalServerOn: ResourceLocation = block("terminalserverfronton")
-    val RackTerminalServerPresence: ResourceLocation = block("terminalserverfrontpresence")
+      private[Block] def makeSureThisIsInitialized(): Unit = {}
+    }
 
-    /** 机架槽位（六个方向）的图标，索引与 `Direction#ordinal` 对齐。 */
-    val RackIcons: Array[ResourceLocation] = Array(
-      block("rackfront"), // DOWN（未使用，占位）
-      block("rackfront"), // UP（未使用，占位）
-      block("rackfront"), // NORTH
-      block("rackfront"), // SOUTH
-      block("rackfront"), // WEST
-      block("rackfront") // EAST
-    )
-    val RackDiskDrive: ResourceLocation = block("diskdrivemountable")
-    val RackServer: ResourceLocation = block("serverfront")
-    val RackTerminal: ResourceLocation = block("terminalserverfront")
+    def bind(): Unit = Textures.bind(InventoryMenu.BLOCK_ATLAS)
+
+    Screen.makeSureThisIsInitialized()
+
+    private def L(name: String) = ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, s"block/$name")
   }
 
-  object Model {
-    val UpgradeCrafting: ResourceLocation = model("upgradecrafting")
-    val UpgradeGenerator: ResourceLocation = model("upgradegenerator")
-    val UpgradeInventory: ResourceLocation = model("upgradeinventory")
+  def getSprite(location: ResourceLocation): TextureAtlasSprite =
+    Minecraft.getInstance.getModelManager.getAtlas(InventoryMenu.BLOCK_ATLAS).getSprite(location)
+
+  def bind(location: ResourceLocation): Unit = {
+    if (location != null) {
+      RenderSystem.setShaderTexture(0, location)
+    } else {
+      RenderSystem.setShaderTexture(0, 0)
+    }
   }
 
-  /** 悬浮靴子的光效贴图（原 `Textures.HoverBoots.lightOverlay`）。 */
-  val hoverBootsLightOverlay: ResourceLocation = gui("nanomachines_power.png")
+  @SubscribeEvent
+  def onRegisterReloadListeners(e: RegisterClientReloadListenersEvent): Unit = {
+    e.registerReloadListener(new ResourceManagerReloadListener {
+      override def onResourceManagerReload(manager: ResourceManager): Unit = {
+        val tm = Minecraft.getInstance.textureManager
+        def register(bundle: SimpleTextureBundle): Unit = {
+          bundle.locations.foreach { loc =>
+            tm.register(loc, new SimpleTexture(ResourceLocation.fromNamespaceAndPath(loc.getNamespace, s"textures/${loc.getPath}.png")))
+          }
+        }
+        register(Font)
+        register(GUI)
+        register(Icons)
+        register(Model)
+      }
+    })
+  }
+
+  abstract class SimpleTextureBundle {
+    private[Textures] val locations = mutable.ArrayBuffer.empty[ResourceLocation]
+
+    protected def L(name: String, load: Boolean = true): ResourceLocation = {
+      val location = ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, String.format(basePath, name))
+      if (load) locations += location
+      location
+    }
+
+    protected def basePath: String
+  }
 }

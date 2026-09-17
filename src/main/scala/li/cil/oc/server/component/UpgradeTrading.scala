@@ -15,15 +15,17 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.util.BlockPosition
+
+import scala.collection.convert.ImplicitConversionsToJava._
+import scala.collection.convert.ImplicitConversionsToScala._
+import scala.collection.mutable
+import net.minecraft.world.phys.Vec3
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.item.trading.Merchant
-import net.minecraft.world.phys.Vec3
 
-import scala.jdk.CollectionConverters._
-import scala.collection.mutable
-
-class UpgradeTrading(val host: EnvironmentHost) extends prefab.ManagedEnvironment with traits.WorldAware with DeviceInfo {
+class UpgradeTrading(val host: EnvironmentHost) extends AbstractManagedEnvironment with traits.LevelAware with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
     withComponent("trading").
     create()
@@ -35,54 +37,28 @@ class UpgradeTrading(val host: EnvironmentHost) extends prefab.ManagedEnvironmen
     DeviceAttribute.Product -> "Capitalism H.O. 1200T"
   )
 
-  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   override def position = BlockPosition(host)
 
   def maxRange = Settings.get.tradingRange
 
-  // 1.21.1：`Vec3.createVectorHelper(x, y, z)` → `new Vec3(x, y, z)`，
-  // `Entity#posX/posY/posZ` → `getX/getY/getZ`。
   def isInRange(entity: Entity) = new Vec3(entity.getX, entity.getY, entity.getZ).distanceTo(position.toVec3) <= maxRange
 
   @Callback(doc = "function():table -- Returns a table of trades in range as userdata objects.")
   def getTrades(context: Context, args: Arguments): Array[AnyRef] = {
-    // 1.21.1：`AABB#expand` → `AABB#inflate`；
-    // 商人的接口由 `net.minecraft.entity.IMerchant` 改为 `net.minecraft.world.item.trading.Merchant`，
-    // 交易表由 `getRecipes(null)` 改为 `getOffers`，持久 id 由 `getPersistentID` 改为 `getUUID`。
-    // `entitiesInBounds` 返回 `Iterable`，而 `sorted` / `sortBy` 只在 `Seq` 上可用（Scala 2.13），
-    // 因此这里显式转成 `Seq`。
-    val merchants = entitiesInBounds[Entity](position.bounds.inflate(maxRange, maxRange, maxRange)).
+    val merchants = entitiesInBounds[Entity](classOf[Entity], position.bounds.inflate(maxRange, maxRange, maxRange)).
       filter(isInRange).
-      collect { case merchant: Merchant => merchant }.
-      toSeq
+      collect { case merchant: Entity with Merchant => merchant }
     var nextId = 1
     val idMap = mutable.Map[UUID, Int]()
-    for (id: UUID <- merchants.map(merchantUuid).sorted) {
+    for (id: UUID <- merchants.collect { case merchant: Merchant => merchant.getUUID }.sorted) {
       idMap.put(id, nextId)
       nextId += 1
     }
     // sorting the result is not necessary, but will help the merchant trades line up nicely by merchant
-    result(merchants.sortBy(merchantUuid).flatMap(merchant => offersOf(merchant).map(index => {
-      new Trade(this, merchant, index, idMap(merchantUuid(merchant)))
+    result(merchants.sortBy(m => m.getUUID).flatMap(merchant => merchant.getOffers.indices.map(index => {
+      new Trade(this, merchant, index, idMap(merchant.getUUID))
     })))
-  }
-
-  /** 商人的持久唯一 id（1.7.10 的 `IMerchant#getPersistentID`）。 */
-  private def merchantUuid(merchant: Merchant): UUID = merchant match {
-    case entity: Entity => entity.getUUID
-    case _ => new UUID(0L, 0L)
-  }
-
-  /**
-   * 商人的交易条目下标。
-   *
-   * 1.21.1：`Merchant#getRecipes(null)` → `Merchant#getOffers`，返回
-   * `MerchantOffers`（`java.util.ArrayList` 的子类，不是 Scala `Seq`，因此不能用 `.indices`）。
-   */
-  private def offersOf(merchant: Merchant): IndexedSeq[Int] = {
-    val offers = merchant.getOffers
-    if (offers == null) IndexedSeq.empty else (0 until offers.size()).toIndexedSeq
   }
 }

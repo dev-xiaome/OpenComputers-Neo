@@ -1,8 +1,12 @@
 package li.cil.oc.api.driver.item;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import li.cil.oc.api.event.RobotRenderEvent;
 import li.cil.oc.api.internal.Robot;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
 
 import java.util.Set;
 
@@ -26,19 +30,20 @@ public interface UpgradeRenderer {
      * This method is used to determine which upgrade is rendered where, and is
      * called for every installed, renderable upgrade. The available mount
      * point names are defined in {@link MountPointName}, with the two special
-     * values <tt>None</tt> and <tt>Any</tt>.
+     * values {@link MountPointName#None None} and {@link MountPointName#Any Any}.
      * <br>
-     * <tt>None</tt> means that the upgrade should not be rendered at all. This
-     * can be the case when there is no slot remaining that the upgrade may be
-     * rendered in. Returning <tt>null</tt> is equivalent to returning <tt>None</tt>.
+     * {@link MountPointName#None None} means that the upgrade should not be
+     * rendered at all. This can be the case when there is no slot remaining
+     * that the upgrade may be rendered in. Returning {@code null} is
+     * equivalent to returning {@link MountPointName#None None}.
      * <br>
-     * <tt>Any</tt> means that the upgrade doesn't really care where it's being
-     * rendered. Mount points not assigned by another upgrade preferring to be
-     * rendered in it will be assigned to such upgrades in the order they are
-     * installed in the robot.
+     * {@link MountPointName#Any Any} means that the upgrade doesn't really
+     * care where it's being rendered. Mount points not assigned by another
+     * upgrade preferring to be rendered in it will be assigned to such
+     * upgrades in the order they are installed in the robot.
      * <br>
      * Returning a mount point not in the list of available mount points will
-     * be equivalent to returning <tt>None</tt>.
+     * be equivalent to returning {@link MountPointName#None None}.
      *
      * @param stack                the item stack of the upgrade to render.
      * @param robot                the robot the upgrade is rendered on.
@@ -70,7 +75,8 @@ public interface UpgradeRenderer {
      * @param robot      the robot the upgrade is rendered on.
      * @param pt         partial tick time, e.g. for animations.
      */
-    void render(ItemStack stack, RobotRenderEvent.MountPoint mountPoint, Robot robot, float pt);
+    @OnlyIn(Dist.CLIENT)
+    void render(PoseStack matrix, MultiBufferSource buffer, int light, ItemStack stack, RobotRenderEvent.MountPoint mountPoint, Robot robot, float pt);
 
     /**
      * Mount point names for {@link #computePreferredMountPoint}.

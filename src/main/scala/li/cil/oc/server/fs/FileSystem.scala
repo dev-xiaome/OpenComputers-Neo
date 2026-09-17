@@ -1,8 +1,9 @@
 package li.cil.oc.server.fs
 
 import java.io
-import java.net.JarURLConnection
-import java.nio.file.Paths
+import java.net.MalformedURLException
+import java.net.URISyntaxException
+import java.net.URL
 import java.util.UUID
 
 import li.cil.oc.OpenComputers
@@ -10,11 +11,11 @@ import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.fs.Label
 import li.cil.oc.api.network.EnvironmentHost
-import li.cil.oc.common.item.Delegator
 import li.cil.oc.common.item.traits.FileSystemLike
 import li.cil.oc.server.component
-import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.item.ItemStack
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.level.storage.LevelResource
 import net.neoforged.fml.loading.FMLLoader
 import net.neoforged.neoforge.server.ServerLifecycleHooks
@@ -22,11 +23,8 @@ import net.neoforged.neoforge.server.ServerLifecycleHooks
 import scala.util.Try
 
 object FileSystem extends api.detail.FileSystemAPI {
-
   lazy val isCaseInsensitive: Boolean = Settings.get.forceCaseInsensitive || (try {
     val uuid = UUID.randomUUID().toString
-    // 1.21.1：NeoForge 移除了 `DimensionManager`，存档根目录改为向当前服务端查询。
-    // 无服务端上下文时这里会抛异常，由下面的 catch 回退为「大小写不敏感」。
     val saveDir = ServerLifecycleHooks.getCurrentServer.getWorldPath(LevelResource.ROOT).toFile
     val lowerCase = new io.File(saveDir, uuid + "oc_rox")
     val upperCase = new io.File(saveDir, uuid + "OC_ROX")
@@ -62,77 +60,27 @@ object FileSystem extends api.detail.FileSystemAPI {
     path
   }
 
-  override def fromClass(clazz: Class[_], domain: String, root: String): api.fs.FileSystem = {
-    // 1.21.1 适配：本项目的 API 签名沿用 1.7.10 的 `fromClass(clazz, domain, root)`，
-    // 而 1.20 CE / 1.21.1 上游把它换成了 `fromResource(ResourceLocation)`。
-    // 这里保留旧签名，路径解析采用上游的做法，依次尝试：
-    // 开发环境的 ModDevGradle 输出根、类加载器资源、最后是 FML 的模组文件（打包后即模组 jar）。
-    val innerPath = "assets/" + domain + "/" + (root.trim.stripPrefix("/").stripSuffix("/") + "/")
+  override def fromResource(loc: ResourceLocation): api.fs.FileSystem = {
+    val innerPath = "/assets/" + loc.getNamespace + "/" + (loc.getPath.trim + "/")
 
-    // 路径一：ModDevGradle 开发环境。编译产物与资源输出在不同的根目录下，
-    // 只有资源根底下才有 assets，因此借助系统属性 `fml.modFolders`
-    // （形如 `<模组id>%%<绝对路径>`，多项以路径分隔符连接）逐个尝试。
-    val modFolderRoots = Option(System.getProperty("fml.modFolders")).toSeq
-      .flatMap(_.split(java.util.regex.Pattern.quote(io.File.pathSeparator)))
-      .flatMap { entry =>
-        entry.split("%%", 2) match {
-          case Array(namespace, folderRoot) if namespace.split(",").contains(domain) =>
-            Some(new io.File(folderRoot, innerPath))
-          case _ => None
-        }
+    val modInfo = FMLLoader.getLoadingModList().getModFileById(loc.getNamespace)
+    val file = modInfo.getFile().getFilePath().toFile()
+
+    if (!file.exists) return null
+    if (!file.isDirectory) {
+      ZipFileInputStreamFileSystem.fromFile(file, innerPath.substring(1))
+    }
+    else {
+      new io.File(file, innerPath.substring(1)) match {
+        case fsp if fsp.exists() && fsp.isDirectory =>
+          new ReadOnlyFileSystem(fsp)
+        case _ => null
       }
-    modFolderRoots.find(file => file.exists() && file.isDirectory) match {
-      case Some(directory) => return new ReadOnlyFileSystem(directory)
-      case _ =>
-    }
-
-    // 路径二：类加载器资源查找。开发环境与「模组 jar 位于普通类路径」两种情形都适用。
-    val loaders = Seq(Option(clazz.getClassLoader), Option(Thread.currentThread.getContextClassLoader)).flatten.distinct
-    val resourceUrls = loaders.flatMap(loader => Option(loader.getResource(innerPath)))
-
-    // 资源落在目录里，直接包成只读文件系统。
-    resourceUrls.filter(_.getProtocol == "file")
-      .flatMap(url => Try(Paths.get(url.toURI).toFile).toOption)
-      .find(file => file.exists() && file.isDirectory) match {
-      case Some(directory) => return new ReadOnlyFileSystem(directory)
-      case _ =>
-    }
-
-    // 资源落在归档里，先用 JarURLConnection 反查归档文件，再走 ZIP 文件系统。
-    resourceUrls.filter(_.getProtocol == "jar")
-      .flatMap(url => Try(url.openConnection().asInstanceOf[JarURLConnection].getJarFileURL.toURI).toOption)
-      .map(uri => new io.File(uri))
-      .find(file => file.exists() && !file.isDirectory) match {
-      case Some(archive) => return ZipFileInputStreamFileSystem.fromFile(archive, innerPath)
-      case _ =>
-    }
-
-    // 路径三：FML 的模组文件。模组尚未加载完成时可能取不到，用 Try 兜住。
-    val modFile = Try(FMLLoader.getLoadingModList().getModFileById(domain).getFile.getFilePath.toFile).toOption
-    modFile match {
-      case Some(file) if !file.isDirectory =>
-        ZipFileInputStreamFileSystem.fromFile(file, innerPath)
-      case Some(file) =>
-        new io.File(file, innerPath) match {
-          case fsp if fsp.exists() && fsp.isDirectory => new ReadOnlyFileSystem(fsp)
-          case _ =>
-            OpenComputers.log.warn(s"Cannot locate file system root '$innerPath' in '${file.getAbsolutePath}'.")
-            null
-        }
-      case _ =>
-        OpenComputers.log.warn(s"Cannot locate file system root '$innerPath': mod file for domain '$domain' is unavailable.")
-        null
     }
   }
 
   override def fromSaveDirectory(root: String, capacity: Long, buffered: Boolean): Capacity = {
-    val server = ServerLifecycleHooks.getCurrentServer
-    if (server == null) {
-      // 无服务端上下文时无法定位存档目录（1.7.10 的 `DimensionManager` 此处在无世界时也返回 null）。
-      OpenComputers.log.warn(s"Cannot create file system '$root' in the save directory: no server context available.")
-      return null
-    }
-    val path = server.getWorldPath(new LevelResource(Settings.savePath + root)).toFile
+    val path = ServerLifecycleHooks.getCurrentServer.getWorldPath(new LevelResource(Settings.savePath + root)).toFile
     if (!path.isDirectory) {
       path.delete()
     }
@@ -145,8 +93,8 @@ object FileSystem extends api.detail.FileSystemAPI {
   }
 
   def removeAddress(fsStack: ItemStack): Boolean = {
-    Delegator.subItem(fsStack) match {
-      case Some(_: FileSystemLike) =>
+    fsStack.getItem match {
+      case drive: FileSystemLike => {
         val data = li.cil.oc.integration.opencomputers.Item.dataTag(fsStack)
         if (data.contains("node")) {
           val nodeData = data.getCompound("node")
@@ -155,17 +103,13 @@ object FileSystem extends api.detail.FileSystemAPI {
             return true
           }
         }
+      }
       case _ =>
     }
     false
   }
 
   def fromMemory(capacity: Long): api.fs.FileSystem = new RamFileSystem(capacity)
-
-  def fromComputerCraft(mount: AnyRef): api.fs.FileSystem =
-    // 原实现为 `if (Mods.ComputerCraft.isAvailable) DriverComputerCraftMedia.createFileSystem(mount).orNull else null`，
-    // 但本项目尚未移植 `li.cil.oc.integration.computercraft` 包，这里等价于「CC 不可用」分支。
-    null
 
   override def asReadOnly(fileSystem: api.fs.FileSystem): api.fs.FileSystem =
     if (fileSystem.isReadOnly) fileSystem
@@ -201,11 +145,13 @@ object FileSystem extends api.detail.FileSystemAPI {
 
     def getLabel = label
 
-    override def load(nbt: CompoundTag) {}
+    private final val LabelTag = Settings.namespace + "fs.label"
 
-    override def save(nbt: CompoundTag): Unit = {
+    override def loadData(nbt: CompoundTag): Unit = {}
+
+    override def saveData(nbt: CompoundTag): Unit = {
       if (label != null) {
-        nbt.putString(Settings.namespace + "fs.label", label)
+        nbt.putString(LabelTag, label)
       }
     }
   }

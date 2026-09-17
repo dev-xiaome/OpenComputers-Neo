@@ -9,7 +9,6 @@ object QuantumNetwork {
   val tunnels = mutable.Map.empty[String, mutable.WeakHashMap[QuantumNode, Unit]]
 
   def add(card: QuantumNode): Unit = {
-    // Scala 2.13：`Unit` 伴生对象不能再作为值使用，unit 值统一写作 `()`。
     tunnels.getOrElseUpdate(card.tunnel, mutable.WeakHashMap.empty).put(card, ())
   }
 

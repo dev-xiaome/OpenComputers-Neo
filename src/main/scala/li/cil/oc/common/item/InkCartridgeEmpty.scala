@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「空墨盒」（原 `li.cil.oc.common.item.InkCartridgeEmpty`）。 */
-class InkCartridgeEmpty(props: Item.Properties) extends Item(props) with traits.Delegate
+class InkCartridgeEmpty(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem

@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「物品栏控制器升级」（原 `li.cil.oc.common.item.UpgradeInventoryController`）。 */
-class UpgradeInventoryController(props: Item.Properties) extends Item(props) with traits.Delegate with traits.ItemTier
+class UpgradeInventoryController(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier

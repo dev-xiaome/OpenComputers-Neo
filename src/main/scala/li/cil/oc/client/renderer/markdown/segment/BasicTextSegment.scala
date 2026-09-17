@@ -3,12 +3,6 @@ package li.cil.oc.client.renderer.markdown.segment
 import li.cil.oc.client.renderer.markdown.{Document, MarkupFormat}
 import net.minecraft.client.gui.Font
 
-/**
- * 纯文本片段的公共实现：负责按宽度折行、计算换行缩进与片段宽度。
- *
- * 与 1.7.10 版的差别只有字体类型：
- * `FontRenderer#getStringWidth` → `Font#width`、`FONT_HEIGHT` → `lineHeight`。
- */
 trait BasicTextSegment extends Segment {
   protected final val breaks = Set(' ', '.', ',', ':', ';', '!', '?', '_', '=', '-', '+', '*', '/', '\\')
   protected final val lists = Set("- ", "* ")
@@ -69,21 +63,20 @@ trait BasicTextSegment extends Segment {
         val canFitInLine = fullWidth <= maxLineWidth
         val matchesFullLine = fullWidth == maxLineWidth
         if (lastBreak >= 0) {
-          return lastBreak + 1 // 可以在断点处软换行。
+          return lastBreak + 1 // Can do a soft split.
         }
         if (mayUseFullLine && matchesFullLine) {
-          return s.length // 正好占满整行。
+          return s.length // Special case for exact match.
         }
         if (canFitInLine && !mayUseFullLine) {
-          return 0 // 整段挪到下一行。
+          return 0 // Wrap line, use next line.
         }
-        return pos - 1 // 只能硬切。
+        return pos - 1 // Gotta split hard.
       }
       if (pos < s.length && breaks.contains(s.charAt(pos))) lastBreak = pos
     }
     pos
   }
 
-  protected def computeWrapIndent(renderer: Font): Int =
-    if (lists.contains(rootPrefix)) renderer.width(rootPrefix) else 0
+  protected def computeWrapIndent(renderer: Font) = if (lists.contains(rootPrefix)) renderer.width(rootPrefix) else 0
 }

@@ -5,3 +5,5 @@
  * all of OpenComputers' components, including blocks and items alike.
  */
 package li.cil.oc.api.network;
+
+import li.cil.oc.api.API;

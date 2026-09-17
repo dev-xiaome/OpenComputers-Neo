@@ -11,13 +11,15 @@ import li.cil.oc.api.driver.DeviceInfo
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.util.BlockPosition
-import net.minecraft.world.level.biome.Biomes
 import net.minecraft.core.Direction
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
+import net.minecraft.world.level.Level
+import net.minecraft.world.level.biome.Biome.Precipitation
 
-class UpgradeSolarGenerator(val host: EnvironmentHost) extends prefab.ManagedEnvironment with DeviceInfo {
+class UpgradeSolarGenerator(val host: EnvironmentHost) extends AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
     withConnector().
     create()
@@ -33,8 +35,7 @@ class UpgradeSolarGenerator(val host: EnvironmentHost) extends prefab.ManagedEnv
     DeviceAttribute.Product -> "Enligh10"
   )
 
-  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   // ----------------------------------------------------------------------- //
 
@@ -53,23 +54,11 @@ class UpgradeSolarGenerator(val host: EnvironmentHost) extends prefab.ManagedEnv
     }
   }
 
-  /**
-   * 太阳是否可见（可以发电）。
-   *
-   * 1.21.1 迁移要点：
-   *  - `Level#isDaytime` → `Level#isDay()`
-   *  - `Level#provider.hasNoSky` → `Level#dimensionType().hasSkyLight()`
-   *  - `Level#canBlockSeeTheSky(x, y, z)` → `LevelReader#canSeeSkyFromBelowWater(BlockPos)`
-   *  - `getWorldChunkManager.getBiomeGenAt(x, z).isInstanceOf[BiomeGenDesert]` →
-   *    `getBiome(pos).is(Biomes.DESERT)`（1.21.1 的生物群系是注册表项，只能按 `ResourceKey` 判定）
-   */
   private def isSunVisible = {
     val blockPos = BlockPosition(host).offset(Direction.UP)
-    val pos = blockPos.toChunkCoordinates
-    val world = host.world
-    world.isDay &&
-      world.dimensionType().hasSkyLight &&
-      world.canSeeSkyFromBelowWater(pos) &&
-      (world.getBiome(pos).is(Biomes.DESERT) || (!world.isRaining && !world.isThundering))
+    host.getEnvironmentLevel.isDay &&
+      (host.getEnvironmentLevel.dimension != Level.NETHER) &&
+      host.getEnvironmentLevel.canSeeSky(blockPos.toBlockPos) &&
+      (host.getEnvironmentLevel.getBiome(blockPos.toBlockPos).value.getPrecipitationAt(blockPos.toBlockPos) == Precipitation.NONE || (!host.getEnvironmentLevel.isRaining && !host.getEnvironmentLevel.isThundering))
   }
 }

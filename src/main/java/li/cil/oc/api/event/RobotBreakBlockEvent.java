@@ -1,10 +1,12 @@
 package li.cil.oc.api.event;
 
-import li.cil.oc.api.internal.Agent;
-import net.minecraft.world.level.Level;
 import net.neoforged.bus.api.ICancellableEvent;
 
-public abstract class RobotBreakBlockEvent extends RobotEvent {
+import li.cil.oc.api.internal.Agent;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
+
+public abstract class RobotBreakBlockEvent extends RobotEvent implements ICancellableEvent {
     protected RobotBreakBlockEvent(Agent agent) {
         super(agent);
     }
@@ -14,7 +16,7 @@ public abstract class RobotBreakBlockEvent extends RobotEvent {
      * <br>
      * Canceling this event will prevent the block from getting broken.
      */
-    public static class Pre extends RobotBreakBlockEvent implements ICancellableEvent {
+    public static class Pre extends RobotBreakBlockEvent {
         /**
          * The world in which the block will be broken.
          */
@@ -23,19 +25,17 @@ public abstract class RobotBreakBlockEvent extends RobotEvent {
         /**
          * The coordinates at which the block will be broken.
          */
-        public final int x, y, z;
+        public final BlockPos pos;
 
         /**
          * The time it takes to break the block.
          */
         private double breakTime;
 
-        public Pre(Agent agent, Level world, int x, int y, int z, double breakTime) {
+        public Pre(Agent agent, Level world, BlockPos pos, double breakTime) {
             super(agent);
             this.world = world;
-            this.x = x;
-            this.y = y;
-            this.z = z;
+            this.pos = pos;
             this.breakTime = breakTime;
         }
 

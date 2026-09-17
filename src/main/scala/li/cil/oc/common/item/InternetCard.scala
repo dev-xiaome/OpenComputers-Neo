@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「互联网卡」（原 `li.cil.oc.common.item.InternetCard`）。 */
-class InternetCard(props: Item.Properties) extends Item(props) with traits.Delegate with traits.ItemTier
+class InternetCard(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier

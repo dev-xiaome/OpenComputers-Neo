@@ -6,3 +6,5 @@
  * mods.
  */
 package li.cil.oc.api.manual;
+
+import li.cil.oc.api.API;

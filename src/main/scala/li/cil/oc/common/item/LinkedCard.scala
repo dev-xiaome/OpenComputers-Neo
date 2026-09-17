@@ -2,36 +2,41 @@ package li.cil.oc.common.item
 
 import li.cil.oc.util.ItemStackNBTExtensions._
 
+import java.util
+
 import li.cil.oc.Settings
 import li.cil.oc.util.Tooltip
-import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
+import net.neoforged.api.distmarker.Dist
+import net.neoforged.api.distmarker.OnlyIn
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/**
- * 「已配对卡」（原 `li.cil.oc.common.item.LinkedCard`）：用于建立私有隧道。
- *
- * 1.21.1 迁移要点：
- *  - `stack.hasTagCompound` / `getTagCompound` → 隐式扩展 `hasTag()` / `getTag()`
- *    （底层是自定义数据组件 `opencomputers_neo:nbt`）
- *  - `CompoundTag#hasKey` → `contains`
- */
-class LinkedCard(props: Item.Properties) extends Item(props) with traits.Delegate with traits.ItemTier {
+import scala.collection.convert.ImplicitConversionsToScala._
+import net.minecraft.world.level.Level
+import net.minecraft.network.chat.Component
+import net.minecraft.world.item.TooltipFlag
 
-  override def tooltipLines(stack: ItemStack, player: Player,
-                            tooltip: java.util.List[String], advanced: Boolean): Unit = {
-    if (stack.hasTag() && stack.getTag().contains(Settings.namespace + "data")) {
-      val data = stack.getTag().getCompound(Settings.namespace + "data")
+class LinkedCard(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier {
+  @OnlyIn(Dist.CLIENT)
+  override def appendHoverText(stack: ItemStack, level: Level, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+    super.appendHoverText(stack, level, tooltip, flag)
+    if (stack.hasTag && stack.getTag.contains(Settings.namespace + "data")) {
+      val data = stack.getTag.getCompound(Settings.namespace + "data")
       if (data.contains(Settings.namespace + "tunnel")) {
         val channel = data.getString(Settings.namespace + "tunnel")
         if (channel.length > 13) {
-          tooltip.addAll(Tooltip.get(unlocalizedName + "_Channel", channel.substring(0, 13) + "..."))
+          for (curr <- Tooltip.get(unlocalizedName + "_channel", channel.substring(0, 13) + "...")) {
+            tooltip.add(Component.literal(curr).setStyle(Tooltip.DefaultStyle))
+          }
         }
         else {
-          tooltip.addAll(Tooltip.get(unlocalizedName + "_Channel", channel))
+          for (curr <- Tooltip.get(unlocalizedName + "_channel", channel)) {
+            tooltip.add(Component.literal(curr).setStyle(Tooltip.DefaultStyle))
+          }
         }
       }
     }
-    super.tooltipLines(stack, player, tooltip, advanced)
   }
 }

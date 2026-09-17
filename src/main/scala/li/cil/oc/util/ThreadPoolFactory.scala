@@ -1,21 +1,22 @@
 package li.cil.oc.util
 
-import java.util.concurrent.{Executors, ScheduledExecutorService, ThreadFactory, TimeUnit}
+import java.util.concurrent.Executors
 import java.util.concurrent.Future
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
+import li.cil.oc.common.SaveHandler
+import li.cil.oc.server.fs.Buffered
+import net.neoforged.bus.api.SubscribeEvent
+import net.neoforged.neoforge.event.server.ServerAboutToStartEvent
+import net.neoforged.neoforge.event.server.ServerStoppedEvent
 
 import scala.collection.mutable
 
-/**
- * OC 后台线程池工厂（文件保存、网络过滤等使用）。
- *
- * 1.21.1 / Java 21 迁移要点：
- *  - `System.getSecurityManager` 自 Java 18 起被标记为废弃、Java 24 起彻底移除，
- *    这里不再查询安全管理器，直接使用当前线程的线程组。
- *  - `new ThreadFactory { def newThread(...) = ... }` 的过程语法补上 `Unit`。
- */
 object ThreadPoolFactory {
   val priority = {
     // For InternetFilteringRuleTest, where Settings.get is not provided.
@@ -27,15 +28,57 @@ object ThreadPoolFactory {
     else custom max Thread.MIN_PRIORITY min Thread.MAX_PRIORITY
   }
 
-  def create(name: String, threads: Int): ScheduledExecutorService = Executors.newScheduledThreadPool(threads,
+  @SubscribeEvent
+  def serverStart(e: ServerAboutToStartEvent): Unit = {
+    // Access these handles to ensure the pools actually exist.
+    SaveHandler.stateSaveHandler
+    Buffered.fileSaveHandler
+    ThreadPoolFactory.safePools.foreach(_.newThreadPool())
+
+    if (Settings.get.internetAccessConfigured()) {
+      if (Settings.get.internetFilteringRulesInvalid()) {
+        OpenComputers.log.warn("####################################################")
+        OpenComputers.log.warn("#                                                  #")
+        OpenComputers.log.warn("#  Could not parse Internet Card filtering rules!  #")
+        OpenComputers.log.warn("#  Review the server log and adjust the filtering  #")
+        OpenComputers.log.warn("#  list to ensure it is appropriately configured.  #")
+        OpenComputers.log.warn("#   (config/OpenComputers.cfg => filteringRules)   #")
+        OpenComputers.log.warn("# Internet access has been automatically disabled. #")
+        OpenComputers.log.warn("#                                                  #")
+        OpenComputers.log.warn("####################################################")
+      } else if (!Settings.get.internetFilteringRulesObserved && e.getServer.isDedicatedServer) {
+        OpenComputers.log.warn("####################################################")
+        OpenComputers.log.warn("#                                                  #")
+        OpenComputers.log.warn("#    It appears that you're running a dedicated    #")
+        OpenComputers.log.warn("#  server with OpenComputers installed! Make sure  #")
+        OpenComputers.log.warn("#  to review the Internet Card address filtering   #")
+        OpenComputers.log.warn("#  list to ensure it is appropriately configured.  #")
+        OpenComputers.log.warn("#   (config/OpenComputers.cfg => filteringRules)   #")
+        OpenComputers.log.warn("#                                                  #")
+        OpenComputers.log.warn("####################################################")
+      } else {
+        OpenComputers.log.info(f"Successfully applied ${Settings.get.internetFilteringRules.length} Internet Card filtering rules.")
+      }
+    }
+  }
+
+  @SubscribeEvent
+  def serverStop(e: ServerStoppedEvent): Unit = {
+    ThreadPoolFactory.safePools.foreach(_.waitForCompletion())
+  }
+
+  def create(name: String, threads: Int) = Executors.newScheduledThreadPool(threads,
     new ThreadFactory() {
       private val baseName = "OpenComputers-" + name + "-"
 
-      private val threadNumber = new java.util.concurrent.atomic.AtomicInteger(1)
+      private val threadNumber = new AtomicInteger(1)
 
-      private val group = Thread.currentThread().getThreadGroup
+      private val group = System.getSecurityManager match {
+        case null => Thread.currentThread().getThreadGroup
+        case s => s.getThreadGroup
+      }
 
-      def newThread(r: Runnable): Thread = {
+      def newThread(r: Runnable) = {
         val thread = new Thread(group, r, baseName + threadNumber.getAndIncrement)
         if (!thread.isDaemon) {
           thread.setDaemon(true)
@@ -56,9 +99,6 @@ object ThreadPoolFactory {
   }
 }
 
-/**
- * 带自动重建能力的线程池包装（服务器未启动 / 线程池被关闭时按需重建）。
- */
 class SafeThreadPool(val name: String, val threads: Int) {
   private var _threadPool: ScheduledExecutorService = _
 

@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「钻石芯片」（原 `li.cil.oc.common.item.DiamondChip`）。 */
-class DiamondChip(props: Item.Properties) extends Item(props) with traits.Delegate
+class DiamondChip(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem

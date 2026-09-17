@@ -6,7 +6,7 @@ import li.cil.oc.api.machine.Value;
 import net.minecraft.nbt.CompoundTag;
 
 /**
- * Basic implementation for the <tt>Value</tt> interface.
+ * Basic implementation for the {@link Value} interface.
  */
 public class AbstractValue implements Value {
     @Override
@@ -28,10 +28,10 @@ public class AbstractValue implements Value {
     }
 
     @Override
-    public void load(CompoundTag nbt) {
+    public void loadData(CompoundTag nbt) {
     }
 
     @Override
-    public void save(CompoundTag nbt) {
+    public void saveData(CompoundTag nbt) {
     }
 }

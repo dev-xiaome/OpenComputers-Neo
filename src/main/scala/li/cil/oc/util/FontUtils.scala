@@ -3,11 +3,12 @@ package li.cil.oc.util
 import java.io.{BufferedReader, InputStreamReader}
 import java.nio.charset.StandardCharsets
 import scala.collection.mutable.BitSet
-
 import li.cil.oc.OpenComputers
 
+import scala.collection.mutable
+
 object FontUtils {
-  private val defined_double_wide: BitSet = BitSet()
+  private val defined_double_wide: mutable.BitSet = mutable.BitSet()
 
   // theoretical Unicode maximum
   val codepoint_limit: Int = 0x110000
@@ -232,15 +233,8 @@ object FontUtils {
     try {
       OpenComputers.log.info("Initializing font glyph width overrides...")
       val time = System.currentTimeMillis()
-      // 1.21.1：资源命名空间已改为 OpenComputers（见 docs/PORTING.md），
-      // 直接用无绝对路径的类路径资源名，避免写死命名空间。
-      // 1.7.10 用的是 "/assets/opencomputers/font.hex"（完整资源路径）。
-      // 移植时曾被改成无前缀的 "/font.hex" —— 那在 classpath 根下并不存在，
-      // 结果是字形宽度覆盖表被静默跳过（日志里的 "Unable to locate font.hex"）。
-      val font = getClass.getResourceAsStream("/assets/" + li.cil.oc.Settings.resourceDomain + "/font.hex")
-      if (font == null) {
-        OpenComputers.log.error("Unable to locate font.hex on the classpath; glyph width overrides skipped.")
-      } else try {
+      val font = FontUtils.getClass.getResourceAsStream("/assets/opencomputers/font.hex")
+      try {
         var line: String = null
         val input = new BufferedReader(new InputStreamReader(font, StandardCharsets.UTF_8))
         var out_of_range_glyph: Int = 0

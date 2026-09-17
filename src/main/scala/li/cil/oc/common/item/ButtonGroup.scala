@@ -1,8 +1,9 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「按键组」（原 `li.cil.oc.common.item.ButtonGroup`）。 */
-class ButtonGroup(props: Item.Properties) extends Item(props) with traits.Delegate {
-  override protected def tooltipName: Option[String] = None
+class ButtonGroup(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+  override protected def tooltipName = None
 }

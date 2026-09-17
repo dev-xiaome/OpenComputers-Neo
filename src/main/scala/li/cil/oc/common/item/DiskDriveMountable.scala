@@ -1,29 +1,30 @@
 package li.cil.oc.common.item
 
-import net.minecraft.world.InteractionHand
-import net.minecraft.world.InteractionResultHolder
-import net.minecraft.world.entity.player.Player
+import li.cil.oc.OpenComputers
+import li.cil.oc.common.menu.MenuTypes
+import li.cil.oc.common.container.DiskDriveMountableInventory
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.common.extensions.IForgeItem
 import net.minecraft.world.level.Level
+import net.minecraft.world.entity.player.Player
+import net.minecraft.server.level.ServerPlayer
+import net.minecraft.world.InteractionHand
+import net.minecraft.world.InteractionResult
+import net.minecraft.world.InteractionResultHolder
 
-/**
- * 「可挂载磁盘驱动器」（原 `li.cil.oc.common.item.DiskDriveMountable`）。
- *
- * 1.21.1 迁移要点：
- *  - 删除 `parent: Delegator`。
- *  - `player.openGui(OpenComputers, GuiType.DiskDriveMountable.id, ...)` 在 1.21.1 已不存在，
- *    改为 `player.openMenu(MenuProvider)`；菜单属于 `common/container`，尚未移植，
- *    这里保留 TODO 占位（客户端与服务端都要打开，避免槽位错位）。
- */
-class DiskDriveMountable(props: Item.Properties) extends Item(props) with traits.Delegate {
+class DiskDriveMountable(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem {
+  override def use(stack: ItemStack, level: Level, player: Player) = {
+    if (!level.isClientSide) player match {
+      case srvPlr: ServerPlayer => MenuTypes.openDiskDriveGui(srvPlr, new DiskDriveMountableInventory {
+        override def container: ItemStack = stack
 
-  override def use(world: Level, player: Player, hand: InteractionHand): InteractionResultHolder[ItemStack] = {
-    val stack = player.getItemInHand(hand)
-    // TODO(菜单): 1.21.1 用 `player.openMenu(new SimpleMenuProvider(...))` 打开 GUI，
-    // 需要 `li.cil.oc.common.container.DiskDriveMountable` 与 `MenuType`。
-    // 旧的 `li.cil.oc.common.GuiType.DiskDriveMountable` 常量仍然保留，供移植容器时复用。
-    player.swing(hand)
-    InteractionResultHolder.sidedSuccess(stack, world.isClientSide)
+        override def stillValid(player: Player) = player == srvPlr
+      })
+      case _ =>
+    }
+    player.swing(InteractionHand.MAIN_HAND)
+    new InteractionResultHolder(InteractionResult.sidedSuccess(level.isClientSide), stack)
   }
 }

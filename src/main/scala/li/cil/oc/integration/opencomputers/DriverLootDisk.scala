@@ -1,8 +1,8 @@
 package li.cil.oc.integration.opencomputers
+
 import li.cil.oc.util.ItemStackNBTExtensions._
 
 import java.io
-
 import li.cil.oc.Constants
 import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
@@ -10,6 +10,7 @@ import li.cil.oc.api
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.common.Slot
 import net.minecraft.world.item.ItemStack
+import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.level.storage.LevelResource
 import net.neoforged.neoforge.server.ServerLifecycleHooks
 
@@ -17,21 +18,20 @@ import net.neoforged.neoforge.server.ServerLifecycleHooks
 // As of OC 1.5.10, loot disks are generated using normal floppies, and using
 // a factory system that allows third-party mods to register loot disks.
 object DriverLootDisk extends Item {
-  override def worksWith(stack: ItemStack) =
-    isOneOf(stack, api.Items.get(Constants.ItemName.LootDisk))
+  override def worksWith(stack: ItemStack) = isOneOf(stack,
+    api.Items.get(Constants.ItemName.Floppy)) &&
+    (stack.hasTag && stack.getTag.contains(Settings.namespace + "lootPath"))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) =
-    if (!host.world.isClientSide && stack.hasTag()) {
-      val lootPath = "loot/" + stack.getTag().getString(Settings.namespace + "lootPath")
-      // 1.21.1 没有 `DimensionManager.getCurrentSaveRootDirectory`，改从当前服务端取存档根目录。
-      val saveRoot = Option(ServerLifecycleHooks.getCurrentServer).map(_.getWorldPath(LevelResource.ROOT).toFile).orNull
-      val savePath = if (saveRoot == null) null else new io.File(saveRoot, Settings.savePath + lootPath)
+    if (!host.getEnvironmentLevel.isClientSide && stack.hasTag && ServerLifecycleHooks.getCurrentServer != null) {
+      val lootPath = Settings.savePath + "loot/" + stack.getTag.getString(Settings.namespace + "lootPath")
+      val savePath = ServerLifecycleHooks.getCurrentServer.getWorldPath(new LevelResource(lootPath)).toFile
       val fs =
-        if (savePath != null && savePath.exists && savePath.isDirectory) {
+        if (savePath.exists && savePath.isDirectory) {
           api.FileSystem.fromSaveDirectory(lootPath, 0, false)
         }
         else {
-          api.FileSystem.fromClass(OpenComputers.getClass, Settings.resourceDomain, lootPath)
+          api.FileSystem.fromResource(new ResourceLocation(Settings.resourceDomain, lootPath))
         }
       val label =
         if (dataTag(stack).contains(Settings.namespace + "fs.label")) {

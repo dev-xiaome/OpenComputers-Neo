@@ -1,1 +1,7 @@
-{"parent":"minecraft:item/generated","textures":{"layer0":"opencomputers_neo:item/floppydisk_dyelightgray"}}
+{
+    "parent": "minecraft:item/generated",
+    "textures": {
+        "layer0": "opencomputers_neo:item/floppy_base",
+        "layer1": "opencomputers_neo:item/floppy_tint"
+    }
+}

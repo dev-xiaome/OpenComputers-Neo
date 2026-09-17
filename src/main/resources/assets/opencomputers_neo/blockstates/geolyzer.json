@@ -1,7 +1,5 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/geolyzer"
-                          }
-                 }
+    "variants": {
+        "": { "model": "opencomputers_neo:block/geolyzer" }
+    }
 }

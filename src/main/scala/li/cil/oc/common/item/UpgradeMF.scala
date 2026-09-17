@@ -2,43 +2,39 @@ package li.cil.oc.common.item
 
 import li.cil.oc.util.ItemStackNBTExtensions._
 
-import li.cil.oc.util.BlockPosition
-import li.cil.oc.{Localization, Settings}
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.world.entity.player.Player
+import java.util
+
+import li.cil.oc.Localization
+import li.cil.oc.Settings
+import li.cil.oc.util.Tooltip
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.common.extensions.IForgeItem
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.level.Level
+import net.minecraft.core.BlockPos
+import net.minecraft.core.Direction
+import net.minecraft.world.InteractionHand
+import net.minecraft.world.InteractionResult
+import net.minecraft.network.chat.Component
+import net.minecraft.nbt.CompoundTag
 
-/**
- * 「MFU 升级」（原 `li.cil.oc.common.item.UpgradeMF`）：记录多方块坐标用于远程访问。
- *
- * 1.21.1 迁移要点：
- *  - `player.worldObj.isRemote` → `player.level().isClientSide`
- *  - `world.provider.dimensionId`（int）→ `world.dimension().location().toString`（字符串），
- *    因此坐标数组最后一项由「维度 id」改为「维度 id 的字符串哈希」不合适，
- *    这里改为写入维度字符串到独立的 NBT 键，保持 `coord` 数组仍是纯 int 结构。
- *  - `stack.setTagCompound(new CompoundTag())` → 隐式扩展 `stack.setTag(tag)`
- */
-class UpgradeMF(props: Item.Properties) extends Item(props) with traits.Delegate with traits.ItemTier {
-
-  override def onItemUseFirstAction(stack: ItemStack, player: Player, position: BlockPosition,
-                                    side: Int, hitX: Float, hitY: Float, hitZ: Float): Boolean = {
-    if (!player.level().isClientSide && player.isShiftKeyDown) {
-      val data = if (stack.hasTag()) stack.getTag() else {
-        val tag = new CompoundTag()
-        stack.setTag(tag)
-        tag
-      }
-      data.putIntArray(Settings.namespace + "coord",
-        Array(position.x, position.y, position.z, side))
-      data.putString(Settings.namespace + "dimension", player.level().dimension().location().toString)
-      return true
+class UpgradeMF(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier {
+  override def onItemUseFirst(stack: ItemStack, player: Player, level: Level, pos: BlockPos, side: Direction, hitX: Float, hitY: Float, hitZ: Float, hand: InteractionHand): InteractionResult = {
+    if (!player.level.isClientSide && player.isCrouching) {
+      val data = stack.getOrCreateTag
+      data.putString(Settings.namespace + "dimension", level.dimension.location.toString)
+      data.putIntArray(Settings.namespace + "coord", Array(pos.getX, pos.getY, pos.getZ, side.ordinal()))
+      return InteractionResult.sidedSuccess(player.level.isClientSide)
     }
-    super.onItemUseFirstAction(stack, player, position, side, hitX, hitY, hitZ)
+    super.onItemUseFirst(stack, player, level, pos, side, hitX, hitY, hitZ, hand)
   }
 
-  override protected def tooltipExtended(stack: ItemStack, tooltip: java.util.List[String]): Unit = {
-    val linked = stack.hasTag() && stack.getTag().contains(Settings.namespace + "coord")
-    tooltip.add(Localization.Tooltip.MFULinked(linked))
+  override protected def tooltipExtended(stack: ItemStack, tooltip: util.List[Component]): Unit = {
+    tooltip.add(Component.literal(Localization.Tooltip.MFULinked(stack.getTag match {
+      case data: CompoundTag => data.contains(Settings.namespace + "coord")
+      case _ => false
+    })).setStyle(Tooltip.DefaultStyle))
   }
 }

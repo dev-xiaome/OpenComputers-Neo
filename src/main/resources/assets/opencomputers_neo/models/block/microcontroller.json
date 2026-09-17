@@ -1,12 +1,9 @@
 {
-    "parent":  "minecraft:block/cube",
-    "textures":  {
-                     "particle":  "opencomputers_neo:block/microcontrollertop",
-                     "down":  "opencomputers_neo:block/microcontrollertop",
-                     "up":  "opencomputers_neo:block/microcontrollertop",
-                     "north":  "opencomputers_neo:block/microcontrollerside",
-                     "south":  "opencomputers_neo:block/microcontrollerfront",
-                     "west":  "opencomputers_neo:block/microcontrollerside",
-                     "east":  "opencomputers_neo:block/microcontrollerside"
-                 }
+    "parent": "block/orientable",
+    "textures": {
+        "top": "opencomputers_neo:block/microcontroller_top",
+        "bottom": "opencomputers_neo:block/microcontroller_top",
+        "side": "opencomputers_neo:block/microcontroller_side",
+        "front": "opencomputers_neo:block/microcontroller_front"
+    }
 }

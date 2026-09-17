@@ -4,14 +4,13 @@ import java.util
 
 import com.google.common.base.Charsets
 import li.cil.oc.Constants
-import li.cil.oc.common.Tier
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.Network
 import li.cil.oc.api.component.RackBusConnectable
 import li.cil.oc.api.driver.DeviceInfo
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.internal.Rack
 import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
@@ -19,19 +18,22 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.common.Tier
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import net.minecraft.nbt._
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
+import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable
 
-class NetworkCard(val host: EnvironmentHost) extends prefab.ManagedEnvironment with RackBusConnectable with DeviceInfo with traits.WakeMessageAware {
-  protected val visibility = host match {
+class NetworkCard(val host: EnvironmentHost) extends AbstractManagedEnvironment with RackBusConnectable with DeviceInfo with traits.WakeMessageAware {
+  protected val visibility: Visibility = host match {
     case _: Rack => Visibility.Neighbors
     case _ => Visibility.Network
   }
 
-  override val node = Network.newNode(this, visibility).
+  override val node: Component = Network.newNode(this, visibility).
     withComponent("modem", Visibility.Neighbors).
     create()
 
@@ -53,8 +55,7 @@ class NetworkCard(val host: EnvironmentHost) extends prefab.ManagedEnvironment w
     DeviceAttribute.Width -> Settings.get.maxNetworkPacketParts.toString
   )
 
-  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   // ----------------------------------------------------------------------- //
 
@@ -97,8 +98,7 @@ class NetworkCard(val host: EnvironmentHost) extends prefab.ManagedEnvironment w
   def send(context: Context, args: Arguments): Array[AnyRef] = {
     val address = args.checkString(0)
     val port = checkPort(args.checkInteger(1))
-    // 1.21.1：`Arguments` 是 `java.lang.Iterable`，2.13 需要显式 `asScala` 才能调用 `drop`。
-    val packet = api.Network.newPacket(node.address, address, port, args.asScala.drop(2).toArray)
+    val packet = api.Network.newPacket(node.address, address, port, args.drop(2).toArray)
     doSend(packet)
     networkActivity()
     result(true)
@@ -107,23 +107,19 @@ class NetworkCard(val host: EnvironmentHost) extends prefab.ManagedEnvironment w
   @Callback(doc = """function(port:number, data...) -- Broadcasts the specified data on the specified port.""")
   def broadcast(context: Context, args: Arguments): Array[AnyRef] = {
     val port = checkPort(args.checkInteger(0))
-    val packet = api.Network.newPacket(node.address, null, port, args.asScala.drop(1).toArray)
+    val packet = api.Network.newPacket(node.address, null, port, args.drop(1).toArray)
     doBroadcast(packet)
     networkActivity()
     result(true)
   }
 
-  //Removed in MC 1.11
-  @Callback(direct = true, doc = """function():number -- Gets the maximum packet size (config setting).""")
-  def maxPacketSize(context: Context, args: Arguments): Array[AnyRef] = result(Settings.get.maxNetworkPacketSize)
-
-  protected def doSend(packet: Packet) = visibility match {
+  protected def doSend(packet: Packet): Unit = visibility match {
     case Visibility.Neighbors => node.sendToNeighbors("network.message", packet)
     case Visibility.Network => node.sendToReachable("network.message", packet)
     case _ => // Ignore.
   }
 
-  protected def doBroadcast(packet: Packet) = visibility match {
+  protected def doBroadcast(packet: Packet): Unit = visibility match {
     case Visibility.Neighbors => node.sendToNeighbors("network.message", packet)
     case Visibility.Network => node.sendToReachable("network.message", packet)
     case _ => // Ignore.
@@ -138,7 +134,7 @@ class NetworkCard(val host: EnvironmentHost) extends prefab.ManagedEnvironment w
     }
   }
 
-  override def onMessage(message: Message) = {
+  override def onMessage(message: Message): Unit = {
     super.onMessage(message)
     if ((message.name == "computer.stopped" || message.name == "computer.started") && node.isNeighborOf(message.source))
       openPorts.clear()
@@ -162,22 +158,25 @@ class NetworkCard(val host: EnvironmentHost) extends prefab.ManagedEnvironment w
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
+  private final val OpenPortsTag = "openPorts"
+
+  override def loadData(nbt: CompoundTag): Unit = {
+    super.loadData(nbt)
     assert(openPorts.isEmpty)
-    openPorts ++= nbt.getIntArray("openPorts")
+    openPorts ++= nbt.getIntArray(OpenPortsTag)
     loadWakeMessage(nbt)
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    super.save(nbt)
-    nbt.putIntArray("openPorts", openPorts.toArray)
+  override def saveData(nbt: CompoundTag): Unit = {
+    super.saveData(nbt)
+
+    nbt.putIntArray(OpenPortsTag, openPorts.toArray)
     saveWakeMessage(nbt)
   }
 
   // ----------------------------------------------------------------------- //
 
-  protected def checkPort(port: Int) =
+  protected def checkPort(port: Int): Int =
     if (port < 1 || port > 0xFFFF) throw new IllegalArgumentException("invalid port number")
     else port
 

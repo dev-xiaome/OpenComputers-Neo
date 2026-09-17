@@ -1,7 +1,5 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/robot"
-                          }
-                 }
+    "variants": {
+        "": { "model": "minecraft:block/air" }
+    }
 }

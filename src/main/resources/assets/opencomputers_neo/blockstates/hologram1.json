@@ -1,7 +1,5 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/hologram1"
-                          }
-                 }
+    "variants": {
+        "": { "model": "opencomputers_neo:block/hologram1" }
+    }
 }

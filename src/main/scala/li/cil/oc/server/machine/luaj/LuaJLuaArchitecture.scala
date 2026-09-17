@@ -19,7 +19,7 @@ import li.cil.repack.org.luaj.vm2.lib.jse.JsePlatform
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToScala._
 
 @Architecture.Name("LuaJ")
 class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture {
@@ -33,7 +33,7 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
 
   private var doneWithInitRun = false
 
-  private[machine] var memory = 0
+  @volatile private[machine] var memory = 0
 
   private val apis = Array(
     new ComponentAPI(this),
@@ -46,8 +46,7 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
   private[machine] def invoke(f: () => Array[AnyRef]): Varargs = try {
     f() match {
       case results: Array[_] =>
-        // 显式引用 ScalaClosure.toLuaValue，避免只靠隐式导入。
-        LuaValue.varargsOf(Array(LuaValue.TRUE) ++ results.map(ScalaClosure.toLuaValue))
+        LuaValue.varargsOf(Array(LuaValue.TRUE) ++ results.map(toLuaValue))
       case _ =>
         LuaValue.TRUE
     }
@@ -103,8 +102,7 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
     memory > 0
   }
 
-  // Scala 2.13：`java.lang.Iterable` 不再有隐式转换，需要显式 asScala。
-  private def memoryInBytes(components: java.lang.Iterable[ItemStack]) = components.asScala.foldLeft(0.0)((acc, stack) => acc + (Option(api.Driver.driverFor(stack)) match {
+  private def memoryInBytes(components: java.lang.Iterable[ItemStack]) = components.foldLeft(0.0)((acc, stack) => acc + (Option(api.Driver.driverFor(stack)) match {
     case Some(driver: Memory) => driver.amount(stack) * 1024
     case _ => 0
   })).toInt max 0 min Settings.get.maxTotalRam
@@ -183,11 +181,6 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
         // that pcall goes bad.
         def isInnerError = results.`type`(2) == LuaValue.TBOOLEAN && (results.isstring(3) || results.isnoneornil(3))
         def isOuterError = results.isstring(2) || results.isnoneornil(2)
-        // 注意：这里必须是 `!(isInnerError || isOuterError)`（两个判定**都**不成立才算异常）。
-        // 不能写成 `!isInnerError || !isOuterError` —— `isInnerError` 与 `isOuterError` 互斥
-        // （`type(2)` 不可能既是 BOOLEAN 又是 string/nil），于是那个写法**恒为真**，
-        // 结果是内核每次正常退出都刷一条 "Kernel returned unexpected results"，
-        // 把真正的错误淹没在噪音里。与 CE-1.20 逐字一致。
         if (results.`type`(1) != LuaValue.TBOOLEAN || !(isInnerError || isOuterError)) {
           OpenComputers.log.warn("Kernel returned unexpected results.")
           OpenComputers.log.warn("Returned: {}", results)
@@ -202,8 +195,7 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
             if (isInnerError)
               if (results.isuserdata(3)) results.touserdata(3).toString
               else results.tojstring(3)
-            else
-            if (results.isuserdata(2)) results.touserdata(2).toString
+            else if (results.isuserdata(2)) results.touserdata(2).toString
             else results.tojstring(2)
           if (error != null) new ExecutionResult.Error(error)
           else new ExecutionResult.Error("unknown error")
@@ -259,12 +251,12 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag): Unit = {
+  override def loadData(nbt: CompoundTag): Unit = {
     if (machine.isRunning) {
       machine.stop()
       machine.start()
     }
   }
 
-  override def save(nbt: CompoundTag) {}
+  override def saveData(nbt: CompoundTag): Unit = {}
 }

@@ -22,34 +22,21 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
-// 1.21.1：NeoForge 已移除 `net.minecraftforge.common.DimensionManager`，
-// 存档目录改为 `ServerLifecycleHooks.getCurrentServer.getWorldPath(LevelResource)`（与 CE-1.20 一致）。
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.world.level.storage.LevelResource
 import net.neoforged.neoforge.server.ServerLifecycleHooks
-// 显式导入结果包装器，使本文件不依赖 `server/component/package.scala` 也能编译；
-// 与包对象里的隐式转换 `result` 语义完全一致（同一实现）。
-import li.cil.oc.util.ResultWrapper.result
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
+import net.minecraft.world.level.storage.LevelResource
 
-class Drive(val capacity: Int, val platterCount: Int, val label: Label, host: Option[EnvironmentHost], val sound: Option[String], val speed: Int, val isLocked: Boolean) extends prefab.ManagedEnvironment with DeviceInfo {
+class Drive(val capacity: Int, val platterCount: Int, val label: Label, host: Option[EnvironmentHost], val sound: Option[String], val speed: Int, val isLocked: Boolean) extends AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
     withComponent("drive", Visibility.Neighbors).
     withConnector().
     create()
 
-  /**
-   * 驱动器数据文件的落盘路径。
-   *
-   * 与 CE-1.20 一致：`ServerLifecycleHooks.getCurrentServer.getWorldPath(new LevelResource(...))`。
-   * 无服务端上下文时返回 `null`，由 `load` / `save` 跳过磁盘读写（原 1.7.10 在此处会 NPE）。
-   */
-  private def savePath: io.File = {
-    val server = ServerLifecycleHooks.getCurrentServer
-    if (server == null) null
-    else server.getWorldPath(new LevelResource(Settings.savePath + node.address + ".bin")).toFile
-  }
+  private def savePath = ServerLifecycleHooks.getCurrentServer.getWorldPath(new LevelResource(Settings.savePath + node.address + ".bin")).toFile
 
   private final val sectorSize = 512
 
@@ -78,9 +65,7 @@ class Drive(val capacity: Int, val platterCount: Int, val label: Label, host: Op
     DeviceAttribute.Clock -> (((2000 / readSectorCosts(speed)).toInt / 100).toString + "/" + ((2000 / writeSectorCosts(speed)).toInt / 100).toString + "/" + ((2000 / readByteCosts(speed)).toInt / 100).toString + "/" + ((2000 / writeByteCosts(speed)).toInt / 100).toString)
   )
 
-  // 1.21.1：原来靠 `scala.collection.convert.WrapAsJava._` 提供的隐式转换已随 Scala 2.13 移除，
-  // 这里显式用 `CollectionConverters` 的 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   // ----------------------------------------------------------------------- //
 
@@ -151,12 +136,14 @@ class Drive(val capacity: Int, val platterCount: Int, val label: Label, host: Op
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag) = this.synchronized {
-    super.load(nbt)
+  private final val HeadPosTag = "headPos"
+
+  override def loadData(nbt: CompoundTag): Unit = this.synchronized {
+    super.loadData(nbt)
 
     if (node.address != null) try {
       val path = savePath
-      if (path != null && path.exists()) {
+      if (path.exists()) {
         val bin = new ByteArrayInputStream(Files.toByteArray(path))
         val zin = new GZIPInputStream(bin)
         var offset = 0
@@ -171,36 +158,33 @@ class Drive(val capacity: Int, val platterCount: Int, val label: Label, host: Op
       case t: Throwable => OpenComputers.log.warn(s"Failed loading drive contents for '${node.address}'.", t)
     }
 
-    // 1.21.1：`getInteger` → `getInt`。
-    headPos = nbt.getInt("headPos") max 0 min sectorToHeadPos(sectorCount)
+    headPos = nbt.getInt(HeadPosTag) max 0 min sectorToHeadPos(sectorCount)
 
     if (label != null) {
-      label.load(nbt)
+      label.loadData(nbt)
     }
   }
 
-  override def save(nbt: CompoundTag) = this.synchronized {
-    super.save(nbt)
+  override def saveData(nbt: CompoundTag): Unit = this.synchronized {
+    super.saveData(nbt)
 
     if (node.address != null) try {
       val path = savePath
-      if (path != null) {
-        path.getParentFile.mkdirs()
-        val bos = new ByteArrayOutputStream()
-        val zos = new GZIPOutputStream(bos)
-        zos.write(data)
-        zos.close()
-        Files.write(bos.toByteArray, path)
-      }
+      path.getParentFile.mkdirs()
+      val bos = new ByteArrayOutputStream()
+      val zos = new GZIPOutputStream(bos)
+      zos.write(data)
+      zos.close()
+      Files.write(bos.toByteArray, path)
     }
     catch {
       case t: Throwable => OpenComputers.log.warn(s"Failed saving drive contents for '${node.address}'.", t)
     }
 
-    nbt.putInt("headPos", headPos)
+    nbt.putInt(HeadPosTag, headPos)
 
     if (label != null) {
-      label.save(nbt)
+      label.saveData(nbt)
     }
   }
 
@@ -232,17 +216,9 @@ class Drive(val capacity: Int, val platterCount: Int, val label: Label, host: Op
 
   private def offsetSector(offset: Int) = offset / sectorSize
 
-  /**
-   * 磁盘访问音效 / 活动通告（与 1.7.10 的 `diskActivity` 逐行一致）。
-   *
-   * 只有配置了音效名（`sound`）且已知宿主（`host`）时才发送，
-   * 由 [[li.cil.oc.server.PacketSender.sendFileSystemActivity]] 负责限流并投递
-   * `FileSystemAccessEvent.Server` 事件 + `PacketType.FileSystemActivity` 包。
-   * 客户端据此播放磁盘访问音效；服务端功能不依赖它。
-   */
   private def diskActivity(): Unit = {
     (sound, host) match {
-      case (Some(s), Some(h)) => li.cil.oc.server.PacketSender.sendFileSystemActivity(node, h, s)
+      case (Some(s), Some(h)) => ServerPacketSender.sendFileSystemActivity(node, h, s)
       case _ =>
     }
   }

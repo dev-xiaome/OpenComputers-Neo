@@ -1,58 +1,33 @@
 package li.cil.oc
 
-import net.minecraft.ChatFormatting
 import net.minecraft.locale.Language
-import net.minecraft.network.chat.{ClickEvent, Component, HoverEvent}
+import net.minecraft.network.chat._
 
-import scala.util.matching.Regex
-
-/**
- * 本地化辅助（原 1.7.10 使用 `StatCollector` + `Component`）。
- *
- * 1.21.1 迁移要点：
- *  - `StatCollector.canTranslate` → `Language.getInstance().has`
- *  - `ChatComponentTranslation` → `Component.translatable`
- *  - `ChatComponentText` → `Component.literal`
- *  - `getChatStyle.setChatClickEvent(...)` → `withStyle` 链式设置 `ClickEvent` / `HoverEvent`
- */
 object Localization {
-  private val nl = Regex.quote("[nl]")
-
-  /** 客户端剪贴板命令名（原 `li.cil.oc.client.CommandHandler.SetClipboardCommand.name`）。 */
-  private final val SetClipboardCommandName = "oc_setClipboard"
-
-  private def resolveKey(key: String): Option[String] =
+  private def resolveKey(key: String) =
     if (canLocalize(Settings.namespace + key)) Option(Settings.namespace + key)
     else if (canLocalize(key)) Option(key)
     else Option.empty
 
   def canLocalize(key: String): Boolean = Language.getInstance.has(key)
 
-  def localizeLater(formatKey: String, values: AnyRef*): Component =
-    Component.translatable(resolveKey(formatKey).getOrElse(formatKey), values.toSeq: _*)
+  def localizeLater(key: String) = Component.translatable(resolveKey(key).getOrElse(key))
 
-  def localizeLater(key: String): Component =
-    resolveKey(key).map(k => Component.translatable(k)).getOrElse(Component.literal(key))
+  def localizeLater(key: String, values: AnyRef*) = Component.translatable(resolveKey(key).getOrElse(key), values: _*)
 
-  def localizeImmediately(formatKey: String, values: AnyRef*): String =
-    Component.translatable(resolveKey(formatKey).getOrElse(formatKey), values.toSeq: _*).getString
-      .split(nl).map(_.trim).mkString("\n")
+  def localizeImmediately(key: String, values: AnyRef*): String = {
+    resolveKey(key).map(k => String.format(Language.getInstance.getOrDefault(k), values: _*).linesIterator.map(_.trim).mkString("\n")).getOrElse(key)
+  }
 
-  def localizeImmediately(key: String): String =
-    resolveKey(key).map(k => Component.translatable(k).getString).getOrElse(key)
-      .split(nl).map(_.trim).mkString("\n")
-
-  /** 便捷构造：给组件加上颜色前缀。 */
-  private def prefixed(prefix: String, body: Component): Component =
-    Component.literal(prefix).append(body)
-
-  private def ocChat(body: Component): Component =
-    prefixed("§aOpenComputers§f: ", body)
+  def localizeImmediately(key: String): String = {
+    resolveKey(key).map(k => Language.getInstance.getOrDefault(k).linesIterator.map(_.trim).mkString("\n")).getOrElse(key)
+  }
 
   object Analyzer {
-    def Address(value: String): Component = {
-      localizeLater("gui.Analyzer.Address", value).copy().withStyle(style => style
-        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, s"/$SetClipboardCommandName $value"))
+    def Address(value: String): MutableComponent = {
+      val result = localizeLater("gui.Analyzer.Address", value)
+      result.setStyle(result.getStyle
+        .withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, value))
         .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, localizeLater("gui.Analyzer.CopyToClipboard"))))
     }
 
@@ -106,21 +81,19 @@ object Localization {
   }
 
   object Chat {
-    def WarningLuaFallback: Component = ocChat(localizeLater("gui.Chat.WarningLuaFallback"))
+    def WarningLuaFallback: Component = Component.literal("§aOpenComputers§f: ").append(localizeLater("gui.Chat.WarningLuaFallback"))
 
-    def WarningProjectRed: Component = ocChat(localizeLater("gui.Chat.WarningProjectRed"))
+    def WarningProjectRed: Component = Component.literal("§aOpenComputers§f: ").append(localizeLater("gui.Chat.WarningProjectRed"))
 
-    def WarningRecipes: Component = ocChat(localizeLater("gui.Chat.WarningRecipes"))
+    def WarningRecipes: Component = Component.literal("§aOpenComputers§f: ").append(localizeLater("gui.Chat.WarningRecipes"))
 
-    def WarningClassTransformer: Component = ocChat(localizeLater("gui.Chat.WarningClassTransformer"))
+    def WarningClassTransformer: Component = Component.literal("§aOpenComputers§f: ").append(localizeLater("gui.Chat.WarningClassTransformer"))
 
-    def WarningSimpleComponent: Component = ocChat(localizeLater("gui.Chat.WarningSimpleComponent"))
+    def WarningLink(url: String): Component = Component.literal("§aOpenComputers§f: ").append(localizeLater("gui.Chat.WarningLink", url))
 
-    def WarningLink(url: String): Component = ocChat(localizeLater("gui.Chat.WarningLink", url))
+    def InfoNewVersion(version: String): Component = Component.literal("§aOpenComputers§f: ").append(localizeLater("gui.Chat.NewVersion", version))
 
-    def InfoNewVersion(version: String): Component = ocChat(localizeLater("gui.Chat.NewVersion", version))
-
-    def TextureName(name: String): Component = ocChat(localizeLater("gui.Chat.TextureName", name))
+    def TextureName(name: String): Component = Component.literal("§aOpenComputers§f: ").append(localizeLater("gui.Chat.TextureName", name))
   }
 
   object Computer {
@@ -184,28 +157,25 @@ object Localization {
   }
 
   object Tooltip {
-    def DiskUsage(used: Long, capacity: Long): String = localizeImmediately("tooltip.DiskUsage", used.toString, capacity.toString)
+    def DiskUsage(used: Long, capacity: Long): String = localizeImmediately("tooltip.diskusage", used.toString, capacity.toString)
 
-    def DiskMode(isUnmanaged: Boolean): String = localizeImmediately(if (isUnmanaged) "tooltip.DiskModeUnmanaged" else "tooltip.DiskModeManaged")
+    def DiskMode(isUnmanaged: Boolean): String = localizeImmediately(if (isUnmanaged) "tooltip.diskmodeunmanaged" else "tooltip.diskmodemanaged")
 
-    def DiskLock(lockInfo: String): String = if (lockInfo.isEmpty) "" else localizeImmediately("tooltip.DiskLocked", lockInfo)
+    def Materials: String = localizeImmediately("tooltip.materials")
 
-    def Materials: String = localizeImmediately("tooltip.Materials")
+    def DiskLock(lockInfo: String): String = if (lockInfo.isEmpty) "" else localizeImmediately("tooltip.disklocked", lockInfo)
 
-    def Tier(tier: Int): String = localizeImmediately("tooltip.Tier", tier.toString)
+    def Tier(tier: Int): String = localizeImmediately("tooltip.tier", tier.toString)
 
-    def PrintBeaconBase: String = localizeImmediately("tooltip.Print.BeaconBase")
+    def PrintBeaconBase: String = localizeImmediately("tooltip.print.BeaconBase")
 
-    def PrintLightValue(level: Int): String = localizeImmediately("tooltip.Print.LightValue", level.toString)
+    def PrintLightValue(level: Int): String = localizeImmediately("tooltip.print.LightValue", level.toString)
 
-    def PrintRedstoneLevel(level: Int): String = localizeImmediately("tooltip.Print.RedstoneLevel", level.toString)
+    def PrintRedstoneLevel(level: Int): String = localizeImmediately("tooltip.print.RedstoneLevel", level.toString)
 
-    def MFULinked(isLinked: Boolean): String = localizeImmediately(if (isLinked) "tooltip.UpgradeMF.Linked" else "tooltip.UpgradeMF.Unlinked")
+    def MFULinked(isLinked: Boolean): String = localizeImmediately(if (isLinked) "tooltip.upgrademf.Linked" else "tooltip.upgrademf.Unlinked")
+
+    def ExperienceLevel(level: Double): String = localizeImmediately("tooltip.robot_level", level.toString)
   }
 
-  /** 格式化辅助，供其它模块复用。 */
-  def format(value: String): String = value
-
-  /** 颜色常量便捷引用。 */
-  val darkRed: ChatFormatting = ChatFormatting.DARK_RED
 }

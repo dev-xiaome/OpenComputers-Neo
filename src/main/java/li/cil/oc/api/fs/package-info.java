@@ -14,3 +14,5 @@
  * from computers).
  */
 package li.cil.oc.api.fs;
+
+import li.cil.oc.api.API;

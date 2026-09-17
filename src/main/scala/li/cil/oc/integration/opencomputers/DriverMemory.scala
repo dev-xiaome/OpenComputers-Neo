@@ -1,23 +1,19 @@
 package li.cil.oc.integration.opencomputers
 
-import li.cil.oc.Constants
-import li.cil.oc.Settings
-import li.cil.oc.api
+import li.cil.oc.{Constants, Settings, api}
 import li.cil.oc.common.Slot
 import li.cil.oc.common.Tier
 import li.cil.oc.common.item
-import li.cil.oc.common.item.Delegator
 import li.cil.oc.server.component
 import net.minecraft.world.item.ItemStack
 
 object DriverMemory extends Item with api.driver.item.Memory with api.driver.item.CallBudget {
-  override def amount(stack: ItemStack) =
-    Delegator.subItem(stack) match {
-      case Some(memory: item.Memory) =>
-        val sizes = Settings.get.ramSizes
-        Settings.get.ramSizes(memory.tier max 0 min (sizes.length - 1))
-      case _ => 0.0
-    }
+  override def amount(stack: ItemStack): Double = stack.getItem match {
+    case memory: item.Memory =>
+      val sizes = Settings.get.ramSizes
+      sizes(memory.tier max 0 min (sizes.length - 1)).toDouble
+    case _ => 0.0
+  }
 
   override def worksWith(stack: ItemStack) = isOneOf(stack,
     api.Items.get(Constants.ItemName.RAMTier1),
@@ -25,17 +21,19 @@ object DriverMemory extends Item with api.driver.item.Memory with api.driver.ite
     api.Items.get(Constants.ItemName.RAMTier3),
     api.Items.get(Constants.ItemName.RAMTier4),
     api.Items.get(Constants.ItemName.RAMTier5),
-    api.Items.get(Constants.ItemName.RAMTier6))
+    api.Items.get(Constants.ItemName.RAMTier6),
+    api.Items.get(Constants.ItemName.RAMTier7),
+    api.Items.get(Constants.ItemName.RAMTier8))
 
   override def createEnvironment(stack: ItemStack, host: api.network.EnvironmentHost) = new component.Memory(tier(stack))
 
   override def slot(stack: ItemStack) = Slot.Memory
 
   override def tier(stack: ItemStack) =
-    Delegator.subItem(stack) match {
-      case Some(memory: item.Memory) => memory.tier / 2
+    stack.getItem match {
+      case memory: item.Memory => memory.tier / 2
       case _ => Tier.One
     }
 
-  override def getCallBudget(stack: ItemStack): Double = Settings.get.callBudgets(tier(stack) max Tier.One min Tier.Three)
+  override def getCallBudget(stack: ItemStack): Double = Settings.get.callBudgets(tier(stack) max Tier.One min Tier.Four)
 }

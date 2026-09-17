@@ -1,0 +1,309 @@
+package li.cil.oc.common.component
+
+import java.util
+import java.util.UUID
+
+import li.cil.oc.Constants
+import li.cil.oc._
+import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
+import li.cil.oc.api.driver.DeviceInfo.DeviceClass
+import li.cil.oc.Settings
+import li.cil.oc.api
+import li.cil.oc.api.component.RackBusConnectable
+import li.cil.oc.api.component.RackMountable
+import li.cil.oc.api.driver.DeviceInfo
+import li.cil.oc.api.internal.Keyboard.UsabilityChecker
+import li.cil.oc.api.network.Analyzable
+import li.cil.oc.api.network.Environment
+import li.cil.oc.api.network.EnvironmentHost
+import li.cil.oc.api.network.Message
+import li.cil.oc.api.network.Node
+import li.cil.oc.api.network.Visibility
+import li.cil.oc.api.util.Lifecycle
+import li.cil.oc.api.util.StateAware
+import li.cil.oc.api.util.StateAware.State
+import li.cil.oc.common.Tier
+import li.cil.oc.util.ExtendedNBT._
+import net.minecraft.world.entity.player.Player
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.StringTag
+import net.minecraft.nbt.Tag
+
+import scala.jdk.CollectionConverters._
+import scala.collection.mutable
+
+/**
+ * 机架式终端服务器（对应 1.7.10 的 `common.component.TerminalServer`）。
+ *
+ * 1.21.1 迁移要点：
+ *  - `Level#isRemote` → `Level#isClientSide`
+ *  - `net.minecraftforge.common.util.Constants.NBT.TAG_STRING` → `net.minecraft.nbt.Tag.TAG_STRING`
+ *  - `StringTag#func_150285_a_()` → `StringTag#getAsString`
+ *  - `ListTag#map/foreach` → 先 `asScala`（Java 列表）
+ *  - `Player#getHeldItem` → `Player#getMainHandItem`；`Player#inventory` → `Player#getInventory`
+ *  - `stack.hasTagCompound` / `getTagCompound` → 包对象提供的 `hasTag()` / `getTag()`
+ *  - `mutable.Map#getOrDefault`（Java 风格）→ `get` 返回 `Option`
+ */
+class TerminalServer(val rack: api.internal.Rack, val slot: Int) extends Environment with EnvironmentHost with Analyzable with RackMountable with Lifecycle with DeviceInfo {
+  val node = api.Network.newNode(this, Visibility.None).create()
+
+  lazy val buffer = {
+    val screenItem = api.Items.get(Constants.BlockName.ScreenTier1).createItemStack(1)
+    val buffer = api.Driver.driverFor(screenItem, getClass).createEnvironment(screenItem, this).asInstanceOf[api.internal.TextBuffer]
+    val (maxWidth, maxHeight) = Settings.screenResolutionsByTier(Tier.Three)
+    buffer.setMaximumResolution(maxWidth, maxHeight)
+    buffer.setMaximumColorDepth(Settings.screenDepthsByTier(Tier.Three))
+    buffer
+  }
+
+  lazy val keyboard = {
+    val keyboardItem = api.Items.get(Constants.BlockName.Keyboard).createItemStack(1)
+    val keyboard = api.Driver.driverFor(keyboardItem, getClass).createEnvironment(keyboardItem, this).asInstanceOf[api.internal.Keyboard]
+    keyboard.setUsableOverride(new UsabilityChecker {
+      override def isUsableByPlayer(keyboard: api.internal.Keyboard, player: Player) = {
+        val stack = player.getMainHandItem
+        // 旧版用 `Delegator.subItem(stack)`（1.7.10 的「单物品 + damage 子类型」派发机制）判断
+        // 手持的是不是终端。1.21.1 每个子类型都是独立物品，直接用 `api.Items.get` 比较即可。
+        api.Items.get(stack) == api.Items.get(Constants.ItemName.Terminal) && stack.hasTag() &&
+          sidedKeys.contains(stack.getTag().getString(Settings.namespace + "key"))
+      }
+    })
+    keyboard
+  }
+
+  var range = Settings.get.maxWirelessRange(Tier.Two)
+  val keys = mutable.ListBuffer.empty[String]
+
+  def hasAddress: Boolean = {
+    if (rack != null) {
+      val data = rack.getMountableData(slot)
+      if (data != null) {
+        return data.contains("terminalAddress")
+      }
+    }
+    false
+  }
+
+  def address: String = rack.getMountableData(slot).getString("terminalAddress")
+
+  def sidedKeys = {
+    if (!rack.world.isClientSide) keys
+    else rack.getMountableData(slot).getList("keys", Tag.TAG_STRING).asScala.map {
+      case tag: StringTag => tag.getAsString
+      case _ => ""
+    }
+  }
+
+  // ----------------------------------------------------------------------- //
+  // DeviceInfo
+
+  private final lazy val deviceInfo = Map(
+    DeviceAttribute.Class -> DeviceClass.Generic,
+    DeviceAttribute.Description -> "Terminal server",
+    DeviceAttribute.Vendor -> Constants.DeviceInfo.DefaultVendor,
+    DeviceAttribute.Product -> "RemoteViewing EX"
+  )
+
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+
+  // ----------------------------------------------------------------------- //
+  // Environment
+
+  override def onConnect(node: Node): Unit = {
+    if (node == this.node) {
+      node.connect(buffer.node)
+      node.connect(keyboard.node)
+      buffer.node.connect(keyboard.node)
+    }
+  }
+
+  override def onDisconnect(node: Node): Unit = {
+    if (node == this.node) {
+      buffer.node.remove()
+      keyboard.node.remove()
+    }
+  }
+
+  override def onMessage(message: Message): Unit = {
+  }
+
+  // ----------------------------------------------------------------------- //
+  // EnvironmentHost
+
+  override def world = rack.world
+
+  override def xPosition = rack.xPosition
+
+  override def yPosition = rack.yPosition
+
+  override def zPosition = rack.zPosition
+
+  override def markChanged() = rack.markChanged()
+
+  // ----------------------------------------------------------------------- //
+  // RackMountable
+
+  override def getData: CompoundTag = {
+    if (node.address == null) api.Network.joinNewNetwork(node)
+
+    val nbt = new CompoundTag()
+    nbt.setNewTagList("keys", keys)
+    nbt.putString("terminalAddress", node.address)
+    nbt
+  }
+
+  override def getConnectableCount: Int = 0
+
+  override def getConnectableAt(index: Int): RackBusConnectable = null
+
+  override def onActivate(player: Player, hitX: Float, hitY: Float): Boolean = {
+    val stack = player.getMainHandItem
+    if (api.Items.get(stack) == api.Items.get(Constants.ItemName.Terminal)) {
+      if (!world.isClientSide) {
+        val key = UUID.randomUUID().toString
+        if (!stack.hasTag()) {
+          stack.setTag(new CompoundTag())
+        }
+        else {
+          keys -= stack.getTag().getString(Settings.namespace + "key")
+        }
+        val maxSize = Settings.get.terminalsPerServer
+        while (keys.length >= maxSize) {
+          keys.remove(0)
+        }
+        keys += key
+        stack.getTag().putString(Settings.namespace + "key", key)
+        stack.getTag().putString(Settings.namespace + "server", node.address)
+        rack.markChanged(slot)
+        player.getInventory.setChanged()
+      }
+      true
+    }
+    else false
+  }
+
+  // ----------------------------------------------------------------------- //
+  // Persistable
+
+  override def load(nbt: CompoundTag): Unit = {
+    if (!rack.world.isClientSide) {
+      node.load(nbt)
+    }
+    buffer.load(nbt.getCompound(Settings.namespace + "buffer"))
+    keyboard.load(nbt.getCompound(Settings.namespace + "keyboard"))
+    keys.clear()
+    nbt.getList(Settings.namespace + "keys", Tag.TAG_STRING).asScala.foreach {
+      case tag: StringTag => keys += tag.getAsString
+      case _ =>
+    }
+  }
+
+  override def save(nbt: CompoundTag): Unit = {
+    node.save(nbt)
+    nbt.setNewCompoundTag(Settings.namespace + "buffer", buffer.save)
+    nbt.setNewCompoundTag(Settings.namespace + "keyboard", keyboard.save)
+    nbt.setNewTagList(Settings.namespace + "keys", keys)
+  }
+
+  // ----------------------------------------------------------------------- //
+  // ManagedEnvironment
+
+  override def canUpdate: Boolean = true
+
+  override def update(): Unit = {
+    if (world.isClientSide || (node.address != null && node.network != null)) {
+      buffer.update()
+    }
+  }
+
+  // ----------------------------------------------------------------------- //
+  // StateAware
+
+  override def getCurrentState: util.EnumSet[State] = {
+    util.EnumSet.noneOf(classOf[StateAware.State])
+  }
+
+  // ----------------------------------------------------------------------- //
+  // Analyzable
+
+  override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float) = Array(buffer.node, keyboard.node)
+
+  // ----------------------------------------------------------------------- //
+  // LifeCycle
+
+  override def onLifecycleStateChange(state: Lifecycle.LifecycleState): Unit = if (rack.world.isClientSide) state match {
+    case Lifecycle.LifecycleState.Initialized =>
+      TerminalServer.loaded.add(this)
+    case Lifecycle.LifecycleState.Disposed =>
+      TerminalServer.loaded.remove(this)
+    case _ => // Ignore.
+  }
+}
+
+object TerminalServer {
+  val loaded = new TerminalServerCache()
+
+  // we need a smart cache because nodes are loaded in before they have addresses
+  // and we need a unique set of terminal servers based on address
+  // This cache acts as a Map[address: String, term: TerminalServer]
+  // But it can store terminals before they have an address
+  // Null-address terminals are not available for binding
+  // As an address loads, repeated addresses are dropped from the list
+  class TerminalServerCache {
+
+    private val ready: mutable.Map[String, TerminalServer] = new mutable.HashMap[String, TerminalServer]()
+    private val pending: mutable.Buffer[TerminalServer] = mutable.Buffer.empty[TerminalServer]
+
+    private def completePending(): Unit = {
+      val promoted: mutable.Buffer[TerminalServer] = mutable.Buffer.empty[TerminalServer]
+      pending.foreach { term => if (term.hasAddress)
+        promoted += term
+      }
+      promoted.foreach { term =>
+        pending -= term
+        val address = term.address
+        if (!ready.contains(address)) {
+          ready.put(address, term)
+        }
+      }
+    }
+
+    def add(terminal: TerminalServer): Boolean = {
+      completePending()
+      if (terminal.hasAddress) {
+        val newAddress: String = terminal.address
+        if (ready.contains(newAddress)) {
+          false
+        } else {
+          ready.put(newAddress, terminal)
+          true
+        }
+      }
+      else {
+        pending += terminal
+        true
+      }
+    }
+
+    def remove(terminal: TerminalServer): Boolean = {
+      completePending()
+      if (terminal.hasAddress)
+        ready.remove(terminal.address).isDefined
+      else {
+        val before = pending.size
+        pending -= terminal
+        pending.size > before
+      }
+    }
+
+    def clear(): Unit = {
+      ready.clear()
+      pending.clear()
+    }
+
+    def find(address: String): Option[TerminalServer] = {
+      completePending()
+      ready.get(address)
+    }
+  }
+}

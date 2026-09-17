@@ -65,10 +65,10 @@ trait Capacity extends OutputStreamFileSystem {
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag): Unit = {
+  override def loadData(nbt: CompoundTag): Unit = {
     try {
       ignoreCapacity = true
-      super.load(nbt)
+      super.loadData(nbt)
     } finally {
       ignoreCapacity = false
     }
@@ -76,8 +76,8 @@ trait Capacity extends OutputStreamFileSystem {
     used = computeSize("/")
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    super.save(nbt)
+  override def saveData(nbt: CompoundTag): Unit = {
+    super.saveData(nbt)
 
     // For the tooltip.
     nbt.putLong("capacity.used", used)
@@ -89,7 +89,7 @@ trait Capacity extends OutputStreamFileSystem {
     val delta =
       if (exists(path))
         if (mode == Mode.Write)
-          -size(path) // Overwrite, file gets cleared.
+          -size(path).toInt // Overwrite, file gets cleared.
         else
           0 // Append, no immediate changes.
       else

@@ -1,16 +1,14 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/**
- * 「升级容器（卡）」（原 `li.cil.oc.common.item.UpgradeContainerCard`）。
- *
- * 对应 `Constants.ItemName.CardContainerTier1..3`。
- */
-class UpgradeContainerCard(props: Item.Properties, override val tier: Int)
-  extends Item(props) with traits.Delegate with traits.ItemTier {
+class UpgradeContainerCard(props: Properties, val tier: Int) extends Item(props) with IForgeItem with traits.SimpleItem with traits.ItemTier {
+  @Deprecated
+  override def getDescriptionId = super.getDescriptionId + tier
 
-  override protected def tooltipName: Option[String] = Option(super.unlocalizedName)
+  override protected def tooltipName = Option(unlocalizedName)
 
-  override protected def tooltipData: Seq[Any] = Seq(tier + 1)
+  override protected def tooltipData = Seq(tier + 1)
 }

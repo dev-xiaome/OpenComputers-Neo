@@ -1,30 +1,26 @@
 package li.cil.oc.util;
 
-import net.neoforged.fml.LogicalSide;
 import net.neoforged.fml.util.thread.EffectiveSide;
 
 /**
- * 判断「当前代码正运行在哪一侧」。
+ * 判断当前代码跑在逻辑服务端还是客户端。
  *
- * <p>1.7.10 的实现是 {@code FMLCommonHandler.instance().getEffectiveSide()}，也就是
- * <b>逻辑侧</b>：同一个 JVM 里跑服务端逻辑时返回 SERVER，即使物理端是客户端
- * （单人游戏 / 集成服务器就是这么跑的）。
+ * <p>NeoForge 1.21.1 没有 Forge 1.20 的 {@code forgespi.Environment}，因此改用
+ * {@link EffectiveSide}：它给出的是**当前线程所属的逻辑侧**。
  *
- * <p>1.21.1 的等价物是 {@link EffectiveSide#get()}（FML 按线程跟踪的
- * {@link LogicalSide}），<b>不能</b>用 {@code FMLEnvironment.dist}：那是
- * <b>物理侧</b>，单人游戏里恒为 CLIENT。用错会让所有「服务端才建立」的对象
- * 在单人游戏里被跳过 —— 例如 {@code server.network.Network.newNode(...).create()}
- * 返回 {@code null}，于是组件拿不到节点、方块实体 tick 时抛
- * {@code NullPointerException: ... Machine.node() is null} 并直接崩档。
+ * <p>这里刻意**不**看物理侧（{@code FMLEnvironment.dist}）：单人游戏里物理侧是客户端，
+ * 但集成服务端同样在跑，方块实体与机器 tick 都在逻辑服务端上执行。按物理侧判断会把
+ * 单人游戏的服务端逻辑判成客户端，直接后果是网络节点建不出来、机器 tick 空指针崩服。
  */
 public final class SideTracker {
-
     public static boolean isServer() {
-        return EffectiveSide.get() == LogicalSide.SERVER;
+        return EffectiveSide.get().isServer();
     }
 
     public static boolean isClient() {
         return !isServer();
     }
 
+    private SideTracker() {
+    }
 }

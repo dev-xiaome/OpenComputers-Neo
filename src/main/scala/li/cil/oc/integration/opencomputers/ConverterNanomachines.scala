@@ -9,7 +9,7 @@ import li.cil.oc.api.driver.Converter
 import li.cil.oc.common.item.data.NanomachineData
 import net.minecraft.world.item.ItemStack
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToScala._
 
 object ConverterNanomachines extends Converter {
   lazy val nanomachines = api.Items.get(Constants.ItemName.Nanomachines)
@@ -18,8 +18,7 @@ object ConverterNanomachines extends Converter {
     case stack: ItemStack if api.Items.get(stack) == nanomachines =>
       val data = new NanomachineData(stack)
       if (!Strings.isNullOrEmpty(data.uuid)) {
-        // 1.21.1：`java.util.Map` 没有 `+=`，改用 `put`。
-        output.put("nanomachines", data.uuid)
+        output += "nanomachines" -> data.uuid
       }
     case _ => // Ignore.
   }

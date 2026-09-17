@@ -10,10 +10,10 @@ import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
-import li.cil.oc.common.tileentity.traits.BundledRedstoneAware
+import li.cil.oc.common.blockentity.traits.BundledRedstoneAware
 import net.minecraft.core.Direction
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 
 trait RedstoneBundled extends RedstoneVanilla {
   private final lazy val deviceInfo = Map(
@@ -25,8 +25,7 @@ trait RedstoneBundled extends RedstoneVanilla {
     DeviceAttribute.Width -> "16"
   )
 
-  // 1.21.1：`DeviceInfo#getDeviceInfo` 返回 `java.util.Map`，Scala 的 `Map` 需要显式转换。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   private val COLOR_RANGE = 0 until 16
 

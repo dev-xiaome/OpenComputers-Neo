@@ -9,12 +9,13 @@ import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.machine.{Arguments, Callback, Context, LimitReachedException}
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.util.{ExtendedUnicodeHelper, PackedColor}
 import net.minecraft.nbt.{CompoundTag, ListTag}
-import li.cil.oc.common.component
+import li.cil.oc.common.{Tier, component}
 import li.cil.oc.common.component.GpuTextBuffer
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 import scala.util.matching.Regex
 
 // IMPORTANT: usually methods with side effects should *not* be direct
@@ -29,8 +30,8 @@ import scala.util.matching.Regex
 // saved, but before the computer was saved, leading to mismatching states in
 // the save file - a Bad Thing (TM).
 
-class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceInfo with component.traits.VideoRamDevice {
-  override val node: Connector = Network.newNode(this, Visibility.Neighbors).
+class GraphicsCard(val tier: Int) extends AbstractManagedEnvironment with DeviceInfo with component.traits.VideoRamDevice {
+  override val node = Network.newNode(this, Visibility.Neighbors).
     withComponent("gpu").
     withConnector().
     create()
@@ -49,29 +50,29 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
     if (index == RESERVED_SCREEN_INDEX) {
       screenInstance match {
         case Some(screen) => screen.synchronized(f(screen))
-        case _ => result("no screen")
+        case _ => Array(null, "no screen")
       }
     } else {
       getBuffer(index) match {
         case Some(buffer: api.internal.TextBuffer) => f(buffer)
-        case _ => result("invalid buffer index")
+        case _ => Array(null, "invalid buffer index")
       }
     }
   }
 
   private def screen(f: (api.internal.TextBuffer) => Array[AnyRef]): Array[AnyRef] = screen(bufferIndex, f)
 
-  final val setBackgroundCosts = Array(1.0 / 32, 1.0 / 64, 1.0 / 128)
-  final val setForegroundCosts = Array(1.0 / 32, 1.0 / 64, 1.0 / 128)
-  final val setPaletteColorCosts = Array(1.0 / 2, 1.0 / 8, 1.0 / 16)
-  final val setCosts = Array(1.0 / 64, 1.0 / 128, 1.0 / 256)
-  final val copyCosts = Array(1.0 / 16, 1.0 / 32, 1.0 / 64)
-  final val fillCosts = Array(1.0 / 32, 1.0 / 64, 1.0 / 128)
+  final val setBackgroundCosts   = Array(1.0 / 32,  1.0 / 64,  1.0 / 128, 1.0 / 256)
+  final val setForegroundCosts   = Array(1.0 / 32,  1.0 / 64,  1.0 / 128, 1.0 / 256)
+  final val setPaletteColorCosts = Array(1.0 / 2,   1.0 / 8,   1.0 / 16,  1.0 / 32)
+  final val setCosts             = Array(1.0 / 64,  1.0 / 128, 1.0 / 256, 1.0 / 512)
+  final val copyCosts            = Array(1.0 / 16,  1.0 / 32,  1.0 / 64,  1.0 / 128)
+  final val fillCosts            = Array(1.0 / 32,  1.0 / 64,  1.0 / 128, 1.0 / 256)
   // These are dirty page bitblt budget costs
   // a single bitblt can send a screen of data, which is n*set calls where set is writing an entire line
   // So for each tier, we multiple the set cost with the number of lines the screen may have
   final val bitbltCost: Double = Settings.get.bitbltCost * scala.math.pow(2, tier)
-  final val totalVRAM: Double = (maxResolution._1 * maxResolution._2) * Settings.get.vramSizes(0 max tier min 2)
+  final val totalVRAM: Double = (maxResolution._1 * maxResolution._2) * Settings.get.vramSizes(0 max tier min (Settings.get.vramSizes.length - 1))
 
   var budgetExhausted: Boolean = false // for especially expensive calls, bitblt
 
@@ -87,14 +88,23 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
     DeviceAttribute.Clock -> clockInfo
   )
 
+  private final lazy val deviceInfoT4 = Map(
+    DeviceAttribute.Class -> DeviceClass.Display,
+    DeviceAttribute.Description -> "Graphics controller",
+    DeviceAttribute.Vendor -> Constants.DeviceInfo.ViridiaComputronics,
+    DeviceAttribute.Product -> "VC VR4000XT",
+    DeviceAttribute.Capacity -> capacityInfo,
+    DeviceAttribute.Width -> widthInfo,
+    DeviceAttribute.Clock -> clockInfo
+  )
+
   def capacityInfo: String = (maxResolution._1 * maxResolution._2).toString
 
-  def widthInfo: String = Array("1", "4", "8").apply(maxDepth.ordinal())
+  def widthInfo: String = Array("1", "4", "8", "16").apply(maxDepth.ordinal())
 
   def clockInfo: String = ((2000 / setBackgroundCosts(tier)).toInt / 100).toString + "/" + ((2000 / setForegroundCosts(tier)).toInt / 100).toString + "/" + ((2000 / setPaletteColorCosts(tier)).toInt / 100).toString + "/" + ((2000 / setCosts(tier)).toInt / 100).toString + "/" + ((2000 / copyCosts(tier)).toInt / 100).toString + "/" + ((2000 / fillCosts(tier)).toInt / 100).toString
 
-  // 1.21.1：`deviceInfo` 是 Scala `Map`，而接口要求 `java.util.Map`，需显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = if (tier == Tier.Four) deviceInfoT4 else deviceInfo
 
   // ----------------------------------------------------------------------- //
 
@@ -117,7 +127,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
     val previousIndex: Int = bufferIndex
     val newIndex: Int = args.checkInteger(0)
     if (newIndex != RESERVED_SCREEN_INDEX && getBuffer(newIndex).isEmpty) {
-      result((), "invalid buffer index")
+      result(null, "invalid buffer index")
     } else {
       bufferIndex = newIndex
       if (bufferIndex == RESERVED_SCREEN_INDEX) {
@@ -138,12 +148,12 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
     val height: Int = args.optInteger(1, maxResolution._2)
     val size: Int = width * height
     if (width <= 0 || height <= 0) {
-      result((), "invalid page dimensions: must be greater than zero")
+      result(null, "invalid page dimensions: must be greater than zero")
     }
-    else if (size > (totalVRAM - calculateUsedMemory)) {
-      result((), "not enough video memory")
+    else if (size > (totalVRAM - calculateUsedMemory())) {
+      result(null, "not enough video memory")
     } else if (node == null) {
-      result((), "graphics card appears disconnected")
+      result(null, "graphics card appears disconnected")
     } else {
       val format: PackedColor.ColorFormat = PackedColor.Depth.format(Settings.screenDepthsByTier(tier))
       val buffer = new li.cil.oc.util.TextBuffer(width, height, format)
@@ -172,7 +182,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
   def freeBuffer(context: Context, args: Arguments): Array[AnyRef] = {
     val index: Int = args.optInteger(0, bufferIndex)
     if (removeBuffers(Array(index)) == 1) result(true)
-    else result((), "no buffer at index")
+    else result(null, "no buffer at index")
   }
 
   @Callback(direct = true, doc = """function(): number -- Closes all buffers and returns the count. If the active buffer is closed, index moves to 0""")
@@ -185,7 +195,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
 
   @Callback(direct = true, doc = """function(): number -- returns the total free memory not allocated to buffers. This does not include the screen.""")
   def freeMemory(context: Context, args: Arguments): Array[AnyRef] = {
-    result(totalVRAM - calculateUsedMemory)
+    result(totalVRAM - calculateUsedMemory())
   }
 
   @Callback(direct = true, doc = """function(index: number): number, number -- returns the buffer size at index. Returns the screen resolution for index 0. returns nil for invalid indexes""")
@@ -262,7 +272,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
             component.GpuTextBuffer.bitblt(dst, col, row, w, h, src, fromCol, fromRow)
             result(true)
           }
-        } else result((), "not enough energy")
+        } else result(null, "not enough energy")
       })
     })
   }
@@ -272,7 +282,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
     val address = args.checkString(0)
     val reset = args.optBoolean(1, true)
     node.network.node(address) match {
-      case null => result((), "invalid address")
+      case null => result(null, "invalid address")
       case node: Node if node.host.isInstanceOf[api.internal.TextBuffer] =>
         screenAddress = Option(address)
         screenInstance = Some(node.host.asInstanceOf[api.internal.TextBuffer])
@@ -293,7 +303,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
           else context.pause(0) // To discourage outputting "in realtime" to multiple screens using one GPU.
           result(true)
         })
-      case _ => result((), "not a screen")
+      case _ => result(null, "not a screen")
     }
   }
 
@@ -317,7 +327,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
           (s.getPaletteColor(oldValue), oldValue)
         }
         else {
-          (oldValue, ())
+          (oldValue, null)
         }
       s.setBackgroundColor(color, args.optBoolean(1, false))
       result(oldColor, oldIndex)
@@ -341,7 +351,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
           (s.getPaletteColor(oldValue), oldValue)
         }
         else {
-          (oldValue, ())
+          (oldValue, null)
         }
       s.setForegroundColor(color, args.optBoolean(1, false))
       result(oldColor, oldIndex)
@@ -449,7 +459,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
 //      return screen {
 //        case ram: GpuTextBuffer => {
 //          val nbt = new CompoundTag
-//          ram.data.save(nbt)
+//          ram.data.saveData(nbt)
 //          result(nbt)
 //        }
 //      }
@@ -463,7 +473,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
           (s.getPaletteColor(fgValue), fgValue)
         }
         else {
-          (fgValue, ())
+          (fgValue, null)
         }
 
       val bgValue = s.getBackgroundColor(x, y)
@@ -472,7 +482,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
           (s.getPaletteColor(bgValue), bgValue)
         }
         else {
-          (bgValue, ())
+          (bgValue, null)
         }
 
       result(new java.lang.StringBuilder().appendCodePoint(s.getCodePoint(x, y)).toString, fgColor, bgColor, fgIndex, bgIndex)
@@ -490,7 +500,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
       if (resolveInvokeCosts(bufferIndex, context, setCosts(tier), ExtendedUnicodeHelper.length(value), Settings.get.gpuSetCost)) {
         s.set(x, y, value, vertical)
         result(true)
-      } else result((), "not enough energy")
+      } else result(null, "not enough energy")
     })
   }
 
@@ -507,7 +517,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
         s.copy(x, y, w, h, tx, ty)
         result(true)
       }
-      else result((), "not enough energy")
+      else result(null, "not enough energy")
     })
   }
 
@@ -526,7 +536,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
         result(true)
       }
       else {
-        result((), "not enough energy")
+        result(null, "not enough energy")
       }
     })
     else throw new Exception("invalid fill value")
@@ -562,9 +572,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
             s.fill(0, 0, w, h, 0x20)
             try {
               val wrapRegEx = s"(.{1,${math.max(1, w - 2)}})\\s".r
-              // 1.21.1：`String#lines` 返回 `java.util.stream.Stream`，其 `toArray` 得到的是
-              // `Array[Object]`，必须先经 `asScala` 才能拿到 `Array[String]`。
-              val lines = wrapRegEx.replaceAllIn(Localization.localizeImmediately(machine.lastError).replace("\t", "  ") + "\n", m => Regex.quoteReplacement(m.group(1) + "\n")).lines.iterator().asScala.toArray
+              val lines = wrapRegEx.replaceAllIn(Localization.localizeImmediately(machine.lastError).replace("\t", "  ") + "\n", m => Regex.quoteReplacement(m.group(1) + "\n")).linesIterator.toArray
               val firstRow = ((h - lines.length) / 2) max 2
 
               val message = "Unrecoverable Error"
@@ -618,8 +626,8 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
   private final val NBT_PAGE_DATA: String = "page_data"
   private val COMPOUND_ID = (new CompoundTag).getId
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
+  override def loadData(nbt: CompoundTag): Unit = {
+    super.loadData(nbt)
 
     if (nbt.contains(SCREEN_KEY)) {
       nbt.getString(SCREEN_KEY) match {
@@ -630,7 +638,6 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
     }
 
     if (nbt.contains(BUFFER_INDEX_KEY)) {
-      // 1.21.1：`CompoundTag#getInteger` → `getInt`。
       bufferIndex = nbt.getInt(BUFFER_INDEX_KEY)
     }
 
@@ -638,8 +645,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
     if (nbt.contains(VIDEO_RAM_KEY)) {
       val videoRamNbt = nbt.getCompound(VIDEO_RAM_KEY)
       val nbtPages = videoRamNbt.getList(NBT_PAGES, COMPOUND_ID)
-      // 1.21.1：`ListTag#tagCount` → `size()`。
-      for (i <- 0 until nbtPages.size()) {
+      for (i <- 0 until nbtPages.size) {
         val nbtPage = nbtPages.getCompound(i)
         val idx: Int = nbtPage.getInt(NBT_PAGE_IDX)
         val data = nbtPage.getCompound(NBT_PAGE_DATA)
@@ -648,8 +654,8 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
     }
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    super.save(nbt)
+  override def saveData(nbt: CompoundTag): Unit = {
+    super.saveData(nbt)
 
     if (screenAddress.isDefined) {
       nbt.putString(SCREEN_KEY, screenAddress.get)
@@ -667,7 +673,7 @@ class GraphicsCard(val tier: Int) extends prefab.ManagedEnvironment with DeviceI
           val nbtPage = new CompoundTag
           nbtPage.putInt(NBT_PAGE_IDX, idx)
           val data = new CompoundTag
-          page.data.save(data)
+          page.data.saveData(data)
           nbtPage.put(NBT_PAGE_DATA, data)
           nbtPages.add(nbtPage)
         }

@@ -1,6 +1,6 @@
 # 3D打印件
 
-![以您所期望的任何方式呈现。](block:opencomputers:print)
+![以您所期望的任何方式呈现。](block:OpenComputers:print)
 
 3D打印件是通过[3D打印机](printer.md)创造出来的。它们主要用于装饰，但也有能响应或发出红石信号的形式，这样能实现一些额外功能。
 

@@ -54,6 +54,12 @@ foreach ($g in $globs) {
         if ((Test-Path $p) -and (-not $files.Contains($p))) { $files.Add($p) }
     }
 }
+# OCCE keeps some .java files inside src/main/scala (e.g. common/blockentity/BlockEntityTypes.java).
+# Those Java files reference Scala classes, so they cannot go through compileJava (which runs
+# before compileScala). scalac can read .java sources for signature resolution, so pass them along.
+Get-ChildItem $src -Recurse -File -Filter '*.java' -ErrorAction SilentlyContinue |
+    ForEach-Object { if (-not $files.Contains($_.FullName)) { $files.Add($_.FullName) } }
+
 Write-Output ("sources: {0}, classpath entries: {1}" -f $files.Count, $jars.Count)
 
 $scalaJars = (Get-ChildItem $cache -Recurse -File -Filter 'scala-compiler-2.13.14.jar' -ErrorAction SilentlyContinue | Select-Object -First 1).FullName

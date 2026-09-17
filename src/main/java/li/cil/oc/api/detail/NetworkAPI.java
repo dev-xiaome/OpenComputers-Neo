@@ -6,12 +6,15 @@ import li.cil.oc.api.network.Packet;
 import li.cil.oc.api.network.Visibility;
 import li.cil.oc.api.network.WirelessEndpoint;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
 
 public interface NetworkAPI {
     /**
-     * Tries to add a tile entity's network node(s) at the specified coordinates
-     * to adjacent networks.
+     * Convenience overload for {@link #joinOrCreateNetwork(BlockGetter, BlockPos)}.
      * <br>
      * If the tile entity implements {@link Environment} its one node will be
      * connected to any existing adjacent tile entity nodes. If none exist a
@@ -25,6 +28,15 @@ public interface NetworkAPI {
      * @param tileEntity the tile entity to initialize.
      */
     void joinOrCreateNetwork(BlockEntity tileEntity);
+
+    /**
+     * Tries to add network node(s) at the specified coordinates to adjacent
+     * networks.
+     *
+     * @param world the world containing the location to connect.
+     * @param pos   the position at which to update the network.
+     */
+    void joinOrCreateNetwork(BlockGetter world, BlockPos pos);
 
     /**
      * Creates a new network with the specified node as its initial node.
@@ -91,7 +103,7 @@ public interface NetworkAPI {
      * @param endpoint  the endpoint to remove from the wireless network.
      * @param dimension the dimension with the wireless network to remove the endpoint from.
      */
-    void leaveWirelessNetwork(WirelessEndpoint endpoint, int dimension);
+    void leaveWirelessNetwork(WirelessEndpoint endpoint, ResourceKey<Level> dimension);
 
     /**
      * Sends a packet via the wireless network.
@@ -120,7 +132,7 @@ public interface NetworkAPI {
      * <br>
      * Example use:
      * <pre>
-     * class YourThing extends BlockEntity implements Environment {
+     * class YourThing extends TileEntity implements Environment {
      *     private ComponentConnector node_ =
      *         api.Network.newNode(this, Visibility.Network).
      *             withComponent("your_thing").
@@ -133,13 +145,13 @@ public interface NetworkAPI {
      * }
      * </pre>
      * <br>
-     * Note that the <em>reachability</em> specified here is the general
+     * Note that the {@code reachability} specified here is the general
      * availability of the created node to other nodes in the network. Special
      * rules apply to components, which have a <em>visibility</em> that is used
      * to control how they can be reached from computers. For example, network
-     * cards have a <em>reachability</em> of <tt>Visibility.Network</tt>, to
+     * cards have a {@code reachability} of {@link Visibility#Network}, to
      * allow them to communicate with each other, but a <em>visibility</em> of
-     * <tt>Visibility.Neighbors</tt> to avoid other computers in the network
+     * {@link Visibility#Network} to avoid other computers in the network
      * to see the card (i.e. only the user programs running on the computer the
      * card installed in can see interact with it).
      *
@@ -155,10 +167,10 @@ public interface NetworkAPI {
      * <br>
      * These packets can be forwarded by switches and access points. For wired
      * transmission they must be sent over a node's send method, with the
-     * message name being <tt>network.message</tt>.
+     * message name being {@code network.message}.
      *
      * @param source      the address of the sending node.
-     * @param destination the address of the destination, or <tt>null</tt>
+     * @param destination the address of the destination, or {@code null}
      *                    for a broadcast.
      * @param port        the port to send the packet to.
      * @param data        the payload of the packet.

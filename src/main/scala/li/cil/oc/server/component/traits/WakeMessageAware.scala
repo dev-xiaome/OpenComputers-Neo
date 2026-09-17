@@ -9,6 +9,10 @@ import li.cil.oc.server.component._
 import net.minecraft.nbt.CompoundTag
 
 trait WakeMessageAware extends traits.NetworkAware {
+  private final val WakeMessageTag = "wakeMessage"
+
+  private final val WakeMessageFuzzyTag = "wakeMessageFuzzy"
+
   protected var wakeMessage: Option[String] = None
 
   protected var wakeMessageFuzzy: Boolean = false
@@ -35,7 +39,7 @@ trait WakeMessageAware extends traits.NetworkAware {
   protected def receivePacket(packet: Packet, distance: Double, host: EnvironmentHost): Unit = {
     if (packet.source != node.address && Option(packet.destination).forall(_ == node.address)) {
       if (isPacketAccepted(packet, distance)) {
-        node.sendToReachable("computer.signal", Seq("modem_message", packet.source, Int.box(packet.port), Double.box(distance)) ++ packet.data.toSeq: _*)
+        node.sendToReachable("computer.signal", Seq("modem_message", packet.source, Int.box(packet.port), Double.box(distance)) ++ packet.data: _*)
       }
 
       // Accept wake-up messages regardless of port because we close all ports
@@ -57,14 +61,14 @@ trait WakeMessageAware extends traits.NetworkAware {
   }
 
   def loadWakeMessage(nbt: CompoundTag): Unit = {
-    if (nbt.contains("wakeMessage")) {
-      wakeMessage = Option(nbt.getString("wakeMessage"))
+    if (nbt.contains(WakeMessageTag)) {
+      wakeMessage = Option(nbt.getString(WakeMessageTag))
     }
-    wakeMessageFuzzy = nbt.getBoolean("wakeMessageFuzzy")
+    wakeMessageFuzzy = nbt.getBoolean(WakeMessageFuzzyTag)
   }
 
   def saveWakeMessage(nbt: CompoundTag): Unit = {
-    wakeMessage.foreach(nbt.putString("wakeMessage", _))
-    nbt.putBoolean("wakeMessageFuzzy", wakeMessageFuzzy)
+    wakeMessage.foreach(nbt.putString(WakeMessageTag, _))
+    nbt.putBoolean(WakeMessageFuzzyTag, wakeMessageFuzzy)
   }
 }

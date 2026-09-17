@@ -2,22 +2,17 @@ package li.cil.oc.util
 
 import li.cil.oc.Settings
 import li.cil.oc.api
-import net.minecraft.nbt.{CompoundTag, ListTag, StringTag, Tag}
+import net.minecraft.nbt._
 
 import java.lang
 
 /**
- * 把字符存放在二维数组中并提供一批操作函数，供屏幕缓冲使用。
+ * This stores chars in a 2D-Array and provides some manipulation functions.
  *
- * 主要目的是把大部分实现细节下沉到 Lua 侧，同时保持较低的带宽开销，并在
- * copy()/fill() 这类“聪明”的算法下依然能较快地完成更新。
- *
- * 1.21.1 迁移要点：
- *  - `NBT.TAG_STRING` → [[net.minecraft.nbt.Tag.TAG_STRING]]
- *  - `getInteger`/`setInteger` → `getInt`/`putInt`（`CompoundTag`）
- *  - `getTagList(k, t).getString(i)` → `getList(k, t).getString(i)`
- *  - `ListTag#appendTag` → `ListTag#add`
- *  - 本类不直接涉及渲染，只有 `FontUtils.wcwidth` 的字形宽度查询。
+ * The main purpose of this is to allow moving most implementation detail to
+ * the Lua side while keeping bandwidth costs low and still allowing for
+ * relatively fast updates, given a smart algorithm (using copy()/fill()
+ * instead of set()ing everything).
  */
 class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.ColorFormat) {
   def this(size: (Int, Int), format: PackedColor.ColorFormat) = this(size._1, size._2, format)
@@ -263,14 +258,14 @@ class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.Col
     }
   }
 
-  def load(nbt: CompoundTag): Unit = {
+  def loadData(nbt: CompoundTag): Unit = {
     val maxResolution = math.max(Settings.screenResolutionsByTier.last._1, Settings.screenResolutionsByTier.last._2)
     val w = nbt.getInt("width") min maxResolution max 1
     val h = nbt.getInt("height") min maxResolution max 1
     size = (w, h)
 
     val b = nbt.getList("buffer", Tag.TAG_STRING)
-    for (i <- 0 until math.min(h, b.size())) {
+    for (i <- 0 until math.min(h, b.size)) {
       val value = b.getString(i)
       val valueIt = value.codePoints.iterator()
       var j = 0
@@ -282,7 +277,7 @@ class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.Col
 
     val depth = api.internal.TextBuffer.ColorDepth.values.apply(nbt.getInt("depth") min (api.internal.TextBuffer.ColorDepth.values.length - 1) max 0)
     _format = PackedColor.Depth.format(depth)
-    _format.load(nbt)
+    _format.loadData(nbt)
     foreground = PackedColor.Color(nbt.getInt("foreground"), nbt.getBoolean("foregroundIsPalette"))
     background = PackedColor.Color(nbt.getInt("background"), nbt.getBoolean("backgroundIsPalette"))
 
@@ -291,7 +286,7 @@ class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.Col
     }
   }
 
-  def save(nbt: CompoundTag): Unit = {
+  def saveData(nbt: CompoundTag): Unit = {
     nbt.putInt("width", width)
     nbt.putInt("height", height)
 
@@ -302,7 +297,7 @@ class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.Col
     nbt.put("buffer", b)
 
     nbt.putInt("depth", _format.depth.ordinal)
-    _format.save(nbt)
+    _format.saveData(nbt)
     nbt.putInt("foreground", _foreground.value)
     nbt.putBoolean("foregroundIsPalette", _foreground.isPalette)
     nbt.putInt("background", _background.value)

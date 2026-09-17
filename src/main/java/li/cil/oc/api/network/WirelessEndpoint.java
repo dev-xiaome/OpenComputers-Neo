@@ -6,7 +6,7 @@ import net.minecraft.world.level.Level;
  * Interface for wireless endpoints that can be registered with the internal
  * wireless network registry.
  * <br>
- * These can be added to the wireless network via the <tt>Network</tt> API, to
+ * These can be added to the wireless network via the {@link Network} API, to
  * allow them to receive packets like wireless network cards and access points
  * do (and handle or forward them as they see fit).
  * <br>
@@ -32,7 +32,7 @@ public interface WirelessEndpoint {
     /**
      * The world this endpoint lives in.
      */
-    Level world();
+    Level getWirelessLevel();
 
     /**
      * Makes the endpoint receive a single packet.

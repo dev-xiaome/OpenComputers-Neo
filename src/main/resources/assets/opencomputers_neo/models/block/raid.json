@@ -1,12 +1,9 @@
 {
-    "parent":  "minecraft:block/cube",
-    "textures":  {
-                     "particle":  "opencomputers_neo:block/generictop",
-                     "down":  "opencomputers_neo:block/generictop",
-                     "up":  "opencomputers_neo:block/generictop",
-                     "north":  "opencomputers_neo:block/raidside",
-                     "south":  "opencomputers_neo:block/raidfront",
-                     "west":  "opencomputers_neo:block/raidside",
-                     "east":  "opencomputers_neo:block/raidside"
-                 }
+    "parent": "block/orientable",
+    "textures": {
+        "top": "opencomputers_neo:block/generic_top",
+        "bottom": "opencomputers_neo:block/generic_top",
+        "side": "opencomputers_neo:block/raid_side",
+        "front": "opencomputers_neo:block/raid_front"
+    }
 }

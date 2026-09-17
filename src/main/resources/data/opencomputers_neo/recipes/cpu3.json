@@ -1,0 +1,28 @@
+{
+  "type": "opencomputers_neo:crafting_shaped_extended",
+  "pattern": [
+    "drd",
+    "CUC",
+    "dAd"
+  ],
+  "key": {
+    "d": {
+      "tag": "opencomputers_neo:chipdiamond"
+    },
+    "r": {
+      "tag": "forge:dusts/redstone"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip3"
+    },
+    "U": {
+      "tag": "opencomputers_neo:materialcu"
+    },
+    "A": {
+      "tag": "opencomputers_neo:materialalu"
+    }
+  },
+  "result": {
+    "item": "opencomputers_neo:cpu3"
+  }
+}

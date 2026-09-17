@@ -1,0 +1,28 @@
+package li.cil.oc.server.network
+
+import li.cil.oc.api.network.Packet
+
+import scala.collection.mutable
+
+// Just because the name is so fancy!
+object QuantumNetwork {
+  val tunnels = mutable.Map.empty[String, mutable.WeakHashMap[QuantumNode, Unit]]
+
+  def add(card: QuantumNode): Unit = {
+    // Scala 2.13：`Unit` 伴生对象不能再作为值使用，unit 值统一写作 `()`。
+    tunnels.getOrElseUpdate(card.tunnel, mutable.WeakHashMap.empty).put(card, ())
+  }
+
+  def remove(card: QuantumNode): Unit = {
+    tunnels.get(card.tunnel).foreach(_.remove(card))
+  }
+
+  def getEndpoints(tunnel: String) = tunnels.get(tunnel).fold(Iterable.empty[QuantumNode])(_.keys)
+
+  trait QuantumNode {
+    def tunnel: String
+
+    def receivePacket(packet: Packet): Unit
+  }
+
+}

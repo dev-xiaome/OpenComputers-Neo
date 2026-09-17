@@ -9,17 +9,18 @@ import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.internal
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.ExtendedWorld._
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.item.ItemStack
+import li.cil.oc.util.ExtendedLevel._
+
+import scala.collection.convert.ImplicitConversionsToJava._
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.entity.player.Player
 import net.minecraft.core.Direction
 
-import scala.jdk.CollectionConverters._
-
-class UpgradeBarcodeReader(val host: EnvironmentHost) extends prefab.ManagedEnvironment with DeviceInfo {
+class UpgradeBarcodeReader(val host: EnvironmentHost) extends AbstractManagedEnvironment with DeviceInfo {
   override val node = api.Network.newNode(this, Visibility.Network).
     withComponent("barcode_reader").
     withConnector().
@@ -32,26 +33,23 @@ class UpgradeBarcodeReader(val host: EnvironmentHost) extends prefab.ManagedEnvi
     DeviceAttribute.Product -> "Readerizer Deluxe"
   )
 
-  // 1.21.1：Scala `Map` → `java.util.Map` 需要显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   override def onMessage(message: Message): Unit = {
     super.onMessage(message)
     if (message.name == "tablet.use") message.source.host match {
       case machine: api.machine.Machine => (machine.host, message.data) match {
         case (tablet: internal.Tablet, Array(nbt: CompoundTag, stack: ItemStack, player: Player, blockPos: BlockPosition, side: Direction, hitX: java.lang.Float, hitY: java.lang.Float, hitZ: java.lang.Float)) =>
-          // 1.21.1：`World#getTileEntity` → `World#getBlockEntity`（`ExtendedWorld` 里两者都提供）。
-          // 另外 `Direction#ordinal()` 变成 `ordinal`。
-          host.world.getBlockEntity(blockPos) match {
+          host.getEnvironmentLevel.getBlockEntity(blockPos) match {
             case analyzable: Analyzable =>
-              processNodes(analyzable.onAnalyze(player, side.ordinal, hitX.toFloat, hitY.toFloat, hitZ.toFloat), nbt)
+              processNodes(analyzable.onAnalyze(player, side, hitX.toFloat, hitY.toFloat, hitZ.toFloat), nbt)
             case host: SidedEnvironment =>
               processNodes(Array(host.sidedNode(side)), nbt)
             case host: Environment =>
               processNodes(Array(host.node), nbt)
             case _ => // Ignore
-          }
-          case _ => // Ignore
+          } 
+        case _ => // Ignore
       }
       case _ => // Ignore
     }
@@ -68,10 +66,9 @@ class UpgradeBarcodeReader(val host: EnvironmentHost) extends prefab.ManagedEnvi
         case _ =>
       }
 
-      // 1.21.1：`Node#address()` 是无参方法，Scala 里直接写 `address`。
-      val address = node.address
+      val address = node.address()
       if (address != null && !address.isEmpty) {
-        nodeNBT.putString("address", address)
+        nodeNBT.putString("address", node.address())
       }
 
       readerNBT.add(nodeNBT)

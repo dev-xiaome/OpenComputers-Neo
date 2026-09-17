@@ -1,145 +1,131 @@
 package li.cil.oc.common.item.traits
 
-import java.util
-
 import li.cil.oc.util.ItemStackNBTExtensions._
-import li.cil.oc.util.{ItemCosts, Tooltip}
-import scala.jdk.CollectionConverters._
 
+import java.util
+import li.cil.oc.Settings
+import li.cil.oc.api
+import li.cil.oc.api.event.RobotRenderEvent.MountPoint
+import li.cil.oc.api.internal.Robot
+import li.cil.oc.client.renderer.item.ItemUpgradeRenderer
+import li.cil.oc.common.blockentity
+import li.cil.oc.util.BlockPosition
+import li.cil.oc.util.Tooltip
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.level.LevelReader
+import net.minecraft.core.Direction
+import net.minecraft.world.{InteractionHand, InteractionResult}
+import net.minecraft.core.BlockPos
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.Item
+import net.minecraft.world.item.context.UseOnContext
+import net.minecraft.world.level.Level
+import net.minecraft.world.InteractionResultHolder
+import net.minecraft.client.renderer.MultiBufferSource
 import net.minecraft.network.chat.Component
+import net.minecraft.world.item.TooltipFlag
+import net.neoforged.api.distmarker.Dist
+import net.neoforged.api.distmarker.OnlyIn
 
-import net.minecraft.world.item.{Item, ItemStack, TooltipFlag}
+import scala.collection.convert.ImplicitConversionsToScala._
+import com.mojang.blaze3d.vertex.PoseStack
 
-/**
- * 「简单物品」基类（原 1.7.10 的 `SimpleItem`）。
- *
- * 1.21.1 迁移要点：
- *  - **`Item` 的构造器需要 `Item.Properties`**（1.21.1 起所有物品属性都必须在构造时给出），
- *    因此具体物品类必须在主构造器里写成 `extends Item(props) with SimpleItem`
- *    （`props: Item.Properties` 作为构造参数透传）。
- *  - 1.7.10 用 `setUnlocalizedName("oc." + id)` 改显示名，1.21.1 改为覆写
- *    [[Item#getDescriptionId]]，返回 `"oc." + unlocalizedName`；
- *    语言文件里对应的键是 `item.oc.<unlocalizedName>.name`，与已迁移的
- *    `assets/opencomputers_neo/lang` 下的 json 保持一致
- *    （分级物品用类名 + tier，例如 `Memory` + `0` → `item.oc.Memory0.name`）。
- *  - `setTextureName` / `getChestGenBase` / `doesSneakBypassUse` 在 1.21.1 已不存在
- *    （贴图走模型 JSON，战利品表走数据包，潜行旁路改由方块自身处理），全部移除。
- *  - `addInformation` → [[Item#appendHoverText]]，提示内容从 `String` 改为 [[Component]]。
- *
- * 用法：
- * {{{
- *   // 普通（不分等级）物品：
- *   class Wrench(props: Item.Properties) extends Item(props) with SimpleItem
- *
- *   // 分级物品：tier 由类覆写，unlocalizedName 默认拼上 tier
- *   class Memory(props: Item.Properties, override val tier: Int) extends Item(props) with SimpleItem
- * }}}
- */
-trait SimpleItem extends Item {
+trait SimpleItem extends Item with api.driver.item.UpgradeRenderer {
+  def createItemStack(amount: Int = 1) = new ItemStack(this, amount)
 
-  /**
-   * 由注册层写入的 unlocalized name（等价于 1.7.10 `Items.registerItem(instance, id)` 里的
-   * `setUnlocalizedName("oc." + id)`）；`null` 表示未写入，此时退回类名。
-   *
-   * 只有「非 [[Delegate]] 的 [[SimpleItem]]」会被写入：语言文件里
-   * `item.oc.eeprom.name` / `item.oc.hoverBoots.name` / `item.oc.wrench.name`
-   * 三个小写键就是旧版走这条路径产生的，其余物品（Delegate 子项）的键是「类名(+tier)」。
-   */
-  private var unlocalizedNameValue: String = null
+  @Deprecated
+  protected var unlocalizedName = getClass.getSimpleName.toLowerCase
 
-  /** 等价于 1.7.10 的 `setUnlocalizedName("oc." + id)`；由注册层在物品构造后调用一次。 */
-  private[oc] def setUnlocalizedName(value: String): Unit = unlocalizedNameValue = value
+  @Deprecated
+  override def getDescriptionId = "item.oc." + unlocalizedName
 
-  /**
-   * 对应 1.7.10 的 unlocalized name。默认取类名（PascalCase，与语言文件一致），
-   * 分级物品覆写为 `类名 + tier`；注册层写入过时优先用写入值。
-   *
-   * 注意：**在本 trait 的构造器里不要读取本成员**（子类的覆写在超类构造器执行时尚不可用）。
-   */
-  def unlocalizedName: String =
-    if (unlocalizedNameValue != null) unlocalizedNameValue else SimpleItem.unlocalizedNameOf(getClass)
-
-  /**
-   * 物品等级（0 起，`Tier.None` 表示不分级）。
-   *
-   * 默认不分级；分级物品在具体类里覆写（例如 `class Memory(props, override val tier: Int)`）。
-   * 具体类**必须**用 `override val`，否则会与这里的默认实现冲突。
-   */
-  def tier: Int = li.cil.oc.common.Tier.None
-
-  /**
-   * 翻译键。等价于原 `setUnlocalizedName("oc." + id)` 之后 MC 实际查询的那个键。
-   *
-   * 1.7.10 会拼成 `item.` + unlocalizedName + `.name`；1.21.1 的 `Item#getName` 则是
-   * `Component.translatable(this.getDescriptionId(stack))`，即**直接用本方法的返回值当完整键**。
-   * 因此这里必须把 `item.` 前缀与 `.name` 后缀一起拼上，
-   * 才能对上 `assets/opencomputers_neo/lang` 下既有的 `item.oc.<name>.name` 键。
-   */
-  override def getDescriptionId: String = "item.oc." + unlocalizedName + ".name"
-
-  /** 等价于原 1.7.10 的 `new ItemStack(this, amount)`。 */
-  def createItemStack(amount: Int = 1): ItemStack = new ItemStack(this, amount)
-
-  /**
-   * 1.21.1 不再有 `isBookEnchantable`；附魔台是否接受由 `isEnchantable` /
-   * `getEnchantmentValue` 决定。OC 的物品默认不可附魔。
-   */
-  override def isEnchantable(stack: ItemStack): Boolean = false
-
-  override def appendHoverText(stack: ItemStack, context: Item.TooltipContext,
-                               tooltip: util.List[Component], flag: TooltipFlag): Unit = {
-    super.appendHoverText(stack, context, tooltip, flag)
-    appendSimpleTooltip(stack, tooltip)
-  }
-
-  /**
-   * 原 `SimpleItem.addInformation` 的主体，抽成单独方法方便 [[Delegate]] 复用。
-   *
-   * `ItemCosts` / `Tooltip` 是 util 层已移植的代码，接口仍是
-   * `java.util.List[String]`，这里做一次 `Component` ↔ `String` 的桥接。
-   */
-  protected def appendSimpleTooltip(stack: ItemStack, tooltip: util.List[Component]): Unit = {
-    val lines = new util.ArrayList[String]()
-    lines.addAll(Tooltip.get(unlocalizedName))
-    appendCostsTooltip(stack, lines)
-    appendAddressTooltip(stack, lines)
-    lines.asScala.foreach(line => tooltip.add(Component.literal(line)))
-  }
-
-  /** 材料成本提示（原 `ItemCosts.hasCosts` / `addTooltip` 分支）。 */
-  protected def appendCostsTooltip(stack: ItemStack, lines: util.List[String]): Unit = {
-    if (ItemCosts.hasCosts(stack)) {
-      // TODO(客户端): 原版会判断 `KeyBindings.showMaterialCosts`（客户端包尚未移植），
-      // 这里退化为始终显示成本，等 `li.cil.oc.client.KeyBindings` 移植后恢复。
-      ItemCosts.addTooltip(stack, lines)
+  override def doesSneakBypassUse(stack: ItemStack, level: LevelReader, pos: BlockPos, player: Player): Boolean = {
+    level.getBlockEntity(pos) match {
+      case drive: blockentity.DiskDrive => true
+      case _ => super.doesSneakBypassUse(stack, level, pos, player)
     }
   }
 
-  /** 已有节点地址的组件物品在提示里显示地址前缀。 */
-  protected def appendAddressTooltip(stack: ItemStack, lines: util.List[String]): Unit = {
-    if (stack.hasTag()) {
-      val tag = stack.getTag()
-      if (tag.contains(li.cil.oc.Settings.namespace + "data")) {
-        val data = tag.getCompound(li.cil.oc.Settings.namespace + "data")
-        if (data.contains("node") && data.getCompound("node").contains("address")) {
-          lines.add("§8" + data.getCompound("node").getString("address").substring(0, 13) + "...§7")
-        }
+  @Deprecated
+  override def onItemUseFirst(stack: ItemStack, ctx: UseOnContext): InteractionResult = {
+    val pos = ctx.getClickedPos
+    val hitPos = ctx.getClickLocation
+    onItemUseFirst(stack, ctx.getPlayer, ctx.getPlayer.level, pos, ctx.getClickedFace,
+      (hitPos.x - pos.getX).toFloat, (hitPos.y - pos.getY).toFloat, (hitPos.z - pos.getZ).toFloat, ctx.getHand)
+  }
+
+  @Deprecated
+  def onItemUseFirst(stack: ItemStack, player: Player, level: Level, pos: BlockPos, side: Direction, hitX: Float, hitY: Float, hitZ: Float, hand: InteractionHand): InteractionResult = InteractionResult.PASS
+
+  @Deprecated
+  override def useOn(ctx: UseOnContext): InteractionResult =
+    ctx.getItemInHand match {
+      case stack: ItemStack => {
+        val world = ctx.getLevel
+        val pos = BlockPosition(ctx.getClickedPos, world)
+        val hitPos = ctx.getClickLocation
+        val success = onItemUse(stack, ctx.getPlayer, pos, ctx.getClickedFace,
+          (hitPos.x - pos.x).toFloat, (hitPos.y - pos.y).toFloat, (hitPos.z - pos.z).toFloat)
+        if (success) InteractionResult.sidedSuccess(world.isClientSide) else InteractionResult.PASS
+      }
+      case _ => super.useOn(ctx)
+    }
+
+  @Deprecated
+  def onItemUse(stack: ItemStack, player: Player, position: BlockPosition, side: Direction, hitX: Float, hitY: Float, hitZ: Float): Boolean = false
+
+  @Deprecated
+  override def use(world: Level, player: Player, hand: InteractionHand): InteractionResultHolder[ItemStack] =
+    player.getItemInHand(hand) match {
+      case stack: ItemStack => use(stack, world, player)
+      case _ => super.use(world, player, hand)
+    }
+
+  @Deprecated
+  def use(stack: ItemStack, level: Level, player: Player): InteractionResultHolder[ItemStack] = new InteractionResultHolder(InteractionResult.PASS, stack)
+
+  protected def tierFromDriver(stack: ItemStack): Int =
+    api.Driver.driverFor(stack) match {
+      case driver: api.driver.DriverItem => driver.tier(stack)
+      case _ => 0
+    }
+
+  protected def tooltipName = Option(unlocalizedName)
+
+  protected def tooltipData = Seq.empty[Any]
+
+  @OnlyIn(Dist.CLIENT)
+  override def appendHoverText(stack: ItemStack, level: Level, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+    if (tooltipName.isDefined) {
+      for (curr <- Tooltip.get(tooltipName.get, tooltipData: _*)) {
+        tooltip.add(Component.literal(curr).setStyle(Tooltip.DefaultStyle))
+      }
+      tooltipExtended(stack, tooltip)
+    }
+    else {
+      for (curr <- Tooltip.get(getClass.getSimpleName.toLowerCase)) {
+        tooltip.add(Component.literal(curr).setStyle(Tooltip.DefaultStyle))
+      }
+    }
+    tooltipCosts(stack, tooltip)
+  }
+
+  // For stuff that goes to the normal 'extended' tooltip, before the costs.
+  protected def tooltipExtended(stack: ItemStack, tooltip: java.util.List[Component]): Unit = {}
+
+  protected def tooltipCosts(stack: ItemStack, tooltip: java.util.List[Component]): Unit = {
+    if (stack.hasTag && stack.getTag.contains(Settings.namespace + "data")) {
+      val data = stack.getTag.getCompound(Settings.namespace + "data")
+      if (data.contains("node") && data.getCompound("node").contains("address")) {
+        tooltip.add(Component.literal("§8" + data.getCompound("node").getString("address").substring(0, 13) + "...§7"))
       }
     }
   }
-}
 
-object SimpleItem {
-  /** 取类名作为 unlocalized name（延迟到调用时求值，避免构造期读取子类覆写）。 */
-  def unlocalizedNameOf(clazz: Class[_]): String = clazz.getSimpleName
+  // ----------------------------------------------------------------------- //
 
-  /**
-   * 分级物品的 unlocalized name：`类名 + tier`。
-   * 语言文件里的键正是这样组织的（`Memory` + 0 → `item.oc.Memory0.name`）。
-   */
-  def tieredName(clazz: Class[_], tier: Int): String =
-    if (tier == li.cil.oc.common.Tier.None) clazz.getSimpleName else clazz.getSimpleName + tier
+  override def computePreferredMountPoint(stack: ItemStack, robot: Robot, availableMountPoints: util.Set[String]): String = ItemUpgradeRenderer.preferredMountPoint(stack, availableMountPoints)
 
-  /** 无参物品类可复用的默认属性（等价于 1.21.1 的 `new Item.Properties()`）。 */
-  def defaultProps: Item.Properties = new Item.Properties()
+  @OnlyIn(Dist.CLIENT)
+  override def render(matrix: PoseStack, buffer: MultiBufferSource, light: Int, stack: ItemStack, mountPoint: MountPoint, robot: Robot, pt: Float): Unit = ItemUpgradeRenderer.render(matrix, buffer, light, stack, mountPoint)
 }

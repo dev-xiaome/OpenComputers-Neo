@@ -1,141 +1,127 @@
 package li.cil.oc.common.entity
 
-import java.lang.Iterable
-import java.nio.charset.StandardCharsets
-import java.util.UUID
-
-import com.mojang.authlib.GameProfile
-import li.cil.oc.Constants
-import li.cil.oc.Localization
-import li.cil.oc.Settings
-import li.cil.oc.api
-import li.cil.oc.api.Driver
-import li.cil.oc.api.Machine
+import org.joml.Vector3d
+import li.cil.oc._
 import li.cil.oc.api.driver.item
-import li.cil.oc.api.internal
 import li.cil.oc.api.internal.MultiTank
-import li.cil.oc.api.machine.Context
-import li.cil.oc.api.machine.MachineHost
+import li.cil.oc.api.machine.{Context, MachineHost}
 import li.cil.oc.api.network._
-import li.cil.oc.common.GuiType
-import li.cil.oc.common.inventory.ComponentInventory
-import li.cil.oc.common.inventory.Inventory
+import li.cil.oc.api.{Driver, Machine, internal, machine}
+import li.cil.oc.common.container.{ComponentInventory, Inventory}
 import li.cil.oc.common.item.data.DroneData
-import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.InventoryUtils
+import li.cil.oc.common.menu.MenuTypes
+import li.cil.oc.common.{EventHandler, menu}
+import li.cil.oc.integration.util.Wrench
+import li.cil.oc.server.{agent, component}
+import li.cil.oc.server.agent
+import li.cil.oc.util.ExtendedLevel._
+import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.util.{BlockPosition, InventoryUtils}
 import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.network.chat.Component
 import net.minecraft.network.syncher.{EntityDataAccessor, EntityDataSerializers, SynchedEntityData}
-import net.minecraft.server.level.ServerLevel
-import net.minecraft.world.InteractionHand
-import net.minecraft.world.InteractionResult
-import net.minecraft.world.damagesource.DamageSource
-import net.minecraft.world.entity.{Entity, EntityType, MoverType}
+import net.minecraft.server.level.{ServerLevel, ServerPlayer}
+import net.minecraft.tags.FluidTags
+import net.minecraft.world.entity._
 import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.entity.player.Player
+import net.minecraft.world.entity.player.{Inventory => PlayerInventory}
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.phys.Vec3
-import net.neoforged.neoforge.common.util.FakePlayerFactory
-import net.neoforged.neoforge.fluids.FluidStack
-import net.neoforged.neoforge.fluids.capability.IFluidHandler
+import net.minecraft.world.{InteractionHand, InteractionResult, MenuProvider}
+import net.neoforged.api.distmarker.{Dist, OnlyIn}
+import net.neoforged.neoforge.fluids.IFluidTank
+import net.neoforged.neoforge.network.NetworkHooks
 
-import scala.jdk.CollectionConverters._
+import java.lang
+import java.lang.Iterable
+import java.util.UUID
+/*
+Player → Player
+ServerPlayer → ServerPlayer
+PlayerInventory → Inventory
+MenuProvider → MenuProvider
+CompoundTag → CompoundTag
+EntityDataAccessor → EntityDataAccessor
+EntityDataSerializers → EntityEntityDataSerializers
+SynchedEntityData → SynchedEntityData
+InteractionResult → InteractionResult
+Hand → InteractionHand
+Vec3 → Vec3
+Component → Component
+TextComponent → TextComponent
+World → Level
+ServerLevel → ServerLevel
+EntitySize → EntityDimensions
+*/
 
-/**
- * 无人机实体（对应 1.7.10 的 `common.entity.Drone`）。
- *
- * ==1.21.1 迁移要点==
- *  - 构造器改为 `(EntityType[Drone], Level)`；`world` 参数被 `Level` 取代（`Entity#level()`）。
- *  - `setSize(w, h)` 已被移除：尺寸改由 [[EntityType.Builder#sized]] 决定，这里用包围盒兜底。
- *  - `isImmuneToFire` 字段 → 覆写 `fireImmune()`。
- *  - `dataWatcher`（数字 id）→ `SynchedEntityData.defineId` + `defineSynchedData`。
- *  - `posX/posY/posZ` → `getX/getY/getZ`；`motionX/Y/Z` → `getDeltaMovement()/setDeltaMovement()`；
- *    `moveEntity(dx, dy, dz)` → `move(MoverType.SELF, Vec3)`；`onGround` 字段 → `onGround()`。
- *  - `isInsideOfMaterial(Material.water/lava)` → `isInWater()` / `isInLava()`。
- *  - `world.rand` → `getRandom`；`world.getTotalWorldTime` → `level.getGameTime`。
- *  - `isDead` → `isRemoved()`；`setDead()` → `discard()`（`setRemoved` 是 final，见 [[remove]]）。
- *  - `copyDataFrom(entity, unused)` → `restoreFrom(entity)`。
- *  - `travelToDimension(int)` → 原版 `changeDimension(DimensionTransition)`（由原版构造，无法覆写插入换算）。
- *  - `handleWaterMovement` 覆写点已不存在，浮力交给原版内置的流体逻辑。
- *  - `getCommandSenderName` → 覆写 `getName`。
- *  - `ItemEntity#delayBeforeCanPickup` → `setPickUpDelay(int)`；`world.spawnEntityInWorld` → `addFreshEntity`。
- *  - `player.openGui(...)` → `player.openMenu(...)`（容器 / GUI 层尚未移植，暂不打开）。
- *  - `InventoryUtils.dropAllSlots` → [[li.cil.oc.util.InventoryUtils.dropAllSlotsHandler]]（`IItemHandler` 版）。
- *
- * ==降级清单==
- *  - `server.agent.Player`（无人机 / 机器人共用的「假玩家」层，属未移植的 `server/agent`）：
- *    [[player]] 退化为「主人在线就返回主人，否则返回原地 FakePlayer」。
- *    真正依赖假玩家精确朝向的逻辑（放方块 / 用物品）在 `server.component.Drone` 里，本轮不涉及。
- *  - `server.component.Drone`（无人机组件层，未移植）：[[control]] 固定为 `null`，
- *    因此 [[initializeAfterPlacement]] / 存档里的 `control` 相关行做了空值保护。
- *  - `integration.util.Wrench`：改为用 `api.Items.get` 判断手持扳手（见 [[isWrench]]）。
- *  - 打开无人机 GUI：见 [[interact]] 的 `TODO(container)`。
- */
-class Drone(val entityType: EntityType[Drone], val world: Level)
-  extends Entity(entityType, world)
-    with MachineHost with internal.Drone with internal.Rotatable with Analyzable with Context {
+import scala.collection.JavaConverters.asJavaIterable
 
-  // 一些基本常量。
+object Drone {
+  val DataRunning: EntityDataAccessor[lang.Boolean] = SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.BOOLEAN)
+  val DataTargetX: EntityDataAccessor[lang.Float] = SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.FLOAT)
+  val DataTargetY: EntityDataAccessor[lang.Float] = SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.FLOAT)
+  val DataTargetZ: EntityDataAccessor[lang.Float] = SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.FLOAT)
+  val DataMaxAcceleration: EntityDataAccessor[lang.Float] = SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.FLOAT)
+  val DataSelectedSlot: EntityDataAccessor[Integer] = SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.INT)
+  val DataCurrentEnergy: EntityDataAccessor[Integer] = SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.INT)
+  val DataMaxEnergy: EntityDataAccessor[Integer] = SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.INT)
+  val DataStatusText: EntityDataAccessor[String] = SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.STRING)
+  val DataInventorySize: EntityDataAccessor[Integer] = SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.INT)
+  val DataLightColor: EntityDataAccessor[Integer] = SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.INT)
+}
+
+abstract class DroneInventory(val drone: Drone) extends Inventory
+
+// internal.Rotatable is also in internal.Drone, but it wasn't since the start
+// so this is to ensure it is implemented here, in the very unlikely case that
+// someone decides to ship that specific version of the API.
+class Drone(selfType: EntityType[Drone], level: Level) extends Entity(selfType, level) with MachineHost with internal.Drone with internal.Rotatable with Analyzable with Context {
+  override def getEnvironmentLevel: Level = level
+  
+  // Some basic constants.
   val gravity = 0.05f
-  // 故意取小值：让无人机缓慢下落（飘落）。
+  // low for slow fall (float down)
   val drag = 0.8f
   val maxAcceleration = 0.1f
   val maxVelocity = 0.4f
   val maxInventorySize = 8
 
-  // 1.21.1：`setSize` 已移除。`EntityType.Builder#sized` 会给出同样的 12x6 像素尺寸，
-  // 这里再用包围盒兜底，保证任何构造路径下尺寸都正确。
-  setBoundingBox(makeBoundingBox)
-
-  // 纯装饰的渲染数据。
-  val targetFlapAngles = Array.fill(4, 2)(0f)
-  val flapAngles = Array.fill(4, 2)(0f)
+  // Rendering stuff, purely eyecandy.
+  val targetFlapAngles: Array[Array[Float]] = Array.fill(4, 2)(0f)
+  val flapAngles: Array[Array[Float]] = Array.fill(4, 2)(0f)
   var nextFlapChange = 0
-  var bodyAngle = math.random.toFloat * 90
+  var bodyAngle: Float = math.random.toFloat * 90
   var angularVelocity = 0f
   var nextAngularVelocityChange = 0
   var lastEnergyUpdate = 0
+  private var droppedAsItem = false
 
-  /** 主人 UUID（用于构造假玩家档案），读档时由 [[readAdditionalSaveData]] 恢复。 */
-  private var _ownerUUID: UUID = Drone.DefaultOwnerUUID
-
-  /** 主人名字，读档时由 [[readAdditionalSaveData]] 恢复。 */
-  private var _ownerName: String = Settings.get.fakePlayerName
-
-  // ----------------------------------------------------------------------- //
-  // 逻辑部分：组件、机器等。
-
+  // Logic stuff, components, machine and such.
   val info = new DroneData()
-
-  val machine = if (!world.isClientSide) {
+  val machine: api.machine.Machine = if (!getEnvironmentLevel.isClientSide) {
     val m = Machine.create(this)
-    if (m != null && m.node != null) {
-      m.node match {
-        case connector: Connector => connector.setLocalBufferSize(0)
-        case _ =>
-      }
-    }
+    m.node.asInstanceOf[Connector].setLocalBufferSize(0)
     m
   } else null
-
-  // TODO(server.component.Drone): 无人机组件层（Lua 侧 `drone` 组件、状态文本 / 指示灯 API）尚未移植。
-  val control: ManagedEnvironment = null
-
+  val control: component.Drone = if (!getEnvironmentLevel.isClientSide) new component.Drone(this) else null
   val components = new ComponentInventory {
-    override val items: Array[Option[ItemStack]] = Array.fill[Option[ItemStack]](info.components.length)(None)
+    override def host: Drone = Drone.this
 
-    override def host: EnvironmentHost = Drone.this
+    override def items: Array[ItemStack] = info.components
 
-    override def getSlots: Int = info.components.length
+    override def getContainerSize: Int = info.components.length
 
-    override def markDirty(): Unit = {}
+    override def setChanged(): Unit = {}
 
-    override def isItemValid(slot: Int, stack: ItemStack): Boolean = true
+    override def canPlaceItem(slot: Int, stack: ItemStack) = true
 
-    override def node: Node = if (machine == null) null else machine.node
+    override def stillValid(player: Player) = true
+
+    override def node: Node = Option(machine).map(_.node).orNull
 
     override def onConnect(node: Node): Unit = {}
 
@@ -143,212 +129,110 @@ class Drone(val entityType: EntityType[Drone], val world: Level)
 
     override def onMessage(message: Message): Unit = {}
   }
+  val equipmentInventory = new Inventory {
+    val items = Array.empty[ItemStack]
 
-  val equipmentInventory: Inventory = new Inventory {
-    override val items: Array[Option[ItemStack]] = Array.empty[Option[ItemStack]]
+    override def getContainerSize = 0
 
-    override def getSlots: Int = 0
+    override def getMaxStackSize = 0
 
-    override def getInventoryStackLimit: Int = 0
+    override def setChanged(): Unit = {}
 
-    override def markDirty(): Unit = {}
+    override def canPlaceItem(slot: Int, stack: ItemStack) = false
 
-    override def isItemValid(slot: Int, stack: ItemStack): Boolean = false
+    override def stillValid(player: Player) = false
   }
+  val mainInventory = new DroneInventory(this) {
+    val items: Array[ItemStack] = Array.fill[ItemStack](8)(ItemStack.EMPTY)
 
-  val mainInventory: Inventory = new Inventory {
-    override val items: Array[Option[ItemStack]] = Array.fill[Option[ItemStack]](8)(None)
+    override def getContainerSize: Int = inventorySize
 
-    override def getSlots: Int = inventorySize
+    override def getMaxStackSize = 64
 
-    override def getInventoryStackLimit: Int = 64
+    override def setChanged(): Unit = {} // TODO update client GUI?
 
-    override def markDirty(): Unit = {} // TODO(container): 客户端 GUI 刷新。
+    override def canPlaceItem(slot: Int, stack: ItemStack): Boolean = slot >= 0 && slot < getContainerSize
 
-    override def isItemValid(slot: Int, stack: ItemStack): Boolean = slot >= 0 && slot < getSlots
+    override def stillValid(player: Player): Boolean = player.distanceToSqr(drone) < 64
   }
-
-  /**
-   * 无人机自身没有储罐，储罐来自「储罐升级」等组件。
-   *
-   * 1.21.1：`IFluidTank` 已被 NeoForge 的 [[IFluidHandler]] 取代，
-   * 因此这里把所有组件暴露的流体处理器串成一个只读 / 转发视图。
-   */
-  val tank: MultiTank with IFluidHandler = new MultiTank with IFluidHandler {
-    private def handlers: Seq[IFluidHandler] = components.componentEnvironments.toSeq.flatten.collect {
-      case handler: IFluidHandler => handler
+  val tank = new MultiTank {
+    override def tankCount: Int = components.components.count {
+      case Some(tank: IFluidTank) => true
+      case _ => false
     }
 
-    // ---- MultiTank ----
-
-    override def tankCount(): Int = getTanks
-
-    override def getFluidTank(index: Int): IFluidHandler = {
-      val outer = this
-      new IFluidHandler {
-        override def getTanks: Int = 1
-
-        override def getFluidInTank(tank: Int): FluidStack = outer.getFluidInTank(index)
-
-        override def getTankCapacity(tank: Int): Int = outer.getTankCapacity(index)
-
-        override def isFluidValid(tank: Int, stack: FluidStack): Boolean = outer.isFluidValid(index, stack)
-
-        override def fill(resource: FluidStack, action: IFluidHandler.FluidAction): Int =
-          outer.fill(resource, action)
-
-        override def drain(resource: FluidStack, action: IFluidHandler.FluidAction): FluidStack =
-          outer.drain(resource, action)
-
-        override def drain(maxDrain: Int, action: IFluidHandler.FluidAction): FluidStack =
-          outer.drain(maxDrain, action)
-      }
-    }
-
-    // ---- IFluidHandler ----
-
-    override def getTanks: Int = handlers.map(_.getTanks).sum
-
-    override def getFluidInTank(tank: Int): FluidStack = {
-      var remaining = tank
-      for (handler <- handlers) {
-        val count = handler.getTanks
-        if (remaining < count) return handler.getFluidInTank(remaining)
-        remaining -= count
-      }
-      FluidStack.EMPTY
-    }
-
-    override def getTankCapacity(tank: Int): Int = {
-      var remaining = tank
-      for (handler <- handlers) {
-        val count = handler.getTanks
-        if (remaining < count) return handler.getTankCapacity(remaining)
-        remaining -= count
-      }
-      0
-    }
-
-    override def isFluidValid(tank: Int, stack: FluidStack): Boolean = {
-      var remaining = tank
-      for (handler <- handlers) {
-        val count = handler.getTanks
-        if (remaining < count) return handler.isFluidValid(remaining, stack)
-        remaining -= count
-      }
-      false
-    }
-
-    override def fill(resource: FluidStack, action: IFluidHandler.FluidAction): Int = {
-      var filled = 0
-      for (handler <- handlers if filled < resource.getAmount) {
-        filled += handler.fill(resource.copyWithAmount(resource.getAmount - filled), action)
-      }
-      filled
-    }
-
-    override def drain(resource: FluidStack, action: IFluidHandler.FluidAction): FluidStack = {
-      var drained = FluidStack.EMPTY
-      for (handler <- handlers) {
-        drained = Drone.mergeFluid(drained, handler.drain(resource, action))
-      }
-      drained
-    }
-
-    override def drain(maxDrain: Int, action: IFluidHandler.FluidAction): FluidStack = {
-      var drained = FluidStack.EMPTY
-      var remaining = maxDrain
-      for (handler <- handlers if remaining > 0) {
-        val result = handler.drain(remaining, action)
-        if (!result.isEmpty) {
-          remaining -= result.getAmount
-          drained = Drone.mergeFluid(drained, result)
-        }
-      }
-      drained
-    }
+    override def getFluidTank(index: Int): IFluidTank = components.components.collect {
+      case Some(tank: IFluidTank) => tank
+    }.apply(index)
   }
+  var selectedTank = 0
 
-  private var _selectedTank = 0
-
-  override def setSelectedTank(index: Int): Unit = _selectedTank = index
-
-  override def selectedTank(): Int = _selectedTank
+  override def setSelectedTank(index: Int): Unit = selectedTank = index
 
   override def tier: Int = info.tier
 
-  /**
-   * 无人机 / 机器人共用的「代玩家」。
-   *
-   * TODO(server.agent): 1.7.10 这里返回 `server.agent.Player`（带精确朝向、
-   * 自带物品栏映射的假玩家）。该包尚未移植，因此退化为：
-   *  - 主人在线 → 直接返回主人（打开容器等场景语义一致）；
-   *  - 否则 → 返回一个原地 FakePlayer（不参与方块放置的精细逻辑）。
-   */
   override def player(): Player = {
-    world match {
-      case serverLevel: ServerLevel =>
-        val owner = serverLevel.getServer.getPlayerList.getPlayer(_ownerUUID)
-        if (owner != null) owner
-        else FakePlayerFactory.get(serverLevel, new GameProfile(_ownerUUID, Settings.get.fakePlayerName))
-      case _ => null
-    }
+    agent.Player.updatePositionAndRotation(player_, facing, facing)
+    agent.Player.setPlayerInventoryItems(player_)
+    player_
   }
 
   override def name: String = info.name
 
   override def setName(name: String): Unit = info.name = name
 
-  override def ownerName(): String = _ownerName
+  var ownerName: String = Settings.get.fakePlayerName
 
-  override def ownerUUID(): UUID = _ownerUUID
+  var ownerUUID: UUID = Settings.get.fakePlayerProfile.getId
+
+  private lazy val player_ = new agent.Player(this)
 
   // ----------------------------------------------------------------------- //
-  // 上下文相关调用一律转发给机器；部分组件（例如区块加载升级）依赖这一点。
+  // Forward context stuff to our machine. Interface needed for some components
+  // to work correctly (such as the chunkloader upgrade).
 
-  override def node: Node = if (machine == null) null else machine.node
+  override def node: Node = machine.node
 
-  override def canInteract(player: String): Boolean = machine != null && machine.canInteract(player)
+  override def canInteract(player: String): Boolean = machine.canInteract(player)
 
-  def isRunning: Boolean = machine != null && machine.isRunning
-
-  override def isPaused: Boolean = machine != null && machine.isPaused
+  override def isPaused: Boolean = machine.isPaused
 
   override def start(): Boolean = {
-    if (world.isClientSide || machine == null || machine.isRunning) {
+    if (getEnvironmentLevel.isClientSide || machine.isRunning) {
       return false
     }
     preparePowerUp()
     machine.start()
   }
 
-  override def pause(seconds: Double): Boolean = machine != null && machine.pause(seconds)
+  override def pause(seconds: Double): Boolean = machine.pause(seconds)
 
-  override def stop(): Boolean = machine != null && machine.stop()
+  override def stop(): Boolean = machine.stop()
 
-  override def consumeCallBudget(callCost: Double): Unit = if (machine != null) machine.consumeCallBudget(callCost)
+  override def consumeCallBudget(callCost: Double): Unit = machine.consumeCallBudget(callCost)
 
-  override def signal(name: String, args: AnyRef*): Boolean = machine != null && machine.signal(name, args.toSeq: _*)
+  override def signal(name: String, args: AnyRef*): Boolean = machine.signal(name, args: _*)
 
   // ----------------------------------------------------------------------- //
 
-  override def getTarget: Vec3 = new Vec3(targetX, targetY, targetZ)
+  override def getTarget = new Vector3d(targetX.floatValue(), targetY.floatValue(), targetZ.floatValue())
 
-  override def setTarget(value: Vec3): Unit = {
+  override def setTarget(value: Vector3d): Unit = {
     targetX = value.x.toFloat
     targetY = value.y.toFloat
     targetZ = value.z.toFloat
   }
 
-  override def getVelocity: Vec3 = getDeltaMovement
+  override def getVelocity: Vector3d = {
+    val v3d = getDeltaMovement
+    new Vector3d(v3d.x, v3d.y, v3d.z)
+  }
 
   // ----------------------------------------------------------------------- //
 
-  override def canBeCollidedWith: Boolean = true
+  override def isPickable = true
 
-  override def isPushable: Boolean = true
-
-  override def fireImmune(): Boolean = true
+  override def isPushable = true
 
   // ----------------------------------------------------------------------- //
 
@@ -360,9 +244,13 @@ class Drone(val entityType: EntityType[Drone], val world: Level)
 
   override def markChanged(): Unit = {}
 
+  @OnlyIn(Dist.CLIENT)
+  override def getRopeHoldPosition(dt: Float): Vec3 =
+    getPosition(dt).add(0.0, -0.056, 0.0) // Offset: height * 0.85 * 0.7 - 0.25
+
   // ----------------------------------------------------------------------- //
 
-  override def facing: Direction = Direction.SOUTH
+  override def facing = Direction.SOUTH
 
   override def toLocal(value: Direction): Direction = value
 
@@ -370,22 +258,20 @@ class Drone(val entityType: EntityType[Drone], val world: Level)
 
   // ----------------------------------------------------------------------- //
 
-  override def onAnalyze(player: Player, side: Int, hitX: Float, hitY: Float, hitZ: Float): Array[Node] =
-    if (machine == null) Array.empty[Node] else Array(machine.node)
+  override def onAnalyze(player: Player, side: Direction, hitX: Float, hitY: Float, hitZ: Float) = Array(machine.node)
 
   // ----------------------------------------------------------------------- //
 
-  override def internalComponents(): Iterable[ItemStack] = info.components.toSeq.asJava
+  override def internalComponents(): Iterable[ItemStack] = asJavaIterable(info.components)
 
-  override def componentSlot(address: String): Int =
-    components.componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+  override def componentSlot(address: String): Int = components.components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   override def onMachineConnect(node: Node): Unit = {}
 
   override def onMachineDisconnect(node: Node): Unit = {}
 
   def computeInventorySize(): Int = math.min(maxInventorySize, info.components.foldLeft(0)((acc, component) => acc + (Option(component) match {
-    case Some(stack) if stack != null && !stack.isEmpty => Option(Driver.driverFor(stack, getClass)) match {
+    case Some(stack) => Option(Driver.driverFor(stack, getClass)) match {
       case Some(driver: item.Inventory) => math.max(1, driver.inventoryCapacity(stack) / 4)
       case _ => 0
     }
@@ -393,41 +279,24 @@ class Drone(val entityType: EntityType[Drone], val world: Level)
   })))
 
   // ----------------------------------------------------------------------- //
-  // 同步数据（原 `dataWatcher.addObject(2..12, ...)`）
 
-  override protected def defineSynchedData(builder: SynchedEntityData.Builder): Unit = {
-    // 注意：1.21.1 的 `EntityDataAccessor` 对类型参数**不变**，
-    // 而 Scala 里 Java 的 `byte` 形参会解析成 Scala 的 `Byte`（与 `java.lang.Byte` 不匹配），
-    // 因此这里统一用非原始类型（`java.lang.Integer` / `java.lang.Float` / `String`）承载，
-    // 与旧版 `dataWatcher` 的数字编号一一对应。
-    // 是否正在运行（0/1）。
-    builder.define(Drone.DataRunning, Integer.valueOf(0))
-    // 目标位置。
-    builder.define(Drone.DataTargetX, java.lang.Float.valueOf(0f))
-    builder.define(Drone.DataTargetY, java.lang.Float.valueOf(0f))
-    builder.define(Drone.DataTargetZ, java.lang.Float.valueOf(0f))
-    // 最大加速度。
-    builder.define(Drone.DataTargetAcceleration, java.lang.Float.valueOf(0f))
-    // 选中的物品栏槽位。
-    builder.define(Drone.DataSelectedSlot, Integer.valueOf(0))
-    // 当前 / 最大能量。
-    builder.define(Drone.DataGlobalBuffer, Integer.valueOf(0))
-    builder.define(Drone.DataGlobalBufferSize, Integer.valueOf(100))
-    // 状态文本。
-    builder.define(Drone.DataStatusText, "")
-    // 客户端需要的物品栏大小。
-    builder.define(Drone.DataInventorySize, Integer.valueOf(0))
-    // 指示灯颜色。
-    builder.define(Drone.DataLightColor, Integer.valueOf(0x66DD55))
+  override def defineSynchedData(): Unit = {
+    entityData.define(Drone.DataRunning, java.lang.Boolean.FALSE)
+    entityData.define(Drone.DataTargetX, Float.box(0f))
+    entityData.define(Drone.DataTargetY, Float.box(0f))
+    entityData.define(Drone.DataTargetZ, Float.box(0f))
+    entityData.define(Drone.DataMaxAcceleration, Float.box(0f))
+    entityData.define(Drone.DataSelectedSlot, Int.box(0))
+    entityData.define(Drone.DataCurrentEnergy, Int.box(0))
+    entityData.define(Drone.DataMaxEnergy, Int.box(100))
+    entityData.define(Drone.DataStatusText, "")
+    entityData.define(Drone.DataInventorySize, Int.box(0))
+    entityData.define(Drone.DataLightColor, Int.box(0x66DD55))
   }
 
   def initializeAfterPlacement(stack: ItemStack, player: Player, position: Vec3): Unit = {
-    info.load(stack)
-    // TODO(server.component.Drone): `control` 尚未移植，这里做空值保护。
-    if (control != null && control.node.isInstanceOf[Connector]) {
-      val connector = control.node.asInstanceOf[Connector]
-      connector.changeBuffer(info.storedEnergy - connector.localBuffer)
-    }
+    info.loadData(stack)
+    control.node.changeBuffer(info.storedEnergy - control.node.localBuffer)
     wireThingsTogether()
     inventorySize = computeInventorySize()
     setPos(position.x, position.y, position.z)
@@ -443,69 +312,66 @@ class Drone(val entityType: EntityType[Drone], val world: Level)
   }
 
   private def wireThingsTogether(): Unit = {
-    if (machine == null) return
     api.Network.joinNewNetwork(machine.node)
-    if (control != null && control.node != null) {
-      machine.node.connect(control.node)
-    }
+    machine.node.connect(control.node)
     machine.setCostPerTick(Settings.get.droneCost)
     components.connectComponents()
   }
 
-  def targetX: Float = getEntityData.get(Drone.DataTargetX).floatValue
+  def isRunning: Boolean = {
+    val value: lang.Boolean = entityData.get(Drone.DataRunning)
+    value: lang.Boolean
+  }
 
-  def targetY: Float = getEntityData.get(Drone.DataTargetY).floatValue
+  def targetX: lang.Float = entityData.get(Drone.DataTargetX)
 
-  def targetZ: Float = getEntityData.get(Drone.DataTargetZ).floatValue
+  def targetY: lang.Float = entityData.get(Drone.DataTargetY)
 
-  def targetAcceleration: Float = getEntityData.get(Drone.DataTargetAcceleration).floatValue
+  def targetZ: lang.Float = entityData.get(Drone.DataTargetZ)
 
-  def selectedSlot(): Int = getEntityData.get(Drone.DataSelectedSlot).intValue
+  def targetAcceleration: lang.Float = entityData.get(Drone.DataMaxAcceleration)
 
-  def globalBuffer: Int = getEntityData.get(Drone.DataGlobalBuffer).intValue
+  def selectedSlot: Int = entityData.get(Drone.DataSelectedSlot) & 0xFF
 
-  def globalBufferSize: Int = getEntityData.get(Drone.DataGlobalBufferSize).intValue
+  def globalBuffer: Integer = entityData.get(Drone.DataCurrentEnergy)
 
-  def statusText: String = getEntityData.get(Drone.DataStatusText)
+  def globalBufferSize: Integer = entityData.get(Drone.DataMaxEnergy)
 
-  def inventorySize: Int = getEntityData.get(Drone.DataInventorySize).intValue
+  def statusText: String = entityData.get(Drone.DataStatusText)
 
-  def lightColor: Int = getEntityData.get(Drone.DataLightColor).intValue
+  def inventorySize: Int = entityData.get(Drone.DataInventorySize) & 0xFF
 
-  def setRunning(value: Boolean): Unit = getEntityData.set(Drone.DataRunning, Integer.valueOf(if (value) 1 else 0))
+  def lightColor: Integer = entityData.get(Drone.DataLightColor)
 
-  // 目标值取 1/4 精度，避免浮点误差累积。
-  def targetX_=(value: Float): Unit = getEntityData.set(Drone.DataTargetX, java.lang.Float.valueOf(math.round(value * 4) / 4f))
+  def setRunning(value: Boolean): Unit = entityData.set(Drone.DataRunning, Boolean.box(value))
 
-  def targetY_=(value: Float): Unit = getEntityData.set(Drone.DataTargetY, java.lang.Float.valueOf(math.round(value * 4) / 4f))
+  // Round target values to low accuracy to avoid floating point errors accumulating.
+  def targetX_=(value: Float): Unit = entityData.set(Drone.DataTargetX, Float.box(math.round(value * 4) / 4f))
 
-  def targetZ_=(value: Float): Unit = getEntityData.set(Drone.DataTargetZ, java.lang.Float.valueOf(math.round(value * 4) / 4f))
+  def targetY_=(value: Float): Unit = entityData.set(Drone.DataTargetY, Float.box(math.round(value * 4) / 4f))
 
-  def targetAcceleration_=(value: Float): Unit =
-    getEntityData.set(Drone.DataTargetAcceleration, java.lang.Float.valueOf(math.max(0, math.min(maxAcceleration, value))))
+  def targetZ_=(value: Float): Unit = entityData.set(Drone.DataTargetZ, Float.box(math.round(value * 4) / 4f))
 
-  def setSelectedSlot(value: Int): Unit = getEntityData.set(Drone.DataSelectedSlot, Integer.valueOf(value))
+  def targetAcceleration_=(value: Float): Unit = entityData.set(Drone.DataMaxAcceleration, Float.box(math.max(0, math.min(maxAcceleration, value))))
 
-  def globalBuffer_=(value: Int): Unit = getEntityData.set(Drone.DataGlobalBuffer, Integer.valueOf(value))
+  def setSelectedSlot(value: Int): Unit = entityData.set(Drone.DataSelectedSlot, Int.box(value.toByte))
 
-  def globalBufferSize_=(value: Int): Unit = getEntityData.set(Drone.DataGlobalBufferSize, Integer.valueOf(value))
+  def globalBuffer_=(value: Int): Unit = entityData.set(Drone.DataCurrentEnergy, Int.box(value))
 
-  def statusText_=(value: String): Unit =
-    getEntityData.set(Drone.DataStatusText, Option(value).fold("")(_.linesIterator.map(_.take(10)).take(2).mkString("\n")))
+  def globalBufferSize_=(value: Int): Unit = entityData.set(Drone.DataMaxEnergy, Int.box(value))
 
-  def inventorySize_=(value: Int): Unit = getEntityData.set(Drone.DataInventorySize, Integer.valueOf(value))
+  def statusText_=(value: String): Unit = entityData.set(Drone.DataStatusText, Option(value).fold("")(_.linesIterator.map(_.take(10)).take(2).mkString("\n")))
 
-  def lightColor_=(value: Int): Unit = getEntityData.set(Drone.DataLightColor, Integer.valueOf(value))
+  def inventorySize_=(value: Int): Unit = entityData.set(Drone.DataInventorySize, Int.box(value.toByte))
 
-  /**
-   * 客户端位置插值（1.7.10 的 `setPositionAndRotation2`）。
-   *
-   * 只有距离服务器位置太远时才硬对齐，否则保持插值 —— 这样能消除抖动，
-   * 对无人机来说已经足够。
-   */
-  override def lerpTo(x: Double, y: Double, z: Double, yaw: Float, pitch: Float, steps: Int): Unit = {
+  def lightColor_=(value: Int): Unit = entityData.set(Drone.DataLightColor, Int.box(value))
+
+  override def lerpTo(x: Double, y: Double, z: Double, yaw: Float, pitch: Float, posRotationIncrements: Int, teleport: Boolean): Unit = {
+    // Only set exact position if we're too far away from the server's
+    // position, otherwise keep interpolating. This removes jitter and
+    // is good enough for drones.
     if (!isRunning || distanceToSqr(x, y, z) > 1) {
-      super.lerpTo(x, y, z, yaw, pitch, steps)
+      super.absMoveTo(x, y, z, yaw, pitch)
     }
     else {
       targetX = x.toFloat
@@ -517,28 +383,27 @@ class Drone(val entityType: EntityType[Drone], val world: Level)
   override def tick(): Unit = {
     super.tick()
 
-    if (!world.isClientSide) {
-      // 我们不防水！
+    if (!getEnvironmentLevel.isClientSide) {
       if (isInWater || isInLava) {
-        stop()
+        // We're not water-proof!
+        machine.stop()
       }
-      if (machine != null) {
-        machine.update()
-        setRunning(machine.isRunning)
-
-        val buffer = math.round(machine.node.asInstanceOf[Connector].globalBuffer).toInt
-        if (math.abs(lastEnergyUpdate - buffer) > 1 || world.getGameTime % 200 == 0) {
-          lastEnergyUpdate = buffer
-          globalBuffer = buffer
-          globalBufferSize = machine.node.asInstanceOf[Connector].globalBufferSize.toInt
-        }
-      }
+      machine.update()
       components.updateComponents()
+      setRunning(machine.isRunning)
+
+      val buffer = math.round(machine.node.asInstanceOf[Connector].globalBuffer).toInt
+      if (math.abs(lastEnergyUpdate - buffer) > 1 || getEnvironmentLevel.getGameTime % 200 == 0) {
+        lastEnergyUpdate = buffer
+        globalBuffer = buffer
+        globalBufferSize = machine.node.asInstanceOf[Connector].globalBufferSize.toInt
+      }
     }
     else {
       if (isRunning) {
-        // 客户端更新：偶尔改变机翼俯仰与机体旋转，让无人机看起来更「活」。
-        val rng = getRandom
+        // Client side update; occasionally update wing pitch and rotation to
+        // make the drones look a bit more dynamic.
+        val rng = getEnvironmentLevel.random
         nextFlapChange -= 1
         nextAngularVelocityChange -= 1
 
@@ -562,155 +427,129 @@ class Drone(val entityType: EntityType[Drone], val world: Level)
           }
         }
 
-        // 插值机翼旋转。
+        // Interpolate wing rotations.
         (flapAngles, targetFlapAngles).zipped.foreach((f, t) => {
           f(0) = f(0) * 0.7f + t(0) * 0.3f
           f(1) = f(1) * 0.7f + t(1) * 0.3f
         })
 
-        // 更新机体旋转。
+        // Update body rotation.
         bodyAngle += angularVelocity
       }
     }
 
-    // 1.21.1 的原版 `baseTick` 已经维护了 `xo/yo/zo` 与 `noPhysics`，
-    // 旧版手工同步 `prevPosX/Y/Z` 以及 `func_145771_j`（区块加载检查）的代码不再需要。
+    xo = getX
+    yo = getY
+    zo = getZ
+    noPhysics = !getEnvironmentLevel.noCollision(this)
+    if (noPhysics) moveTowardsClosestSpace(getX, (getBoundingBox.minY + getBoundingBox.maxY) / 2, getZ)
 
     if (isRunning) {
       val toTarget = new Vec3(targetX - getX, targetY - getY, targetZ - getZ)
       val distance = toTarget.length()
       val velocity = getDeltaMovement
       if (distance > 0 && (distance > 0.005f || velocity.dot(velocity) > 0.005f)) {
-        val acceleration = math.min(targetAcceleration, distance) / distance
-        val updated = velocity.add(toTarget.x * acceleration, toTarget.y * acceleration, toTarget.z * acceleration)
-        setDeltaMovement(
-          math.max(-maxVelocity, math.min(maxVelocity, updated.x)),
-          math.max(-maxVelocity, math.min(maxVelocity, updated.y)),
-          math.max(-maxVelocity, math.min(maxVelocity, updated.z)))
+        val acceleration = math.min(targetAcceleration.floatValue(), distance) / distance
+        val velocityX = velocity.x + toTarget.x * acceleration
+        val velocityY = velocity.y + toTarget.y * acceleration
+        val velocityZ = velocity.z + toTarget.z * acceleration
+        setDeltaMovement(new Vec3(math.max(-maxVelocity, math.min(maxVelocity, velocityX)),
+          math.max(-maxVelocity, math.min(maxVelocity, velocityY)),
+          math.max(-maxVelocity, math.min(maxVelocity, velocityZ))))
       }
       else {
-        setDeltaMovement(0, 0, 0)
-        setPos(targetX, targetY, targetZ)
+        setDeltaMovement(Vec3.ZERO)
+        setPos(targetX.floatValue(), targetY.floatValue(), targetZ.floatValue())
       }
-    }
-    else {
-      // 没电了，自由落体！
-      setDeltaMovement(getDeltaMovement.x, getDeltaMovement.y - gravity, getDeltaMovement.z)
+    } else {
+      // No power, free fall: engage!
+      setDeltaMovement(getDeltaMovement.subtract(0, gravity, 0))
     }
 
     move(MoverType.SELF, getDeltaMovement)
 
-    // 保证速度不会无限增大。
+    // Make sure we don't get infinitely faster.
     if (isRunning) {
       setDeltaMovement(getDeltaMovement.scale(drag))
     }
     else {
-      // 1.21.1：`world.getBlock(pos).slipperiness` → `BlockState#getFriction(level, pos, entity)`。
-      val below = new BlockPos(getBlockX, getBlockY - 1, getBlockZ)
-      val groundDrag = world.getBlockState(below).getFriction(world, below, this) * drag
-      setDeltaMovement(getDeltaMovement.x * groundDrag, getDeltaMovement.y * drag, getDeltaMovement.z * groundDrag)
-      if (onGround()) {
-        setDeltaMovement(getDeltaMovement.x, getDeltaMovement.y * -0.5, getDeltaMovement.z)
-      }
+      val groundDrag = getEnvironmentLevel.getBlock(BlockPosition(this: Entity).offset(Direction.DOWN)).getFriction * drag
+      setDeltaMovement(getDeltaMovement.multiply(groundDrag, drag * (if (onGround) -0.5 else 1), groundDrag))
     }
   }
 
-  /**
-   * 受到攻击（1.7.10 的 `hitByEntity`）。
-   *
-   * 1.21.1 的等价入口是 [[Entity#hurt]]：先按旧语义给机器发 `hit` 信号并反弹，
-   * 再交给原版处理伤害。
-   */
-  override def hurt(source: DamageSource, amount: Float): Boolean = {
-    val entity = source.getEntity
-    if (entity != null && isRunning) {
-      val direction = new Vec3(entity.getX - getX, entity.getEyeY - getY, entity.getZ - getZ).normalize()
-      if (!world.isClientSide && machine != null) {
-        if (Settings.get.inputUsername) {
+  override def skipAttackInteraction(entity: Entity): Boolean = {
+    if (isRunning) {
+      val direction = new Vec3(entity.getX - getX, entity.getY + entity.getEyeHeight - getY, entity.getZ - getZ).normalize()
+      if (!getEnvironmentLevel.isClientSide) {
+        if (Settings.get.inputUsername)
           machine.signal("hit", Double.box(direction.x), Double.box(direction.z), Double.box(direction.y), entity.getName.getString)
-        }
-        else {
+        else
           machine.signal("hit", Double.box(direction.x), Double.box(direction.z), Double.box(direction.y))
-        }
       }
-      val delta = getDeltaMovement
-      setDeltaMovement(
-        (delta.x - direction.x) * 0.5f,
-        (delta.y - direction.y) * 0.5f,
-        (delta.z - direction.z) * 0.5f)
+      setDeltaMovement(getDeltaMovement.subtract(direction).scale(0.5))
     }
-    super.hurt(source, amount)
+    super.skipAttackInteraction(entity)
+  }
+
+  // Not implemented in Drone itself because spectators would open this via vanilla Player.openMenu (without extra data).
+  val containerProvider = new MenuProvider {
+    override def getDisplayName = Component.empty
+
+    override def createMenu(id: Int, playerInventory: PlayerInventory, player: Player) =
+      new menu.Drone(id, playerInventory, mainInventory, mainInventory.getContainerSize)
   }
 
   override def interact(player: Player, hand: InteractionHand): InteractionResult = {
-    if (isRemoved) return InteractionResult.PASS
-
-    if (player.isShiftKeyDown) {
-      if (isWrench(player.getMainHandItem)) {
-        if (!world.isClientSide) {
-          kill()
+    if (!isAlive) return InteractionResult.PASS
+    if (player.isCrouching) {
+      if (Wrench.isWrench(player.getItemInHand(InteractionHand.MAIN_HAND))) {
+        if(!getEnvironmentLevel.isClientSide) {
+          dropAsItemAndDiscard()
         }
       }
-      else if (!world.isClientSide && machine != null && !machine.isRunning) {
+      else if (!getEnvironmentLevel.isClientSide && !machine.isRunning) {
         start()
       }
     }
-    else if (!world.isClientSide) {
-      // TODO(container): 原实现 `player.openGui(OpenComputers, GuiType.Drone.id, world, getEntityId, 0, 0)`；
-      // 1.21.1 需要 `MenuProvider` / `MenuType`（见 docs/PORTING.md），
-      // `common/container` + GUI 层尚未完成，因此这里暂不打开界面。
-      val _ = GuiType.Drone.id
+    else player match {
+      case srvPlr: ServerPlayer if !getEnvironmentLevel.isClientSide => MenuTypes.openDroneGui(srvPlr, this)
+      case _ =>
     }
-    InteractionResult.sidedSuccess(world.isClientSide)
+    InteractionResult.sidedSuccess(getEnvironmentLevel.isClientSide)
   }
 
-  /**
-   * 手持物是否为扳手。
-   *
-   * TODO(integration.util.Wrench): 原实现调用 `li.cil.oc.integration.util.Wrench.isWrench`，
-   * 该包尚未移植；这里按物品名判断（默认只有 OC 自己的扳手算数，语义等价）。
-   */
-  private def isWrench(stack: ItemStack): Boolean =
-    stack != null && !stack.isEmpty && api.Items.get(stack) == api.Items.get(Constants.ItemName.Wrench)
-
-  // 没有脚步声。除了那一天。
+  // No step sounds. Except on that one day.
   override def playStepSound(pos: BlockPos, state: BlockState): Unit = {
-    // TODO(common.EventHandler): 事件层未接入编译集前固定不播放脚步声。\n    if (java.lang.Boolean.getBoolean("opencomputers_neo.stepSounds")) super.playStepSound(pos, state)
+    if (EventHandler.isItTime) super.playStepSound(pos, state)
   }
 
   // ----------------------------------------------------------------------- //
 
   private var isChangingDimension = false
 
-  /**
-   * 实体被移除时做清理。
-   *
-   * 1.21.1：`setDead()` 已移除，`setRemoved` 是 final，因此清理逻辑挂在 [[remove]] 上。
-   * 跨维度传送（`RemovalReason.CHANGED_DIMENSION`）不清理，交给「新的自己」。
-   */
-  override def remove(reason: Entity.RemovalReason): Unit = {
-    val shouldCleanUp = !world.isClientSide && !isChangingDimension && reason != Entity.RemovalReason.CHANGED_DIMENSION
-    if (shouldCleanUp) {
-      if (machine != null) {
-        machine.stop()
-        machine.node.remove()
-      }
-      components.disconnectComponents()
-      components.saveComponents()
+  override def changeDimension(dimension: ServerLevel): Entity = {
+    // Store relative target as target, to allow adding that in our "new self"
+    // (entities get re-created after changing dimension).
+    targetX = (targetX - getX).toFloat
+    targetY = (targetY - getY).toFloat
+    targetZ = (targetZ - getZ).toFloat
+    try {
+      isChangingDimension = true
+      super.changeDimension(dimension)
     }
-    super.remove(reason)
+    finally {
+      isChangingDimension = false
+      remove(Entity.RemovalReason.CHANGED_DIMENSION) // Again, to actually close old machine state after copying it.
+    }
   }
 
-  /**
-   * 跨维度复制实体后的数据修正（1.7.10 的 `copyDataFrom`）。
-   *
-   * 因为参照系肯定变了（例如去下界坐标会除以 8），这里按旧位置把相对目标点换算回来。
-   * 1.7.10 的 `travelToDimension` 覆写（把绝对目标转成相对目标）在 1.21.1 没有对应覆写点，
-   * 因此这里只保留「复制后换算」这一半，并把 [[isChangingDimension]] 标志在
-   * [[remove]] 里用 `RemovalReason.CHANGED_DIMENSION` 代替。
-   */
   override def restoreFrom(entity: Entity): Unit = {
     super.restoreFrom(entity)
+    // Compute relative target based on old position and update, because our
+    // frame of reference most certainly changed (i.e. we'll spawn at different
+    // coordinates than the ones we started traveling from, e.g. when porting
+    // to the nether it'll be oldpos / 8).
     entity match {
       case drone: Drone =>
         targetX = (getX + drone.targetX).toFloat
@@ -723,35 +562,51 @@ class Drone(val entityType: EntityType[Drone], val world: Level)
     }
   }
 
-  override def kill(): Unit = {
-    if (isRemoved) return
-    if (!world.isClientSide) {
-      val stack = api.Items.get(Constants.ItemName.Drone).createItemStack(1)
-      info.storedEnergy = if (control != null && control.node.isInstanceOf[Connector]) {
-        control.node.asInstanceOf[Connector].localBuffer.toInt
-      } else 0
-      info.save(stack)
-
-      val dropped = new ItemEntity(world, getX, getY, getZ, stack)
-      dropped.setPickUpDelay(15)
-      world.addFreshEntity(dropped)
-
-      InventoryUtils.dropAllSlots(BlockPosition(this: Entity), mainInventory)
+  override def remove(reason: Entity.RemovalReason): Unit = {
+    super.remove(reason)
+    if (!getEnvironmentLevel.isClientSide && !isChangingDimension) {
+      machine.stop()
+      machine.node.remove()
+      components.disconnectComponents()
+      components.saveComponents()
     }
-    discard()
   }
 
-  override def getName: Component = Component.literal(Localization.localizeImmediately("entity.oc.Drone.name"))
+  private def dropAsItemAndDiscard(): Unit = {
+    if (!getEnvironmentLevel.isClientSide && !droppedAsItem) {
+      droppedAsItem = true
+      val stack = api.Items.get(Constants.ItemName.Drone).createItemStack(1)
+      info.storedEnergy = control.node.localBuffer.toInt
+      info.saveData(stack)
+      val entity = new ItemEntity(getEnvironmentLevel, getX, getY, getZ, stack)
+      entity.setPickUpDelay(15)
+      getEnvironmentLevel.addFreshEntity(entity)
+      InventoryUtils.dropAllSlots(BlockPosition(this: Entity), mainInventory)
+      remove(Entity.RemovalReason.DISCARDED)
+    }
+  }
+
+  override def checkBelowWorld(): Unit = {
+    if (getY < getEnvironmentLevel.getMinBuildHeight - 64) {
+      dropAsItemAndDiscard()
+    }
+    else {
+      super.checkBelowWorld()
+    }
+  }
+
+  override def getName: Component = Localization.localizeLater("entity.oc.Drone.name")
+
+  override def getAddEntityPacket = NetworkHooks.getEntitySpawningPacket(this)
 
   override protected def readAdditionalSaveData(nbt: CompoundTag): Unit = {
-    info.load(nbt.getCompound("info"))
+    info.loadData(nbt.getCompound("info"))
     inventorySize = computeInventorySize()
-    if (!world.isClientSide) {
-      if (machine != null) {
-        machine.load(nbt.getCompound("machine"))
-      }
-      components.load(nbt.getCompound("components"))
-      mainInventory.load(nbt.getCompound("inventory"))
+    if (!getEnvironmentLevel.isClientSide) {
+      machine.loadData(nbt.getCompound("machine"))
+      control.loadData(nbt.getCompound("control"))
+      components.loadData(nbt.getCompound("components"))
+      mainInventory.loadData(nbt.getCompound("inventory"))
 
       wireThingsTogether()
     }
@@ -764,88 +619,33 @@ class Drone(val entityType: EntityType[Drone], val world: Level)
     statusText = nbt.getString("statusText")
     lightColor = nbt.getInt("lightColor")
     if (nbt.contains("owner")) {
-      _ownerName = nbt.getString("owner")
+      ownerName = nbt.getString("owner")
     }
     if (nbt.contains("ownerUuid")) {
-      try _ownerUUID = UUID.fromString(nbt.getString("ownerUuid")) catch {
-        case _: IllegalArgumentException => // 保留默认 UUID。
-      }
+      ownerUUID = UUID.fromString(nbt.getString("ownerUuid"))
     }
   }
 
   override protected def addAdditionalSaveData(nbt: CompoundTag): Unit = {
-    // 旧版在客户端直接 return；1.21.1 的 `save` 一般只在服务端调用，这里保留同样的保护。
-    if (world.isClientSide) return
+    if (getEnvironmentLevel.isClientSide) return
     components.saveComponents()
-    info.storedEnergy = if (control != null && control.node.isInstanceOf[Connector]) {
-      control.node.asInstanceOf[Connector].localBuffer.toInt
-    } else 0
-    val infoTag = new CompoundTag()
-    info.save(infoTag)
-    nbt.put("info", infoTag)
-    if (machine != null) {
-      val machineTag = new CompoundTag()
-      machine.save(machineTag)
-      nbt.put("machine", machineTag)
+    info.storedEnergy = globalBuffer.toInt
+    nbt.setNewCompoundTag("info", info.saveData)
+    if (!getEnvironmentLevel.isClientSide) {
+      nbt.setNewCompoundTag("machine", machine.saveData)
+      nbt.setNewCompoundTag("control", control.saveData)
+      nbt.setNewCompoundTag("components", components.saveData)
+      nbt.setNewCompoundTag("inventory", mainInventory.saveData)
     }
-    val componentsTag = new CompoundTag()
-    components.save(componentsTag)
-    nbt.put("components", componentsTag)
-    val inventoryTag = new CompoundTag()
-    mainInventory.save(inventoryTag)
-    nbt.put("inventory", inventoryTag)
     nbt.putFloat("targetX", targetX)
     nbt.putFloat("targetY", targetY)
     nbt.putFloat("targetZ", targetZ)
     nbt.putFloat("targetAcceleration", targetAcceleration)
-    nbt.putByte("selectedSlot", selectedSlot().toByte)
-    nbt.putByte("selectedTank", _selectedTank.toByte)
+    nbt.putByte("selectedSlot", selectedSlot.toByte)
+    nbt.putByte("selectedTank", selectedTank.toByte)
     nbt.putString("statusText", statusText)
     nbt.putInt("lightColor", lightColor)
-    nbt.putString("owner", _ownerName)
-    nbt.putString("ownerUuid", _ownerUUID.toString)
-  }
-}
-
-object Drone {
-  /** 默认主人 UUID：与 1.7.10 的 `Settings.get.fakePlayerProfile.getId` 对应。 */
-  val DefaultOwnerUUID: UUID = UUID.nameUUIDFromBytes("opencomputers_neo:drone".getBytes(StandardCharsets.UTF_8))
-
-  /** 同步数据字段（原 `dataWatcher.addObject(2..12, ...)`）。
-   *
-   * 全部使用非原始类型，原因见 [[Drone#defineSynchedData]] 的注释。
-   */
-  val DataRunning: EntityDataAccessor[Integer] =
-    SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.INT)
-  val DataTargetX: EntityDataAccessor[java.lang.Float] =
-    SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.FLOAT)
-  val DataTargetY: EntityDataAccessor[java.lang.Float] =
-    SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.FLOAT)
-  val DataTargetZ: EntityDataAccessor[java.lang.Float] =
-    SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.FLOAT)
-  val DataTargetAcceleration: EntityDataAccessor[java.lang.Float] =
-    SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.FLOAT)
-  val DataSelectedSlot: EntityDataAccessor[Integer] =
-    SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.INT)
-  val DataGlobalBuffer: EntityDataAccessor[Integer] =
-    SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.INT)
-  val DataGlobalBufferSize: EntityDataAccessor[Integer] =
-    SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.INT)
-  val DataStatusText: EntityDataAccessor[String] =
-    SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.STRING)
-  val DataInventorySize: EntityDataAccessor[Integer] =
-    SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.INT)
-  val DataLightColor: EntityDataAccessor[Integer] =
-    SynchedEntityData.defineId(classOf[Drone], EntityDataSerializers.INT)
-
-  /** 合并两份流体堆叠（保持 `FluidStack` 不可变语义）。 */
-  private def mergeFluid(a: FluidStack, b: FluidStack): FluidStack = {
-    if (b == null || b.isEmpty) a
-    else if (a == null || a.isEmpty) b
-    else {
-      val merged = a.copy()
-      merged.setAmount(a.getAmount + b.getAmount)
-      merged
-    }
+    nbt.putString("owner", ownerName)
+    nbt.putString("ownerUuid", ownerUUID.toString)
   }
 }

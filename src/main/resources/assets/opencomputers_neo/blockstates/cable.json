@@ -1,7 +1,5 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/cable"
-                          }
-                 }
+    "variants": {
+        "": { "model": "minecraft:block/air" }
+    }
 }

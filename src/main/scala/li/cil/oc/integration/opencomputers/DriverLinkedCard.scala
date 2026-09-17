@@ -14,7 +14,7 @@ object DriverLinkedCard extends Item {
     api.Items.get(Constants.ItemName.LinkedCard))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) =
-    if (host.world != null && host.world.isClientSide) null
+    if (host.getEnvironmentLevel != null && host.getEnvironmentLevel.isClientSide) null
     else new component.LinkedCard()
 
   override def slot(stack: ItemStack) = Slot.Card

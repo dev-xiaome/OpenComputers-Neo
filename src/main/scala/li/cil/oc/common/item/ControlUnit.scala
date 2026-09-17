@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「控制单元 CU」（原 `li.cil.oc.common.item.ControlUnit`）。 */
-class ControlUnit(props: Item.Properties) extends Item(props) with traits.Delegate
+class ControlUnit(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem

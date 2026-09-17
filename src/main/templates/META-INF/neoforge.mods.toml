@@ -1,26 +1,34 @@
+# NeoForge 1.21.1 的模组元数据模板。
+#
+# 注意与 OCCE(1.20.1 Forge) 的差异：OCCE 用 `modLoader="kotori_scala"`（依赖 ScalableCatsForce
+# 提供 Scala 运行时），我们用 `javafml`，因为 scala-library 已经用 jarJar 打进模组里了。
 modLoader="javafml"
 loaderVersion="${loader_version_range}"
 license="${mod_license}"
+issueTrackerURL="https://github.com/dev-xiaome/OpenComputers-Neo/issues"
 
 [[mods]]
 modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
-authors="Sangar, payonel, Vexatos, fnuecke and OpenComputers Neo contributors"
+displayURL="http://oc.cil.li/"
+logoFile="pack.png"
+credits="Inspired by a couple of other mods, most notably ComputerCraft."
+authors="Sangar, Vexatos, payonel, magik6k, Lord Joda, Github Contributors and modern port"
 description='''
-OpenComputers Neo - a port of OpenComputers to Minecraft 1.21.1 / NeoForge.
+This mod adds modular computers and robots that can be programmed in Lua.
 '''
-
-[[dependencies.${mod_id}]]
-    modId="neoforge"
-    type="required"
-    versionRange="[${neo_version},)"
-    ordering="NONE"
-    side="BOTH"
 
 [[dependencies.${mod_id}]]
     modId="minecraft"
     type="required"
     versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neo_version},)"
     ordering="NONE"
     side="BOTH"

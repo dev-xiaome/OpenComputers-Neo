@@ -59,10 +59,8 @@ public interface MachineHost extends EnvironmentHost {
     /** Helper method for printing the machine position in error messages and debug statements. */
     default String machinePosition()
     {
-        // 1.21.1：World 改为 Level，不再有 provider.dimensionId；
-        // 维度改用 ResourceLocation 标识（dimension().location()）。
-        if (world() != null)
-            return String.format("(%g, %g, %g, %s)", xPosition(), yPosition(), zPosition(), world().dimension().location());
+        if (getEnvironmentLevel() != null && getEnvironmentLevel().dimension() != null)
+            return String.format("(%g, %g, %g, %s)", xPosition(), yPosition(), zPosition(), getEnvironmentLevel().dimension().location());
         else
             return String.format("(%g, %g, %g)", xPosition(), yPosition(), zPosition());
     }

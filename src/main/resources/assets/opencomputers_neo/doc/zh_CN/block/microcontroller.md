@@ -1,6 +1,6 @@
 # 微控制器
 
-![可别小看它。](block:opencomputers:microcontroller)
+![可别小看它。](block:OpenComputers:microcontroller)
 
 玩家可在[电子装配机](assembler.md)中用[微控制器外壳](../item/microcontrollerCase1.md)构建得到微控制器。它们与[电脑](../general/computer.md)相比功能更少，但构建的成本也更低。具体来说，它们**不能**与外部组件交互。
 

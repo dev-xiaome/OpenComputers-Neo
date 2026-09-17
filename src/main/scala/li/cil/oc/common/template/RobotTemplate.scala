@@ -8,17 +8,12 @@ import li.cil.oc.common.Slot
 import li.cil.oc.common.Tier
 import li.cil.oc.common.item.data.RobotData
 import li.cil.oc.util.ItemUtils
+import net.minecraft.world.Container
 import net.minecraft.world.item.ItemStack
-import net.neoforged.neoforge.items.IItemHandler
 
-import scala.jdk.CollectionConverters._
+import scala.collection.JavaConverters.asJavaIterable
+import scala.collection.convert.ImplicitConversionsToJava._
 
-/**
- * 机器人装配模板（对应 1.7.10 的 `common.template.RobotTemplate`）。
- *
- * 1.21.1 迁移要点：物品栏参数 `IInventory` → `IItemHandler`（`getSizeInventory` → `getSlots`，
- * 空槽位是 `ItemStack.EMPTY` 而非 `null`，统一走 [[Template.stackAt]]）。
- */
 object RobotTemplate extends Template {
   override protected def hostClass = classOf[internal.Robot]
 
@@ -30,17 +25,17 @@ object RobotTemplate extends Template {
 
   def selectCreative(stack: ItemStack) = api.Items.get(stack) == api.Items.get(Constants.BlockName.CaseCreative)
 
-  def validate(inventory: IItemHandler): Array[AnyRef] = validateComputer(inventory)
+  def validate(inventory: Container): Array[AnyRef] = validateComputer(inventory)
 
-  def assemble(inventory: IItemHandler) = {
-    val items = (1 until inventory.getSlots).map(slot => stackAt(inventory, slot)).filter(_ != null)
+  def assemble(inventory: Container) = {
+    val items = (1 until inventory.getContainerSize).map(inventory.getItem)
     val data = new RobotData()
     data.tier = caseTier(inventory)
     data.name = RobotData.randomName
     data.robotEnergy = Settings.get.bufferRobot.toInt
     data.totalEnergy = data.robotEnergy
-    data.containers = items.take(3).toArray
-    data.components = items.drop(3).toArray
+    data.containers = items.take(3).filter(!_.isEmpty).toArray
+    data.components = items.drop(3).filter(!_.isEmpty).toArray
     val stack = data.createItemStack()
     val energy = Settings.get.robotBaseCost + complexity(inventory) * Settings.get.robotComplexityCost
 
@@ -74,7 +69,7 @@ object RobotTemplate extends Template {
         Tier.One,
         Tier.One
       ),
-      Iterable(
+      asJavaIterable(Iterable(
         (Slot.Card, Tier.One),
         null,
         null,
@@ -83,7 +78,7 @@ object RobotTemplate extends Template {
         (Slot.Memory, Tier.One),
         (Slot.EEPROM, Tier.Any),
         (Slot.HDD, Tier.One)
-      ).map(toPair).asJava)
+      ).map(toPair)))
 
     // Tier 2
     api.IMC.registerAssemblerTemplate(
@@ -105,7 +100,7 @@ object RobotTemplate extends Template {
         Tier.One,
         Tier.One
       ),
-      Iterable(
+      asJavaIterable(Iterable(
         (Slot.Card, Tier.Two),
         (Slot.Card, Tier.One),
         null,
@@ -114,7 +109,7 @@ object RobotTemplate extends Template {
         (Slot.Memory, Tier.Two),
         (Slot.EEPROM, Tier.Any),
         (Slot.HDD, Tier.Two)
-      ).map(toPair).asJava)
+      ).map(toPair)))
 
     // Tier 3
     api.IMC.registerAssemblerTemplate(
@@ -139,7 +134,7 @@ object RobotTemplate extends Template {
         Tier.One,
         Tier.One
       ),
-      Iterable(
+      asJavaIterable(Iterable(
         (Slot.Card, Tier.Three),
         (Slot.Card, Tier.Two),
         (Slot.Card, Tier.Two),
@@ -149,7 +144,7 @@ object RobotTemplate extends Template {
         (Slot.EEPROM, Tier.Any),
         (Slot.HDD, Tier.Three),
         (Slot.HDD, Tier.Two)
-      ).map(toPair).asJava)
+      ).map(toPair)))
 
     // Creative
     api.IMC.registerAssemblerTemplate(
@@ -174,7 +169,7 @@ object RobotTemplate extends Template {
         Tier.Three,
         Tier.Three
       ),
-      Iterable(
+      asJavaIterable(Iterable(
         (Slot.Card, Tier.Three),
         (Slot.Card, Tier.Three),
         (Slot.Card, Tier.Three),
@@ -184,7 +179,7 @@ object RobotTemplate extends Template {
         (Slot.EEPROM, Tier.Any),
         (Slot.HDD, Tier.Three),
         (Slot.HDD, Tier.Three)
-      ).map(toPair).asJava)
+      ).map(toPair)))
 
     // Disassembler
     api.IMC.registerDisassemblerTemplate(
@@ -193,5 +188,5 @@ object RobotTemplate extends Template {
       "li.cil.oc.common.template.RobotTemplate.disassemble")
   }
 
-  override protected def caseTier(inventory: IItemHandler) = ItemUtils.caseTier(stackAt(inventory, 0))
+  override protected def caseTier(inventory: Container) = ItemUtils.caseTier(inventory.getItem(0))
 }

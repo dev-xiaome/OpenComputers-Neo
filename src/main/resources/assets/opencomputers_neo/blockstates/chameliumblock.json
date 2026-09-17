@@ -1,7 +1,20 @@
 {
-    "variants":  {
-                     "":  {
-                              "model":  "opencomputers_neo:block/chameliumblock"
-                          }
-                 }
+    "variants": {
+      "color=light_gray": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=magenta": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=light_blue": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=red": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=yellow": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=gray": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=brown": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=cyan": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=green": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=blue": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=purple": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=orange": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=pink": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=black": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=white": { "model": "opencomputers_neo:block/chameliumblock" },
+      "color=lime": { "model": "opencomputers_neo:block/chameliumblock" }
+    }
 }

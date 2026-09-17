@@ -1,6 +1,8 @@
 package li.cil.oc.api;
 
 import li.cil.oc.api.detail.ItemInfo;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.concurrent.Callable;
@@ -19,12 +21,12 @@ public final class Items {
      * the item.
      * <br>
      * Note that these methods should <em>not</em> be called in the pre-init phase,
-     * since the {@link li.cil.oc.api.API#items} may not have been initialized
+     * since the {@link API#items} may not have been initialized
      * at that time. Only start calling these methods in the init phase or later.
      *
      * @param name the name of the item to get the descriptor for.
      * @return the descriptor for the item with the specified name, or
-     * <tt>null</tt> if there is no such item.
+     * {@code null} if there is no such item.
      */
     public static ItemInfo get(String name) {
         if (API.items != null)
@@ -37,7 +39,7 @@ public final class Items {
      * specified item stack.
      *
      * @param stack the stack to get the descriptor for.
-     * @return the descriptor for the specified item stack, or <tt>null</tt>
+     * @return the descriptor for the specified item stack, or {@code null}
      * if the stack is not a valid OpenComputers item or block.
      */
     public static ItemInfo get(ItemStack stack) {
@@ -53,59 +55,31 @@ public final class Items {
      * <br>
      * The specified factory callable will be used to generate a new file
      * system when the loot disk is used as a component. The specified name
-     * will be used as the label for the loot disk, as well as the identifier
-     * to select the corresponding factory method, so choose wisely.
+     * will be used as the label for the loot disk, while the location serves
+     * as the identifier to select the corresponding factory method.
      * <br>
      * To use some directory in your mod JAR as the directory provided by the
-     * loot disk, use {@link FileSystem#fromClass} in your callable.
+     * loot disk, use {@link FileSystem#fromResource} in your callable.
      * <br>
-     * Call this in the init phase or later, <em>not</em> in pre-init.
-     *
-     * @param name    the label and identifier to use for the loot disk.
-     * @param color   the color of the disk, as a Minecraft color (so 0-15,
-     *                with 0 being black, 1 red and so on).
-     * @param factory the callable to call for creating file system instances.
-     * @return an item stack representing the registered loot disk, to allow
-     * adding a recipe for your loot disk, for example.
-     * @deprecated use {@link #registerFloppy(String, int, Callable, boolean)} instead.
-     */
-    @Deprecated
-    public static ItemStack registerFloppy(String name, int color, Callable<li.cil.oc.api.fs.FileSystem> factory) {
-        if (API.items != null)
-            return API.items.registerFloppy(name, color, factory);
-        return null;
-    }
-
-    /**
-     * Register a single loot floppy disk.
-     * <br>
-     * The disk will be listed in the creative tab of OpenComputers.
-     * <br>
-     * The specified factory callable will be used to generate a new file
-     * system when the loot disk is used as a component. The specified name
-     * will be used as the label for the loot disk, as well as the identifier
-     * to select the corresponding factory method, so choose wisely.
-     * <br>
-     * To use some directory in your mod JAR as the directory provided by the
-     * loot disk, use {@link FileSystem#fromClass} in your callable.
-     * <br>
-     * If <tt>doRecipeCycling</tt> is <tt>true</tt>, the floppy disk will be
+     * If {@code doRecipeCycling} is {@code true}, the floppy disk will be
      * included in the floppy disk recipe cycle if that is enabled.
      * <br>
      * Call this in the init phase or later, <em>not</em> in pre-init.
      *
      * @param name    the label and identifier to use for the loot disk.
-     * @param color   the color of the disk, as a Minecraft color (so 0-15,
-     *                with 0 being black, 1 red and so on).
+     * @param loc     the location where the disk's contents are stored.
+     * @param color   the color of the disk, as a Minecraft color.
      * @param factory the callable to call for creating file system instances.
      * @param doRecipeCycling whether to include this floppy disk in floppy disk cycling.
      * @return an item stack representing the registered loot disk, to allow
      * adding a recipe for your loot disk, for example.
      */
-    public static ItemStack registerFloppy(String name, int color, Callable<li.cil.oc.api.fs.FileSystem> factory, boolean doRecipeCycling) {
+    public static ItemStack registerFloppy(String name, ResourceLocation loc, DyeColor color,
+                                           Callable<li.cil.oc.api.fs.FileSystem> factory, boolean doRecipeCycling) {
+
         if (API.items != null)
-            return API.items.registerFloppy(name, color, factory, doRecipeCycling);
-        return null;
+            return API.items.registerFloppy(name, loc, color, factory, doRecipeCycling);
+        return ItemStack.EMPTY;
     }
 
     /**
@@ -114,8 +88,8 @@ public final class Items {
      * The EEPROM will be listed in the creative tab of OpenComputers.
      * <br>
      * The EEPROM will be initialized with the specified code and data byte
-     * arrays. For script code (e.g. a Lua script) use <tt>String.getBytes("UTF-8")</tt>.
-     * You can omit any of the arguments by passing <tt>null</tt>.
+     * arrays. For script code (e.g. a Lua script) use {@code String.getBytes("UTF-8")}.
+     * You can omit any of the arguments by passing {@code null}.
      *
      * @param name     the label of the EEPROM.
      * @param code     the code section of the EEPROM.
@@ -127,7 +101,7 @@ public final class Items {
     public static ItemStack registerEEPROM(String name, byte[] code, byte[] data, boolean readonly) {
         if (API.items != null)
             return API.items.registerEEPROM(name, code, data, readonly);
-        return null;
+        return ItemStack.EMPTY;
     }
 
     // ----------------------------------------------------------------------- //

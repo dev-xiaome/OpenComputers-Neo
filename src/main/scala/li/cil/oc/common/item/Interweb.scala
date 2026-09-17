@@ -1,6 +1,7 @@
 package li.cil.oc.common.item
 
 import net.minecraft.world.item.Item
+import net.minecraft.world.item.Item.Properties
+import net.neoforged.neoforge.common.extensions.IForgeItem
 
-/** 「蜘蛛网材料」（原 `li.cil.oc.common.item.Interweb`）。 */
-class Interweb(props: Item.Properties) extends Item(props) with traits.Delegate
+class Interweb(props: Properties) extends Item(props) with IForgeItem with traits.SimpleItem

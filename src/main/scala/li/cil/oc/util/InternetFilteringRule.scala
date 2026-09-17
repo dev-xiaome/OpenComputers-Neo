@@ -14,7 +14,6 @@ class InternetFilteringRule(val ruleString: String) {
       ruleParts.head match {
         case "allow" | "deny" =>
           val value = ruleParts.head.equals("allow")
-          // Scala 2.13 已移除 `mutable.MutableList`，改用 `mutable.ArrayBuffer`。
           val predicates = mutable.ArrayBuffer.empty[(InetAddress, String) => Boolean]
           ruleParts.tail.foreach(f => {
             val filter = f.split(":", 2)
@@ -62,6 +61,9 @@ class InternetFilteringRule(val ruleString: String) {
                   val ipAddress = InetAddresses.forString(ipStringParts(0))
                   predicates += ((inetAddress: InetAddress, _: String) => ipAddress.equals(inetAddress))
                 }
+                predicates += ((inetAddress: InetAddress, _: String) => {
+                  inetAddress.isAnyLocalAddress || inetAddress.isLoopbackAddress || inetAddress.isLinkLocalAddress || inetAddress.isSiteLocalAddress
+                })
               case "all" =>
             }
           })
@@ -112,7 +114,6 @@ object InternetFilteringRule {
     "::1/128",
     "::ffff:0:0/96",
     "::/96",
-    "64:ff9b::/96", // NAT64 well-known prefix (RFC 6052)
     "100::/64",
     "2001:10::/28",
     "2001:db8::/32",

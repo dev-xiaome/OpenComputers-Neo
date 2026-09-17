@@ -1,7 +1,7 @@
 package li.cil.oc.api.nanomachines;
 
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.player.Player;
 
 /**
  * Implemented by providers for behaviors.
@@ -26,10 +26,10 @@ public interface BehaviorProvider {
      * Note that this is only called on the server side when reconfiguring
      * nanomachines. If you have a behavior that actually acts client-only,
      * you still need to return it here, as it will be synchronized to the
-     * client using {@link #writeToNBT} and {@link #readFromNBT}.
+     * client using {@link #save} and {@link #load}.
      *
      * @param player the player the behaviors should be created for.
-     * @return list of new behaviors, may be <tt>null</tt>.
+     * @return list of new behaviors, may be {@code null}.
      */
     Iterable<Behavior> createBehaviors(Player player);
 
@@ -45,14 +45,14 @@ public interface BehaviorProvider {
      * @param behavior the behavior to serialize.
      * @return the serialized representation of the specified behavior.
      */
-    CompoundTag writeToNBT(Behavior behavior);
+    CompoundTag save(Behavior behavior);
 
     /**
      * Restore a behavior from NBT.
      * <br>
      * You are <em>not</em> guaranteed that his nbt belongs to a behavior
      * created by this provider! If the NBT cannot be handled, return
-     * <tt>null</tt>.
+     * {@code null}.
      * <br>
      * This is called both on the server and the client; on the server it
      * is called when restoring a saved player, on the client when
@@ -60,7 +60,7 @@ public interface BehaviorProvider {
      *
      * @param player the player the behaviors should be created for.
      * @param nbt    the tag to restore the behavior from.
-     * @return the restored behavior, or <tt>null</tt> if unhandled.
+     * @return the restored behavior, or {@code null} if unhandled.
      */
-    Behavior readFromNBT(Player player, CompoundTag nbt);
+    Behavior load(Player player, CompoundTag nbt);
 }

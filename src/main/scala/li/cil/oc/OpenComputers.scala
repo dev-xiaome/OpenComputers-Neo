@@ -1,47 +1,99 @@
 package li.cil.oc
 
+import java.nio.file.Paths
+import li.cil.oc.common.IMC
+import li.cil.oc.common.Proxy
+import li.cil.oc.common.blockentity.BlockEntityTypes
+import li.cil.oc.common.capabilities.Capabilities
+import li.cil.oc.common.entity.EntityTypes
+import li.cil.oc.common.init.Blocks
+import li.cil.oc.common.init.Items
+import li.cil.oc.common.menu.MenuTypes
+import li.cil.oc.common.recipe.Recipes
+import li.cil.oc.integration.Mods
+import li.cil.oc.server.loot.LootFunctions
+import li.cil.oc.util.ThreadPoolFactory
+import net.neoforged.api.distmarker.Dist
+import net.neoforged.neoforge.common.NeoForge
+import net.neoforged.bus.api.SubscribeEvent
+import net.neoforged.neoforge.forgespi.Environment
+import net.neoforged.fml.InterModComms
+import net.neoforged.fml.ModContainer
+import net.neoforged.fml.ModLoadingContext
+import net.neoforged.fml.event.lifecycle.{FMLCommonSetupEvent, InterModProcessEvent}
+import net.neoforged.fml.loading.FMLPaths
+import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 
-import java.io.File
+import scala.collection.convert.ImplicitConversionsToScala._
+import net.neoforged.neoforge.network.simple.SimpleChannel
+import net.neoforged.fml.javafmlmod.FMLJavaModLoadingContext
+import net.neoforged.fml.common.Mod
 
-/**
- * OpenComputers Neo 的核心常量与生命周期入口（Scala 侧）。
- *
- * 原版是带 `@Mod` 注解的 Scala object；1.21.1 下入口改为 Java 的
- * [[li.cil.oc.OpenComputersNeo]]，这里仅保留常量与由 Java 侧驱动的初始化逻辑。
- */
 object OpenComputers {
   final val ID = "opencomputers_neo"
 
-  final val Name = "OpenComputers Neo"
+  final val Name = "OpenComputers"
 
-  final val McVersion = "1.21.1"
+  final val McVersion = "1.20.1-forge"
 
-  /**
-   * 模组版本号。
-   *
-   * **唯一来源是 `gradle.properties` 里的 `mod_version`**：它经
-   * `src/main/templates/META-INF/neoforge.mods.toml` 的 `${mod_version}` 占位符
-   * 展开进 mod 元数据，主类在构造期再通过 `ModContainer#getModInfo#getVersion`
-   * 读回来（见 [[OpenComputersNeo]] 的构造器）。
-   *
-   * 因此**改版本号只需要改 `gradle.properties` 一行**，不要在这里硬编码；
-   * 未初始化时（单元测试 / 数据生成等场景）退化为 `"dev"`。
-   */
-  @volatile private var _version: String = "dev"
+  final val Version = "1.9.0-beta"
 
-  def Version: String = _version
+  final val log: Logger = LogManager.getLogger(Name)
 
-  private[oc] def setVersion(value: String): Unit =
-    if (value != null && value.nonEmpty) _version = value
+  lazy val proxy: Proxy = {
+    val cls = Environment.get.getDist match {
+      case Dist.CLIENT => Class.forName("li.cil.oc.client.Proxy")
+      case _ => Class.forName("li.cil.oc.common.Proxy")
+    }
+    cls.getConstructor().newInstance().asInstanceOf[Proxy]
+  }
 
-  def log: Logger = OpenComputersNeo.log
+  var channel: SimpleChannel = null
 
-  /** 加载配置文件并初始化设置。 */
-  def loadSettings(configFile: File): Unit = {
-    Settings.load(configFile)
-    log.info("Loaded settings from '{}'.", configFile.getName)
+  private var instance: Option[OpenComputers] = None
+
+  def get = instance match {
+    case Some(oc) => oc
+    case _ => throw new IllegalStateException("not initialized")
   }
 }
 
+@Mod(OpenComputers.ID)
+class OpenComputers {
+  val modContainer: ModContainer = ModLoadingContext.get.getActiveContainer
+  val modBus = FMLJavaModLoadingContext.get.getModEventBus
 
+  modBus.register(this)
+  Items.init(modBus)
+  Blocks.init(modBus)
+  CreativeTab.CREATIVE_TABS.register(modBus)
+  BlockEntityTypes.init(modBus)
+  Recipes.init(modBus)
+  LootFunctions.init(modBus)
+  EntityTypes.ENTITY_TYPES.register(modBus)
+  MenuTypes.MENU_TYPES.register(modBus)
+  modBus.register(classOf[Capabilities])
+  modBus.register(li.cil.oc.data.DataGenerators)
+  modBus.register(CreativeTab)
+  OpenComputers.instance = Some(this)
+  NeoForge.EVENT_BUS.register(OpenComputers.proxy)
+  modBus.register(OpenComputers.proxy)
+  Settings.load(FMLPaths.CONFIGDIR.get().resolve(Paths.get("opencomputers", "settings.conf")).toFile())
+  OpenComputers.proxy.preInit()
+  NeoForge.EVENT_BUS.register(ThreadPoolFactory)
+  Mods.preInit() // Must happen after loading Settings but before registry events are fired.
+
+  @SubscribeEvent
+  def imc(e: InterModProcessEvent): Unit = {
+    // Technically requires synchronization because IMC.sendTo doesn't check the loading stage.
+    e.enqueueWork((() => {
+      InterModComms.getMessages(OpenComputers.ID).sequential.iterator.foreach(IMC.handleMessage)
+    }): Runnable)
+  }
+
+  @SubscribeEvent
+  def onCommonSetup(e: FMLCommonSetupEvent): Unit = {
+    OpenComputers.proxy.init(e)
+  }
+}

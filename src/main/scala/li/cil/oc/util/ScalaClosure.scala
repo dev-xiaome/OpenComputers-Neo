@@ -8,7 +8,7 @@ import li.cil.repack.org.luaj.vm2.LuaValue
 import li.cil.repack.org.luaj.vm2.Varargs
 import li.cil.repack.org.luaj.vm2.lib.VarArgFunction
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable
 import scala.language.implicitConversions
 import scala.math.ScalaNumber
@@ -28,15 +28,17 @@ object ScalaClosure {
   implicit def wrapVarArgClosure(f: (Varargs) => Varargs): ScalaClosure = new ScalaClosure(f)
 
   def toLuaValue(value: Any): LuaValue = {
+    value match {
+      case null | () | _: BoxedUnit => return LuaValue.NIL
+      case _ =>
+    }
+
     (value match {
       case number: ScalaNumber => number.underlying
       case reference: AnyRef => reference
       case null => null
       case primitive => primitive.asInstanceOf[AnyRef]
     }) match {
-      // Scala 2.13 不再允许把 `Unit` 当作模式使用，改为匹配 boxed 的 `BoxedUnit`；
-      // Scala 的 `()` 装箱后就是 `scala.runtime.BoxedUnit.UNIT`，行为与 2.11 一致。
-      case null | _: BoxedUnit => LuaValue.NIL
       case value: java.lang.Boolean => LuaValue.valueOf(value.booleanValue)
       case value: java.lang.Byte => LuaValue.valueOf(value.byteValue)
       case value: java.lang.Character => LuaValue.valueOf(String.valueOf(value))
@@ -51,7 +53,7 @@ object ScalaClosure {
       case value: Value if Settings.get.allowUserdata => LuaValue.userdataOf(value)
       case value: Product => toLuaList(value.productIterator.toIterable)
       case value: Seq[_] => toLuaList(value)
-      case value: java.util.Map[_, _] => toLuaTable(value.asScala.toMap)
+      case value: java.util.Map[_, _] => toLuaTable(value.toMap)
       case value: Map[_, _] => toLuaTable(value)
       case value: mutable.Map[_, _] => toLuaTable(value.toMap)
       case _ =>
@@ -64,10 +66,8 @@ object ScalaClosure {
     LuaValue.listOf(value.map(toLuaValue).toArray)
   }
 
-  def toLuaTable(value: Map[_, _]): LuaValue = {
-    // 显式给出 flatMap 的元素类型：Scala 2.13 无法从偏函数分支推断出 `Array[LuaValue]`，
-    // 否则会报 "missing parameter type for expanded function"。
-    LuaValue.tableOf(value.flatMap[LuaValue] {
+  def toLuaTable[K, V](value: Map[K, V]): LuaValue = {
+    LuaValue.tableOf(value.flatMap {
       case (k, v) => Seq(toLuaValue(k), toLuaValue(v))
     }.toArray)
   }

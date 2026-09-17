@@ -1,12 +1,9 @@
 {
-    "parent":  "minecraft:block/cube",
-    "textures":  {
-                     "particle":  "opencomputers_neo:block/generictop",
-                     "down":  "opencomputers_neo:block/generictop",
-                     "up":  "opencomputers_neo:block/waypointtop",
-                     "north":  "opencomputers_neo:block/waypointback",
-                     "south":  "opencomputers_neo:block/waypointfront",
-                     "west":  "opencomputers_neo:block/waypointside",
-                     "east":  "opencomputers_neo:block/waypointside"
-                 }
+    "parent": "block/orientable",
+    "textures": {
+        "bottom": "opencomputers_neo:block/generic_top",
+        "top": "opencomputers_neo:block/waypoint_top",
+        "side": "opencomputers_neo:block/waypoint_side",
+        "front": "opencomputers_neo:block/waypoint_front"
+    }
 }

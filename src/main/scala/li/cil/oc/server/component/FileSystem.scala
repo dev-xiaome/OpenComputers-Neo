@@ -19,22 +19,21 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.api.prefab.AbstractValue
-// 1.21.1：原 `net.minecraftforge.common.util.Constants.NBT` 已移除，改用 `Tag.TAG_*` 常量。
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.nbt.IntArrayTag
-import net.minecraft.nbt.ListTag
-import net.minecraft.nbt.Tag
-// 显式导入结果包装器，使本文件不依赖 `server/component/package.scala` 也能编译；
-// 与包对象里的隐式转换 `result` 语义完全一致（同一实现）。
-import li.cil.oc.util.ResultWrapper.result
-// `setNewCompoundTag` 等 NBT 扩展（1.21.1 API 适配层）。
+import li.cil.oc.common.SaveHandler
+import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.ExtendedNBT._
+import net.minecraft.nbt.CompoundTag
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.mutable
+import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.Tag
+import net.minecraft.nbt.ListTag
+import net.minecraft.nbt.IntArrayTag
 
-class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option[EnvironmentHost], val sound: Option[String], val speed: Int) extends prefab.ManagedEnvironment with DeviceInfo {
+class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option[EnvironmentHost], val sound: Option[String], val speed: Int) extends AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
     withComponent("filesystem", Visibility.Neighbors).
     withConnector().
@@ -58,9 +57,7 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
     DeviceAttribute.Clock -> (((2000 / readCosts(speed)).toInt / 100).toString + "/" + ((2000 / seekCosts(speed)).toInt / 100).toString + "/" + ((2000 / writeCosts(speed)).toInt / 100).toString)
   )
 
-  // 1.21.1：原来靠 `scala.collection.convert.WrapAsJava._` 提供的隐式转换已随 Scala 2.13 移除，
-  // 这里显式用 `CollectionConverters` 的 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
   // ----------------------------------------------------------------------- //
 
@@ -201,7 +198,7 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
           result(bytes)
         }
         else {
-          result(())
+          result()
         }
       case _ => throw new IOException("bad file descriptor")
     }
@@ -307,36 +304,30 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
+  override def loadData(nbt: CompoundTag): Unit = {
+    super.loadData(nbt)
 
-    // 1.21.1：`getList(k, type)` 的类型参数改为 `Tag.TAG_COMPOUND`；
-    // `tagCount` / `getCompoundTagAt` → `size()` / `getCompound(i)`。
-    val ownersNbt = nbt.getList("owners", Tag.TAG_COMPOUND)
-    for (i <- 0 until ownersNbt.size()) {
-      val ownerNbt = ownersNbt.getCompound(i)
+    nbt.getList("owners", Tag.TAG_COMPOUND).foreach((ownerNbt: CompoundTag) => {
       val address = ownerNbt.getString("address")
       if (address != "") {
-        // Scala 2.13：`Array#to[mutable.Set]` 不再接受裸类型构造器，改为显式构造可变集合。
-        val handles = ownerNbt.getIntArray("handles")
-        owners += address -> mutable.Set(handles.toSeq: _*)
+        owners += address -> ownerNbt.getIntArray("handles").to(mutable.Set)
       }
-    }
+    })
 
     if (label != null) {
-      label.load(nbt)
+      label.loadData(nbt)
     }
-    fileSystem.load(nbt.getCompound("fs"))
+    fileSystem.loadData(nbt.getCompound("fs"))
   }
 
-  override def save(nbt: CompoundTag) = fileSystem.synchronized {
-    super.save(nbt)
+  override def saveData(nbt: CompoundTag): Unit = fileSystem.synchronized {
+    super.saveData(nbt)
 
     if (label != null) {
-      label.save(nbt)
+      label.saveData(nbt)
     }
 
-    if (!savingForClients) {
+    if (!SaveHandler.savingForClients) {
       val ownersNbt = new ListTag()
       for ((address, handles) <- owners) {
         val ownerNbt = new CompoundTag()
@@ -346,7 +337,7 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
       }
       nbt.put("owners", ownersNbt)
 
-      nbt.setNewCompoundTag("fs", fileSystem.save)
+      nbt.setNewCompoundTag("fs", fileSystem.saveData)
     }
   }
 
@@ -370,23 +361,9 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
     if (!owners.contains(owner) || !owners(owner).contains(handle))
       throw new IOException("bad file descriptor")
 
-  /**
-   * 与 CE-1.20 一致：向客户端序列化（发描述包）时跳过 `owners` 数据，只有真正写盘
-   * （服务端存档）时才写入。`common/SaveHandler` 已在编译集内，直接用它的开关。
-   */
-  private def savingForClients: Boolean = li.cil.oc.common.SaveHandler.savingForClients
-
-  /**
-   * 磁盘访问音效通告。
-   *
-   * 与 CE-1.20 一致：[[li.cil.oc.server.PacketSender.sendFileSystemActivity]] 会先向事件总线投递
-   * `FileSystemAccessEvent.Server`（允许其它模组改写 / 取消音效），再发送
-   * `PacketType.FileSystemActivity` 包给附近玩家；限流由 PacketSender 内部按 host 缓存。
-   * （此前这里被降级成空操作，理由是 `server/PacketSender` 未移植 —— 该理由已不成立。）
-   */
   private def diskActivity(): Unit = {
     (sound, host) match {
-      case (Some(s), Some(h)) => li.cil.oc.server.PacketSender.sendFileSystemActivity(node, h, s)
+      case (Some(s), Some(h)) => ServerPacketSender.sendFileSystemActivity(node, h, s)
       case _ =>
     }
   }
@@ -416,17 +393,19 @@ final class HandleValue extends AbstractValue {
     }
   }
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
-    owner = nbt.getString("owner")
-    // 1.21.1：`getInteger` → `getInt`。
-    handle = nbt.getInt("handle")
+  private val OwnerTag = "owner"
+  private val HandleTag = "handle"
+
+  override def loadData(nbt: CompoundTag): Unit = {
+    super.loadData(nbt)
+    owner = nbt.getString(OwnerTag)
+    handle = nbt.getInt(HandleTag)
   }
 
-  override def save(nbt: CompoundTag): Unit = {
-    super.save(nbt)
-    nbt.putInt("handle", handle)
-    nbt.putString("owner", owner)
+  override def saveData(nbt: CompoundTag): Unit = {
+    super.saveData(nbt)
+    nbt.putString(OwnerTag, owner)
+    nbt.putInt(HandleTag, handle)
   }
 
   override def toString: String = handle.toString

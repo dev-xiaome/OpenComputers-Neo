@@ -10,21 +10,21 @@ import li.cil.oc.api.Network
 import li.cil.oc.api.driver.DeviceInfo
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
+import li.cil.oc.api.prefab.AbstractManagedEnvironment
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 
-class Memory(val tier: Int) extends prefab.ManagedEnvironment with DeviceInfo {
+class Memory(val tier: Int) extends AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Neighbors).
     create()
 
   private final lazy val deviceInfo = Map(
-    DeviceAttribute.Class -> DeviceClass.Memory,
-    DeviceAttribute.Description -> "Memory bank",
-    DeviceAttribute.Vendor -> Constants.DeviceInfo.DefaultVendor,
-    DeviceAttribute.Product -> "Multipurpose RAM Type",
-    DeviceAttribute.Clock -> (Settings.get.callBudgets(tier) * 1000).toInt.toString
-  )
+      DeviceAttribute.Class -> DeviceClass.Memory,
+      DeviceAttribute.Description -> "Memory bank",
+      DeviceAttribute.Vendor -> Constants.DeviceInfo.DefaultVendor,
+      DeviceAttribute.Product -> "Multipurpose RAM Type",
+      DeviceAttribute.Clock -> (Settings.get.callBudgets(tier) * 1000).toInt.toString
+    )
 
-  // 1.21.1：`deviceInfo` 是 Scala `Map`，而接口要求 `java.util.Map`，需显式 `asJava`。
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo
 }

@@ -7,15 +7,6 @@ import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.ResultWrapper.result
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
 
-/**
- * 组件内部（多罐）流体的控制（对应 1.7.10 的 `traits.TankControl`）。
- *
- * 1.21.1 迁移要点：
- *  - `FluidStack.amount` → `FluidStack.getAmount`
- *  - 旧版 `IFluidTank#getCapacity` / `getFluidAmount` 与 `fill(x, doFill)` / `drain(n, doDrain)`
- *    在 1.21.1 统一成 `IFluidHandler#getTankCapacity(0)` / `getFluidInTank(0).getAmount` 与
- *    `fill(stack, FluidAction)` / `drain(n, FluidAction)`，见 [[TankAware]] 里的辅助方法。
- */
 trait TankControl extends TankAware {
   @Callback(doc = "function():number -- The number of tanks installed in the device.")
   def tankCount(context: Context, args: Arguments): Array[AnyRef] = result(tank.tankCount)
@@ -45,7 +36,7 @@ trait TankControl extends TankAware {
       if (args.count > 0 && args.checkAny(0) != null) args.checkTank(tank, 0)
       else selectedTank
     result(getTank(index) match {
-      case Some(handler) => internalTankCapacity(handler) - internalTankAmount(handler)
+      case Some(tank) => tank.getCapacity - tank.getFluidAmount
       case _ => 0
     })
   }
@@ -75,10 +66,10 @@ trait TankControl extends TankAware {
           from.drain(transferred, FluidAction.EXECUTE)
           result(true)
         }
-        else if (count >= internalTankAmount(from) && internalTankCapacity(to) >= internalTankAmount(from) && internalTankCapacity(from) >= internalTankAmount(to)) {
+        else if (count >= from.getFluidAmount && to.getCapacity >= from.getFluidAmount && from.getCapacity >= to.getFluidAmount) {
           // Swap.
-          val tmp = to.drain(internalTankAmount(to), FluidAction.EXECUTE)
-          to.fill(from.drain(internalTankAmount(from), FluidAction.EXECUTE), FluidAction.EXECUTE)
+          val tmp = to.drain(to.getFluidAmount, FluidAction.EXECUTE)
+          to.fill(from.drain(from.getFluidAmount, FluidAction.EXECUTE), FluidAction.EXECUTE)
           from.fill(tmp, FluidAction.EXECUTE)
           result(true)
         }

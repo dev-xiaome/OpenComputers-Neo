@@ -12,7 +12,6 @@ import javax.crypto.KeyAgreement
 import javax.crypto.Mac
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
-
 import com.google.common.hash.Hashing
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
@@ -28,9 +27,9 @@ import net.minecraft.nbt.CompoundTag
 import org.apache.commons.codec.binary.Base64
 import org.apache.commons.io.output.ByteArrayOutputStream
 
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToJava._
 
-abstract class DataCard extends prefab.ManagedEnvironment with DeviceInfo {
+abstract class DataCard extends prefab.AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Neighbors).
     withComponent("data", Visibility.Neighbors).
     withConnector().
@@ -84,7 +83,7 @@ object DataCard {
       DeviceAttribute.Product -> "SC01D H45h3r"
     )
 
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
     // ----------------------------------------------------------------------- //
 
@@ -145,7 +144,7 @@ object DataCard {
       DeviceAttribute.Product -> "SC02D Cryptic"
     )
 
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
     // ----------------------------------------------------------------------- //
 
@@ -219,7 +218,7 @@ object DataCard {
       DeviceAttribute.Product -> "SC03D Signer"
     )
 
-    override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
+    override def getDeviceInfo: util.Map[String, String] = deviceInfo
 
     // ----------------------------------------------------------------------- //
 
@@ -324,13 +323,13 @@ object DataCard {
 
     // ----------------------------------------------------------------------- //
 
-    override def load(nbt: CompoundTag): Unit = {
+    override def loadData(nbt: CompoundTag): Unit = {
       val keyType = nbt.getString("Type")
       val data = nbt.getByteArray("Data")
       value = ECUserdata.deserializeKey(keyType, data)
     }
 
-    override def save(nbt: CompoundTag): Unit = {
+    override def saveData(nbt: CompoundTag): Unit = {
       nbt.putString("Type", keyType)
       nbt.putByteArray("Data", value.getEncoded)
     }
