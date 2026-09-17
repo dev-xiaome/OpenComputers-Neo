@@ -35,8 +35,7 @@ class Relay(state: menu.Relay, playerInventory: Inventory, name: Component)
     val w = tabPosition.getWidth
     val h = tabPosition.getHeight
     val t = Tesselator.getInstance
-    val r = t.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP)
-    r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
+    val r = t.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
     r.addVertex(stack.last.pose, x, y + h, 0).setUv(0, 1)
     r.addVertex(stack.last.pose, x + w, y + h, 0).setUv(1, 1)
     r.addVertex(stack.last.pose, x + w, y, 0).setUv(1, 0)

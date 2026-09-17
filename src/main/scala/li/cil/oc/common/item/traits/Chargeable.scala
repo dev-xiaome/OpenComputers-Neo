@@ -3,12 +3,8 @@ package li.cil.oc.common.item.traits
 import li.cil.oc.integration.Mods
 import li.cil.oc.integration.opencomputers.ModOpenComputers
 import li.cil.oc.{Settings, api}
-import net.minecraft.core.Direction
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.item.ItemStack
-import net.neoforged.neoforge.capabilities.{Capability, ForgeCapabilities, ICapabilityProvider}
-import java.util.Optional
-import java.util.function.Supplier
 import net.neoforged.neoforge.energy.IEnergyStorage
 
 // TODO Forge power capabilities.
@@ -41,17 +37,14 @@ object Chargeable {
     unused
   }
 
-  class Provider(stack: ItemStack, item: li.cil.oc.common.item.traits.Chargeable) extends ICapabilityProvider with java.util.function.Supplier[Provider] with IEnergyStorage {
-    private val wrapper = java.util.Optional.of(this)
-
-    def get = this
-
-    def invalidate() = wrapper.invalidate
-
-    override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
-      if (capability == ForgeCapabilities.ENERGY) wrapper.cast[T]
-      else java.util.Optional.empty[T]
-    }
+  /**
+   * 可充电物品的 Forge 能量视图。
+   *
+   * 1.21.1 里 provider 由能力系统按查询即时创建（不再有 `LazyOptional` 需要失效，
+   * 也不需要自己实现 `ICapabilityProvider`），注册见
+   * [[li.cil.oc.common.capabilities.Capabilities#onRegisterCapabilities]]。
+   */
+  class Provider(val stack: ItemStack, val item: li.cil.oc.common.item.traits.Chargeable) extends IEnergyStorage {
 
     def receiveEnergy(maxReceive: Int, simulate: Boolean): Int =
       // Chargeable.charge() returns the amount UNUSED

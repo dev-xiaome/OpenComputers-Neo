@@ -46,6 +46,27 @@ trait ExtendedItemStack {
       }
       tag
     }
+
+    /**
+     * 等价于 Forge 1.20 的 `ItemStack#getOrCreateTagElement`。
+     *
+     * 取 `key` 下的子复合标签；不存在时新建一个并挂到根标签上，返回的同样是**活的可变实例**。
+     */
+    def getOrCreateTagElement(key: String): CompoundTag = {
+      val tag = getOrCreateTag()
+      if (tag.contains(key, CompoundTag.TAG_COMPOUND)) tag.getCompound(key)
+      else {
+        val child = new CompoundTag()
+        tag.put(key, child)
+        child
+      }
+    }
+
+    /** 等价于 Forge 1.20 的 `ItemStack#removeTagKey`；根标签不存在时什么也不做。 */
+    def removeTagKey(key: String): Unit = {
+      val tag = getTag()
+      if (tag != null) tag.remove(key)
+    }
   }
 }
 

@@ -20,8 +20,8 @@ import li.cil.oc.common.item.data.MicrocontrollerData
 import li.cil.oc.common.item.data.RobotData
 import li.cil.oc.common.item.data.TabletData
 import li.cil.oc.common.item.traits.SimpleItem
-import li.cil.oc.server.machine.luac.LuaStateFactory
 import li.cil.oc.util.{Rarity => OCRarity}
+import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.item.BlockItem
 import net.minecraft.world.item.DyeColor
@@ -34,7 +34,7 @@ import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.level.ItemLike
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent
 import net.neoforged.bus.api.{EventPriority, IEventBus}
-import net.neoforged.neoforge.registries.{DeferredRegister, BuiltInRegistries, RegisterEvent, RegistryObject}
+import net.neoforged.neoforge.registries.{DeferredRegister, DeferredHolder, RegisterEvent}
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -89,7 +89,7 @@ object Items extends ItemAPI {
         case simple: SimpleBlock =>
           simple.setUnlocalizedName("oc." + id)
 
-          val ro: RegistryObject[Item] = ITEMS.register(id, () => {
+          val ro: DeferredHolder[Item, Item] = ITEMS.register(id, () => {
             val itemInst: Item = new common.block.Item(simple, itemProps)
             OpenComputers.proxy.registerModel(itemInst, id)
             itemInst
@@ -120,7 +120,8 @@ object Items extends ItemAPI {
       // In Forge 1.20.1, Item.<init> calls createIntrusiveHolder which requires the
       // registry to be in write mode (i.e. during RegisterEvent). Instantiating items
       // eagerly (before RegisterEvent) causes a validateWrite crash.
-      val ro: RegistryObject[Item] = ITEMS.register(id, () => {
+      // 1.21.1 迁移：`RegistryObject` 已被 `DeferredHolder`（`RegistryObject` 在 NeoForge 中不存在）。
+      val ro: DeferredHolder[Item, Item] = ITEMS.register(id, () => {
         val instance = makeItem  // instantiated here, safely during RegisterEvent
         instance match {
           case simple: SimpleItem =>
@@ -182,6 +183,7 @@ object Items extends ItemAPI {
 
   override def registerEEPROM(name: String, code: Array[Byte], data: Array[Byte], readonly: Boolean): ItemStack = {
     val stack = get(Constants.ItemName.EEPROM).createItemStack(1)
+    // 1.21.1：`ItemStack#getOrCreateTagElement` 随物品 NBT 一起移除，改走组件化的 NBT 替身。
     val nbt = stack.getOrCreateTagElement(Settings.namespace + "data")
     if (name != null) {
       nbt.putString(Settings.namespace + "label", name.trim.take(24))
@@ -220,7 +222,9 @@ object Items extends ItemAPI {
 
       safeGetStack(Constants.ItemName.WirelessNetworkCardTier2),
 
-      LuaStateFactory.setDefaultArch(safeGetStack(Constants.ItemName.CPUTier3)),
+      // 1.21.1：原生 Lua（`server/machine/luac`）已移出编译集，只剩 LuaJ 一种架构，
+      // 因此不再需要在 CPUTier3 上打「默认架构」标记，直接放 CPU 堆叠本身。
+      safeGetStack(Constants.ItemName.CPUTier3),
       safeGetStack(Constants.ItemName.RAMTier6),
       safeGetStack(Constants.ItemName.RAMTier6)
     ).filter(!_.isEmpty)
@@ -240,7 +244,7 @@ object Items extends ItemAPI {
       safeGetStack(Constants.ItemName.RedstoneCardTier2),
       safeGetStack(Constants.ItemName.WirelessNetworkCardTier2),
 
-      LuaStateFactory.setDefaultArch(safeGetStack(Constants.ItemName.CPUTier3)),
+      safeGetStack(Constants.ItemName.CPUTier3),
       safeGetStack(Constants.ItemName.RAMTier6),
       safeGetStack(Constants.ItemName.RAMTier6)
     ).filter(!_.isEmpty)
@@ -277,7 +281,7 @@ object Items extends ItemAPI {
       safeGetStack(Constants.ItemName.WirelessNetworkCardTier2),
       safeGetStack(Constants.ItemName.InternetCard),
 
-      LuaStateFactory.setDefaultArch(safeGetStack(Constants.ItemName.CPUTier3)),
+      safeGetStack(Constants.ItemName.CPUTier3),
       safeGetStack(Constants.ItemName.RAMTier6),
       safeGetStack(Constants.ItemName.RAMTier6),
 
@@ -314,7 +318,7 @@ object Items extends ItemAPI {
       safeGetStack(Constants.ItemName.RedstoneCardTier2),
       safeGetStack(Constants.ItemName.WirelessNetworkCardTier2),
 
-      LuaStateFactory.setDefaultArch(safeGetStack(Constants.ItemName.CPUTier3)),
+      safeGetStack(Constants.ItemName.CPUTier3),
       safeGetStack(Constants.ItemName.RAMTier6),
       safeGetStack(Constants.ItemName.RAMTier6),
 
@@ -355,10 +359,26 @@ object Items extends ItemAPI {
     // DeferredRegister listens at HIGHEST priority, so our LOW-priority listener
     // runs after all items are registered — safe to call ro.get() / createItemStack.
     bus.addListener(EventPriority.LOW, (event: RegisterEvent) => {
-      if (event.getRegistryKey == BuiltInRegistries.Keys.ITEMS) {
+      // 1.21.1：`BuiltInRegistries.Keys.*` 与 Forge 的 `BuiltInRegistries` 一起消失。
+      // 原版的物品注册表在 `net.minecraft.core.registries.BuiltInRegistries`，
+      // 比较注册表键用 `Registry#key()`。
+      if (event.getRegistryKey == BuiltInRegistries.ITEM.key()) {
         initPostStorage()
       }
     })
+
+    // 注册表别名：NeoForge 没有 Forge 1.20 的 `MissingMappingsEvent`（该事件已从 NeoForge
+    // 移除，也没有 `ModifyMappingsEvent` 之类的等价物），旧 id 重映射改为在 `DeferredRegister`
+    // 上声明别名。这里保留原 `Proxy.itemRenames` 的三条映射。
+    // 注意 1.21.1 的旧 id 命名空间仍是本 mod 自己的 id（换 id 的存档本就不该被认领）。
+    def alias(oldPath: String, newId: String): Unit =
+      ITEMS.addAlias(
+        ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, oldPath),
+        ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, newId))
+
+    alias("dataCard", Constants.ItemName.DataCardTier1)
+    alias("serverRack", Constants.BlockName.Rack)
+    alias("wlanCard", Constants.ItemName.WirelessNetworkCardTier2)
 
     ITEMS.register(bus)
   }

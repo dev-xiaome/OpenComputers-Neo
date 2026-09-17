@@ -10,7 +10,7 @@ object ModNeoForge extends ModProxy {
   override def getMod: Mod = Mods.Forge
 
   override def initialize(): Unit = {
-    NeoForge.EVENT_BUS.register(EventHandlerNeoForge)
+    // 1.21.1 的能力在 RegisterCapabilitiesEvent 里注册，这里不再需要监听事件总线。
     api.IMC.registerItemCharge("NeoForge",
       "li.cil.oc.integration.minecraftforge.EventHandlerNeoForge.canCharge",
       "li.cil.oc.integration.minecraftforge.EventHandlerNeoForge.charge")

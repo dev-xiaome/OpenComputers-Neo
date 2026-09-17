@@ -158,8 +158,9 @@ class Manual extends screens.Screen(Component.empty()) with traits.Window {
     super.keyPressed(keyCode, scanCode, mods)
   }
 
-  override def mouseScrolled(mouseX: Double, mouseY: Double, scroll: Double): Boolean = {
-    if (scroll < 0) scrollDown()
+  // 1.21.1: mouseScrolled 增加 scrollX 参数（4 参签名）。
+  override def mouseScrolled(mouseX: Double, mouseY: Double, scrollX: Double, scrollY: Double): Boolean = {
+    if (scrollY < 0) scrollDown()
     else scrollUp()
     true
   }

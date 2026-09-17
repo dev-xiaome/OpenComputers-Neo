@@ -12,7 +12,7 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandlerItem
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.material.Fluid
 import net.minecraft.world.level.block.LiquidBlock
-import net.neoforged.neoforge.capabilities.ForgeCapabilities
+import net.neoforged.neoforge.capabilities.{Capabilities => NeoCapabilities}
 
 object FluidUtils {
   /**
@@ -23,18 +23,16 @@ object FluidUtils {
   def fluidHandlerAt(position: BlockPosition, side: Direction): Option[IFluidHandler] = position.world match {
     case Some(world) if world.blockExists(position) => world.getBlockEntity(position) match {
       case handler: IFluidHandler => Option(handler)
-      case t: BlockEntity if t.getCapability(ForgeCapabilities.FLUID_HANDLER, side).isPresent =>
-        t.getCapability(ForgeCapabilities.FLUID_HANDLER, side).orElse(null) match {
-          case handler: IFluidHandler => Option(handler)
-          case _ => Option(new GenericBlockWrapper(position))
-        }
-      case _ => Option(new GenericBlockWrapper(position))
+      case _ =>
+        // 1.21.1 的能力查询返回可空值，不再有 LazyOptional。
+        Option(world.getCapability(NeoCapabilities.FluidHandler.BLOCK, position.toBlockPos, side)).
+          orElse(Option(new GenericBlockWrapper(position)))
     }
     case _ => None
   }
 
   def fluidHandlerOf(stack: ItemStack): IFluidHandlerItem = Option(stack) match {
-    case Some(itemStack) => itemStack.getCapability(ForgeCapabilities.FLUID_HANDLER_ITEM, null).orElse(null)
+    case Some(itemStack) => itemStack.getCapability(NeoCapabilities.FluidHandler.ITEM)
     case _ => null
   }
 

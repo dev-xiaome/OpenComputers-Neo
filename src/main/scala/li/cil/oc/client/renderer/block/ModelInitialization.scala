@@ -125,13 +125,8 @@ object ModelInitialization {
               else
                 DyeColor.GRAY.getId
 
-            val rgb = DyeColor.byId(color max 0 min 15).getTextureDiffuseColors
-
-            val r = (rgb(0) * 255.0f).toInt
-            val g = (rgb(1) * 255.0f).toInt
-            val b = (rgb(2) * 255.0f).toInt
-
-            (r << 16) | (g << 8) | b
+            // 1.21.1: getTextureDiffuseColors 返回的 float[] 已被 getTextureDiffuseColor 的 ARGB int 取代。
+            DyeColor.byId(color max 0 min 15).getTextureDiffuseColor & 0xFFFFFF
           }
           else 0xFFFFFF
         },

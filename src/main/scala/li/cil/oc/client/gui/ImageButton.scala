@@ -39,13 +39,12 @@ class ImageButton(xPos: Int, yPos: Int, w: Int, h: Int,
       RenderSystem.setShaderColor(1, 1, 1, 1)
       val isHov = hoverOverride || (isHovered && active)
 
-      val x0 = x.toFloat
-      val x1 = (x + width).toFloat
-      val y0 = y.toFloat
-      val y1 = (y + height).toFloat
+      val x0 = getX.toFloat
+      val x1 = (getX + width).toFloat
+      val y0 = getY.toFloat
+      val y1 = (getY + height).toFloat
 
       val t = Tesselator.getInstance
-      val r = t.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP)
 
       if (image != null) {
         val (ru0, ru1, rv0, rv1) = if (textureWidth > 0 && textureHeight > 0) {
@@ -70,7 +69,8 @@ class ImageButton(xPos: Int, yPos: Int, w: Int, h: Int,
         RenderSystem.defaultBlendFunc()
         RenderSystem.enableDepthTest()
 
-        r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
+        // 该分支只用 position + uv，因此必须用 POSITION_TEX（否则顶点元素缺失会越界）。
+        val r = t.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
         r.addVertex(graphics.pose.last.pose, x0, y1, z).setUv(ru0, rv1)
         r.addVertex(graphics.pose.last.pose, x1, y1, z).setUv(ru1, rv1)
         r.addVertex(graphics.pose.last.pose, x1, y0, z).setUv(ru1, rv0)
@@ -84,7 +84,8 @@ class ImageButton(xPos: Int, yPos: Int, w: Int, h: Int,
           RenderSystem.setShader(() => GameRenderer.getPositionColorShader)
           RenderSystem.enableBlend()
           RenderSystem.defaultBlendFunc()
-          r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
+          // 该分支只用 position + color，因此必须用 POSITION_COLOR。
+          val r = t.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
           r.addVertex(graphics.pose.last.pose, x0, y1, z).setColor(1f, 1f, 1f, alpha)
           r.addVertex(graphics.pose.last.pose, x1, y1, z).setColor(1f, 1f, 1f, alpha)
           r.addVertex(graphics.pose.last.pose, x1, y0, z).setColor(1f, 1f, 1f, alpha)
@@ -101,9 +102,9 @@ class ImageButton(xPos: Int, yPos: Int, w: Int, h: Int,
           else textColor
         val font = Minecraft.getInstance.font
         if (textIndent >= 0)
-          graphics.drawString(font, getMessage, textIndent + x, y + (height - 8) / 2, color)
+          graphics.drawString(font, getMessage, textIndent + getX, getY + (height - 8) / 2, color)
         else
-          graphics.drawCenteredString(font, getMessage, x + width / 2, y + (height - 8) / 2, color)
+          graphics.drawCenteredString(font, getMessage, getX + width / 2, getY + (height - 8) / 2, color)
       }
     }
   }

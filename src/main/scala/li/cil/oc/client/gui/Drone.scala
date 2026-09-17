@@ -135,8 +135,7 @@ class Drone(state: menu.Drone, playerInventory: Inventory, name: Component)
       val y = topPos + inventoryY - 1 + (slot / 4) * (selectionSize - 2)
 
       val t = Tesselator.getInstance
-      val r = t.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP)
-      r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
+      val r = t.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
       r.addVertex(stack.last.pose, x, y, 0).setUv(0, offsetV)
       r.addVertex(stack.last.pose, x, y + selectionSize, 0).setUv(0, offsetV + selectionStepV)
       r.addVertex(stack.last.pose, x + selectionSize, y + selectionSize, 0).setUv(1, offsetV + selectionStepV)

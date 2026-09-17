@@ -23,7 +23,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.math.ScalaNumber
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.level.Level
-import net.neoforged.neoforge.capabilities.ForgeCapabilities
+import net.neoforged.neoforge.capabilities.{Capabilities => NeoCapabilities}
 
 /**
  * This class keeps track of registered drivers and provides installation logic
@@ -130,7 +130,7 @@ private[oc] object Registry extends api.detail.DriverAPI {
     inventoryProviders.find(provider => provider.worksWith(stack, player)).
       map(provider => InventoryUtils.asItemHandler(provider.getInventory(stack, player))).
       getOrElse {
-        stack.getCapability(ForgeCapabilities.ITEM_HANDLER, null).orElse(null)
+        stack.getCapability(NeoCapabilities.ItemHandler.ITEM)
       }
   }
 

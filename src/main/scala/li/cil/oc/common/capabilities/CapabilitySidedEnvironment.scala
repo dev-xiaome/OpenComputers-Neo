@@ -1,39 +1,28 @@
 package li.cil.oc.common.capabilities
 
-import li.cil.oc.api.network.{Node, SidedEnvironment}
-import li.cil.oc.integration.Mods
+import li.cil.oc.api.network.{Environment, Node, SidedComponent, SidedEnvironment}
 import net.minecraft.core.Direction
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.neoforged.neoforge.capabilities.{Capability, ICapabilityProvider, ICapabilitySerializable}
-import java.util.Optional
-import java.util.function.Supplier
 
+/**
+ * NeoForge 1.21.1 里 `SidedEnvironment` 不再是能力，查询时直接做类型判断。
+ *
+ * 注意优先级与 1.20.1 的注册顺序保持一致：`Environment with SidedComponent`
+ * 先于普通的 `SidedEnvironment` 被匹配。
+ */
 object CapabilitySidedEnvironment {
-  final val ProviderSidedEnvironment = ResourceLocation.fromNamespaceAndPath(Mods.IDs.OpenComputers, "sided_environment")
 
-  class Provider(val tileEntity: BlockEntity with SidedEnvironment) extends ICapabilitySerializable[CompoundTag] with java.util.function.Supplier[Provider] with SidedEnvironment {
-    private val wrapper = java.util.Optional.of(this)
-
-    def get = this
-
-    def invalidate() = wrapper.invalidate
-
-    override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
-      if (capability == Capabilities.SidedEnvironmentCapability) wrapper.cast[T]
-      else java.util.Optional.empty[T]
-    }
-
-    override def sidedNode(side: Direction) = tileEntity.sidedNode(side)
-
-    override def canConnect(side: Direction) = tileEntity.canConnect(side)
-
-    override def serializeNBT(): CompoundTag = new CompoundTag()
-
-    override def deserializeNBT(nbt: CompoundTag): Unit = {}
+  /** 返回方块实体的 [[SidedEnvironment]] 视图，没有则返回 `null`。 */
+  def get(tileEntity: BlockEntity): SidedEnvironment = tileEntity match {
+    case _: Environment with SidedComponent => CapabilitySidedComponent.get(tileEntity)
+    case sided: SidedEnvironment => sided
+    case _ => null
   }
 
+  /** [[get]] 的 `Option` 版本，方便 Scala 侧调用。 */
+  def apply(tileEntity: BlockEntity): Option[SidedEnvironment] = Option(get(tileEntity))
+
+  /** 任何一面都不可连接的默认实现。 */
   class DefaultImpl extends SidedEnvironment {
     override def sidedNode(side: Direction): Node = null
 

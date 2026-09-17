@@ -34,9 +34,6 @@ import li.cil.oc.util.StackOption._
 import net.minecraft.client.Minecraft
 import net.minecraft.world.item.ItemStack
 import net.neoforged.neoforge.common.NeoForge
-import net.neoforged.neoforge.capabilities.{Capability, ForgeCapabilities}
-import java.util.Optional
-import java.util.function.Supplier
 import net.neoforged.neoforge.fluids._
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
@@ -78,22 +75,13 @@ class Robot(pos: BlockPos, state: BlockState)
 
   val bot: component.Robot = if (isServer) new component.Robot(this) else null
 
-  val fluidCap: java.util.Optional[IFluidHandler] = java.util.Optional.of(new java.util.function.Supplier[IFluidHandler] {
-    override def get = Robot.this
-  })
-
   if (isServer) {
     machine.setCostPerTick(Settings.get.robotCost)
   }
 
   // ----------------------------------------------------------------------- //
-
-  override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
-    if (capability == ForgeCapabilities.FLUID_HANDLER)
-      fluidCap.cast()
-    else
-      super.getCapability(capability, facing)
-  }
+  // 流体储罐能力：1.21.1 由 RegisterCapabilitiesEvent 注册（见
+  // li.cil.oc.common.capabilities.Capabilities），这里不再覆写 getCapability。
 
   override def tier: Int = info.tier
 

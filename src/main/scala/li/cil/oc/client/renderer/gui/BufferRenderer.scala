@@ -23,9 +23,8 @@ object BufferRenderer {
     Textures.bind(Textures.GUI.Borders)
 
     val t = Tesselator.getInstance
-    val r = t.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP)
-    // 1.18.2: DefaultVertexFormats.POSITION_TEX → DefaultVertexFormat.POSITION_TEX
-    r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
+    // drawQuad 只写入 position + uv，且用的是 getPositionTexShader，因此格式必须是 POSITION_TEX。
+    val r = t.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
 
     val margin        = if (forRobot) 2 else 7
     val (c0, c1, c2, c3) = if (forRobot) (5, 7, 9, 11) else (0, 7, 9, 16)

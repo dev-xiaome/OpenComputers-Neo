@@ -206,15 +206,16 @@ class Robot(state: menu.Robot, playerInventory: Inventory, name: Component)
     scrollTo(math.round((mouseY - topPos - scrollY + 1 - 6.5) * maxOffset / (scrollHeight - 13.0)).toInt)
   }
 
-  override def mouseScrolled(mouseX: Double, mouseY: Double, scroll: Double): Boolean = {
+  // 1.21.1: mouseScrolled 增加 scrollX 参数（4 参签名）。
+  override def mouseScrolled(mouseX: Double, mouseY: Double, scrollX: Double, scrollY: Double): Boolean = {
     val mx = mouseX.asInstanceOf[Int] - leftPos
     val my = mouseY.asInstanceOf[Int] - topPos
     if (isCoordinateOverInventory(mx, my) || isCoordinateOverScrollBar(mx, my)) {
-      if (scroll < 0) scrollDown()
+      if (scrollY < 0) scrollDown()
       else scrollUp()
       true
     }
-    else super.mouseScrolled(mouseX, mouseY, scroll)
+    else super.mouseScrolled(mouseX, mouseY, scrollX, scrollY)
   }
 
   private def isCoordinateOverInventory(x: Int, y: Int) =
@@ -259,8 +260,7 @@ class Robot(state: menu.Robot, playerInventory: Inventory, name: Component)
       val y = topPos + inventoryY - 1 + (slot / 4) * (selectionSize - 2)
 
       val t = Tesselator.getInstance
-      val r = t.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP)
-      r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
+      val r = t.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
       r.addVertex(stack.last.pose, x, y, 0).setUv(0, offsetV)
       r.addVertex(stack.last.pose, x, y + selectionSize, 0).setUv(0, offsetV + selectionStepV)
       r.addVertex(stack.last.pose, x + selectionSize, y + selectionSize, 0).setUv(1, offsetV + selectionStepV)

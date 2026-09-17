@@ -31,7 +31,7 @@ abstract class CustomGuiContainer[C <: AbstractContainerMenu](val inventoryConta
   protected def add[T](list: util.List[T], value: Any): Boolean = list.add(value.asInstanceOf[T])
 
   override def render(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int, partialTicks: Float): Unit = {
-    this.renderBackground(guiGraphics)
+    // 1.21.1: renderBackground 移入 render 内部，这里不再手动调用（render 自身已处理背景）。
     super.render(guiGraphics, mouseX, mouseY, partialTicks)
     this.renderTooltip(guiGraphics, mouseX, mouseY)
   }

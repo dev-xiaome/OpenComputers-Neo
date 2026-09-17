@@ -2,7 +2,7 @@ package li.cil.oc.common.block
 
 import li.cil.oc.common.block.property.PropertyCableConnection
 import li.cil.oc.common.blockentity
-import li.cil.oc.common.capabilities.Capabilities
+import li.cil.oc.common.capabilities.{CapabilityColored, CapabilityEnvironment, CapabilitySidedEnvironment}
 import li.cil.oc.util.{Color, ItemColorizer}
 import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.world.entity.LivingEntity
@@ -208,19 +208,14 @@ object Cable {
       return false
     }
 
-    val sidedCapability = tileEntity.getCapability(Capabilities.SidedEnvironmentCapability, side)
-
-    if (sidedCapability.isPresent) {
-      val host = sidedCapability.orElse(null)
-
-      if (host != null) {
+    // 1.21.1 没有自定义能力了，直接做类型判断。
+    CapabilitySidedEnvironment(tileEntity) match {
+      case Some(host) =>
         return if (tileEntity.getLevel.isClientSide) host.canConnect(side) else host.sidedNode(side) != null
-      }
+      case _ =>
     }
 
-    val environmentCapability = tileEntity.getCapability(Capabilities.EnvironmentCapability, side)
-
-    environmentCapability.isPresent
+    CapabilityEnvironment.get(tileEntity) != null
   }
 
   private def getConnectionColor(stack: ItemStack): Int = {
@@ -241,11 +236,9 @@ object Cable {
     }
 
     if (tileEntity != null) {
-      val capability = tileEntity.getCapability(Capabilities.ColoredCapability, null)
-      val colored = capability.orElse(null)
-
-      if (colored != null && colored.controlsConnectivity) {
-        return colored.getColor
+      CapabilityColored(tileEntity) match {
+        case Some(colored) if colored.controlsConnectivity => return colored.getColor
+        case _ =>
       }
     }
 

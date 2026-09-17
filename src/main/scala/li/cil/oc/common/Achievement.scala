@@ -27,9 +27,12 @@ object Achievement {
   }
 
   private def award(player: ServerPlayer, location: ResourceLocation): Unit = {
-    Option(player.server.getAdvancements.getAdvancement(location)).foreach { advancement =>
+    // 1.21.1 迁移：`ServerAdvancementManager#getAdvancement(ResourceLocation)` 已改名为
+    // `#get(ResourceLocation)`，且返回的是 `AdvancementHolder` 记录（不再是 `Advancement`），
+    // 需要经 `value()` 取到真正的 `Advancement`，其判据表也从 `getCriteria` 变成记录访问器 `criteria()`。
+    Option(player.server.getAdvancements.get(location)).foreach { advancement =>
       val progress = player.getAdvancements.getOrStartProgress(advancement)
-      advancement.getCriteria.keySet.forEach { criterion =>
+      advancement.value().criteria().keySet().forEach { criterion =>
         if (!progress.isDone) {
           player.getAdvancements.award(advancement, criterion)
         }

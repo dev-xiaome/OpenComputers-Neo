@@ -76,10 +76,12 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
     new ExtendedWorldRenderer(self)
 
   private class ExtendedWorldRenderer(val buffer: VertexConsumer) {
-    // 1.18.2: Vector3d → Vec3（net.minecraft.world.phys.Vec3）
+    // 1.21.1: VertexConsumer 只剩 setNormal(float,float,float) 与 setNormal(Pose,...)；
+    // 这里保留用 Matrix3f 手动变换法线的语义。
     def normal(matrix: Matrix3f, normal: Vec3): VertexConsumer = {
       val normalized = normal.normalize()
-      buffer.setNormal(matrix, normalized.x.toFloat, normalized.y.toFloat, normalized.z.toFloat)
+      val v = matrix.transform(new org.joml.Vector3f(normalized.x.toFloat, normalized.y.toFloat, normalized.z.toFloat))
+      buffer.setNormal(v.x, v.y, v.z)
     }
   }
 
@@ -93,29 +95,29 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
     val r = buffer.getBuffer(RenderTypes.ROBOT_CHASSIS)
 
     // 1.18.2: new Vector3d(...) → new Vec3(...)
-    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last.normal, new Vec3(0, 0.2, 1))
-    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last.normal, new Vec3(0, 0.2, 1))
-    r.addVertex(stack.last.pose, h, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last.normal, new Vec3(0, 0.2, 1))
+    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last, 0, 0.2f, 1)
+    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last, 0, 0.2f, 1)
+    r.addVertex(stack.last.pose, h, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, 0.2f, 1)
 
-    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last.normal, new Vec3(0, 0.2, 1))
-    r.addVertex(stack.last.pose, h, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last.normal, new Vec3(0, 0.2, 1))
-    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last.normal, new Vec3(1, 0.2, 0))
+    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last, 0, 0.2f, 1)
+    r.addVertex(stack.last.pose, h, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, 0.2f, 1)
+    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last, 1, 0.2f, 0)
 
-    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last.normal, new Vec3(0, 0.2, 1))
-    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last.normal, new Vec3(1, 0.2, 0))
-    r.addVertex(stack.last.pose, l, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0, 0)       .setLight(light).setNormal(stack.last.normal, new Vec3(0, 0.2, -1))
+    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last, 0, 0.2f, 1)
+    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last, 1, 0.2f, 0)
+    r.addVertex(stack.last.pose, l, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0, 0)       .setLight(light).setNormal(stack.last, 0, 0.2f, -1)
 
-    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last.normal, new Vec3(0, 0.2, 1))
-    r.addVertex(stack.last.pose, l, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0, 0)       .setLight(light).setNormal(stack.last.normal, new Vec3(0, 0.2, -1))
-    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last.normal, new Vec3(-1, 0.2, 0))
+    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last, 0, 0.2f, 1)
+    r.addVertex(stack.last.pose, l, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0, 0)       .setLight(light).setNormal(stack.last, 0, 0.2f, -1)
+    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last, -1, 0.2f, 0)
 
-    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last.normal, 0, -1, 0)
-    r.addVertex(stack.last.pose, l, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last.normal, 0, -1, 0)
-    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last.normal, 0, -1, 0)
+    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last, 0, -1, 0)
+    r.addVertex(stack.last.pose, l, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last, 0, -1, 0)
+    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, -1, 0)
 
-    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last.normal, 0, -1, 0)
-    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last.normal, 0, -1, 0)
-    r.addVertex(stack.last.pose, h, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last.normal, 0, -1, 0)
+    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last, 0, -1, 0)
+    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, -1, 0)
+    r.addVertex(stack.last.pose, h, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last, 0, -1, 0)
   }
 
   private def drawBottom(
@@ -126,21 +128,21 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
                         ): Unit = {
     val r = buffer.getBuffer(RenderTypes.ROBOT_CHASSIS)
 
-    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last.normal, new Vec3(0, -0.2, 1))
-    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last.normal, new Vec3(0, -0.2, 1))
-    r.addVertex(stack.last.pose, h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(1, 0)       .setLight(light).setNormal(stack.last.normal, new Vec3(0, -0.2, 1))
+    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last, 0, -0.2f, 1)
+    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last, 0, -0.2f, 1)
+    r.addVertex(stack.last.pose, h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(1, 0)       .setLight(light).setNormal(stack.last, 0, -0.2f, 1)
 
-    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last.normal, new Vec3(0, -0.2, 1))
-    r.addVertex(stack.last.pose, h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(1, 0)       .setLight(light).setNormal(stack.last.normal, new Vec3(0, -0.2, 1))
-    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(1, 0.5f)    .setLight(light).setNormal(stack.last.normal, new Vec3(1, -0.2, 0))
+    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last, 0, -0.2f, 1)
+    r.addVertex(stack.last.pose, h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(1, 0)       .setLight(light).setNormal(stack.last, 0, -0.2f, 1)
+    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(1, 0.5f)    .setLight(light).setNormal(stack.last, 1, -0.2f, 0)
 
-    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last.normal, new Vec3(0, -0.2, 1))
-    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(1, 0.5f)    .setLight(light).setNormal(stack.last.normal, new Vec3(1, -0.2, 0))
-    r.addVertex(stack.last.pose, l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last.normal, new Vec3(0, -0.2, -1))
+    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last, 0, -0.2f, 1)
+    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(1, 0.5f)    .setLight(light).setNormal(stack.last, 1, -0.2f, 0)
+    r.addVertex(stack.last.pose, l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, -0.2f, -1)
 
-    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last.normal, new Vec3(0, -0.2, 1))
-    r.addVertex(stack.last.pose, l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last.normal, new Vec3(0, -0.2, -1))
-    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last.normal, new Vec3(-1, -0.2, 0))
+    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last, 0, -0.2f, 1)
+    r.addVertex(stack.last.pose, l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, -0.2f, -1)
+    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last, -1, -0.2f, 0)
 
     r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last.normal, 0, 1, 0)
     r.addVertex(stack.last.pose, l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last.normal, 0, 1, 0)

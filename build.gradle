@@ -136,8 +136,13 @@ neoForge {
         minecraftVersion = project.parchment_minecraft_version
     }
 
-    // This line is optional. Access Transformers are automatically detected
-    // accessTransformers = project.files('src/main/resources/META-INF/accesstransformer.cfg')
+    // 访问转换器：**必须显式启用**。OCCE 的 AT 里放宽了 OC 依赖的若干私有成员
+    // （`Player#inventory`、`AbstractFurnaceBlockEntity#litTime` 系列、`BeaconBlockEntity#levels`、
+    // `PistonBaseBlock#moveBlocks`、`ChunkMap#getChunks`、`MinecraftServer#proxy` 等）。
+    // 不启用的话这些地方会大面积报「cannot be accessed」，之前的派生树就是漏了这一步。
+    // 注意 ModDevGradle 2.x 的写法是 `accessTransformers.from(...)`，老教程里的
+    // `accessTransformers = project.files(...)` 在这里不生效。
+    accessTransformers.from 'src/main/resources/META-INF/accesstransformer.cfg'
 
     // Default run configurations.
     // These can be tweaked, removed, or duplicated as needed.

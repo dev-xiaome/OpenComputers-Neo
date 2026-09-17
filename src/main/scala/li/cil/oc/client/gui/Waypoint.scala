@@ -22,7 +22,8 @@ class Waypoint(val waypoint: blockentity.Waypoint) extends Screen(Component.empt
 
   override def tick(): Unit = {
     super.tick()
-    textField.tick()
+    // 1.21.1: EditBox 不再暴露 tick()，光标闪烁由 Widget 内部基于时间处理。
+    // 1.21.1: renderBackground 已并入 render，不再单独调用。
     if (minecraft.player.distanceToSqr(waypoint.x + 0.5, waypoint.y + 0.5, waypoint.z + 0.5) > 64) {
       onClose()
     }
@@ -66,7 +67,6 @@ class Waypoint(val waypoint: blockentity.Waypoint) extends Screen(Component.empt
   }
 
   override def render(graphics: GuiGraphics, mouseX: Int, mouseY: Int, dt: Float): Unit = {
-    renderBackground(graphics)
     super.render(graphics, mouseX, mouseY, dt)
     RenderSystem.setShaderColor(1, 1, 1, 1)
     graphics.blit(Textures.GUI.Waypoint, leftPos, topPos, 0, 0, imageWidth, imageHeight)

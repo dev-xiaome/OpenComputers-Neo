@@ -1,48 +1,20 @@
 package li.cil.oc.common.capabilities
 
 import li.cil.oc.api.audio.AudioReceiver
-import li.cil.oc.integration.Mods
-import net.minecraft.core.Direction
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.resources.ResourceLocation
-import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.world.phys.Vec3
-import net.neoforged.neoforge.capabilities.{Capability, ICapabilitySerializable}
-import java.util.Optional
-import java.util.function.Supplier
 
+/**
+ * `AudioReceiver` 是本模组自己的接口，NeoForge 1.21.1 下没有对应的能力，
+ * 查询时直接做类型判断即可（1.20.1 的 `Provider` 只是原样转发给方块实体）。
+ */
 object CapabilityAudioReceiver {
-  final val ProviderAudioReceiver = ResourceLocation.fromNamespaceAndPath(Mods.IDs.OpenComputers, "audio_receiver")
 
-  class Provider(val tileEntity: BlockEntity with AudioReceiver) extends ICapabilitySerializable[CompoundTag] with java.util.function.Supplier[Provider] with AudioReceiver {
-    private val wrapper = java.util.Optional.of(this)
-
-    override def get: Provider = this
-
-    def invalidate(): Unit = wrapper.invalidate()
-
-    override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
-      if (capability == Capabilities.AudioReceiverCapability) wrapper.cast[T]
-      else java.util.Optional.empty[T]
-    }
-
-    override def serializeNBT(): CompoundTag = {
-      new CompoundTag()
-    }
-
-    override def deserializeNBT(nbt: CompoundTag): Unit = {
-
-    }
-
-    override def level(): Level = tileEntity.level()
-
-    override def address(): String = tileEntity.address()
-
-    override def position(): Vec3 = tileEntity.position()
-
-    override def setChanged(): Unit = tileEntity.setChanged()
-
-    override def distance(): Int = tileEntity.distance()
+  /** 返回方块实体的 [[AudioReceiver]] 视图，没有则返回 `null`。 */
+  def get(tileEntity: BlockEntity): AudioReceiver = tileEntity match {
+    case receiver: AudioReceiver => receiver
+    case _ => null
   }
+
+  /** [[get]] 的 `Option` 版本，方便 Scala 侧调用。 */
+  def apply(tileEntity: BlockEntity): Option[AudioReceiver] = Option(get(tileEntity))
 }

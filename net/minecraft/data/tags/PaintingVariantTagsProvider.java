@@ -1,0 +1,78 @@
+package net.minecraft.data.tags;
+
+import java.util.concurrent.CompletableFuture;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.data.PackOutput;
+import net.minecraft.tags.PaintingVariantTags;
+import net.minecraft.world.entity.decoration.PaintingVariant;
+import net.minecraft.world.entity.decoration.PaintingVariants;
+
+public class PaintingVariantTagsProvider extends TagsProvider<PaintingVariant> {
+    /**
+ * @deprecated Forge: Use the {@linkplain #PaintingVariantTagsProvider(PackOutput,
+ *             CompletableFuture, String,
+ *             net.neoforged.neoforge.common.data.ExistingFileHelper) mod id
+ *             variant}
+ */
+    @Deprecated
+    public PaintingVariantTagsProvider(PackOutput output, CompletableFuture<HolderLookup.Provider> provider) {
+        super(output, Registries.PAINTING_VARIANT, provider);
+    }
+    public PaintingVariantTagsProvider(PackOutput output, CompletableFuture<HolderLookup.Provider> provider, String modId, @org.jetbrains.annotations.Nullable net.neoforged.neoforge.common.data.ExistingFileHelper existingFileHelper) {
+        super(output, Registries.PAINTING_VARIANT, provider, modId, existingFileHelper);
+    }
+
+    @Override
+    protected void addTags(HolderLookup.Provider provider) {
+        this.tag(PaintingVariantTags.PLACEABLE)
+            .add(
+                PaintingVariants.KEBAB,
+                PaintingVariants.AZTEC,
+                PaintingVariants.ALBAN,
+                PaintingVariants.AZTEC2,
+                PaintingVariants.BOMB,
+                PaintingVariants.PLANT,
+                PaintingVariants.WASTELAND,
+                PaintingVariants.POOL,
+                PaintingVariants.COURBET,
+                PaintingVariants.SEA,
+                PaintingVariants.SUNSET,
+                PaintingVariants.CREEBET,
+                PaintingVariants.WANDERER,
+                PaintingVariants.GRAHAM,
+                PaintingVariants.MATCH,
+                PaintingVariants.BUST,
+                PaintingVariants.STAGE,
+                PaintingVariants.VOID,
+                PaintingVariants.SKULL_AND_ROSES,
+                PaintingVariants.WITHER,
+                PaintingVariants.FIGHTERS,
+                PaintingVariants.POINTER,
+                PaintingVariants.PIGSCENE,
+                PaintingVariants.BURNING_SKULL,
+                PaintingVariants.SKELETON,
+                PaintingVariants.DONKEY_KONG,
+                PaintingVariants.BAROQUE,
+                PaintingVariants.HUMBLE,
+                PaintingVariants.MEDITATIVE,
+                PaintingVariants.PRAIRIE_RIDE,
+                PaintingVariants.UNPACKED,
+                PaintingVariants.BACKYARD,
+                PaintingVariants.BOUQUET,
+                PaintingVariants.CAVEBIRD,
+                PaintingVariants.CHANGING,
+                PaintingVariants.COTAN,
+                PaintingVariants.ENDBOSS,
+                PaintingVariants.FERN,
+                PaintingVariants.FINDING,
+                PaintingVariants.LOWMIST,
+                PaintingVariants.ORB,
+                PaintingVariants.OWLEMONS,
+                PaintingVariants.PASSAGE,
+                PaintingVariants.POND,
+                PaintingVariants.SUNFLOWERS,
+                PaintingVariants.TIDES
+            );
+    }
+}

@@ -1,22 +1,21 @@
 package li.cil.oc.common
 
-import java.util.function.Supplier
 import java.io.BufferedOutputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataOutputStream
 import java.io.OutputStream
 import java.util.zip.Deflater
 import java.util.zip.DeflaterOutputStream
-import li.cil.oc.{OpenComputers, Settings}
+import li.cil.oc.Settings
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.util.BlockPosition
+import li.cil.oc.util.RegistryAccessHelper
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.NbtIo
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.core.Direction
+import net.minecraft.core.{Direction, Registry}
 import net.neoforged.neoforge.network.PacketDistributor
 import net.neoforged.neoforge.server.ServerLifecycleHooks
-import net.neoforged.neoforge.registries._
 
 import scala.collection.convert.ImplicitConversionsToScala._
 import net.minecraft.world.level.block.entity.BlockEntity
@@ -57,7 +56,9 @@ abstract class PacketBuilder(stream: OutputStream) extends DataOutputStream(stre
     val haveStack = !stack.isEmpty && stack.getCount > 0
     writeBoolean(haveStack)
     if (haveStack) {
-      writeNBT(stack.save(new CompoundTag()))
+      // 1.21.1 的物品序列化必须先拿注册表访问器，并且要用 save 的返回值。
+      // 这里不能用 RegistryAccess.EMPTY：那样物品 id 写不出来，读档时会全部变成空气。
+      writeNBT(stack.save(RegistryAccessHelper.getOrEmpty()).asInstanceOf[CompoundTag])
     }
   }
 
@@ -83,7 +84,7 @@ abstract class PacketBuilder(stream: OutputStream) extends DataOutputStream(stre
 
   def writePacketType(pt: PacketType.Value) = writeByte(pt.id)
 
-  def sendToAllPlayers() = OpenComputers.channel.send(PacketDistributor.ALL.noArg(), packet)
+  def sendToAllPlayers(): Unit = PacketDistributor.sendToAllPlayers(new PacketPayload(packet))
 
   def sendToPlayersNearEntity(e: Entity, range: Option[Double] = None): Unit = sendToNearbyPlayers(e.level, e.getX, e.getY, e.getZ, range)
 
@@ -134,11 +135,9 @@ abstract class PacketBuilder(stream: OutputStream) extends DataOutputStream(stre
     }
   }
 
-  def sendToPlayer(player: ServerPlayer) = OpenComputers.channel.send(PacketDistributor.PLAYER.`with`(new Supplier[ServerPlayer] {
-    override def get = player
-  }), packet)
+  def sendToPlayer(player: ServerPlayer): Unit = PacketDistributor.sendToPlayer(player, new PacketPayload(packet))
 
-  def sendToServer() = OpenComputers.channel.sendToServer(packet)
+  def sendToServer(): Unit = PacketDistributor.sendToServer(new PacketPayload(packet))
 
   protected def packet: Array[Byte]
 }

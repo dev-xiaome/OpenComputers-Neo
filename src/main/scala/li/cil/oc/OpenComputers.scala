@@ -16,7 +16,6 @@ import li.cil.oc.util.ThreadPoolFactory
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.neoforge.forgespi.Environment
 import net.neoforged.fml.InterModComms
 import net.neoforged.fml.ModContainer
 import net.neoforged.fml.ModLoadingContext
@@ -26,8 +25,8 @@ import org.apache.logging.log4j.LogManager
 import org.apache.logging.log4j.Logger
 
 import scala.collection.convert.ImplicitConversionsToScala._
-import net.neoforged.neoforge.network.simple.SimpleChannel
-import net.neoforged.fml.javafmlmod.FMLJavaModLoadingContext
+import net.neoforged.bus.api.IEventBus
+import net.neoforged.fml.ModContainer
 import net.neoforged.fml.common.Mod
 
 object OpenComputers {
@@ -35,21 +34,19 @@ object OpenComputers {
 
   final val Name = "OpenComputers"
 
-  final val McVersion = "1.20.1-forge"
+  final val McVersion = "1.21.1-neoforge"
 
   final val Version = "1.9.0-beta"
 
   final val log: Logger = LogManager.getLogger(Name)
 
   lazy val proxy: Proxy = {
-    val cls = Environment.get.getDist match {
+    val cls = net.neoforged.fml.loading.FMLEnvironment.dist match {
       case Dist.CLIENT => Class.forName("li.cil.oc.client.Proxy")
       case _ => Class.forName("li.cil.oc.common.Proxy")
     }
     cls.getConstructor().newInstance().asInstanceOf[Proxy]
   }
-
-  var channel: SimpleChannel = null
 
   private var instance: Option[OpenComputers] = None
 
@@ -60,20 +57,21 @@ object OpenComputers {
 }
 
 @Mod(OpenComputers.ID)
-class OpenComputers {
-  val modContainer: ModContainer = ModLoadingContext.get.getActiveContainer
-  val modBus = FMLJavaModLoadingContext.get.getModEventBus
+class OpenComputers(modBus: IEventBus, container: ModContainer) {
 
   modBus.register(this)
   Items.init(modBus)
   Blocks.init(modBus)
+  // NeoForge 的强制加载 ticket 控制器必须在 mod 事件总线上注册
+  // （取代 Forge 1.20 在集成层调用的 `ForgeChunkManager.setForcedChunkLoadingCallback`）。
+  common.event.ChunkloaderUpgradeHandler.initialize(modBus)
   CreativeTab.CREATIVE_TABS.register(modBus)
   BlockEntityTypes.init(modBus)
   Recipes.init(modBus)
   LootFunctions.init(modBus)
   EntityTypes.ENTITY_TYPES.register(modBus)
   MenuTypes.MENU_TYPES.register(modBus)
-  modBus.register(classOf[Capabilities])
+  modBus.register(Capabilities)
   modBus.register(li.cil.oc.data.DataGenerators)
   modBus.register(CreativeTab)
   OpenComputers.instance = Some(this)

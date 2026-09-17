@@ -14,7 +14,7 @@ import net.minecraft.core.Direction
 import net.minecraft.core.BlockPos
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.neoforged.neoforge.capabilities.ForgeCapabilities
+import net.neoforged.neoforge.capabilities.{Capabilities => NeoCapabilities}
 import net.neoforged.neoforge.energy.IEnergyStorage
 
 /**
@@ -22,15 +22,14 @@ import net.neoforged.neoforge.energy.IEnergyStorage
   */
 object DriverEnergyStorage extends DriverBlock {
 
-  override def worksWith(world: Level, pos: BlockPos, side: Direction): Boolean = world.getBlockEntity(pos) match {
-    case tile: BlockEntity if tile.getCapability(ForgeCapabilities.ENERGY, side).isPresent => true
-    case _ => false
-  }
+  override def worksWith(world: Level, pos: BlockPos, side: Direction): Boolean =
+    world.getCapability(NeoCapabilities.EnergyStorage.BLOCK, pos, side) != null
 
-  override def createEnvironment(world: Level, pos: BlockPos, side: Direction): ManagedEnvironment = world.getBlockEntity(pos) match {
-    case tile: BlockEntity if tile.getCapability(ForgeCapabilities.ENERGY, side).isPresent => new Environment(tile.getCapability(ForgeCapabilities.ENERGY, side).orElse(null))
-    case _ => null
-  }
+  override def createEnvironment(world: Level, pos: BlockPos, side: Direction): ManagedEnvironment =
+    Option(world.getCapability(NeoCapabilities.EnergyStorage.BLOCK, pos, side)) match {
+      case Some(storage) => new Environment(storage)
+      case _ => null
+    }
 
   final class Environment(val storage: IEnergyStorage) extends AbstractManagedEnvironment with NamedBlock {
 

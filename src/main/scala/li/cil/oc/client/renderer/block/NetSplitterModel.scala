@@ -21,7 +21,7 @@ import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.phys.Vec3
 import net.minecraft.util.RandomSource
 import net.minecraft.client.renderer.RenderType
-import net.neoforged.neoforge.client.event.TextureStitchEvent
+import net.neoforged.neoforge.client.event.TextureAtlasStitchedEvent
 import net.neoforged.neoforge.client.model.data.{ModelData, ModelProperty}
 import net.neoforged.bus.api.SubscribeEvent
 
@@ -80,8 +80,9 @@ object NetSplitterModel extends SmartBlockModelBase {
     if (atlas.location().equals(InventoryMenu.BLOCK_ATLAS)) BaseModel = GenerateBaseModel(atlas)
   }
 
+  // 1.21.1: TextureStitchEvent 已被移除，改用 TextureAtlasStitchedEvent（MOD 事件总线）。
   @SubscribeEvent
-  def onTextureStitchPost(event: TextureStitchEvent.Post): Unit = {
+  def onTextureStitchPost(event: TextureAtlasStitchedEvent): Unit = {
     initBaseModel(event.getAtlas)
   }
 

@@ -1,7 +1,5 @@
 package li.cil.oc.common
 
-import java.util.function.Supplier
-import com.google.common.base.Strings
 import li.cil.oc._
 import li.cil.oc.common.blockentity.BlockEntityTypes
 import li.cil.oc.common.{PacketHandler => CommonPacketHandler}
@@ -18,69 +16,23 @@ import li.cil.oc.server.loot.LootFunctions
 import li.cil.oc.server.machine.luac.{LuaStateFactory, NativeLua52Architecture, NativeLua53Architecture, NativeLua54Architecture}
 import li.cil.oc.server.machine.luaj.LuaJLuaArchitecture
 import net.minecraft.world.item.Item
-import net.minecraft.resources.ResourceLocation
 import net.neoforged.bus.api.{IEventBus, SubscribeEvent}
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent
 import net.neoforged.fml.event.lifecycle.FMLLoadCompleteEvent
-import net.neoforged.neoforge.network.NetworkEvent
-import net.neoforged.neoforge.network.NetworkRegistry
-import net.neoforged.neoforge.registries.{BuiltInRegistries, MissingMappingsEvent}
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent
+import net.neoforged.neoforge.network.handling.{IPayloadContext, IPayloadHandler}
+import net.neoforged.neoforge.network.registration.PayloadRegistrar
 
 import scala.jdk.CollectionConverters._
 import net.neoforged.fml.javafmlmod.FMLJavaModLoadingContext
-import net.minecraft.network.FriendlyByteBuf
 import net.minecraft.world.level.block.Block
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent
 
-object Proxy {
-  // Yes, this could be boiled down even further, but I like to keep it
-  // explicit like this, because it makes it a) clearer, b) easier to
-  // extend, in case that should ever be needed.
-
-  // Example usage: OpenComputers.ID + ":rack" -> "serverRack"
-  private val blockRenames = Map[String, String](
-    OpenComputers.ID + ":serverRack" -> Constants.BlockName.Rack // Yay, full circle >_>
-  )
-
-  // Example usage: OpenComputers.ID + ":tabletCase" -> "tabletCase1"
-  private val itemRenames = Map[String, String](
-    OpenComputers.ID + ":dataCard" -> Constants.ItemName.DataCardTier1,
-    OpenComputers.ID + ":serverRack" -> Constants.BlockName.Rack,
-    OpenComputers.ID + ":wlanCard" -> Constants.ItemName.WirelessNetworkCardTier2
-  )
-
-  @SubscribeEvent
-  def onMissingMappings(e: MissingMappingsEvent): Unit = {
-    e.getMappings(BuiltInRegistries.Keys.BLOCKS, OpenComputers.ID).asScala.foreach { missing =>
-      blockRenames.get(missing.getKey.getPath) match {
-        case Some(name) =>
-          if (Strings.isNullOrEmpty(name)) {
-            missing.ignore()
-          } else {
-            val target = BuiltInRegistries.BLOCK.get(ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, name))
-            if (target != null) missing.remap(target) else missing.warn()
-          }
-        case _ => missing.warn()
-      }
-    }
-
-    e.getMappings(BuiltInRegistries.Keys.ITEMS, OpenComputers.ID).asScala.foreach { missing =>
-      itemRenames.get(missing.getKey.getPath) match {
-        case Some(name) =>
-          if (Strings.isNullOrEmpty(name)) {
-            missing.ignore()
-          } else {
-            val target = BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, name))
-            if (target != null) missing.remap(target) else missing.warn()
-          }
-        case _ => missing.warn()
-      }
-    }
-  }
-}
-
 class Proxy {
   protected val modBus: IEventBus = FMLJavaModLoadingContext.get.getModEventBus
+
+  /** 保证包体只注册一次：客户端侧 Proxy 实例在 mod 事件总线上被注册了两次。 */
+  private var payloadsRegistered = false
 
   def preInit(): Unit = {
     OpenComputers.log.info("Initializing OpenComputers API.")
@@ -118,14 +70,8 @@ class Proxy {
 
   def init(e: FMLCommonSetupEvent): Unit = {
     e.enqueueWork((() => {
-      OpenComputers.channel = NetworkRegistry.newSimpleChannel(ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, "net_main"), () => "", "".equals(_), "".equals(_))
-      OpenComputers.channel.registerMessage(0, classOf[Array[Byte]],
-        (msg: Array[Byte], buff: FriendlyByteBuf) => buff.writeByteArray(msg), _.readByteArray(),
-        (msg: Array[Byte], ctx: Supplier[NetworkEvent.Context]) => {
-          val context = ctx.get
-          context.enqueueWork(() => CommonPacketHandler.handlePacket(context.getDirection, msg, context.getSender))
-          context.setPacketHandled(true)
-        })
+      // 网络层不再需要在这里建通道：包体注册走 RegisterPayloadHandlersEvent，
+      // 见本类的 onRegisterPayloads。
       CommonPacketHandler.serverHandler = server.PacketHandler
 
       Loot.init()
@@ -141,6 +87,32 @@ class Proxy {
       api.API.isPowerEnabled = !Settings.get.ignorePower
     }): Runnable)
   }
+
+  /**
+   * 注册唯一的网络包体。
+   *
+   * 沿用旧版「一个消息类型装 byte[]」的模型：整包内容仍是「压缩标志 + PacketType.id + 数据」，
+   * 所以 PacketType 与 PacketBuilder 那套抽象以及所有收发调用点都保持原样。
+   */
+  def registerPacket(event: RegisterPayloadHandlersEvent): Unit = {
+    if (payloadsRegistered) return
+    payloadsRegistered = true
+
+    val registrar: PayloadRegistrar = event.registrar(OpenComputers.ID).versioned("1")
+    val handler: IPayloadHandler[PacketPayload] = new IPayloadHandler[PacketPayload] {
+      override def handle(payload: PacketPayload, context: IPayloadContext): Unit = {
+        // flow().isClientbound() 为真表示这是服务端发到客户端、在客户端被收到的包。
+        context.enqueueWork(new Runnable {
+          override def run(): Unit =
+            CommonPacketHandler.handlePacket(context.flow().isClientbound(), payload.data, context.player())
+        })
+      }
+    }
+    registrar.playBidirectional[PacketPayload](PacketPayload.TYPE, PacketPayload.STREAM_CODEC, handler)
+  }
+
+  @SubscribeEvent
+  def onRegisterPayloads(event: RegisterPayloadHandlersEvent): Unit = registerPacket(event)
 
   @SubscribeEvent
   def postInit(e: FMLLoadCompleteEvent): Unit = {

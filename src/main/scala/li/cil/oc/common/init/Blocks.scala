@@ -14,7 +14,7 @@ import net.minecraft.world.level.material.MapColor
 import net.neoforged.bus.api.IEventBus
 import net.neoforged.neoforge.registries.DeferredRegister
 import net.minecraft.core.registries.BuiltInRegistries
-import net.neoforged.neoforge.registries.RegistryObject
+import net.minecraft.resources.ResourceLocation
 
 object Blocks {
   val BLOCKS: DeferredRegister[Block] = DeferredRegister.create(BuiltInRegistries.BLOCK, Settings.resourceDomain)
@@ -83,6 +83,12 @@ object Blocks {
 
     // v1.7.2
     BLOCKS.register(Constants.BlockName.CarpetedCapacitor, () => Items.registerBlock(new CarpetedCapacitor(defaultProps), Constants.BlockName.CarpetedCapacitor, defaultItemProps))
+
+    // 注册表别名：对应原 `Proxy.blockRenames` 里 `serverRack` -> `rack` 一条。
+    // NeoForge 已移除 `MissingMappingsEvent`，改用 `DeferredRegister#addAlias`。
+    BLOCKS.addAlias(
+      ResourceLocation.fromNamespaceAndPath(li.cil.oc.OpenComputers.ID, "serverRack"),
+      ResourceLocation.fromNamespaceAndPath(li.cil.oc.OpenComputers.ID, Constants.BlockName.Rack))
 
     BLOCKS.register(bus)
   }

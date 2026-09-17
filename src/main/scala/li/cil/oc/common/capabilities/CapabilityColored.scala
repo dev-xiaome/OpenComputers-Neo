@@ -1,49 +1,24 @@
 package li.cil.oc.common.capabilities
 
 import li.cil.oc.api.internal.Colored
-import li.cil.oc.integration.Mods
-import net.minecraft.core.Direction
-import net.minecraft.nbt.{CompoundTag, IntTag}
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.neoforged.neoforge.capabilities.{Capability, ICapabilityProvider, ICapabilitySerializable}
-import java.util.Optional
-import java.util.function.Supplier
-import net.minecraft.resources.ResourceLocation
 
+/**
+ * `Colored` 是本模组自己的接口，NeoForge 1.21.1 下没有对应的能力，
+ * 查询时直接做类型判断即可（1.20.1 的 `Provider` 只是原样转发给方块实体）。
+ */
 object CapabilityColored {
-  final val ProviderColored = ResourceLocation.fromNamespaceAndPath(Mods.IDs.OpenComputers, "colored")
 
-  class Provider(val tileEntity: BlockEntity with Colored) extends ICapabilitySerializable[CompoundTag] with java.util.function.Supplier[Provider] with Colored {
-    private val wrapper = java.util.Optional.of(this)
-
-    override def get = this
-
-    def invalidate() = wrapper.invalidate()
-
-    override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
-      if (capability == Capabilities.ColoredCapability) wrapper.cast[T]
-      else java.util.Optional.empty[T]
-    }
-
-    override def getColor = tileEntity.getColor
-
-    override def setColor(value: Int) = tileEntity.setColor(value)
-
-    override def controlsConnectivity = tileEntity.controlsConnectivity
-
-    override def serializeNBT(): CompoundTag = {
-      val nbt = new CompoundTag()
-      nbt.putInt("color", getColor)
-      nbt
-    }
-
-    override def deserializeNBT(nbt: CompoundTag) = {
-      if (nbt.contains("color")) {
-        setColor(nbt.getInt("color"))
-      }
-    }
+  /** 返回方块实体的 [[Colored]] 视图，没有则返回 `null`。 */
+  def get(tileEntity: BlockEntity): Colored = tileEntity match {
+    case colored: Colored => colored
+    case _ => null
   }
 
+  /** [[get]] 的 `Option` 版本，方便 Scala 侧调用。 */
+  def apply(tileEntity: BlockEntity): Option[Colored] = Option(get(tileEntity))
+
+  /** 不控制连接颜色的默认实现。 */
   class DefaultImpl extends Colored {
     var color = 0
 

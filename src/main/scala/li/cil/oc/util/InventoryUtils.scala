@@ -19,7 +19,7 @@ import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.WorldlyContainer
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.phys.Vec3
-import net.neoforged.neoforge.capabilities.ForgeCapabilities
+import net.neoforged.neoforge.capabilities.{Capabilities => NeoCapabilities}
 
 object InventoryUtils {
 
@@ -47,11 +47,12 @@ object InventoryUtils {
    */
   def inventorySourceAt(position: BlockPosition, side: Direction): Option[InventorySource] = position.world match {
     case Some(world) if world.blockExists(position) => world.getBlockEntity(position) match {
-      case tile: BlockEntity if tile.getCapability(ForgeCapabilities.ITEM_HANDLER, side).isPresent => Option(BlockInventorySource(position, side, tile.getCapability(ForgeCapabilities.ITEM_HANDLER, side).orElse(null)))
+      case _: BlockEntity if world.getCapability(NeoCapabilities.ItemHandler.BLOCK, position.toBlockPos, side) != null =>
+        Option(BlockInventorySource(position, side, world.getCapability(NeoCapabilities.ItemHandler.BLOCK, position.toBlockPos, side)))
       case tile: Container => Option(BlockInventorySource(position, side, asItemHandler(tile, side)))
       case _ => world.getEntitiesOfClass(classOf[Entity], position.bounds)
-        .filter(e => e.isAlive && e.getCapability(ForgeCapabilities.ITEM_HANDLER, side).isPresent)
-        .map(a => EntityInventorySource(a, side, a.getCapability(ForgeCapabilities.ITEM_HANDLER, side).orElse(null)))
+        .filter(e => e.isAlive && e.getCapability(NeoCapabilities.ItemHandler.ENTITY_AUTOMATION, side) != null)
+        .map(a => EntityInventorySource(a, side, a.getCapability(NeoCapabilities.ItemHandler.ENTITY_AUTOMATION, side)))
         .find(a => a != null && a.inventory != null)
     }
     case _ => None

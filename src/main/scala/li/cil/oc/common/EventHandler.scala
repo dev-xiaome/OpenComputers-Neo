@@ -36,7 +36,6 @@ import li.cil.oc.integration.util
 import li.cil.oc.server.component.Keyboard
 import li.cil.oc.server.machine.Callbacks
 import li.cil.oc.server.machine.Machine
-import li.cil.oc.server.machine.luac.LuaStateFactory
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.ExtendedLevel._
 import li.cil.oc.util.StackOption._
@@ -50,10 +49,9 @@ import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent
 import net.neoforged.neoforge.client.event.ScreenEvent
 import net.minecraft.client.Minecraft
 import net.neoforged.neoforge.common.util.FakePlayer
-import net.neoforged.neoforge.event.AttachCapabilitiesEvent
-import net.neoforged.neoforge.event.tick.{ClientTickEvent, ServerTickEvent}
 import net.neoforged.neoforge.client.event.ClientTickEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
+import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent
 import net.neoforged.neoforge.event.entity.player.PlayerEvent._
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.neoforge.server.ServerLifecycleHooks
@@ -134,63 +132,23 @@ object EventHandler {
     }
   }
 
+  // 1.21.1 移除：原 `onAttachCapabilitiesItemStack` / `onAttachCapabilities`
+  // （`AttachCapabilitiesEvent[ItemStack]` / `AttachCapabilitiesEvent[BlockEntity]`）。
+  //
+  // NeoForge 1.21 把 Forge 1.20 的 `AttachCapabilitiesEvent` 整套删掉了：能力不再由
+  // 事件逐实例挂载，而是在 `RegisterCapabilitiesEvent` 里按「类型 + 谓词」注册提供者。
+  // 因此这两个监听器在本版已无对应事件，能力注册改由
+  // [[li.cil.oc.common.capabilities.Capabilities.onRegisterCapabilities]] 承担
+  // （主类里 `modBus.register(Capabilities)`）。
+
+  /**
+   * 服务端 tick 前半段（对应 1.20 Forge 的 `TickEvent.Phase.START`）。
+   *
+   * NeoForge 1.21 把 `TickEvent` 拆成了 `ServerTickEvent.Pre` / `ServerTickEvent.Post`，
+   * 不再有 `phase` 字段，所以原先的单个 `onServerTick` 必须拆成两个方法。
+   */
   @SubscribeEvent
-  def onAttachCapabilitiesItemStack(event: AttachCapabilitiesEvent[ItemStack]): Unit = {
-    if (!event.getCapabilities.containsKey(traits.Chargeable.KEY)) {
-      event.getObject match {
-        case stack: ItemStack => stack.getItem match {
-          case chargeable: traits.Chargeable =>
-            val provider = new traits.Chargeable.Provider(stack, chargeable)
-            event.addCapability(traits.Chargeable.KEY, provider)
-            event.addListener(() => provider.invalidate())
-          case _ =>
-        }
-        case _ =>
-      }
-    }
-  }
-
-  @SubscribeEvent
-  def onAttachCapabilities(event: AttachCapabilitiesEvent[BlockEntity]): Unit = {
-    event.getObject match {
-      case tileEntity: BlockEntity with Environment =>
-        val provider = new CapabilityEnvironment.Provider(tileEntity)
-        event.addCapability(CapabilityEnvironment.ProviderEnvironment, provider)
-        event.addListener(() => provider.invalidate())
-      case _ =>
-    }
-
-    event.getObject match {
-      case tileEntity: BlockEntity with Environment with SidedComponent =>
-        val provider = new CapabilitySidedComponent.Provider(tileEntity)
-        event.addCapability(CapabilitySidedComponent.SidedComponent, provider)
-        event.addListener(() => provider.invalidate())
-      case tileEntity: BlockEntity with SidedEnvironment =>
-        val provider = new CapabilitySidedEnvironment.Provider(tileEntity)
-        event.addCapability(CapabilitySidedEnvironment.ProviderSidedEnvironment, provider)
-        event.addListener(() => provider.invalidate())
-      case _ =>
-    }
-
-    event.getObject match {
-      case tileEntity: BlockEntity with Colored =>
-        val provider = new CapabilityColored.Provider(tileEntity)
-        event.addCapability(CapabilityColored.ProviderColored, provider)
-        event.addListener(() => provider.invalidate())
-      case _ =>
-    }
-
-    event.getObject match {
-      case tileEntity: BlockEntity with AudioReceiver =>
-        val provider = new CapabilityAudioReceiver.Provider(tileEntity)
-        event.addCapability(CapabilityAudioReceiver.ProviderAudioReceiver, provider)
-        event.addListener(() => provider.invalidate())
-      case _ =>
-    }
-  }
-
-  @SubscribeEvent
-  def onServerTick(e: ServerTickEvent): Any = if (e.phase == TickEvent.Phase.START) {
+  def onServerTickPre(e: ServerTickEvent.Pre): Unit = {
     pendingServer.synchronized {
       val adds = pendingServer.toArray
       pendingServer.clear()
@@ -216,7 +174,10 @@ object EventHandler {
     })
     runningRobots --= invalid
   }
-  else if (e.phase == TickEvent.Phase.END) {
+
+  /** 服务端 tick 后半段（对应 1.20 Forge 的 `TickEvent.Phase.END`）。 */
+  @SubscribeEvent
+  def onServerTickPost(e: ServerTickEvent.Post): Unit = {
     // Clean up machines *after* a tick, to allow stuff to be saved, first.
     val closed = mutable.ArrayBuffer.empty[Machine]
     machines.foreach(machine => if (machine.tryClose()) {
@@ -258,7 +219,7 @@ object EventHandler {
   }
 
   @SubscribeEvent
-  def onClientTick(e: ClientTickEvent): Unit = if (e.phase == TickEvent.Phase.START) {
+  def onClientTick(e: ClientTickEvent.Pre): Unit = {
     pendingClient.synchronized {
       val adds = pendingClient.toArray
       pendingClient.clear()
@@ -275,9 +236,9 @@ object EventHandler {
     if (SideTracker.isServer) e.getEntity match {
       case _: FakePlayer => // Nope
       case player: ServerPlayer =>
-        if (!LuaStateFactory.isAvailable && !LuaStateFactory.luajRequested) {
-          player.sendSystemMessage(Localization.Chat.WarningLuaFallback)
-        }
+        // 1.21.1 移除：原实现会在原生 Lua 不可用时提示「已回退到 LuaJ」。
+        // 原生 Lua（`server/machine/luac`）已整体移出编译集（见 `src/main/scala-pending`），
+        // 本版只有 LuaJ 一种架构，因此这条告警不再有意义。
         // Gaaah, MC 1.8 y u do this to me? Sending the packets here directly can lead to them
         // arriving on the client before it has a world and player instance, which causes all
         // sorts of trouble. It worked perfectly fine in MC 1.7.10... oSWDEG'PIl;dg'poinEG\a'pi=
@@ -349,7 +310,7 @@ object EventHandler {
         val persistedData = PlayerUtils.persistedData(player)
         if (!persistedData.getBoolean(Settings.namespace + "receivedManual")) {
           persistedData.putBoolean(Settings.namespace + "receivedManual", true)
-          player.inventory.add(api.Items.get(Constants.ItemName.Manual).createItemStack(1))
+          player.getInventory.add(api.Items.get(Constants.ItemName.Manual).createItemStack(1))
         }
       case _ =>
     }
@@ -403,7 +364,7 @@ object EventHandler {
           e.getEntity.getRandom.nextFloat() < Settings.get.presentChance && timeForPresents) {
           // Presents!
           val present = api.Items.get(Constants.ItemName.Present).createItemStack(1)
-          e.getEntity.level.playSound(e.getEntity, e.getEntity.getX, e.getEntity.getY, e.getEntity.getZ, SoundEvents.NOTE_BLOCK_PLING.get, SoundSource.MASTER, 0.2f, 1f)
+          e.getEntity.level.playSound(e.getEntity, e.getEntity.getX, e.getEntity.getY, e.getEntity.getZ, SoundEvents.NOTE_BLOCK_PLING.value(), SoundSource.MASTER, 0.2f, 1f)
           InventoryUtils.addToPlayerInventory(present, e.getEntity)
         }
       case _ => // Nope.
@@ -412,14 +373,22 @@ object EventHandler {
     Achievement.onCraft(e.getCrafting, e.getEntity)
   }
 
+  /**
+   * 玩家捡起物品。
+   *
+   * 1.21.1 迁移：Forge 1.20 的 `ItemPickupEvent` 已被 NeoForge 移除，对应事件是
+   * [[net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent]]，且只有
+   * `Pre` / `Post` 两个子类。这里关心的是「捡起之后」，所以监听 `Post`：
+   *  - `getOriginalEntity` → `getItemEntity`（物品实体）
+   *  - `getEntity` → `getPlayer`
+   *  - 被捡起的堆叠直接从 `getOriginalStack` 取，不必再绕物品实体。
+   */
   @SubscribeEvent
-  def onPickup(e: ItemPickupEvent): Unit = {
-    val entity = e.getOriginalEntity
-    Option(entity).flatMap(e => Option(e.getItem)) match {
-      case Some(stack) =>
-        Achievement.onAssemble(stack, e.getEntity)
-        Achievement.onCraft(stack, e.getEntity)
-      case _ => // Huh.
+  def onPickup(e: ItemEntityPickupEvent.Post): Unit = {
+    val stack = e.getOriginalStack
+    if (stack != null && !stack.isEmpty) {
+      Achievement.onAssemble(stack, e.getPlayer)
+      Achievement.onCraft(stack, e.getPlayer)
     }
   }
 
@@ -457,9 +426,9 @@ object EventHandler {
     else false
   }
 
-  private def getChunks(world: ServerLevel): Iterable[ChunkHolder] = {
-    world.getChunkSource.chunkMap.getChunks.asScala
-  }
+  // 1.21.1 移除：原 `getChunks(world: ServerLevel)` 会遍历 `ChunkMap#getChunks`。
+  // 1.21.1 的 `ChunkMap#getChunks()` 是 `protected`，外部（Scala 的无关类）无法访问，
+  // 且它在本类里本来就没有任何调用点，因此直接删除。
 
   // This is called from the ServerThread *and* the ClientShutdownThread, which
   // can potentially happen at the same time... for whatever reason. So let's
@@ -472,17 +441,12 @@ object EventHandler {
     if (!level.isClientSide) {
       val serverLevel = level.asInstanceOf[ServerLevel]
 
-      val chunkMap = serverLevel.getChunkSource.chunkMap
-      chunkMap.getChunks.asScala.foreach { holder =>
-        val chunk = holder.getTickingChunk
-        if (chunk != null) {
-          chunk.getBlockEntities.values().asScala.foreach {
-            case te: blockentity.traits.BaseBlockEntity => te.dispose()
-            case _ =>
-          }
-        }
-      }
-
+      // 1.21.1 迁移说明：原实现在这里遍历 `ChunkMap#getChunks`，对本维度所有已加载
+      // 区块里的 `BaseBlockEntity` 调 `dispose()`。1.21.1 没有公开的「枚举本维度所有已加载
+      // 区块」接口（`ChunkMap#getChunks()` 是 protected，`ServerChunkCache` 也没有对应方法），
+      // 因此这一段改为依赖 `BaseBlockEntity` 在区块卸载 / 被移除时自身回调的 `dispose()`
+      // （见 `onChunkUnloaded`）。语义差异：世界卸载时若某个区块没有单独触发卸载事件，
+      // 其方块实体可能不会在此处被 dispose —— 属已知降级点。
       serverLevel.getAllEntities.asScala.foreach {
         case host: MachineHost => host.machine.stop()
         case _ =>

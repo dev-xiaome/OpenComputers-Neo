@@ -4,15 +4,13 @@ import li.cil.oc.{Constants, OpenComputers, api}
 import li.cil.oc.common.block.RobotAfterimage
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedLevel._
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.{BlockPos, Direction, Registry}
 import net.minecraft.nbt.{CompoundTag, NbtIo}
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
-import net.neoforged.neoforge.network.NetworkDirection
-import net.neoforged.neoforge.registries._
 
 import java.io.{ByteArrayInputStream, DataInputStream, InputStream}
 import java.util.zip.InflaterInputStream
@@ -23,17 +21,14 @@ object PacketHandler {
 
   var serverHandler: PacketHandler = _
 
-  private[oc] def handlePacket(side: NetworkDirection, arr: Array[Byte], player: Player): Unit = {
+  private[oc] def handlePacket(isClientSide: Boolean, arr: Array[Byte], player: Player): Unit = {
     // Don't crash on badly formatted packets (may have been altered by a
     // malicious client, in which case we don't want to allow it to kill the
     // server like this). Just spam the log a bit... ;)
     var stream: InputStream = null
     try {
-      val handler = side match {
-        case NetworkDirection.PLAY_TO_CLIENT => clientHandler
-        case NetworkDirection.PLAY_TO_SERVER => serverHandler
-        case _ => null
-      }
+      // isClientSide 表示这个包是在客户端收到的（即服务端 -> 客户端方向的包）。
+      val handler = if (isClientSide) clientHandler else serverHandler
       if (handler != null) {
         stream = new ByteArrayInputStream(arr)
         if (stream.read() != 0) stream = new InflaterInputStream(stream)
@@ -78,9 +73,9 @@ abstract class PacketHandler {
       val id = readUTF()
       val location = ResourceLocation.tryParse(id)
       if (location != null) {
-        registry.getValue(location)
+        registry.get(location)
       } else {
-        registry.getValue(ResourceLocation.parse("minecraft:air"))
+        registry.get(ResourceLocation.parse("minecraft:air"))
       }
     }
 

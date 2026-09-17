@@ -87,7 +87,7 @@ object ConverterItemStack extends api.driver.Converter {
         val enchantments = mutable.ArrayBuffer.empty[mutable.Map[String, Any]]
         EnchantmentHelper.getEnchantments(stack).collect {
           case (enchantment, level) =>
-            val name = BuiltInRegistries.ENCHANTMENTS.getKey(enchantment).toString
+            val name = BuiltInRegistries.ENCHANTMENT.getKey(enchantment).toString
             val map = mutable.Map[String, Any](
               "name" -> name,
               "label" -> enchantment.getFullname(level),

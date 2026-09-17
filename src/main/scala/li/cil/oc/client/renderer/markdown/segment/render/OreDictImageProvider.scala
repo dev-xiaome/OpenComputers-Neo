@@ -22,13 +22,13 @@ object OreDictImageProvider extends ImageProvider {
     val desired = ResourceLocation.tryParse(data.toLowerCase)
     val stacks = mutable.ArrayBuffer.empty[ItemStack]
     val itemTagKey = TagKey.create(BuiltInRegistries.ITEM.key(), desired)
-    val itemTag = BuiltInRegistries.ITEM.tags().getTag(itemTagKey)
+    val itemTag = BuiltInRegistries.ITEM.getTags.getTag(itemTagKey)
     if (!itemTag.isEmpty) {
       stacks ++= itemTag.asScala.map(new ItemStack(_))
     }
     if (stacks.isEmpty) {
       val blockTagKey = TagKey.create(BuiltInRegistries.BLOCK.key(), desired)
-      val blockTag = BuiltInRegistries.BLOCK.tags().getTag(blockTagKey)
+      val blockTag = BuiltInRegistries.BLOCK.getTags.getTag(blockTagKey)
 
       if (!blockTag.isEmpty) {
         stacks ++= blockTag.asScala.map(new ItemStack(_))

@@ -6,7 +6,7 @@ import li.cil.oc.api
 import li.cil.oc.api.network
 import li.cil.oc.api.network._
 import li.cil.oc.api.network.{Node => ImmutableNode}
-import li.cil.oc.common.capabilities.Capabilities
+import li.cil.oc.common.capabilities.{CapabilityColored, CapabilityEnvironment, CapabilitySidedEnvironment}
 import li.cil.oc.common.blockentity
 import li.cil.oc.server.network.Component
 import li.cil.oc.server.network.ComponentConnector
@@ -492,14 +492,15 @@ object Network extends api.detail.NetworkAPI {
 
   def getNetworkNode(tileEntity: BlockEntity, side: Direction): Option[ImmutableNode] = {
     if (tileEntity != null) {
-      if (tileEntity.getCapability(Capabilities.SidedEnvironmentCapability, side).isPresent) {
-        val host = tileEntity.getCapability(Capabilities.SidedEnvironmentCapability, side).orElse(null)
-        if (host != null) return Option(host.sidedNode(side))
+      // 1.21.1 没有自定义能力了，直接做类型判断（顺序与 1.20.1 的注册顺序一致）。
+      CapabilitySidedEnvironment(tileEntity) match {
+        case Some(host) => return Option(host.sidedNode(side))
+        case _ =>
       }
 
-      if (tileEntity.getCapability(Capabilities.EnvironmentCapability, side).isPresent) {
-        val host = tileEntity.getCapability(Capabilities.EnvironmentCapability, side).orElse(null)
-        if (host != null) return Option(host.node)
+      CapabilityEnvironment(tileEntity) match {
+        case Some(host) => return Option(host.node)
+        case _ =>
       }
     }
 
@@ -508,9 +509,9 @@ object Network extends api.detail.NetworkAPI {
 
   private def getConnectionColor(tileEntity: BlockEntity): Int = {
     if (tileEntity != null) {
-      if (tileEntity.getCapability(Capabilities.ColoredCapability, null).isPresent) {
-        val colored = tileEntity.getCapability(Capabilities.ColoredCapability, null).orElse(null)
-        if (colored != null && colored.controlsConnectivity) return colored.getColor
+      CapabilityColored(tileEntity) match {
+        case Some(colored) if colored.controlsConnectivity => return colored.getColor
+        case _ =>
       }
     }
 

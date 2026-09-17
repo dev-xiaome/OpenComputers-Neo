@@ -11,22 +11,19 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.neoforged.neoforge.capabilities.ForgeCapabilities;
+import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
 
 public final class DriverFluidHandler implements DriverBlock {
     @Override
     public boolean worksWith(final Level level, final BlockPos pos, final Direction side) {
-        final BlockEntity blockEntity = level.getBlockEntity(pos);
-        if (blockEntity == null) {
-            return false;
-        }
-        return blockEntity.getCapability(ForgeCapabilities.FLUID_HANDLER, side).isPresent();
+        // 1.21.1 的能力查询挂在 Level 上，返回值可能为 null。
+        return level.getCapability(Capabilities.FluidHandler.BLOCK, pos, side) != null;
     }
 
     @Override
     public ManagedEnvironment createEnvironment(final Level level, final BlockPos pos, final Direction side) {
-        return new Environment(level.getBlockEntity(pos).getCapability(ForgeCapabilities.FLUID_HANDLER, side).orElse(null));
+        return new Environment(level.getCapability(Capabilities.FluidHandler.BLOCK, pos, side));
     }
 
     public static final class Environment extends ManagedBlockEntityEnvironment<IFluidHandler> {

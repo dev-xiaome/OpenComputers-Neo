@@ -93,8 +93,9 @@ object Textures {
   object Item {
     val DroneItem = ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, "item/drone")
     val Robot = ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, "item/robot")
-    val TerminalOn = new ModelResourceLocation(Settings.resourceDomain, Constants.ItemName.Terminal + "_on", "inventory")
-    val TerminalOff = new ModelResourceLocation(Settings.resourceDomain, Constants.ItemName.Terminal + "_off", "inventory")
+    // 1.21.1: ModelResourceLocation 变为 (ResourceLocation, String) 记录，inventory 变体用工厂方法。
+    val TerminalOn = ModelResourceLocation.inventory(ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, Constants.ItemName.Terminal + "_on"))
+    val TerminalOff = ModelResourceLocation.inventory(ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, Constants.ItemName.Terminal + "_off"))
   }
 
   object Block {
@@ -180,7 +181,7 @@ object Textures {
   def onRegisterReloadListeners(e: RegisterClientReloadListenersEvent): Unit = {
     e.registerReloadListener(new ResourceManagerReloadListener {
       override def onResourceManagerReload(manager: ResourceManager): Unit = {
-        val tm = Minecraft.getInstance.textureManager
+        val tm = Minecraft.getInstance.getTextureManager
         def register(bundle: SimpleTextureBundle): Unit = {
           bundle.locations.foreach { loc =>
             tm.register(loc, new SimpleTexture(ResourceLocation.fromNamespaceAndPath(loc.getNamespace, s"textures/${loc.getPath}.png")))

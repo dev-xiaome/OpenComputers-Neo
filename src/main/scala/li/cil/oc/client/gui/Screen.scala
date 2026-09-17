@@ -29,16 +29,17 @@ class Screen(val buffer: api.internal.TextBuffer, val hasMouse: Boolean, val has
 
   private var mx, my = -1
 
-  override def mouseScrolled(mouseX: Double, mouseY: Double, delta: Double): Boolean = {
+  // 1.21.1: mouseScrolled 增加 scrollX 参数（4 参签名）。
+  override def mouseScrolled(mouseX: Double, mouseY: Double, scrollX: Double, scrollY: Double): Boolean = {
     if (hasMouse) {
       toBufferCoordinates(mouseX, mouseY) match {
         case Some((bx, by)) =>
-          buffer.mouseScroll(bx, by, math.signum(delta).toInt, null)
+          buffer.mouseScroll(bx, by, math.signum(scrollY).toInt, null)
           return true
         case _ => // Ignore when out of bounds.
       }
     }
-    super.mouseScrolled(mouseX, mouseY, delta)
+    super.mouseScrolled(mouseX, mouseY, scrollX, scrollY)
   }
 
   override def mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean = {
