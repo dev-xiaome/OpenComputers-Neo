@@ -26,6 +26,7 @@ import net.minecraft.world.phys.shapes.{CollisionContext => ISelectionContext}
 import net.minecraft.world.phys.shapes.VoxelShape
 import net.minecraft.network.chat.{Component => ITextComponent}
 import net.minecraft.world.level.{BlockGetter => IBlockReader}
+import net.minecraft.world.level.LevelReader
 import net.minecraft.world.level.{Level => World}
 import net.minecraft.server.level.{ServerLevel => ServerWorld}
 import net.minecraft.util.RandomSource
@@ -77,7 +78,9 @@ class Print(props: Properties) extends RedstoneAware(props) {
       case _ => super.getLightBlock(state, world, pos)
     }
 
-  override def getCloneItemStack(state: BlockState, target: RayTraceResult, world: IBlockReader, pos: BlockPos, player: PlayerEntity): ItemStack = {
+  // 1.21.1：`Block#getCloneItemStack` 只剩 3 个参数 `(LevelReader, BlockPos, BlockState)`，
+  // 玩家与命中结果已从签名里移除；这里本来也只用到世界和坐标。
+  override def getCloneItemStack(world: LevelReader, pos: BlockPos, state: BlockState): ItemStack = {
     world.getBlockEntity(pos) match {
       case print: blockentity.Print => print.data.createItemStack()
       case _ => ItemStack.EMPTY

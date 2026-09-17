@@ -50,7 +50,9 @@ trait BaseBlockEntity extends net.minecraft.world.level.block.entity.BlockEntity
   }
 
   override def onChunkUnloaded(): Unit = {
-    super.onChunkUnloaded()
+    // 1.21.1：不再调用 ``super.onChunkUnloaded()`` —— 它来自 NeoForge 的 ``IBlockEntityExtension``
+    // 接口（默认实现为空），trait 里对接口方法做 ``super`` 调用会要求每个实现类都直接混入该接口
+    // （Scala 的 super accessor 限制）。默认实现本来就是空操作，因此直接省略。
     try dispose() catch {
       case t: Throwable => OpenComputers.log.error("Failed properly disposing a block entity, things may leak and or break.", t)
     }

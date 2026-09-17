@@ -100,7 +100,7 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
     case i if !getItem(i).isEmpty && isComponentSlot(i, getItem(i)) => getItem(i)
   }
 
-  override def componentSlot(address: String): Int = components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+  override def componentSlot(address: String): Int = componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   override def onMachineConnect(node: Node): Unit = onConnect(node)
 
@@ -170,12 +170,12 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
     nbt
   }
 
-  override def getConnectableCount: Int = components.count {
+  override def getConnectableCount: Int = componentEnvironments.count {
     case Some(_: RackBusConnectable) => true
     case _ => false
   }
 
-  override def getConnectableAt(index: Int): RackBusConnectable = components.collect {
+  override def getConnectableAt(index: Int): RackBusConnectable = componentEnvironments.collect {
     case Some(busConnectable: RackBusConnectable) => busConnectable
   }.apply(index)
 

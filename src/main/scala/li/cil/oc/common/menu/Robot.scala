@@ -19,7 +19,7 @@ import net.minecraft.world.inventory.DataSlot
 import net.minecraft.resources.ResourceLocation
 
 object RobotInfo {
-  def getScreenBuffer(robot: blockentity.Robot): Option[String] = robot.components.collectFirst {
+  def getScreenBuffer(robot: blockentity.Robot): Option[String] = robot.componentEnvironments.collectFirst {
     case Some(buffer: api.internal.TextBuffer) if buffer.node != null => buffer.node.address
   }
 

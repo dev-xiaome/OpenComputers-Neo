@@ -33,6 +33,7 @@ import net.minecraft.network.chat.{Component => ITextComponent}
 import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
 import net.minecraft.world.level.storage.loot.functions.LootItemFunctions
 import net.minecraft.world.level.{BlockGetter => IBlockReader}
+import net.minecraft.world.level.LevelReader
 import net.minecraft.world.level.{Level => World}
 
 
@@ -46,7 +47,9 @@ class Microcontroller(props: Properties)
 
   // ----------------------------------------------------------------------- //
 
-  override def getCloneItemStack(state: BlockState, target: RayTraceResult, world: IBlockReader, pos: BlockPos, player: PlayerEntity): ItemStack =
+  // 1.21.1：`Block#getCloneItemStack` 只剩 3 个参数 `(LevelReader, BlockPos, BlockState)`，
+  // 玩家与命中结果已从签名里移除；这里本来也只用到世界和坐标。
+  override def getCloneItemStack(world: LevelReader, pos: BlockPos, state: BlockState): ItemStack =
     world.getBlockEntity(pos) match {
       case mcu: blockentity.Microcontroller => mcu.info.copyItemStack()
       case _ => ItemStack.EMPTY
@@ -127,7 +130,7 @@ class Microcontroller(props: Properties)
     super.getDrops(state, newCtx)
   }
 
-  override def playerWillDestroy(world: World, pos: BlockPos, state: BlockState, player: PlayerEntity): Unit = {
+  override def playerWillDestroy(world: World, pos: BlockPos, state: BlockState, player: PlayerEntity): BlockState = {
     if (!world.isClientSide && player.isCreative) {
       world.getBlockEntity(pos) match {
         case tileEntity: blockentity.Microcontroller =>

@@ -1,6 +1,7 @@
 package li.cil.oc.common.block
 
 import java.util
+import com.mojang.serialization.MapCodec
 import li.cil.oc.common.blockentity
 import li.cil.oc.common.blockentity.traits.Colored
 import li.cil.oc.common.blockentity.traits.Inventory
@@ -49,6 +50,13 @@ abstract class SimpleBlock(props: Properties) extends ContainerBlock(props) {
   override def newBlockEntity(pos: BlockPos, state: BlockState): TileEntity = null
 
   override def getRenderShape(state: BlockState): BlockRenderType = BlockRenderType.MODEL
+
+  // 1.21.1：`BaseEntityBlock` 把 `Block#codec()` 重新声明为
+  // `protected abstract MapCodec[_ <: BaseEntityBlock]`，与 `Block` 中返回
+  // `MapCodec[_ <: Block]` 的具体实现构成「覆写类型不兼容」，于是每个具体子类
+  // 都会报 incompatible type in overriding。OpenComputers 的方块不参与数据包
+  // 驱动的方块定义，这里用一个常量 codec 直接满足契约。
+  override def codec(): MapCodec[_ <: ContainerBlock] = MapCodec.unit(this)
 
   // ----------------------------------------------------------------------- //
   // BlockItem
@@ -129,7 +137,9 @@ abstract class SimpleBlock(props: Properties) extends ContainerBlock(props) {
     super.getDrops(state, newCtx)
   }
 
-  override def playerWillDestroy(world: World, pos: BlockPos, state: BlockState, player: PlayerEntity): Unit = {
+  // 1.21.1：`Block#playerWillDestroy` 的返回值由 void 改为 `BlockState`（返回销毁前的方块状态）。
+  // 副作用保持原样，最后把父类的结果透传出去。所有子类都从这里继承，无需逐个修改。
+  override def playerWillDestroy(world: World, pos: BlockPos, state: BlockState, player: PlayerEntity): BlockState = {
     if (!world.isClientSide && player.isCreative) world.getBlockEntity(pos) match {
       case inventory: Inventory => inventory.dropAllSlots()
       case _ => // Ignore.

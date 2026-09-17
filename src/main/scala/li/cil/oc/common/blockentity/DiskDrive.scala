@@ -43,7 +43,7 @@ class DiskDrive(pos: BlockPos, state: BlockState)
   // Used on client side to check whether to render disk activity indicators.
   var lastAccess = 0L
 
-  def filesystemNode: Option[Node] = components(0) match {
+  def filesystemNode: Option[Node] = componentEnvironments(0) match {
     case Some(environment) => Option(environment.node)
     case _ => None
   }
@@ -120,7 +120,7 @@ class DiskDrive(pos: BlockPos, state: BlockState)
 
   override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     super.onItemAdded(slot, stack)
-    components(slot) match {
+    componentEnvironments(slot) match {
       case Some(environment) => environment.node match {
         case component: Component => component.setVisibility(Visibility.Network)
       }

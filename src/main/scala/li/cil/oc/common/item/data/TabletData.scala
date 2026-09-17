@@ -62,4 +62,8 @@ class TabletData extends ItemData(Constants.ItemName.Tablet) {
     nbt.putInt(TierTag, tier)
     if (!container.isEmpty) nbt.setNewItemStackTag(ContainerTag, container)
   }
+
+  // 1.21.1：`Item#getRarity(ItemStack)` 已移除，品质改为写进 `RARITY` 数据组件；
+  // 本物品的品质随堆叠里的 tier 变化，因此每次写数据时一并刷新组件（见 `ItemData.applyRarityComponent`）。
+  override protected def applyRarityComponent(stack: ItemStack): Unit = setRarityFromTier(stack, tier)
 }

@@ -272,7 +272,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   override def onAnalyze(player: Player, side: Direction, hitX: Float, hitY: Float, hitZ: Float): Array[Node] = {
     slotAt(side, hitX, hitY, hitZ) match {
-      case Some(slot) => components(slot) match {
+      case Some(slot) => componentEnvironments(slot) match {
         case Some(analyzable: Analyzable) => analyzable.onAnalyze(player, side, hitX, hitY, hitZ)
         case _ => null
       }
@@ -283,9 +283,9 @@ class Rack(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
   // internal.Rack
 
-  override def indexOfMountable(mountable: RackMountable): Int = components.indexWhere(_.contains(mountable))
+  override def indexOfMountable(mountable: RackMountable): Int = componentEnvironments.indexWhere(_.contains(mountable))
 
-  override def getMountable(slot: Int): RackMountable = components(slot) match {
+  override def getMountable(slot: Int): RackMountable = componentEnvironments(slot) match {
     case Some(mountable: RackMountable) => mountable
     case _ => null
   }
@@ -302,7 +302,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   override def getCurrentState: util.EnumSet[StateAware.State] = {
     val result = util.EnumSet.noneOf(classOf[api.util.StateAware.State])
-    components.collect {
+    componentEnvironments.collect {
       case Some(mountable: RackMountable) => result.addAll(mountable.getCurrentState)
     }
     result
@@ -321,7 +321,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   override protected def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
     super.onRedstoneInputChanged(args)
-    components.collect {
+    componentEnvironments.collect {
       case Some(mountable: RackMountable) if mountable.node != null =>
         val toLocalArgs = RedstoneChangedEventArgs(toLocal(args.side), args.oldValue, args.newValue, args.color)
         mountable.node.sendToNeighbors("redstone.changed", toLocalArgs)
@@ -396,7 +396,7 @@ class Rack(pos: BlockPos, state: BlockState)
       lazy val connectors = ArraySeq.unsafeWrapArray(Direction.values()).map(sidedNode).collect {
         case connector: Connector => connector
       }
-      components.zipWithIndex.collect {
+      componentEnvironments.zipWithIndex.collect {
         case (Some(mountable: RackMountable), slot) =>
           if (hasChanged(slot)) {
             hasChanged(slot) = false
@@ -486,7 +486,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   def isWorking(mountable: RackMountable): Boolean = mountable.getCurrentState.contains(api.util.StateAware.State.IsWorking)
 
-  def hasRedstoneCard: Boolean = components.exists {
+  def hasRedstoneCard: Boolean = componentEnvironments.exists {
     case Some(mountable: EnvironmentHost with RackMountable with Container) if isWorking(mountable) =>
       mountable.exists(stack => DriverRedstoneCard.worksWith(stack, mountable.getClass))
     case _ => false

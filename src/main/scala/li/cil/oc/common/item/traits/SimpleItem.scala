@@ -42,7 +42,10 @@ trait SimpleItem extends Item with api.driver.item.UpgradeRenderer {
   override def doesSneakBypassUse(stack: ItemStack, level: LevelReader, pos: BlockPos, player: Player): Boolean = {
     level.getBlockEntity(pos) match {
       case drive: blockentity.DiskDrive => true
-      case _ => super.doesSneakBypassUse(stack, level, pos, player)
+      // 1.21.1：不再走 `super.doesSneakBypassUse` —— 该默认实现来自 NeoForge 的 `IItemExtension` 接口，
+      // trait 里对接口方法做 `super` 调用会要求每个实现类都直接混入该接口（Scala 的 super accessor 限制）。
+      // 默认值就是 false，这里直接内联。
+      case _ => false
     }
   }
 
@@ -68,7 +71,8 @@ trait SimpleItem extends Item with api.driver.item.UpgradeRenderer {
           (hitPos.x - pos.x).toFloat, (hitPos.y - pos.y).toFloat, (hitPos.z - pos.z).toFloat)
         if (success) InteractionResult.sidedSuccess(world.isClientSide) else InteractionResult.PASS
       }
-      case _ => super.useOn(ctx)
+      // 1.21.1：同上，`Item#useOn` 的默认返回就是 PASS，直接内联。
+      case _ => InteractionResult.PASS
     }
 
   @Deprecated
@@ -78,7 +82,8 @@ trait SimpleItem extends Item with api.driver.item.UpgradeRenderer {
   override def use(world: Level, player: Player, hand: InteractionHand): InteractionResultHolder[ItemStack] =
     player.getItemInHand(hand) match {
       case stack: ItemStack => use(stack, world, player)
-      case _ => super.use(world, player, hand)
+      // 1.21.1：同上，`Item#use` 的默认返回就是 PASS + 手上的堆叠，直接内联。
+      case _ => new InteractionResultHolder(InteractionResult.PASS, player.getItemInHand(hand))
     }
 
   @Deprecated

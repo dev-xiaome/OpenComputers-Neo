@@ -14,6 +14,7 @@ import net.minecraft.world.level.block.entity.{BlockEntity => TileEntity}
 import net.minecraft.world.level.block.state.BlockBehaviour.Properties
 import net.minecraft.world.level.block.state.{BlockState, StateDefinition => StateContainer}
 import net.minecraft.world.level.{BlockGetter => IBlockReader, Level => World, LevelAccessor => IWorld}
+import net.minecraft.world.level.LevelReader
 import net.minecraft.world.phys.shapes.{CollisionContext => ISelectionContext, Shapes => VoxelShapes, VoxelShape}
 import net.minecraft.world.phys.{HitResult => RayTraceResult}
 
@@ -50,7 +51,9 @@ class Cable(props: Properties) extends SimpleBlock(props) {
     )
   }
 
-  override def getCloneItemStack(state: BlockState, target: RayTraceResult, world: IBlockReader, pos: BlockPos, player: PlayerEntity): ItemStack = {
+  // 1.21.1：`Block#getCloneItemStack` 只剩 3 个参数 `(LevelReader, BlockPos, BlockState)`，
+  // 玩家与命中结果已从签名里移除；这里本来也只用到世界和坐标。
+  override def getCloneItemStack(world: LevelReader, pos: BlockPos, state: BlockState): ItemStack = {
     world.getBlockEntity(pos) match {
       case cable: blockentity.Cable => cable.createItemStack()
       case _ => createItemStack()

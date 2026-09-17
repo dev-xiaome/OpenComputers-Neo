@@ -96,7 +96,7 @@ class Raid(props: Properties) extends SimpleBlock(props) with traits.GUI {
     super.getDrops(state, newCtx)
   }
 
-  override def playerWillDestroy(world: World, pos: BlockPos, state: BlockState, player: PlayerEntity): Unit = {
+  override def playerWillDestroy(world: World, pos: BlockPos, state: BlockState, player: PlayerEntity): BlockState = {
     if (!world.isClientSide && player.isCreative) {
       world.getBlockEntity(pos) match {
         case tileEntity: blockentity.Raid if tileEntity.items.exists(!_.isEmpty) =>

@@ -69,7 +69,7 @@ class Case(pos: BlockPos, state: BlockState, var tier: Int)
 
   // ----------------------------------------------------------------------- //
 
-  override def componentSlot(address: String) = components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+  override def componentSlot(address: String) = componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   // ----------------------------------------------------------------------- //
 

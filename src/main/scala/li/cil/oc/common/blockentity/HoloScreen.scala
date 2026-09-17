@@ -204,8 +204,9 @@ class HoloScreen(pos: BlockPos, state: BlockState, tier: Int) extends Screen(pos
     nbt.putInt(ConfigHeightTag, height)
   }
 
-  // 1.21.1：`getRenderBoundingBox` 已从方块实体挪到渲染器，不再可覆写（见 `Screen.getRenderBoundingBox`）。
-  def getRenderBoundingBox: AABB = {
+  // 1.21.1：`getRenderBoundingBox` 已从方块实体挪到渲染器；本类是 `Screen` 的子类，
+  // `Screen` 里它已经是普通方法，因此这里要写 `override`。
+  override def getRenderBoundingBox: AABB = {
     val horizontalRange = math.max(width, 1).toDouble + 1.0
     val verticalRange = math.max(height, 1).toDouble + 1.0
     val (minY, maxY) =

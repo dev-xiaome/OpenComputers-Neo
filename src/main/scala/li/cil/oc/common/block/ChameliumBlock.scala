@@ -10,6 +10,7 @@ import net.minecraft.world.level.block.state.properties.EnumProperty
 import net.minecraft.world.level.block.state.{StateDefinition => StateContainer}
 import net.minecraft.core.BlockPos
 import net.minecraft.world.level.{BlockGetter => IBlockReader}
+import net.minecraft.world.level.LevelReader
 
 object ChameliumBlock {
   final val Color = EnumProperty.create("color", classOf[DyeColor])
@@ -27,7 +28,8 @@ class ChameliumBlock(props: Properties) extends SimpleBlock(props) {
     stack
   }
 
-  override def getCloneItemStack(world: IBlockReader, pos: BlockPos, state: BlockState): ItemStack = {
+  // 1.21.1：签名是 `(LevelReader, BlockPos, BlockState)`；原来写的 `BlockGetter` 会覆写不匹配。
+  override def getCloneItemStack(world: LevelReader, pos: BlockPos, state: BlockState): ItemStack = {
     val stack = new ItemStack(this)
     stack.setDamageValue(state.getValue(ChameliumBlock.Color).getId)
     stack

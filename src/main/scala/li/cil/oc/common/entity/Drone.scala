@@ -156,12 +156,12 @@ class Drone(selfType: EntityType[Drone], level: Level) extends Entity(selfType, 
     override def stillValid(player: Player): Boolean = player.distanceToSqr(drone) < 64
   }
   val tank = new MultiTank {
-    override def tankCount: Int = components.components.count {
+    override def tankCount: Int = components.componentEnvironments.count {
       case Some(tank: IFluidTank) => true
       case _ => false
     }
 
-    override def getFluidTank(index: Int): IFluidTank = components.components.collect {
+    override def getFluidTank(index: Int): IFluidTank = components.componentEnvironments.collect {
       case Some(tank: IFluidTank) => tank
     }.apply(index)
   }
@@ -264,7 +264,7 @@ class Drone(selfType: EntityType[Drone], level: Level) extends Entity(selfType, 
 
   override def internalComponents(): Iterable[ItemStack] = asJavaIterable(info.components)
 
-  override def componentSlot(address: String): Int = components.components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+  override def componentSlot(address: String): Int = components.componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   override def onMachineConnect(node: Node): Unit = {}
 
@@ -368,7 +368,8 @@ class Drone(selfType: EntityType[Drone], level: Level) extends Entity(selfType, 
 
   def lightColor_=(value: Int): Unit = entityData.set(Drone.DataLightColor, Int.box(value))
 
-  override def lerpTo(x: Double, y: Double, z: Double, yaw: Float, pitch: Float, posRotationIncrements: Int, teleport: Boolean): Unit = {
+  // 1.21.1：`Entity#lerpTo` 去掉了最后的 `teleport` 参数，只剩 6 个参数。
+  override def lerpTo(x: Double, y: Double, z: Double, yaw: Float, pitch: Float, posRotationIncrements: Int): Unit = {
     // Only set exact position if we're too far away from the server's
     // position, otherwise keep interpolating. This removes jitter and
     // is good enough for drones.

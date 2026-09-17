@@ -70,20 +70,21 @@ class Tablet(props: Properties) extends Item(props) with traits.SimpleItem with 
     if (KeyBindings.showExtendedTooltips) {
       val info = new TabletData(stack)
       // Ignore/hide the screen.
-      val components = info.items.drop(1)
-      if (components.length > 1) {
+      val componentEnvironments = info.items.drop(1)
+      if (componentEnvironments.length > 1) {
         for (curr <- Tooltip.get("server.Components")) {
           tooltip.add(Component.literal(curr).setStyle(Tooltip.DefaultStyle))
         }
-        components.collect {
+        componentEnvironments.collect {
           case component if !component.isEmpty => tooltip.add(Component.literal("- " + component.getHoverName.getString).setStyle(Tooltip.DefaultStyle))
         }
       }
     }
   }
 
-  // 1.21.1：`Item#getRarity(ItemStack)` 已移除（品质是 `ItemStack` 的 `RARITY` 数据组件），
-  // 因此这里降级为普通方法。动态品质在本版丢失，见 `common/block/Item.scala` 的说明。
+  // 1.21.1：`Item#getRarity(ItemStack)` 已移除，品质改为 `ItemStack` 的 `RARITY` 数据组件，
+  // 因此这里只能留作普通方法（已无调用点）。真正的品质由 `TabletData`
+  // 在写数据时经 `ItemData.applyRarityComponent` 写进组件，见那里的说明。
   def getRarity(stack: ItemStack): item.Rarity = {
     val data = new TabletData(stack)
     Rarity.byTier(data.tier)
@@ -203,7 +204,7 @@ class Tablet(props: Properties) extends Item(props) with traits.SimpleItem with 
               }
             }
             else {
-              Tablet.get(stack, player).components.collect {
+              Tablet.get(stack, player).componentEnvironments.collect {
                 case Some(buffer: api.internal.TextBuffer) => buffer
               }.headOption match {
                 case Some(buffer: api.internal.TextBuffer) => showGui(buffer)
@@ -235,7 +236,7 @@ class Tablet(props: Properties) extends Item(props) with traits.SimpleItem with 
 class TabletWrapper(var stack: ItemStack, var player: Player) extends ComponentInventory with MachineHost with internal.Tablet with MenuProvider {
   // Remember our *original* level, so we know which tablets to clear on dimension
   // changes of players holding tablets - since the player entity instance may be
-  // kept the same and components are not required to properly handle level changes.
+  // kept the same and componentEnvironments are not required to properly handle level changes.
   val getEnvironmentLevel: Level = player.level
 
   lazy val machine: api.machine.Machine = if (getEnvironmentLevel.isClientSide) null else Machine.create(this)
@@ -332,10 +333,10 @@ class TabletWrapper(var stack: ItemStack, var player: Player) extends ComponentI
   override protected def connectItemNode(node: Node): Unit = {
     super.connectItemNode(node)
     if (node != null) node.host match {
-      case buffer: api.internal.TextBuffer => components collect {
+      case buffer: api.internal.TextBuffer => componentEnvironments collect {
         case Some(keyboard: api.internal.Keyboard) => buffer.node.connect(keyboard.node)
       }
-      case keyboard: api.internal.Keyboard => components collect {
+      case keyboard: api.internal.Keyboard => componentEnvironments collect {
         case Some(buffer: api.internal.TextBuffer) => keyboard.node.connect(buffer.node)
       }
       case _ =>
@@ -402,7 +403,7 @@ class TabletWrapper(var stack: ItemStack, var player: Player) extends ComponentI
       case slot if !getItem(slot).isEmpty && isComponentSlot(slot, getItem(slot)) => getItem(slot)
   }.asJava
 
-  override def componentSlot(address: String): Int = components.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+  override def componentSlot(address: String): Int = componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   override def onMachineConnect(node: Node): Unit = onConnect(node)
 
@@ -423,7 +424,7 @@ class TabletWrapper(var stack: ItemStack, var player: Player) extends ComponentI
       // in the component setup would otherwise be queued before the events that
       // caused this wrapper's initialization).
       connectComponents()
-      components collect {
+      componentEnvironments collect {
         case Some(buffer: api.internal.TextBuffer) =>
           buffer.setMaximumColorDepth(api.internal.TextBuffer.ColorDepth.FourBit)
           buffer.setMaximumResolution(80, 25)
@@ -451,7 +452,7 @@ class TabletWrapper(var stack: ItemStack, var player: Player) extends ComponentI
         }
 
         if (machine.isRunning) {
-          components collect {
+          componentEnvironments collect {
             case Some(buffer: api.internal.TextBuffer) =>
               buffer.setPowerState(true)
           }
@@ -565,7 +566,7 @@ object Tablet {
 
         var wrapper = cache.get(id, this)
 
-        // Force re-load on world change, in case some components store a
+        // Force re-load on world change, in case some componentEnvironments store a
         // reference to the world object.
         if (holder.level != wrapper.getEnvironmentLevel) {
           wrapper.writeToNBT(clearState = false)

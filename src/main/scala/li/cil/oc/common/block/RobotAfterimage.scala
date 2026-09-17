@@ -15,6 +15,7 @@ import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.block.{Block, Blocks}
 import net.minecraft.world.level.material.FluidState
 import net.minecraft.world.level.{BlockGetter => IBlockReader, Level => World}
+import net.minecraft.world.level.LevelReader
 import net.minecraft.world.phys.shapes.{VoxelShape, CollisionContext => ISelectionContext}
 import net.minecraft.world.phys.{BlockHitResult => BlockRayTraceResult, HitResult => RayTraceResult}
 import net.minecraft.world.ticks.ScheduledTick
@@ -25,7 +26,7 @@ import java.util.Random
 class RobotAfterimage(props: Properties) extends SimpleBlock(props) with traits.Tickable {
   // 1.21.1：`Block#getCloneItemStack` 的签名换成了 `(LevelReader, BlockPos, BlockState)`，
   // 原来的「玩家 / 命中结果」参数已移除。
-  override def getCloneItemStack(world: IBlockReader, pos: BlockPos, state: BlockState): ItemStack =
+  override def getCloneItemStack(world: LevelReader, pos: BlockPos, state: BlockState): ItemStack =
     findMovingRobot(world, pos) match {
       case Some(robot) => robot.info.createItemStack()
       case _ => ItemStack.EMPTY
