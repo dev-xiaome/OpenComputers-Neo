@@ -346,7 +346,7 @@ class Printer(pos: BlockPos, state: BlockState)
     nbt.setNewCompoundTag(DataTag, data.saveData)
     nbt.putBoolean(IsActiveTag, isActive)
     nbt.putInt(LimitTag, limit)
-    output.foreach(stack => nbt.setNewCompoundTag(OutputTag, stack.save))
+    output.foreach(stack => nbt.setNewItemStackTag(OutputTag, stack))
     nbt.putDouble(TotalTag, totalRequiredEnergy)
     nbt.putDouble(RemainingTag, requiredEnergy)
   }

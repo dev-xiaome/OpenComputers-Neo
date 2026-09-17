@@ -95,7 +95,8 @@ trait SimpleItem extends Item with api.driver.item.UpgradeRenderer {
   protected def tooltipData = Seq.empty[Any]
 
   @OnlyIn(Dist.CLIENT)
-  override def appendHoverText(stack: ItemStack, level: Level, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+  // 1.21.1：Item#appendHoverText 的第二个参数从 `Level` 换成了 `Item.TooltipContext`。
+  override def appendHoverText(stack: ItemStack, context: net.minecraft.world.item.Item.TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
     if (tooltipName.isDefined) {
       for (curr <- Tooltip.get(tooltipName.get, tooltipData: _*)) {
         tooltip.add(Component.literal(curr).setStyle(Tooltip.DefaultStyle))

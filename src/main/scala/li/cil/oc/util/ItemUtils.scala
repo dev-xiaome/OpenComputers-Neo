@@ -18,6 +18,7 @@ import net.minecraft.world.item.crafting.CraftingRecipe
 import net.minecraft.world.item.crafting.Recipe
 import net.minecraft.world.item.crafting.RecipeType
 import net.minecraft.world.item.crafting.Ingredient
+import net.minecraft.world.item.crafting.CraftingInput
 import net.minecraft.nbt.NbtIo
 import net.minecraft.nbt.NbtAccounter
 import net.minecraft.nbt.CompoundTag
@@ -28,6 +29,7 @@ import net.minecraft.core.registries.BuiltInRegistries
 
 import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable
+import scala.jdk.CollectionConverters._
 
 object ItemUtils {
   def getDisplayName(nbt: CompoundTag): Option[String] = {
@@ -127,9 +129,10 @@ object ItemUtils {
       case _ => false
     }
 
-    // 1.21.1：getAllRecipesFor 的签名变为 getAllRecipesFor(RecipeType[T]): List[RecipeHolder[T]]，
-    // 返回的是 RecipeHolder，需要 .value() 取出配方本体；输入类型由 Recipe 自身推导。
-    val matching = manager.getAllRecipesFor(RecipeType.CRAFTING).asScala.
+    // 1.21.1：签名是 <I extends RecipeInput, T extends Recipe<I>> getAllRecipesFor(RecipeType[T])。
+    // Scala 推不出这个自引用上界里的 I（CraftingRecipe extends Recipe[CraftingInput]），
+    // 所以这里显式给出两个类型参数；返回值是 List[RecipeHolder[T]]，需要 .value() 取配方本体。
+    val matching = manager.getAllRecipesFor[CraftingInput, CraftingRecipe](RecipeType.CRAFTING).asScala.
       map(_.value()).
       filter(recipe => !recipe.getResultItem(RegistryAccessHelper.getOrEmpty).isEmpty &&
         ItemStack.isSameItem(recipe.getResultItem(RegistryAccessHelper.getOrEmpty), stack))

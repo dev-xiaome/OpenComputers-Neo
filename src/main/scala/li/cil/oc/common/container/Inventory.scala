@@ -79,7 +79,7 @@ trait Inventory extends SimpleInventory {
         case (stack, slot) =>
           val slotNbt = new CompoundTag()
           slotNbt.putByte(SlotTag, slot.toByte)
-          slotNbt.setNewCompoundTag(ItemTag, stack.save)
+          slotNbt.setNewItemStackTag(ItemTag, stack)
       })
   }
 

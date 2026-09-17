@@ -228,6 +228,23 @@ object ExtendedNBT {
       nbt
     }
 
+    /**
+     * 写入一个物品堆叠的子标签。
+     *
+     * 1.21.1：`ItemStack#save` 变成 `save(HolderLookup.Provider, Tag): Tag` —— 既需要注册表
+     * 上下文，又必须使用它的返回值（写进传入的 `CompoundTag` 再返回它）。因此 1.20 时代直接传
+     * `stack.save` 当函数用的写法不再成立，统一走这个辅助方法。
+     *
+     * 注册表上下文用 [[RegistryAccessHelper.getOrEmpty]]：**绝不能**用 `RegistryAccess.EMPTY`，
+     * 否则每个物品都会被静默写成空标签。详见该类注释。
+     */
+    def setNewItemStackTag(name: String, stack: ItemStack) = {
+      val t = new CompoundTag()
+      stack.save(RegistryAccessHelper.getOrEmpty(), t)
+      nbt.put(name, t)
+      nbt
+    }
+
     def setNewTagList(name: String, values: Tag*): CompoundTag = setNewTagList(name, values)
 
     def getDirection(name: String) = {

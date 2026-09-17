@@ -22,8 +22,9 @@ import net.minecraft.core.Direction
 
 class Manual(props: Properties) extends Item(props) with traits.SimpleItem {
   @OnlyIn(Dist.CLIENT)
-  override def appendHoverText(stack: ItemStack, level: Level, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
-    super.appendHoverText(stack, level, tooltip, flag)
+  // 1.21.1：Item#appendHoverText 的第二个参数从 `Level` 换成了 `Item.TooltipContext`。
+  override def appendHoverText(stack: ItemStack, context: net.minecraft.world.item.Item.TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+    super.appendHoverText(stack, context, tooltip, flag)
     tooltip.add(Component.literal(ChatFormatting.DARK_GRAY.toString + "v" + OpenComputers.Version))
   }
 

@@ -54,12 +54,12 @@ class TabletData extends ItemData(Constants.ItemName.Tablet) {
         case (stack, slot) =>
           val slotNbt = new CompoundTag()
           slotNbt.putByte(SlotTag, slot.toByte)
-          slotNbt.setNewCompoundTag(ItemTag, stack.save)
+          slotNbt.setNewItemStackTag(ItemTag, stack)
       })
     nbt.putBoolean(IsRunningTag, isRunning)
     nbt.putDouble(EnergyTag, energy)
     nbt.putDouble(MaxEnergyTag, maxEnergy)
     nbt.putInt(TierTag, tier)
-    if (!container.isEmpty) nbt.setNewCompoundTag(ContainerTag, container.save)
+    if (!container.isEmpty) nbt.setNewItemStackTag(ContainerTag, container)
   }
 }

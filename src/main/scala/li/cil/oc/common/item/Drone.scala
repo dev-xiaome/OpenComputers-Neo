@@ -24,7 +24,9 @@ class Drone(props: Properties) extends Item(props) with traits.SimpleItem {
     }
   }
 
-  override def getRarity(stack: ItemStack) = {
+  // 1.21.1：`Item#getRarity(ItemStack)` 已移除（品质是 `ItemStack` 的 `RARITY` 数据组件），
+  // 因此这里降级为普通方法。动态品质在本版丢失，见 `common/block/Item.scala` 的说明。
+  def getRarity(stack: ItemStack) = {
     val data = new DroneData(stack)
     Rarity.byTier(data.tier)
   }

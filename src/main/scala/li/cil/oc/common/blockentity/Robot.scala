@@ -198,7 +198,11 @@ class Robot(pos: BlockPos, state: BlockState)
    */
   private def mainHandAttributeModifiers(stack: ItemStack): com.google.common.collect.Multimap[net.minecraft.core.Holder[net.minecraft.world.entity.ai.attributes.Attribute], net.minecraft.world.entity.ai.attributes.AttributeModifier] = {
     val result = com.google.common.collect.ArrayListMultimap.create[net.minecraft.core.Holder[net.minecraft.world.entity.ai.attributes.Attribute], net.minecraft.world.entity.ai.attributes.AttributeModifier]()
-    stack.getAttributeModifiers().forEach(EquipmentSlot.MAINHAND, (attribute, modifier) => result.put(attribute, modifier))
+    // `forEach` 收的是 Java 的 `BiConsumer`（返回 void），因此显式标注函数类型，
+    // 让 `put` 的 Boolean 返回值被丢弃，避免推断成 `(A, B) => Boolean` 而无法做 SAM 转换。
+    val collect: java.util.function.BiConsumer[net.minecraft.core.Holder[net.minecraft.world.entity.ai.attributes.Attribute], net.minecraft.world.entity.ai.attributes.AttributeModifier] =
+      (attribute, modifier) => result.put(attribute, modifier)
+    stack.getAttributeModifiers().forEach(EquipmentSlot.MAINHAND, collect)
     result
   }
 

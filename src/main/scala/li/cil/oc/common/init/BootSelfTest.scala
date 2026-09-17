@@ -85,14 +85,12 @@ object BootSelfTest {
     for (dx <- -24 to 24; dy <- -12 to 12; dz <- -24 to 24) {
       val pos = origin.offset(dx, dy, dz)
       level.getBlockEntity(pos) match {
-        case computer: li.cil.oc.common.blockentity.traits.Computer if computer.machine != null =>
+        case computer: li.cil.oc.common.blockentity.traits.Computer with li.cil.oc.common.blockentity.traits.Inventory if computer.machine != null =>
           found += 1
-          val slots = computer.getSlots
-          val contents = (0 until slots).map(slot => s"$slot=${computer.getStackInSlot(slot).getItem}").mkString(", ")
           OpenComputers.log.info(s"[OC-DIAG] autoboot: 在 $pos 发现机器，tier=${computer match {
             case c: li.cil.oc.common.blockentity.Case => c.tier.toString
             case _ => "?"
-          }} slots=$slots 内容=[$contents]")
+          }}")
           if (fill) fillComponents(computer)
           computer.machine.stop()
           computer.machine.start()
@@ -142,14 +140,12 @@ object BootSelfTest {
               OpenComputers.log.info(s"[OC-DIAG]   |$text|")
             }
           }
-        case computer: li.cil.oc.common.blockentity.traits.Computer if computer.machine != null =>
+        case computer: li.cil.oc.common.blockentity.traits.Computer with li.cil.oc.common.blockentity.traits.Inventory if computer.machine != null =>
           val machine = computer.machine
-          val slots = computer.getSlots
-          val contents = (0 until slots).map(s => s"$s=${computer.getStackInSlot(s).getItem}").mkString(", ")
           OpenComputers.log.info(
             s"[OC-DIAG] 机器 $pos: isRunning=${machine.isRunning} isPaused=${machine.isPaused} " +
               s"lastError=${Option(machine.lastError).getOrElse("<无>")} " +
-              s"components=${machine.components.size} 槽位=[$contents]")
+              s"components=${machine.components.size}")
         case _ =>
       }
     }

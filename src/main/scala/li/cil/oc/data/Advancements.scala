@@ -5,10 +5,7 @@ import java.util.function.Consumer
 import li.cil.oc.Constants
 import li.cil.oc.OpenComputers
 import li.cil.oc.common.init.Items
-import net.minecraft.advancements.Advancement
-import net.minecraft.advancements.Criterion
-import net.minecraft.advancements.FrameType
-import net.minecraft.advancements.RequirementsStrategy
+import net.minecraft.advancements.{Advancement, AdvancementHolder, AdvancementRequirements, AdvancementType, Criterion}
 import net.minecraft.advancements.critereon.ImpossibleTrigger
 import net.minecraft.core.HolderLookup
 import net.minecraft.network.chat.Component
@@ -79,14 +76,18 @@ object Advancements {
     byRegisteredName(stack, Assembling).orNull
   }
 
-  def generate(registries: HolderLookup.Provider, writer: Consumer[Advancement]): Unit = {
-    val generated = scala.collection.mutable.Map.empty[String, Advancement]
+  def generate(registries: HolderLookup.Provider, writer: Consumer[AdvancementHolder]): Unit = {
+    // 1.21.1：1.20 的 Advancement 变成了「id + Advancement」的 AdvancementHolder，
+    // 数据生成器写出的也是 Holder。
+    val generated = scala.collection.mutable.Map.empty[String, AdvancementHolder]
 
     for (definition <- Definitions) {
       Option(Items.get(definition.icon)).foreach { iconInfo =>
         val builder = Advancement.Builder.advancement()
 
-        definition.parent.flatMap(generated.get).foreach(builder.parent)
+        // parent 在 1.21.1 有两个重载（AdvancementHolder / ResourceLocation），
+        // 这里必须用显式 lambda，否则方法值会有歧义。
+        definition.parent.flatMap(generated.get).foreach(holder => builder.parent(holder))
 
         val background =
           if (definition.parent.isEmpty) ResourceLocation.withDefaultNamespace("textures/gui/advancements/backgrounds/stone.png")
@@ -97,7 +98,8 @@ object Advancements {
           Component.translatable("achievement.oc." + definition.name),
           Component.translatable("achievement.oc." + definition.name + ".desc"),
           background,
-          FrameType.TASK,
+          // 1.21.1：FrameType 改名为 AdvancementType（TASK / GOAL / CHALLENGE）。
+          AdvancementType.TASK,
           true,
           true,
           false
@@ -105,7 +107,8 @@ object Advancements {
 
         addManualCriteria(builder, "crafting", definition.crafting)
         addManualCriteria(builder, "assembling", definition.assembling)
-        builder.requirements(RequirementsStrategy.OR)
+        // 1.21.1：RequirementsStrategy 改名为 AdvancementRequirements.Strategy。
+        builder.requirements(AdvancementRequirements.Strategy.OR)
 
         generated += definition.name -> builder.save(writer, definition.location.toString)
       }
@@ -114,7 +117,8 @@ object Advancements {
 
   private def addManualCriteria(builder: Advancement.Builder, prefix: String, items: Seq[String]): Unit = {
     for (index <- items.indices) {
-      builder.addCriterion(prefix + "_" + index, new Criterion(new ImpossibleTrigger.TriggerInstance()))
+      // 1.21.1：Criterion 由 (triggerInstance) 变为 (trigger, triggerInstance)。
+      builder.addCriterion(prefix + "_" + index, new Criterion(new ImpossibleTrigger(), new ImpossibleTrigger.TriggerInstance()))
     }
   }
 

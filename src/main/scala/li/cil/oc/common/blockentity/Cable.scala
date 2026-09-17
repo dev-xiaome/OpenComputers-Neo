@@ -56,8 +56,9 @@ class Cable(pos: BlockPos, state: BlockState) extends BlockEntity(BlockEntityTyp
     setChanged()
   }
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
+  // 1.21.1：`BlockEntity#load(CompoundTag)` 已被 `loadAdditional(CompoundTag, HolderLookup.Provider)` 取代。
+  override def loadAdditional(nbt: CompoundTag, provider: net.minecraft.core.HolderLookup.Provider): Unit = {
+    super.loadAdditional(nbt, provider)
     connectionColorInitialized = true
   }
 

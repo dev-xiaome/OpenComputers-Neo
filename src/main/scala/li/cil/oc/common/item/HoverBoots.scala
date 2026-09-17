@@ -9,7 +9,7 @@ import net.minecraft.world.entity.{Entity, EquipmentSlot}
 import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.Item.Properties
-import net.minecraft.world.item.{ArmorItem, ArmorMaterials, ItemStack}
+import net.minecraft.world.item.{ArmorItem, ArmorMaterial, ArmorMaterials, ItemStack}
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.{Blocks, LayeredCauldronBlock}
 
@@ -46,15 +46,24 @@ class HoverBoots(props: Properties) extends ArmorItem(ArmorMaterials.DIAMOND, Ar
   //  else super.getArmorModel(entityLiving, itemStack, armorSlot, _default)
   //}
 
-  override def getArmorTexture(stack: ItemStack, entity: Entity, slot: EquipmentSlot, subType: String): String = {
-    if (entity.level.isClientSide) HoverBootRenderer.texture.toString
+  // 1.21.1：Forge 的 `getArmorTexture(stack, entity, slot, subType: String): String` 换成了
+  // `IItemExtension#getArmorTexture(stack, entity, slot, layer: ArmorMaterial.Layer, secondLayer: Boolean)`，
+  // 返回值也从字符串变成 `ResourceLocation`。
+  override def getArmorTexture(stack: ItemStack, entity: Entity, slot: EquipmentSlot, layer: ArmorMaterial.Layer, secondLayer: Boolean): net.minecraft.resources.ResourceLocation = {
+    if (entity.level.isClientSide) HoverBootRenderer.texture
     else null
   }
 
-  override def onArmorTick(stack: ItemStack, level: Level, player: Player): Unit = {
-    super.onArmorTick(stack, level, player)
-    if (!Settings.get.ignorePower && player.getEffect(MobEffects.MOVEMENT_SLOWDOWN) == null && getCharge(stack) == 0) {
-      player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 20, 1))
+  // 1.21.1：`ArmorItem#onArmorTick` 已被移除（护甲 tick 并入 `Item#inventoryTick`），
+  // 因此把原来的减速逻辑搬到 `inventoryTick`，并自行判断这一格是不是脚部护甲。
+  override def inventoryTick(stack: ItemStack, level: Level, entity: Entity, slot: Int, selected: Boolean): Unit = {
+    super.inventoryTick(stack, level, entity, slot, selected)
+    entity match {
+      case player: Player if player.getItemBySlot(EquipmentSlot.FEET) eq stack =>
+        if (!Settings.get.ignorePower && player.getEffect(MobEffects.MOVEMENT_SLOWDOWN) == null && getCharge(stack) == 0) {
+          player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 20, 1))
+        }
+      case _ =>
     }
   }
 
@@ -88,7 +97,9 @@ class HoverBoots(props: Properties) extends ArmorItem(ArmorMaterials.DIAMOND, Ar
   override def isDamaged(stack: ItemStack): Boolean = true
 
   // Contradictory as it may seem with the above, this avoids actual damage value changing.
-  override def canBeDepleted: Boolean = false
+  // 1.21.1：`Item#canBeDepleted` 已移除（可损耗性现在由 `MAX_DAMAGE` / `UNBREAKABLE` 组件决定），
+  // 物品侧最接近的钩子是 `IItemExtension#isDamageable`。
+  override def isDamageable(stack: ItemStack): Boolean = false
 
   override def setDamage(stack: ItemStack, damage: Int): Unit = {
     // Subtract energy when taking damage instead of actually damaging the item.

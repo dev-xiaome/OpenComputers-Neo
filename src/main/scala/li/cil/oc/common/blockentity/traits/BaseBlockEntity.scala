@@ -131,7 +131,8 @@ trait BaseBlockEntity extends net.minecraft.world.level.block.entity.BlockEntity
     nbt
   }
 
-  override def onDataPacket(manager: Connection, packet: ClientboundBlockEntityDataPacket): Unit = {
+  // 1.21.1：`IBlockEntityExtension#onDataPacket` 多了注册表上下文参数。
+  override def onDataPacket(manager: Connection, packet: ClientboundBlockEntityDataPacket, provider: HolderLookup.Provider): Unit = {
     try loadForClient(packet.getTag) catch {
       case e: Throwable => OpenComputers.log.warn("There was a problem reading a BlockEntity description packet. Please report this if you see it!", e)
     }

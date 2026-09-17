@@ -53,7 +53,7 @@ class NavigationUpgradeData extends ItemData(Constants.ItemName.NavigationUpgrad
 
   override def saveData(nbt: CompoundTag): Unit = {
     if (map != null) {
-      nbt.setNewCompoundTag(MapTag, map.save)
+      nbt.setNewItemStackTag(MapTag, map)
     }
   }
 }

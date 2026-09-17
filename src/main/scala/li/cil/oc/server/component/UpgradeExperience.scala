@@ -19,7 +19,7 @@ import li.cil.oc.util.{UpgradeExperience => ExperienceUtil}
 import net.minecraft.nbt.CompoundTag
 
 import scala.collection.convert.ImplicitConversionsToJava._
-import scala.collection.convert.ImplicitConversionsToScala._
+import scala.jdk.CollectionConverters._
 import net.minecraft.world.entity.ExperienceOrb
 import net.minecraft.world.item.enchantment.EnchantmentHelper
 import net.minecraft.world.item.Items

@@ -34,7 +34,10 @@ object HoverBootsHandler {
       })
       if (hasHoverBoots != hadHoverBoots) {
         nbt.putBoolean(Settings.namespace + "hasHoverBoots", hasHoverBoots)
-        player.setMaxUpStep(if (hasHoverBoots) 1f else 0.6f)
+        // 1.21.1：`Entity#setMaxUpStep` 已移除，抬腿高度改由 `STEP_HEIGHT` 属性控制
+        // （玩家默认 0.6 格）。
+        player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.STEP_HEIGHT).
+          setBaseValue(if (hasHoverBoots) 1.0 else 0.6)
       }
       if (hasHoverBoots && !player.onGround && player.fallDistance < 5 && player.getDeltaMovement.y < 0) {
         player.setDeltaMovement(player.getDeltaMovement.multiply(1, 0.9, 1))

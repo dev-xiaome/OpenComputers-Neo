@@ -23,7 +23,8 @@ class Acid(props: Properties) extends Item(props) with traits.SimpleItem {
 
   override def getUseAnimation(stack: ItemStack): UseAnim = UseAnim.DRINK
 
-  override def getUseDuration(stack: ItemStack): Int = 32
+  // 1.21.1：`Item#getUseDuration` 多了使用者实体参数。
+  override def getUseDuration(stack: ItemStack, entity: LivingEntity): Int = 32
 
   override def finishUsingItem(stack: ItemStack, level: Level, entity: LivingEntity): ItemStack = {
     entity match {

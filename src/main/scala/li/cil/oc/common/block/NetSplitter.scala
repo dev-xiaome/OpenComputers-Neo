@@ -6,7 +6,7 @@ import net.minecraft.world.level.block.state.BlockBehaviour.{Properties => Prope
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.entity.player.{Player => PlayerEntity}
 import net.minecraft.world.item.ItemStack
-import net.minecraft.world.{InteractionResult => ActionResultType}
+import net.minecraft.world.{InteractionResult => ActionResultType, ItemInteractionResult}
 import net.minecraft.core.Direction
 import net.minecraft.world.{InteractionHand => Hand}
 import net.minecraft.core.BlockPos
@@ -19,7 +19,8 @@ class NetSplitter(props: Properties) extends RedstoneAware(props) {
 
   // ----------------------------------------------------------------------- //
 
-  override def use(state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hand: Hand, trace: BlockRayTraceResult): ActionResultType = {
+  // 1.21.1：`Block#use(...)` 已拆成 `useItemOn(ItemStack, BlockState, ...)` / `useWithoutItem(...)`。
+  override def useItemOn(stack: ItemStack, state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hand: Hand, trace: BlockRayTraceResult): ItemInteractionResult = {
     if (Wrench.holdsApplicableWrench(player, pos)) {
       val side = trace.getDirection
       val sideToToggle = if (player.isCrouching) side.getOpposite else side
@@ -29,10 +30,10 @@ class NetSplitter(props: Properties) extends RedstoneAware(props) {
             val oldValue = splitter.openSides(sideToToggle.ordinal())
             splitter.setSideOpen(sideToToggle, !oldValue)
           }
-          ActionResultType.sidedSuccess(world.isClientSide)
-        case _ => ActionResultType.PASS
+          ItemInteractionResult.sidedSuccess(world.isClientSide)
+        case _ => ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION
       }
     }
-    else super.use(state, world, pos, player, hand, trace)
+    else super.useItemOn(stack, state, world, pos, player, hand, trace)
   }
 }

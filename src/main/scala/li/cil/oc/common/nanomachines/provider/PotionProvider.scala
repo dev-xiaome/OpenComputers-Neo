@@ -12,11 +12,12 @@ import net.minecraft.world.effect.{MobEffect, MobEffectInstance}
 import net.minecraft.world.entity.player.Player
 import net.minecraft.core.registries.BuiltInRegistries
 
-import scala.collection.convert.ImplicitConversionsToScala._
+import scala.jdk.CollectionConverters._
 
 object PotionProvider extends ScalaProvider("c29e4eec-5a46-479a-9b3d-ad0f06da784a") {
   // Lazy to give other mods a chance to register their potions.
-  lazy val PotionWhitelist = filterPotions(Settings.get.nanomachinePotionWhitelist)
+  // 1.21.1：配置里的白名单是 Java List，Scala 2.13 需要显式 `.asScala`。
+  lazy val PotionWhitelist = filterPotions(Settings.get.nanomachinePotionWhitelist.asScala)
 
   def filterPotions[T](list: Iterable[T]) = {
     list.map {
@@ -24,14 +25,14 @@ object PotionProvider extends ScalaProvider("c29e4eec-5a46-479a-9b3d-ad0f06da784
       case loc: ResourceLocation => Option(BuiltInRegistries.MOB_EFFECT.get(loc))
       // 1.21.1：`MobEffect.byId` 已移除。数字 id 在 1.21 里仍然存在（只是 NBT 序列化改用名字），
       // 因此改从注册表按数字 id 取 Holder 再解包。
-      case id: java.lang.Number => BuiltInRegistries.MOB_EFFECT.getHolder(id.intValue()).map(_.value()).toScala
+      case id: java.lang.Number =>
+        val holder = BuiltInRegistries.MOB_EFFECT.getHolder(id.intValue())
+        if (holder.isPresent) Some(holder.get.value()) else None
       case _ => None
     }.collect {
       case Some(potion) => potion
     }.toSet
   }
-
-  private def toScala[T](opt: java.util.Optional[T]): Option[T] = if (opt.isPresent) Some(opt.get) else None
 
   def isPotionEligible(potion: MobEffect) = potion != null && PotionWhitelist.contains(potion)
 
@@ -39,8 +40,9 @@ object PotionProvider extends ScalaProvider("c29e4eec-5a46-479a-9b3d-ad0f06da784
     // 1.21.1：`Registry#getValues` 已移除，遍历注册表用 `stream()` / `iterator()`。
     // 状态效果现在以 `Holder[MobEffect]` 参与 API，所以顺带包一层 `wrapAsHolder`。
     BuiltInRegistries.MOB_EFFECT.stream().iterator().asScala.
-      filter(isPotionEligible).
-      map(potion => new PotionBehavior(BuiltInRegistries.MOB_EFFECT.wrapAsHolder(potion), player))
+      filter(potion => isPotionEligible(potion)).
+      map(potion => new PotionBehavior(BuiltInRegistries.MOB_EFFECT.wrapAsHolder(potion), player)).
+      toSeq
   }
 
   override def writeBehaviorToNBT(behavior: Behavior, nbt: CompoundTag): Unit = {

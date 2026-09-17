@@ -28,8 +28,9 @@ trait FileSystemLike extends SimpleItem {
   def kiloBytes: Int
 
   @OnlyIn(Dist.CLIENT)
-  override def appendHoverText(stack: ItemStack, level: Level, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
-    super.appendHoverText(stack, level, tooltip, flag)
+  // 1.21.1：Item#appendHoverText 的第二个参数从 `Level` 换成了 `Item.TooltipContext`。
+  override def appendHoverText(stack: ItemStack, context: net.minecraft.world.item.Item.TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+    super.appendHoverText(stack, context, tooltip, flag)
     if (stack.hasTag) {
       val nbt = stack.getTag
       if (nbt.contains(Settings.namespace + "data")) {

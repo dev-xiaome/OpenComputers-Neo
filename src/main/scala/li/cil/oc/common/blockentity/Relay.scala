@@ -1,7 +1,6 @@
 package li.cil.oc.common.blockentity
 
 import com.google.common.base.Charsets
-import dan200.computercraft.api.peripheral.IComputerAccess
 import li.cil.oc.{Constants, Localization, Settings, api}
 import li.cil.oc.api.Driver
 import li.cil.oc.api.detail.ItemInfo
@@ -112,22 +111,12 @@ class Relay(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-// Isolated from parent class so automatic callbacks don't depend on optional mods.
-  protected object RelayCCAdapter {
-    def queueMessage(source: String, destination: String, port: Int, answerPort: Int, args: Array[AnyRef]): Unit = {
-      computers.foreach { c =>
-        val computer: IComputerAccess = c.asInstanceOf[IComputerAccess]
-        val address = s"cc${computer.getID}_${computer.getAttachmentName}"
-        if (source != address && Option(destination).forall(_ == address) && openPorts(computer).contains(port)) {
-          val payload = args.map {
-            case x: Array[Byte] => new String(x, Charsets.UTF_8)
-            case x => x
-          }
-          computer.queueEvent("modem_message", Array(Seq(computer.getAttachmentName, Int.box(port), Int.box(answerPort)) ++ payload: _*))
-        }
-      }
-    }
-  }
+  // 1.21.1 移除：原 `RelayCCAdapter`（把消息桥接到 ComputerCraft 计算机）。
+  // 它直接依赖 `dan200.computercraft.api.peripheral.IComputerAccess`，而整个
+  // `li.cil.oc.integration.computercraft` 包已被隔离到 `src/main/scala-pending`（不在编译集里），
+  // 因此这里不能再有编译期引用。将来恢复 CC 集成时，请把这段桥接逻辑一并挪进
+  // `integration/computercraft/RelayPeripheral.scala`（那里本来就要拿到 `IComputerAccess`）。
+  // `computers` / `openPorts` 两个容器保留，供恢复集成时复用。
 
   // ----------------------------------------------------------------------- //
 
@@ -146,12 +135,8 @@ class Relay(pos: BlockPos, state: BlockState)
   val computers = mutable.Buffer.empty[AnyRef]
 
   override def tryEnqueuePacket(sourceSide: Option[Direction], packet: Packet): Boolean = {
-    if (Mods.ComputerCraft.isModAvailable) {
-      packet.data.headOption match {
-        case Some(answerPort: java.lang.Double) => RelayCCAdapter.queueMessage(packet.source, packet.destination, packet.port, answerPort.toInt, packet.data.drop(1))
-        case _ => RelayCCAdapter.queueMessage(packet.source, packet.destination, packet.port, -1, packet.data)
-      }
-    }
+    // 1.21.1：原先这里会在 CC 可用时把包转发给 `RelayCCAdapter`；
+    // ComputerCraft 集成已隔离到 `src/main/scala-pending`，故该分支移除（见上）。
     super.tryEnqueuePacket(sourceSide, packet)
   }
 

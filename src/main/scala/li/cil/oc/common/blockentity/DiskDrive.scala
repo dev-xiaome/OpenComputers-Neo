@@ -154,6 +154,6 @@ class DiskDrive(pos: BlockPos, state: BlockState)
 
   override def saveForClient(nbt: CompoundTag): Unit = {
     super.saveForClient(nbt)
-    if (!items(0).isEmpty) nbt.setNewCompoundTag(DiskTag, items(0).save)
+    if (!items(0).isEmpty) nbt.setNewItemStackTag(DiskTag, items(0))
   }
 }

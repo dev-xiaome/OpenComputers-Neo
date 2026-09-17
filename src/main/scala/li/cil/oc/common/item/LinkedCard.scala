@@ -20,8 +20,9 @@ import net.minecraft.world.item.TooltipFlag
 
 class LinkedCard(props: Properties) extends Item(props) with traits.SimpleItem with traits.ItemTier {
   @OnlyIn(Dist.CLIENT)
-  override def appendHoverText(stack: ItemStack, level: Level, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
-    super.appendHoverText(stack, level, tooltip, flag)
+  // 1.21.1：Item#appendHoverText 的第二个参数从 `Level` 换成了 `Item.TooltipContext`。
+  override def appendHoverText(stack: ItemStack, context: net.minecraft.world.item.Item.TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+    super.appendHoverText(stack, context, tooltip, flag)
     if (stack.hasTag && stack.getTag.contains(Settings.namespace + "data")) {
       val data = stack.getTag.getCompound(Settings.namespace + "data")
       if (data.contains(Settings.namespace + "tunnel")) {

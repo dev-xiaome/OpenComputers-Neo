@@ -16,7 +16,7 @@ import net.minecraft.world.entity.player.{Player => PlayerEntity}
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.storage.loot.LootParams
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams
-import net.minecraft.world.{InteractionResult => ActionResultType}
+import net.minecraft.world.{InteractionResult => ActionResultType, ItemInteractionResult}
 import net.minecraft.core.Direction
 import net.minecraft.world.{InteractionHand => Hand}
 import net.minecraft.core.BlockPos
@@ -115,10 +115,11 @@ class Print(props: Properties) extends RedstoneAware(props) {
 
   // ----------------------------------------------------------------------- //
 
-  override def use(state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hand: Hand, trace: BlockRayTraceResult): ActionResultType = {
+  // 1.21.1：`Block#use(...)` 已拆成 `useItemOn(ItemStack, BlockState, ...)` / `useWithoutItem(...)`。
+  override def useItemOn(stack: ItemStack, state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hand: Hand, trace: BlockRayTraceResult): ItemInteractionResult = {
     world.getBlockEntity(pos) match {
-      case print: blockentity.Print => if (print.activate()) ActionResultType.sidedSuccess(world.isClientSide) else ActionResultType.PASS
-      case _ => super.use(state, world, pos, player, hand, trace)
+      case print: blockentity.Print => if (print.activate()) ItemInteractionResult.sidedSuccess(world.isClientSide) else ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION
+      case _ => super.useItemOn(stack, state, world, pos, player, hand, trace)
     }
   }
 

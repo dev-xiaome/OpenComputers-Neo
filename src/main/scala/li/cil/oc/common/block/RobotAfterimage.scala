@@ -91,7 +91,9 @@ class RobotAfterimage(props: Properties) extends SimpleBlock(props) with traits.
   override def useItemOn(stack: ItemStack, state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hand: InteractionHand, trace: BlockRayTraceResult): ItemInteractionResult = {
     findMovingRobot(world, pos) match {
       case Some(robot) =>
-        world.getBlockState(robot.getBlockPos).useItemOn(stack, world, robot.getBlockPos, player, hand, trace)
+        // 1.21.1：public 的 `BlockState#useItemOn` 只有 5 个参数
+        // （stack, level, player, hand, hit）—— 方块状态与坐标已经隐含在接收者里。
+        world.getBlockState(robot.getBlockPos).useItemOn(stack, world, player, hand, trace)
       case _ =>
         if (world.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState)) ItemInteractionResult.sidedSuccess(world.isClientSide)
         else ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION

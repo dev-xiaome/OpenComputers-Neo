@@ -3,7 +3,7 @@ package li.cil.oc.data
 import java.util
 import java.util.function.Consumer
 
-import net.minecraft.advancements.Advancement
+import net.minecraft.advancements.AdvancementHolder
 import net.minecraft.core.HolderLookup
 import net.minecraft.data.advancements.AdvancementProvider
 import net.minecraft.data.advancements.AdvancementSubProvider
@@ -21,7 +21,8 @@ object DataGenerators {
         generator.getPackOutput,
         event.getLookupProvider,
         util.List.of(new AdvancementSubProvider {
-          override def generate(registries: HolderLookup.Provider, writer: Consumer[Advancement]): Unit = {
+          // 1.21.1：AdvancementSubProvider 回调的第二个参数类型是 Consumer[AdvancementHolder]。
+          override def generate(registries: HolderLookup.Provider, writer: Consumer[AdvancementHolder]): Unit = {
             Advancements.generate(registries, writer)
           }
         })

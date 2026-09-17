@@ -39,7 +39,8 @@ trait TankLevelControl extends TankAware with LevelAware with SideRestricted {
             case Some(handler) =>
               tank.getFluid match {
                 case stack: FluidStack =>
-                  val drained = handler.drain(new FluidStack(stack, amount), FluidAction.EXECUTE)
+                  // 1.21.1 移除了 FluidStack 的拷贝构造器，改用 copyWithAmount。
+                  val drained = handler.drain(stack.copyWithAmount(amount), FluidAction.EXECUTE)
                   if ((drained != null && drained.getAmount > 0) || amount == 0) {
                     val filled = tank.fill(drained, FluidAction.EXECUTE)
                     result(true, filled)
@@ -69,7 +70,7 @@ trait TankLevelControl extends TankAware with LevelAware with SideRestricted {
             case Some(handler) =>
               tank.getFluid match {
                 case stack: FluidStack =>
-                  val filled = handler.fill(new FluidStack(stack, amount), FluidAction.EXECUTE)
+                  val filled = handler.fill(stack.copyWithAmount(amount), FluidAction.EXECUTE)
                   if (filled > 0 || amount == 0) {
                     tank.drain(filled, FluidAction.EXECUTE)
                     result(true, filled)

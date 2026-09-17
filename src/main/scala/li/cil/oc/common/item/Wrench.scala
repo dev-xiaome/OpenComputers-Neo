@@ -21,7 +21,9 @@ class Wrench(props: Properties) extends Item(props) with traits.SimpleItem with 
       val state = world.getBlockState(pos)
       state.getBlock match {
         case block: SimpleBlock if block.rotateBlock(world, pos, side) =>
-          state.neighborChanged(world, pos, Blocks.AIR, pos, false)
+          // 1.21.1：Forge 的 `BlockState#neighborChanged` 扩展方法已移除，
+          // 改用原版 public 的 `BlockState#handleNeighborChanged`。
+          state.handleNeighborChanged(world, pos, Blocks.AIR, pos, false)
           player.swing(hand)
           if (!world.isClientSide) InteractionResult.sidedSuccess(world.isClientSide) else InteractionResult.PASS
         case _ =>

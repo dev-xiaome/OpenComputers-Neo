@@ -161,9 +161,10 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
 
   // 1.21.1 移除了 getMyRidingOffset；假玩家不承载乘客，无需再覆写。
 
-  // 1.21.1 移除了 getStandingEyeHeight，眼高改为随 EntityDimensions 提供。
-  // 1.21.1 的 EntityDimensions 是 record，请使用 fixed/scalable 工厂方法。
-  override def getDimensions(pose: Pose) = EntityDimensions.fixed(1, 1).withEyeHeight(0f)
+  // 1.21.1 移除了 getStandingEyeHeight，眼高改为随 EntityDimensions 提供；
+  // 且 LivingEntity#getDimensions 已是 final，只能覆写 getDefaultDimensions。
+  // EntityDimensions 在 1.21.1 是 record，请使用 fixed/scalable 工厂方法。
+  override def getDefaultDimensions(pose: Pose) = EntityDimensions.fixed(1, 1).withEyeHeight(0f)
   refreshDimensions()
 
   {

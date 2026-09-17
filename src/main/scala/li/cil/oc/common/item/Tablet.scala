@@ -36,6 +36,7 @@ import net.minecraft.client.server.IntegratedServer
 import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.nbt.{CompoundTag, Tag}
 import net.minecraft.network.chat.Component
+import net.minecraft.resources.ResourceLocation
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.{Entity, LivingEntity}
 import net.minecraft.world.entity.player.{Inventory, Player}
@@ -81,7 +82,9 @@ class Tablet(props: Properties) extends Item(props) with traits.SimpleItem with 
     }
   }
 
-  override def getRarity(stack: ItemStack): item.Rarity = {
+  // 1.21.1：`Item#getRarity(ItemStack)` 已移除（品质是 `ItemStack` 的 `RARITY` 数据组件），
+  // 因此这里降级为普通方法。动态品质在本版丢失，见 `common/block/Item.scala` 的说明。
+  def getRarity(stack: ItemStack): item.Rarity = {
     val data = new TabletData(stack)
     Rarity.byTier(data.tier)
   }
@@ -152,12 +155,13 @@ class Tablet(props: Properties) extends Item(props) with traits.SimpleItem with 
     new InteractionResultHolder(InteractionResult.sidedSuccess(level.isClientSide), stack)
   }
 
-  override def getUseDuration(stack: ItemStack): Int = 72000
+  // 1.21.1：`Item#getUseDuration` 多了使用者实体参数。
+  override def getUseDuration(stack: ItemStack, entity: LivingEntity): Int = 72000
 
   override def releaseUsing(stack: ItemStack, level: Level, entity: LivingEntity, duration: Int): Unit = {
     entity match {
       case player: Player =>
-        val didAnalyze = getUseDuration(stack) - duration >= TimeToAnalyze
+        val didAnalyze = getUseDuration(stack, entity) - duration >= TimeToAnalyze
         if (didAnalyze) {
           if (!level.isClientSide) {
             Tablet.currentlyAnalyzing match {

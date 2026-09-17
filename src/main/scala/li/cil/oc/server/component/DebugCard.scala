@@ -619,7 +619,8 @@ object DebugCard {
       val objective = scoreboard.getObjective(args.checkString(1))
       val scoreVal = args.checkInteger(2)
       val score = scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(name), objective)
-      score.setScore(scoreVal)
+      // 1.21.1 的 ScoreAccess 用 set(int) 取代了 setScore(int)。
+      score.set(scoreVal)
       null
     }
 
@@ -629,7 +630,7 @@ object DebugCard {
       val name = args.checkString(0)
       val objective = scoreboard.getObjective(args.checkString(1))
       val score = scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(name), objective)
-      result(score.getScore)
+      result(score.get)
     }
 
     @Callback(doc = """function(playerName:string, objectiveName:string, score:int) - Increases the score of a player for a certain objective""")
