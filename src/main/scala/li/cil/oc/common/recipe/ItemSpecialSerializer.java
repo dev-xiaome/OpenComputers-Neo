@@ -32,7 +32,7 @@ public class ItemSpecialSerializer<T extends Recipe<?>> implements RecipeSeriali
         if (!BuiltInRegistries.ITEM.containsKey(loc)) {
             throw new JsonSyntaxException("Unknown item '" + loc + "'");
         }
-        return ctor.apply(recipeId, BuiltInRegistries.ITEM.getValue(loc));
+        return ctor.apply(recipeId, BuiltInRegistries.ITEM.get(loc));
     }
 
     @Override

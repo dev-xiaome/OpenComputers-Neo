@@ -508,7 +508,7 @@ object DebugCard {
     @Callback(doc = """function(id:string, amount:number, meta:number[, nbt:string]):number -- Adds the item stack to the players inventory""")
     def insertItem(context: Context, args: Arguments): Array[AnyRef] =
       withPlayer(player => {
-        val item = BuiltInRegistries.ITEM.getValue(ResourceLocation.tryParse(args.checkString(0)))
+        val item = BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(args.checkString(0)))
         if (item == null) {
           throw new IllegalArgumentException("invalid item id")
         }
@@ -883,7 +883,7 @@ object DebugCard {
     @Callback(doc = """function(x:number, y:number, z:number, id:string, meta:number):number -- Set the block at the specified coordinates.""")
     def setBlock(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      val block = BuiltInRegistries.BLOCK.getValue(ResourceLocation.tryParse(args.checkString(3)))
+      val block = BuiltInRegistries.BLOCK.get(ResourceLocation.tryParse(args.checkString(3)))
       val metadata = args.checkInteger(4)
       result(world.setBlockAndUpdate(new BlockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2)), getStateFromMeta(block, metadata)))
     }
@@ -894,7 +894,7 @@ object DebugCard {
       checkAccess()
       val (xMin, yMin, zMin) = (args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
       val (xMax, yMax, zMax) = (args.checkInteger(3), args.checkInteger(4), args.checkInteger(5))
-      val block = BuiltInRegistries.BLOCK.getValue(ResourceLocation.tryParse(args.checkString(6)))
+      val block = BuiltInRegistries.BLOCK.get(ResourceLocation.tryParse(args.checkString(6)))
       val metadata = args.checkInteger(7)
       for (x <- math.min(xMin, xMax) to math.max(xMin, xMax)) {
         for (y <- math.min(yMin, yMax) to math.max(yMin, yMax)) {
@@ -912,7 +912,7 @@ object DebugCard {
     @Callback(doc = """function(id:string, count:number, damage:number, nbt:string, x:number, y:number, z:number, side:number):boolean - Insert an item stack into the inventory at the specified location. NBT tag is expected in JSON format.""")
     def insertItem(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      val item = BuiltInRegistries.ITEM.getValue(ResourceLocation.tryParse(args.checkString(0)))
+      val item = BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(args.checkString(0)))
       if (item == null) {
         throw new IllegalArgumentException("invalid item id")
       }
@@ -950,7 +950,7 @@ object DebugCard {
     @Callback(doc = """function(id:string, amount:number, x:number, y:number, z:number, side:number):boolean - Insert some fluid into the tank at the specified location.""")
     def insertFluid(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      val fluid = BuiltInRegistries.FLUID.getValue(ResourceLocation.tryParse(args.checkString(0)))
+      val fluid = BuiltInRegistries.FLUID.get(ResourceLocation.tryParse(args.checkString(0)))
       if (fluid == null) {
         throw new IllegalArgumentException("invalid fluid id")
       }

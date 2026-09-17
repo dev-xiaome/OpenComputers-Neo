@@ -339,7 +339,7 @@ class ArgumentsImpl(val args: Seq[AnyRef]) extends Arguments {
   }
 
   private def makeStack(name: String, damage: Int, tag: Option[CompoundTag]) = {
-    BuiltInRegistries.ITEM.getValue(new ResourceLocation(name)) match {
+    BuiltInRegistries.ITEM.get(new ResourceLocation(name)) match {
       case item: Item =>
         val stack = new ItemStack(item, 1)
         stack.setDamageValue(damage)

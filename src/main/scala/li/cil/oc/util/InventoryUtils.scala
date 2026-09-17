@@ -39,7 +39,7 @@ object InventoryUtils {
     !stackA.isEmpty && !stackB.isEmpty &&
       stackA.getItem == stackB.getItem &&
       (stackA.getDamageValue == stackB.getDamageValue) &&
-      (!checkNBT || ItemStack.isSameItemSameTags(stackA, stackB))
+      (!checkNBT || ItemStack.isSameItemSameComponents(stackA, stackB))
 
   /**
    * Retrieves an actual inventory implementation for a specified world coordinate,

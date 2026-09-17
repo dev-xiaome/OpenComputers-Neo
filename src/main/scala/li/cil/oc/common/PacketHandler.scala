@@ -141,7 +141,7 @@ abstract class PacketHandler {
     def readItemStack(): ItemStack = {
       val haveStack = readBoolean()
       if (haveStack) {
-        ItemStack.of(readNBT())
+        ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), readNBT())
       }
       else ItemStack.EMPTY
     }

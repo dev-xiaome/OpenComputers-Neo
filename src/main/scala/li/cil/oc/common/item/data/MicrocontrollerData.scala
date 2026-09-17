@@ -28,7 +28,7 @@ class MicrocontrollerData(itemName: String = Constants.BlockName.Microcontroller
   override def loadData(nbt: CompoundTag): Unit = {
     tier = nbt.getByte(TierTag)
     components = nbt.getList(ComponentsTag, Tag.TAG_COMPOUND).
-      toTagArray[CompoundTag].map(ItemStack.of(_)).filter(!_.isEmpty)
+      toTagArray[CompoundTag].map(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), _)).filter(!_.isEmpty)
     storedEnergy = nbt.getInt(StoredEnergyTag)
 
     // Reserve slot for EEPROM if necessary, avoids having to resize the

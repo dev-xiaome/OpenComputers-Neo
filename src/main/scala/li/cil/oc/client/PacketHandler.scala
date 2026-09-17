@@ -415,7 +415,7 @@ object PacketHandler extends CommonPacketHandler {
         val z = p.readInt()
         val velocity = p.readDouble()
         val direction = p.readDirection()
-        val particleType = p.readRegistryEntry(BuiltInRegistries.PARTICLE_TYPES)
+        val particleType = p.readRegistryEntry(BuiltInRegistries.PARTICLE_TYPE)
         val count = p.readUnsignedByte() / (1 << Minecraft.getInstance.options.particles.get.getId)
         particleType match {
           case particle: ParticleOptions =>

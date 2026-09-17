@@ -36,7 +36,7 @@ object RackMountableRenderHandler {
       // Disk drive.
 
       if (e.data.contains("disk")) {
-        val stack = ItemStack.of(e.data.getCompound("disk"))
+        val stack = ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), e.data.getCompound("disk"))
         if (!stack.isEmpty) {
           val matrix = e.stack
           matrix.pushPose()

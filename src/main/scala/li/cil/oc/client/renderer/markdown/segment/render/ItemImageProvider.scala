@@ -10,7 +10,7 @@ import net.minecraft.core.registries.BuiltInRegistries
 
 object ItemImageProvider extends ImageProvider {
   override def getImage(data: String): ImageRenderer = {
-    BuiltInRegistries.ITEM.getValue(ResourceLocation.tryParse(data.toLowerCase)) match {
+    BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(data.toLowerCase)) match {
       case item: Item => new ItemStackImageRenderer(Array(new ItemStack(item)))
       case _ => new TextureImageRenderer(TextureImageProvider.ManualMissingItem) with InteractiveImageRenderer {
         override def getTooltip(tooltip: String): String = "oc:gui.Manual.Warning.ItemMissing"

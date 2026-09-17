@@ -526,7 +526,7 @@ object PacketSender {
     pb.writeInt(position.z)
     pb.writeDouble(velocity)
     pb.writeDirection(direction)
-    pb.writeRegistryEntry(BuiltInRegistries.PARTICLE_TYPES, particleType.getType())
+    pb.writeRegistryEntry(BuiltInRegistries.PARTICLE_TYPE, particleType.getType())
     pb.writeByte(count.toByte)
 
     pb.sendToNearbyPlayers(position.world.get, position.x, position.y, position.z, Some(Settings.get.maxNetworkClientEffectPacketDistance / 2.0D))

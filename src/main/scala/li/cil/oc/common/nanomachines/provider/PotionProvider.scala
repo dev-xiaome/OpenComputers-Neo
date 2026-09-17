@@ -19,8 +19,8 @@ object PotionProvider extends ScalaProvider("c29e4eec-5a46-479a-9b3d-ad0f06da784
 
   def filterPotions[T](list: Iterable[T]) = {
     list.map {
-      case name: String => Option(BuiltInRegistries.MOB_EFFECTS.getValue(ResourceLocation.tryParse(name)))
-      case loc: ResourceLocation => Option(BuiltInRegistries.MOB_EFFECTS.getValue(loc))
+      case name: String => Option(BuiltInRegistries.MOB_EFFECT.get(ResourceLocation.tryParse(name)))
+      case loc: ResourceLocation => Option(BuiltInRegistries.MOB_EFFECT.get(loc))
       case id: java.lang.Number => Option(MobEffect.byId(id.intValue()))
       case _ => None
     }.collect {
@@ -31,13 +31,13 @@ object PotionProvider extends ScalaProvider("c29e4eec-5a46-479a-9b3d-ad0f06da784
   def isPotionEligible(potion: MobEffect) = potion != null && PotionWhitelist.contains(potion)
 
   override def createScalaBehaviors(player: Player) = {
-    BuiltInRegistries.MOB_EFFECTS.getValues.filter(isPotionEligible).map(new PotionBehavior(_, player))
+    BuiltInRegistries.MOB_EFFECT.getValues.filter(isPotionEligible).map(new PotionBehavior(_, player))
   }
 
   override def writeBehaviorToNBT(behavior: Behavior, nbt: CompoundTag): Unit = {
     behavior match {
       case potionBehavior: PotionBehavior =>
-        val key = BuiltInRegistries.MOB_EFFECTS.getKey(potionBehavior.effect)
+        val key = BuiltInRegistries.MOB_EFFECT.getKey(potionBehavior.effect)
         if (key != null) {
           nbt.putString("potionId", key.toString)
         } else {
@@ -49,7 +49,7 @@ object PotionProvider extends ScalaProvider("c29e4eec-5a46-479a-9b3d-ad0f06da784
 
   override def readBehaviorFromNBT(player: Player, nbt: CompoundTag) = {
     val potionId = nbt.getString("potionId")
-    new PotionBehavior(BuiltInRegistries.MOB_EFFECTS.getValue(ResourceLocation.tryParse(potionId)), player)
+    new PotionBehavior(BuiltInRegistries.MOB_EFFECT.get(ResourceLocation.tryParse(potionId)), player)
   }
 
   class PotionBehavior(val effect: MobEffect, player: Player) extends AbstractBehavior(player) {

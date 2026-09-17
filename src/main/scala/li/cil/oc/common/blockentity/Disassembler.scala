@@ -163,7 +163,7 @@ class Disassembler(pos: BlockPos, state: BlockState)
     super.loadForServer(nbt)
     queue.clear()
     queue ++= nbt.getList(QueueTag, Tag.TAG_COMPOUND).
-      map((tag: CompoundTag) => ItemStack.of(tag))
+      map((tag: CompoundTag) => ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), tag))
     buffer = nbt.getDouble(BufferTag)
     totalRequiredEnergy = nbt.getDouble(TotalTag)
     isActive = queue.nonEmpty

@@ -65,7 +65,7 @@ trait Inventory extends SimpleInventory {
       if (tag.contains(SlotTag)) {
         val slot = tag.getByte(SlotTag).toInt
         if (slot >= 0 && slot < items.length) {
-          updateItems(slot, ItemStack.of(tag.getCompound(ItemTag)))
+          updateItems(slot, ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), tag.getCompound(ItemTag)))
         }
       }
     })

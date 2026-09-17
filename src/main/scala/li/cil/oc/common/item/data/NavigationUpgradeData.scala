@@ -47,7 +47,7 @@ class NavigationUpgradeData extends ItemData(Constants.ItemName.NavigationUpgrad
 
   override def loadData(nbt: CompoundTag): Unit = {
     if (nbt.contains(MapTag)) {
-      map = ItemStack.of(nbt.getCompound(MapTag))
+      map = ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(MapTag))
     }
   }
 

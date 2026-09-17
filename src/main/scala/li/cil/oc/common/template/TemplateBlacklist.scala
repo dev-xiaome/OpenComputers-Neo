@@ -13,7 +13,7 @@ object TemplateBlacklist {
   private lazy val TheBlacklist = { // scnr
     val pattern = """^([^@]+)(?:@(\d+))?$""".r
     def parseDescriptor(id: String, meta: Int) = {
-      val item = BuiltInRegistries.ITEM.getValue(ResourceLocation.tryParse(id))
+      val item = BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(id))
       if (item == null) {
         OpenComputers.log.warn(s"Bad assembler blacklist entry '$id', unknown item id.")
         None

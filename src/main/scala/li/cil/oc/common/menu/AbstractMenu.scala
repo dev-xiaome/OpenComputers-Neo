@@ -85,7 +85,7 @@ abstract class AbstractMenu(selfType: MenuType[_ <: AbstractMenu], id: Int, val 
 
     if (!toStack.isEmpty) {
       if (toStackSize < maxStackSize &&
-          ItemStack.isSameItemSameTags(fromStack, toStack) &&
+          ItemStack.isSameItemSameComponents(fromStack, toStack) &&
           itemsMoved > 0) {
         toStack.grow(from.remove(itemsMoved).getCount)
       } else return false

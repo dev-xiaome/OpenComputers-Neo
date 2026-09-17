@@ -369,7 +369,7 @@ object EventHandler {
     didRecraft = recraft(e, navigationUpgrade, stack => {
       // Restore the map currently used in the upgrade.
       Option(api.Driver.driverFor(e.getCrafting)) match {
-        case Some(driver) => StackOption(ItemStack.of(driver.dataTag(stack).getCompound(Settings.namespace + "map")))
+        case Some(driver) => StackOption(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), driver.dataTag(stack).getCompound(Settings.namespace + "map")))
         case _ => EmptyStack
       }
     }) || didRecraft

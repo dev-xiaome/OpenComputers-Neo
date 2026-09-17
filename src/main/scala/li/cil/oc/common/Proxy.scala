@@ -57,7 +57,7 @@ object Proxy {
           if (Strings.isNullOrEmpty(name)) {
             missing.ignore()
           } else {
-            val target = BuiltInRegistries.BLOCK.getValue(ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, name))
+            val target = BuiltInRegistries.BLOCK.get(ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, name))
             if (target != null) missing.remap(target) else missing.warn()
           }
         case _ => missing.warn()
@@ -70,7 +70,7 @@ object Proxy {
           if (Strings.isNullOrEmpty(name)) {
             missing.ignore()
           } else {
-            val target = BuiltInRegistries.ITEM.getValue(ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, name))
+            val target = BuiltInRegistries.ITEM.get(ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, name))
             if (target != null) missing.remap(target) else missing.warn()
           }
         case _ => missing.warn()

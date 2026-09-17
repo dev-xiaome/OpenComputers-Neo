@@ -25,7 +25,7 @@ class RaidData extends ItemData(Constants.BlockName.Raid) {
 
   override def loadData(nbt: CompoundTag): Unit = {
     disks = nbt.getList(DisksTag, Tag.TAG_COMPOUND).
-      toTagArray[CompoundTag].map(ItemStack.of(_))
+      toTagArray[CompoundTag].map(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), _))
     filesystem = nbt.getCompound(FileSystemTag)
     if (nbt.contains(LabelTag)) {
       label = Option(nbt.getString(LabelTag))

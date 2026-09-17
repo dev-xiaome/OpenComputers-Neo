@@ -148,7 +148,7 @@ class DiskDrive(pos: BlockPos, state: BlockState)
   override def loadForClient(nbt: CompoundTag): Unit = {
     super.loadForClient(nbt)
     if (nbt.contains(DiskTag)) {
-      setItem(0, ItemStack.of(nbt.getCompound(DiskTag)))
+      setItem(0, ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(DiskTag)))
     }
   }
 

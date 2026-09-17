@@ -125,7 +125,7 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends Ab
       case requiredContainer if !requiredContainer.isEmpty && requiredContainer.getCount > 0 => previousSelectedItem match {
         case slotItem: ItemStack if !slotItem.isEmpty &&
           slotItem.getItem == requiredContainer.getItem &&
-          ItemStack.isSameItemSameTags(slotItem, requiredContainer) => slotItem.copy
+          ItemStack.isSameItemSameComponents(slotItem, requiredContainer) => slotItem.copy
         case _ => return result(false, "removing this fuel requires the appropriate container in the selected slot")
       }
       case _ => ItemStack.EMPTY // nothing to do, nothing required
@@ -214,9 +214,9 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends Ab
 
   override def loadData(nbt: CompoundTag): Unit = {
     super.loadData(nbt)
-      inventory = StackOption(ItemStack.of(nbt.getCompound("inventory")))
+      inventory = StackOption(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound("inventory")))
     if (nbt.contains(InventoryTag)) {
-      inventory = StackOption(ItemStack.of(nbt.getCompound(InventoryTag)))
+      inventory = StackOption(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(InventoryTag)))
     }
     remainingTicks = nbt.getInt(RemainingTicksTag)
   }

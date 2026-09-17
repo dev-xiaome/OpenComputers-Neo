@@ -158,10 +158,10 @@ class Assembler(pos: BlockPos, state: BlockState)
   override def loadForServer(nbt: CompoundTag): Unit = {
     super.loadForServer(nbt)
     if (nbt.contains(OutputTag)) {
-      output = StackOption(ItemStack.of(nbt.getCompound(OutputTag)))
+      output = StackOption(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(OutputTag)))
     }
     else if (nbt.contains(OutputTagCompat)) {
-      output = StackOption(ItemStack.of(nbt.getCompound(OutputTagCompat)))
+      output = StackOption(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(OutputTagCompat)))
     }
     totalRequiredEnergy = nbt.getDouble(TotalTag)
     requiredEnergy = nbt.getDouble(RemainingTag)

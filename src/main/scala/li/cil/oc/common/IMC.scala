@@ -80,7 +80,7 @@ object IMC {
       }
       case compInfo: CompoundTag if message.getMethod == api.IMC.BLACKLIST_HOST => {
         OpenComputers.log.debug(s"Blacklisting component '${compInfo.getString("name")}' for host '${compInfo.getString("host")}' as requested by mod ${message.getSenderModId}.")
-        try Registry.blacklistHost(ItemStack.of(compInfo.getCompound("item")), Class.forName(compInfo.getString("host"))) catch {
+        try Registry.blacklistHost(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), compInfo.getCompound("item")), Class.forName(compInfo.getString("host"))) catch {
           case t: Throwable => OpenComputers.log.warn("Failed blacklisting component.", t)
         }
       }

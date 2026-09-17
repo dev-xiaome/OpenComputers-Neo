@@ -330,7 +330,7 @@ class Printer(pos: BlockPos, state: BlockState)
     isActive = nbt.getBoolean(IsActiveTag)
     limit = nbt.getInt(LimitTag)
     if (nbt.contains(OutputTag)) {
-      output = StackOption(ItemStack.of(nbt.getCompound(OutputTag)))
+      output = StackOption(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(OutputTag)))
     }
     else {
       output = EmptyStack
