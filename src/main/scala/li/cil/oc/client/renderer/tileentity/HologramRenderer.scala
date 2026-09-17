@@ -12,7 +12,7 @@ import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.blockentity.{BlockEntityRenderer, BlockEntityRendererProvider}
 import net.minecraft.client.renderer.{GameRenderer, MultiBufferSource}
 import net.minecraft.core.Direction
-import net.neoforged.neoforge.event.tick.{ClientTickEvent, ServerTickEvent}
+import net.neoforged.neoforge.client.event.ClientTickEvent
 import net.neoforged.bus.api.SubscribeEvent
 import org.joml.Quaternionf
 
@@ -184,8 +184,7 @@ class HologramRenderer extends BlockEntityRenderer[Hologram] {
   }
 
   private def rebuildVBO(hologram: Hologram, vbo: VertexBuffer): Unit = {
-    val builder = new BufferBuilder(1 << 20)
-    builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
+    val builder = new BufferBuilder(new ByteBufferBuilder(1 << 20), VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
 
     def value(x: Int, y: Int, z: Int): Int =
       if (x >= 0 && y >= 0 && z >= 0 && x < hologram.width && y < hologram.height && z < hologram.width)
@@ -252,7 +251,7 @@ class HologramRenderer extends BlockEntityRenderer[Hologram] {
 
     vbo.bind()
     try {
-      vbo.upload(builder.end())
+      vbo.upload(builder.buildOrThrow())
     }
     finally {
       VertexBuffer.unbind()

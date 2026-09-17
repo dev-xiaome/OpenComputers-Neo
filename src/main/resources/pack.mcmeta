@@ -1,6 +1,7 @@
 {
     "pack": {
-        "description": "OpenComputers resources",
-        "pack_format": 6
+        "description": "OpenComputers Neo resources",
+        "pack_format": 34,
+        "supported_formats": [ 34, 99 ]
     }
 }

@@ -13,9 +13,6 @@ import li.cil.oc.api.network._
 import li.cil.oc.common.container.InventoryProxy
 import li.cil.oc.common.blockentity.traits.RedstoneAware
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
-import net.neoforged.neoforge.capabilities.{Capability, ForgeCapabilities}
-import java.util.Optional
-import java.util.function.Supplier
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
 import net.neoforged.api.distmarker.Dist
@@ -41,21 +38,8 @@ class RobotProxy(pos: BlockPos, state: BlockState, val robot: Robot)
   def this(pos: BlockPos, state: BlockState) = this(pos, state, new Robot(pos, state))
 
   // ----------------------------------------------------------------------- //
-
-  private val wrapper = java.util.Optional.of(new java.util.function.Supplier[IFluidHandler] {
-    override def get = RobotProxy.this
-  })
-
-  override def invalidateCaps(): Unit = {
-    super.invalidateCaps()
-    wrapper.invalidate()
-  }
-
-  override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
-    if (capability == ForgeCapabilities.FLUID_HANDLER)
-      wrapper.cast[T]
-    else super.getCapability(capability, facing)
-  }
+  // 流体储罐能力（IFluidHandler）在 1.21.1 由 RegisterCapabilitiesEvent 注册，
+  // 见 li.cil.oc.common.capabilities.Capabilities，这里不再覆写 getCapability。
 
   override val node: Component = api.Network.newNode(this, Visibility.Network).
     withComponent("robot", Visibility.Neighbors).

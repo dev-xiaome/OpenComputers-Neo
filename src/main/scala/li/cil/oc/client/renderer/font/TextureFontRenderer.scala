@@ -29,7 +29,7 @@ abstract class TextureFontRenderer {
 
     var quadBuilder: VertexConsumer = null
     for (y <- 0 until (viewportHeight min buffer.height)) {
-      val color = buffer.setColor(y)
+      val color = buffer.color(y)
       var cbg = 0x000000
       var x = 0
       var width = 0
@@ -55,7 +55,7 @@ abstract class TextureFontRenderer {
       var fontBuilder: VertexConsumer = null
       for (y <- 0 until (viewportHeight min buffer.height)) {
         val line = buffer.buffer(y)
-        val color = buffer.setColor(y)
+        val color = buffer.color(y)
         val ty = y * charHeight
         var tx = 0f
         for (n <- 0 until viewportWidth) {

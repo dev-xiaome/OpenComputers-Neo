@@ -426,9 +426,10 @@ object EventHandler {
     else false
   }
 
-  // 1.21.1 移除：原 `getChunks(world: ServerLevel)` 会遍历 `ChunkMap#getChunks`。
-  // 1.21.1 的 `ChunkMap#getChunks()` 是 `protected`，外部（Scala 的无关类）无法访问，
-  // 且它在本类里本来就没有任何调用点，因此直接删除。
+  // `ChunkMap#getChunks()` 在 NeoForge 1.21.1 里由访问转换器（AT）放开为 public，可直接调用。
+  private def getChunks(world: ServerLevel): Iterable[ChunkHolder] = {
+    world.getChunkSource.chunkMap.getChunks.asScala
+  }
 
   // This is called from the ServerThread *and* the ClientShutdownThread, which
   // can potentially happen at the same time... for whatever reason. So let's
@@ -441,12 +442,16 @@ object EventHandler {
     if (!level.isClientSide) {
       val serverLevel = level.asInstanceOf[ServerLevel]
 
-      // 1.21.1 迁移说明：原实现在这里遍历 `ChunkMap#getChunks`，对本维度所有已加载
-      // 区块里的 `BaseBlockEntity` 调 `dispose()`。1.21.1 没有公开的「枚举本维度所有已加载
-      // 区块」接口（`ChunkMap#getChunks()` 是 protected，`ServerChunkCache` 也没有对应方法），
-      // 因此这一段改为依赖 `BaseBlockEntity` 在区块卸载 / 被移除时自身回调的 `dispose()`
-      // （见 `onChunkUnloaded`）。语义差异：世界卸载时若某个区块没有单独触发卸载事件，
-      // 其方块实体可能不会在此处被 dispose —— 属已知降级点。
+      getChunks(serverLevel).foreach { holder =>
+        val chunk = holder.getTickingChunk
+        if (chunk != null) {
+          chunk.getBlockEntities.values().asScala.foreach {
+            case te: blockentity.traits.BaseBlockEntity => te.dispose()
+            case _ =>
+          }
+        }
+      }
+
       serverLevel.getAllEntities.asScala.foreach {
         case host: MachineHost => host.machine.stop()
         case _ =>

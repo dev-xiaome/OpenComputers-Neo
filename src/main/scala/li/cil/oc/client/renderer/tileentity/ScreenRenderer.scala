@@ -94,9 +94,12 @@ object ScreenRenderer extends BlockEntityRendererProvider[Screen] {
     val player = mc.player
     if (mc.level == null || player == null || mc.screen != null || mc.gameMode == null) return
 
-    val partialTicks = mc.getFrameTime
+    // 1.21.1: Minecraft.getFrameTime 已移除。这里需要的是帧间插值用的 partialTick（0..1），
+    // 而不是 getFrameTimeNs（纳秒，单位完全不同，直接用会让眼睛位置插值彻底错掉）。
+    val partialTicks = mc.getTimer.getGameTimeDeltaPartialTick(false)
     val start = player.getEyePosition(partialTicks)
-    val reach = mc.gameMode.getPickRange.toDouble
+    // 1.21.1: gameMode.getPickRange 已移除，方块交互距离改由玩家属性提供。
+    val reach = player.blockInteractionRange()
     val end = start.add(player.getViewVector(partialTicks).scale(reach))
 
     val hit = renderedHoloScreens.values.

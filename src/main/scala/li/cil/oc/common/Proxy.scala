@@ -24,14 +24,17 @@ import net.neoforged.neoforge.network.handling.{IPayloadContext, IPayloadHandler
 import net.neoforged.neoforge.network.registration.PayloadRegistrar
 
 import scala.jdk.CollectionConverters._
-import net.neoforged.fml.javafmlmod.FMLJavaModLoadingContext
+import net.neoforged.fml.ModLoadingContext
 import net.minecraft.world.level.block.Block
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent
 
 class Proxy {
-  protected val modBus: IEventBus = FMLJavaModLoadingContext.get.getModEventBus
+  // NeoForge 1.21.1 移除了 FMLJavaModLoadingContext，改从当前 ModContainer 取 mod 事件总线。
+  protected val modBus: IEventBus = ModLoadingContext.get.getActiveContainer.getEventBus
 
-  /** 保证包体只注册一次：客户端侧 Proxy 实例在 mod 事件总线上被注册了两次。 */
+  // 客户端 Proxy 实例同时被 OpenComputers 的 @Mod 构造器和 client.Proxy 自己的类体
+  // 注册到 mod 事件总线上，注册事件会被投递两次；同一个 payload 类型重复注册会直接抛异常，
+  // 所以这里做个幂等保护。
   private var payloadsRegistered = false
 
   def preInit(): Unit = {

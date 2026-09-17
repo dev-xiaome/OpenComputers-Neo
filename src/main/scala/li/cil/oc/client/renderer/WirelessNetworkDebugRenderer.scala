@@ -43,9 +43,11 @@ object WirelessNetworkDebugRenderer {
     WirelessNetwork.dimensions.get(world.dimension) match {
       case Some(tree) =>
         val player = Minecraft.getInstance.player
-        val px = player.xOld + (player.getX - player.xOld) * e.getPartialTick
-        val py = player.yOld + (player.getY - player.yOld) * e.getPartialTick
-        val pz = player.zOld + (player.getZ - player.zOld) * e.getPartialTick
+        // 1.21.1: RenderLevelStageEvent.getPartialTick 现在返回 DeltaTracker，不再是 float。
+        val partialTick = e.getPartialTick.getGameTimeDeltaPartialTick(false)
+        val px = player.xOld + (player.getX - player.xOld) * partialTick
+        val py = player.yOld + (player.getY - player.yOld) * partialTick
+        val pz = player.zOld + (player.getZ - player.zOld) * partialTick
 
         val stack = e.getPoseStack
         stack.pushPose()

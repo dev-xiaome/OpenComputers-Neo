@@ -5,6 +5,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.bus.api.Event;
+import net.neoforged.bus.api.ICancellableEvent;
 
 /**
  * Events for handling network activity and representing it on the client.
@@ -18,7 +19,7 @@ import net.neoforged.bus.api.Event;
  * Canceling this event is provided to allow registering higher priority
  * event handlers that override default behavior.
  */
-public class NetworkActivityEvent extends Event {
+public class NetworkActivityEvent extends Event implements ICancellableEvent {
     protected Level world;
 
     protected double x;

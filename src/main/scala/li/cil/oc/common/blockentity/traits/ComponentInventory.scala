@@ -11,9 +11,6 @@ import li.cil.oc.util.StackOption._
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.core.Direction
-import net.neoforged.neoforge.capabilities.Capability
-import net.neoforged.neoforge.capabilities.ICapabilityProvider
-import java.util.Optional
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
 
@@ -154,17 +151,10 @@ trait ComponentInventory extends Environment with Inventory with container.Compo
     }
   }
 
-  override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
-    val localFacing = this match {
-      case rotatable: Rotatable => rotatable.toLocal(facing)
-      case _ => facing
-    }
-    components.flatten.collect { case cp: ICapabilityProvider => cp }.foreach { comp =>
-      val cap = comp.getCapability(capability, localFacing)
-      if (cap.isPresent) return cap
-    }
-    super.getCapability(capability, facing)
-  }
+  // 1.20.1 时代这里覆写 getCapability，把能力查询转发给已安装的组件（组件实现
+  // Forge 的 ICapabilityProvider）。1.21.1 没有这套机制了，能力只能在
+  // RegisterCapabilitiesEvent 里按方块实体类型注册，转发也就没有意义了，
+  // 因此这里不再覆写（见 li.cil.oc.common.capabilities.Capabilities）。
 
   override def saveForClient(nbt: CompoundTag): Unit = {
     connectComponents()

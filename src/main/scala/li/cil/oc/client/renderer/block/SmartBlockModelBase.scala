@@ -143,7 +143,8 @@ trait SmartBlockModelBase extends BakedModel {
       for (i <- 0 until rot) {
         val tmp = u; u = v; v = (-(tmp - 0.5)) + 0.5
       }
-      rawData(vertex.x, vertex.y, vertex.z, facing, texture, texture.getU(u * 16), texture.getV(v * 16), colorRGB)
+      // 1.21.1: TextureAtlasSprite.getU/getV 只接受 float。
+      rawData(vertex.x, vertex.y, vertex.z, facing, texture, texture.getU((u * 16).toFloat), texture.getV((v * 16).toFloat), colorRGB)
     })
   }
 

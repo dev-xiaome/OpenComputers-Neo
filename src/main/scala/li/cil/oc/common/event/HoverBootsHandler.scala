@@ -4,15 +4,18 @@ import li.cil.oc.Settings
 import li.cil.oc.common.item.HoverBoots
 import net.neoforged.neoforge.common.util.FakePlayer
 import net.neoforged.neoforge.event.entity.living.LivingEvent.LivingJumpEvent
-import net.neoforged.neoforge.event.entity.living.{LivingEvent, LivingFallEvent}
+import net.neoforged.neoforge.event.entity.living.LivingFallEvent
+import net.neoforged.neoforge.event.tick.EntityTickEvent
 import net.neoforged.bus.api.SubscribeEvent
 
 import scala.collection.convert.ImplicitConversionsToScala._
 import net.minecraft.world.entity.player.Player
 
 object HoverBootsHandler {
+  // 1.21.1：`LivingEvent.LivingTickEvent` 已被 NeoForge 移除，实体每 tick 的事件改为
+  // `EntityTickEvent.Pre`（对所有实体触发，本方法内部再筛 `Player`，语义等价）。
   @SubscribeEvent
-  def onLivingUpdate(e: LivingEvent.LivingTickEvent): Unit = e.getEntity match {
+  def onLivingUpdate(e: EntityTickEvent.Pre): Unit = e.getEntity match {
     case player: Player if !player.isInstanceOf[FakePlayer] =>
       val nbt = player.getPersistentData
       val hadHoverBoots = nbt.getBoolean(Settings.namespace + "hasHoverBoots")

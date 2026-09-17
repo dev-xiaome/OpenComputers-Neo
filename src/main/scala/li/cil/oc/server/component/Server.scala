@@ -32,9 +32,6 @@ import li.cil.oc.util.ExtendedNBT._
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.core.Direction
-import net.neoforged.neoforge.capabilities.Capability
-import net.neoforged.neoforge.capabilities.ICapabilityProvider
-import java.util.Optional
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import net.minecraft.server.level.ServerPlayer
@@ -42,7 +39,7 @@ import net.minecraft.world.entity.player.Player
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.level.Level
 
-class Server(val rack: api.internal.Rack, val slot: Int) extends Environment with MachineHost with ServerInventory with ComponentInventory with Analyzable with internal.Server with ICapabilityProvider with DeviceInfo {
+class Server(val rack: api.internal.Rack, val slot: Int) extends Environment with MachineHost with ServerInventory with ComponentInventory with Analyzable with internal.Server with DeviceInfo {
   lazy val machine: api.machine.Machine = Machine.create(this)
 
   val node: Node = if (!rack.getEnvironmentLevel.isClientSide) machine.node else null
@@ -237,16 +234,7 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
   override def onAnalyze(player: Player, side: Direction, hitX: Float, hitY: Float, hitZ: Float) = Array(machine.node)
 
   // ----------------------------------------------------------------------- //
-  // ICapabilityProvider
-
-  override def getCapability[T](capability: Capability[T], facing: Direction): java.util.Optional[T] = {
-    for (curr <- components) curr match {
-      case Some(comp: ICapabilityProvider) => {
-        val cap = comp.getCapability(capability, host.toLocal(facing))
-        if (cap.isPresent) return cap
-      }
-      case _ =>
-    }
-    java.util.Optional.empty[T]
-  }
+  // 能力：1.20.1 时代这里把能力查询转发给机架组件（组件实现 Forge 的
+  // ICapabilityProvider）。1.21.1 没有这套机制，且 Server 本身不是方块实体，
+  // 无法在 RegisterCapabilitiesEvent 里注册，因此不再提供该转发。
 }

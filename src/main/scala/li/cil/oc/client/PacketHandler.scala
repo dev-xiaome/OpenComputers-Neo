@@ -202,7 +202,7 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
-  def onFileSystemActivity(p: PacketParser): AnyVal = {
+  def onFileSystemActivity(p: PacketParser): Unit = {
     val sound = p.readUTF()
     val data = NbtIo.read(p)
     if (p.readBoolean()) p.readBlockEntity[net.minecraft.world.level.block.entity.BlockEntity]() match {
@@ -220,7 +220,7 @@ object PacketHandler extends CommonPacketHandler {
     }
   }
 
-  def onNetworkActivity(p: PacketParser): AnyVal = {
+  def onNetworkActivity(p: PacketParser): Unit = {
     val data = NbtIo.read(p)
     if (p.readBoolean()) p.readBlockEntity[net.minecraft.world.level.block.entity.BlockEntity]() match {
       case Some(t) =>
