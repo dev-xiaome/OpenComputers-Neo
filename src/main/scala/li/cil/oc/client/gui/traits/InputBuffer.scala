@@ -94,13 +94,13 @@ trait InputBuffer extends DisplayBuffer {
       val y = bufferY + buffer.renderHeight - 16
 
       val t = Tesselator.getInstance
-      val r = t.getBuilder
+      val r = t.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP)
       r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
       r.addVertex(stack.last.pose, x, y + 16, 0).setUv(0, 1)
       r.addVertex(stack.last.pose, x + 16, y + 16, 0).setUv(1, 1)
       r.addVertex(stack.last.pose, x + 16, y, 0).setUv(1, 0)
       r.addVertex(stack.last.pose, x, y, 0).setUv(0, 0)
-      t.end()
+      com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(r.buildOrThrow())
 
       RenderState.checkError(getClass.getName + ".drawBufferLayer: keyboard icon")
     }

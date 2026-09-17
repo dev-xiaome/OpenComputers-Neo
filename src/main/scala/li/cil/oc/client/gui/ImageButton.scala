@@ -45,7 +45,7 @@ class ImageButton(xPos: Int, yPos: Int, w: Int, h: Int,
       val y1 = (y + height).toFloat
 
       val t = Tesselator.getInstance
-      val r = t.getBuilder
+      val r = t.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP)
 
       if (image != null) {
         val (ru0, ru1, rv0, rv1) = if (textureWidth > 0 && textureHeight > 0) {
@@ -75,7 +75,7 @@ class ImageButton(xPos: Int, yPos: Int, w: Int, h: Int,
         r.addVertex(graphics.pose.last.pose, x1, y1, z).setUv(ru1, rv1)
         r.addVertex(graphics.pose.last.pose, x1, y0, z).setUv(ru1, rv0)
         r.addVertex(graphics.pose.last.pose, x0, y0, z).setUv(ru0, rv0)
-        t.end()
+        com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(r.buildOrThrow())
         RenderSystem.disableBlend()
       } else {
         val alpha = if (isHov) 0.4f else 0.0f
@@ -89,7 +89,7 @@ class ImageButton(xPos: Int, yPos: Int, w: Int, h: Int,
           r.addVertex(graphics.pose.last.pose, x1, y1, z).setColor(1f, 1f, 1f, alpha)
           r.addVertex(graphics.pose.last.pose, x1, y0, z).setColor(1f, 1f, 1f, alpha)
           r.addVertex(graphics.pose.last.pose, x0, y0, z).setColor(1f, 1f, 1f, alpha)
-          t.end()
+          com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(r.buildOrThrow())
           RenderSystem.disableBlend()
         }
       }

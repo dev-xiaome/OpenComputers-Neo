@@ -24,7 +24,7 @@ import net.minecraft.core.{Direction, Vec3i}
 import net.minecraft.world.phys.Vec3
 import net.minecraft.ChatFormatting
 import net.minecraft.client.gui.Font
-import net.neoforged.neoforge.client.ForgeHooksClient
+import net.neoforged.neoforge.client.ClientHooks
 import net.neoforged.neoforge.common.NeoForge
 import org.joml.Matrix3f
 
@@ -401,7 +401,7 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
     if (
       Settings.get.robotLabels &&
         !Strings.isNullOrEmpty(name) &&
-        ForgeHooksClient.isNameplateInRenderDistance(null, dist)
+        net.neoforged.neoforge.client.ClientHooks.isNameplateInRenderDistance(null, dist)
     ) {
       val f         = Minecraft.getInstance.font
       val scale     = 1.6f / 60f

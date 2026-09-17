@@ -23,7 +23,7 @@ object BufferRenderer {
     Textures.bind(Textures.GUI.Borders)
 
     val t = Tesselator.getInstance
-    val r = t.getBuilder
+    val r = t.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP)
     // 1.18.2: DefaultVertexFormats.POSITION_TEX → DefaultVertexFormat.POSITION_TEX
     r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
 
@@ -45,7 +45,7 @@ object BufferRenderer {
     drawQuad(stack.last.pose, r, margin,         margin + innerHeight, innerWidth, margin, c1 + 0.25f, c2, c2 - 0.25f, c3)
     drawQuad(stack.last.pose, r, margin + innerWidth, margin + innerHeight, margin, margin, c2,        c2, c3,         c3)
 
-    t.end()
+    com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(r.buildOrThrow())
 
     RenderState.checkError(getClass.getName + ".drawBackground: leaving")
   }

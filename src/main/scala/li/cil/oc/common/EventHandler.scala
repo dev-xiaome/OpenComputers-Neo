@@ -51,7 +51,7 @@ import net.neoforged.neoforge.client.event.ScreenEvent
 import net.minecraft.client.Minecraft
 import net.neoforged.neoforge.common.util.FakePlayer
 import net.neoforged.neoforge.event.AttachCapabilitiesEvent
-import net.neoforged.neoforge.event.TickEvent
+import net.neoforged.neoforge.event.tick.{ClientTickEvent, ServerTickEvent}
 import net.neoforged.neoforge.client.event.ClientTickEvent
 import net.neoforged.neoforge.event.tick.ServerTickEvent
 import net.neoforged.neoforge.event.entity.player.PlayerEvent._

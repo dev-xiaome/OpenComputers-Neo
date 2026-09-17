@@ -82,7 +82,7 @@ abstract class TextureFontRenderer {
 
     RenderSystem.depthMask(false)
 
-    val bufferSource = MultiBufferSource.immediate(Tesselator.getInstance().getBuilder)
+    val bufferSource = MultiBufferSource.immediate(new com.mojang.blaze3d.vertex.ByteBufferBuilder(1536))
 
     for (i <- 0 until textureCount) {
       val renderType = selectType(i)

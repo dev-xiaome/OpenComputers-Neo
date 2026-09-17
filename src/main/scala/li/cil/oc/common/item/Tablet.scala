@@ -45,7 +45,7 @@ import net.minecraft.world.item.{Item, ItemStack}
 import net.minecraft.world.level.Level
 import net.neoforged.api.distmarker.{Dist, OnlyIn}
 
-import net.neoforged.neoforge.event.TickEvent.{ClientTickEvent, ServerTickEvent}
+import net.neoforged.neoforge.event.tick.{ClientTickEvent, ServerTickEvent}
 import net.neoforged.neoforge.event.level.LevelEvent
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.neoforge.server.ServerLifecycleHooks

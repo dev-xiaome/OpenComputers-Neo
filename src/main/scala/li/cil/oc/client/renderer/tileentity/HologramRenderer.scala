@@ -12,7 +12,7 @@ import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.blockentity.{BlockEntityRenderer, BlockEntityRendererProvider}
 import net.minecraft.client.renderer.{GameRenderer, MultiBufferSource}
 import net.minecraft.core.Direction
-import net.neoforged.neoforge.event.TickEvent
+import net.neoforged.neoforge.event.tick.{ClientTickEvent, ServerTickEvent}
 import net.neoforged.bus.api.SubscribeEvent
 import org.joml.Quaternionf
 

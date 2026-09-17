@@ -29,7 +29,7 @@ class ProgressBar(val x: Int, val y: Int) extends Widget {
       RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F)
 
       val t = Tesselator.getInstance
-      val r = t.getBuilder
+      val r = t.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP)
 
       r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
 
@@ -39,7 +39,7 @@ class ProgressBar(val x: Int, val y: Int) extends Widget {
       r.addVertex(matrix, tx + w, ty + height, owner.windowZ).setUv(u1, v1)
       r.addVertex(matrix, tx + w, ty, owner.windowZ).setUv(u1, v0)
 
-      t.end()
+      com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(r.buildOrThrow())
     }
   }
 }

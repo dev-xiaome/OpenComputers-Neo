@@ -110,7 +110,7 @@ class Manual extends screens.Screen(Component.empty()) with traits.Window {
     for ((tab, i) <- ManualAPI.tabs.zipWithIndex if i < maxTabsPerSide) {
       val button = renderables.get(i).asInstanceOf[ImageButton]
       stack.pushPose()
-      stack.translate(button.x + 5, button.y + 5, 0)
+      stack.translate(button.getX() + 5, button.getY() + 5, 0)
       // 1.20.1: tab.renderer.render(stack) → tab.renderer.render(graphics)
       tab.renderer.render(graphics)
       stack.popPose()
@@ -135,13 +135,13 @@ class Manual extends screens.Screen(Component.empty()) with traits.Window {
 
     if (!isScrolling) for ((tab, i) <- ManualAPI.tabs.zipWithIndex if i < maxTabsPerSide) {
       val button = renderables.get(i).asInstanceOf[ImageButton]
-      if (mouseX > button.x && mouseX < button.x + tabWidth && mouseY > button.y && mouseY < button.y + tabHeight)
+      if (mouseX > button.getX() && mouseX < button.getX() + tabWidth && mouseY > button.getY() && mouseY < button.getY() + tabHeight)
         tab.tooltip.foreach(text => graphics.renderComponentTooltip(font, localizeAndWrap(text), mouseX, mouseY))
     }
 
     if (canScroll && (isCoordinateOverScrollBar(mouseX - leftPos, mouseY - topPos) || isScrolling)) {
       val lines: java.util.List[Component] = java.util.List.of(Component.literal(s"${100 * offset / maxOffset}%"))
-      graphics.renderComponentTooltip(font, lines, leftPos + scrollPosX + scrollWidth, scrollButton.y + scrollButton.getHeight + 1)
+      graphics.renderComponentTooltip(font, lines, leftPos + scrollPosX + scrollWidth, scrollButton.getY() + scrollButton.getHeight + 1)
     }
   }
 
@@ -215,9 +215,9 @@ class Manual extends screens.Screen(Component.empty()) with traits.Window {
     ManualAPI.history.top.offset = math.max(0, math.min(maxOffset, row))
     val yMin = topPos + scrollPosY
     if (maxOffset > 0)
-      scrollButton.y = yMin + (scrollHeight - 13) * offset / maxOffset
+      scrollButton.setY(yMin + (scrollHeight - 13) * offset / maxOffset)
     else
-      scrollButton.y = yMin
+      scrollButton.setY(yMin)
   }
 
   private def isCoordinateOverContent(x: Int, y: Int) =

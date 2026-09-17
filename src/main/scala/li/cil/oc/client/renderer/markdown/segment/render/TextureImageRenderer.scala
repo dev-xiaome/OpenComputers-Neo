@@ -39,14 +39,14 @@ class TextureImageRenderer(val location: ResourceLocation) extends ImageRenderer
 
     val matrix = graphics.pose.last.pose
     val tesselator = Tesselator.getInstance()
-    val builder = tesselator.getBuilder
+    val builder = tesselator.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP)
 
     builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
     builder.addVertex(matrix, 0, texture.height.toFloat, 0).setUv(0, 1)
     builder.addVertex(matrix, texture.width.toFloat, texture.height.toFloat, 0).setUv(1, 1)
     builder.addVertex(matrix, texture.width.toFloat, 0, 0).setUv(1, 0)
     builder.addVertex(matrix, 0, 0, 0).setUv(0, 0)
-    tesselator.end()
+    com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(builder.buildOrThrow())
 
     RenderSystem.disableBlend()
   }

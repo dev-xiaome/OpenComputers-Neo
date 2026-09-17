@@ -6,14 +6,14 @@ import net.minecraft.network.chat.Component
 import net.minecraft.world.item.{CreativeModeTab, CreativeModeTabs}
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent
 import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.neoforge.registries.{DeferredRegister, RegistryObject}
+import net.neoforged.neoforge.registries.{DeferredHolder, DeferredRegister}
 import li.cil.oc.integration.opencomputers.ModOpenComputers
 
 object CreativeTab {
   val CREATIVE_TABS: DeferredRegister[CreativeModeTab] =
     DeferredRegister.create(Registries.CREATIVE_MODE_TAB, OpenComputers.ID)
 
-  val MAIN: RegistryObject[CreativeModeTab] = CREATIVE_TABS.register("main", () =>
+  val MAIN: DeferredHolder[CreativeModeTab, CreativeModeTab] = CREATIVE_TABS.register("main", () =>
     CreativeModeTab.builder()
       .title(Component.translatable(s"itemGroup.${OpenComputers.Name}"))
       .icon(() => api.Items.get(Constants.BlockName.CaseTier1).createItemStack(1))

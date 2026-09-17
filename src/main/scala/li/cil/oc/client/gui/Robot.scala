@@ -234,10 +234,10 @@ class Robot(state: menu.Robot, playerInventory: Inventory, name: Component)
     menu.generateSlotsFor(inventoryOffset)
     val yMin = topPos + scrollY + 1
     if (maxOffset > 0) {
-      scrollButton.y = yMin + (scrollHeight - 13) * inventoryOffset / maxOffset
+      scrollButton.setY(yMin + (scrollHeight - 13) * inventoryOffset / maxOffset)
     }
     else {
-      scrollButton.y = yMin
+      scrollButton.setY(yMin)
     }
   }
 
@@ -259,13 +259,13 @@ class Robot(state: menu.Robot, playerInventory: Inventory, name: Component)
       val y = topPos + inventoryY - 1 + (slot / 4) * (selectionSize - 2)
 
       val t = Tesselator.getInstance
-      val r = t.getBuilder
+      val r = t.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP)
       r.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
       r.addVertex(stack.last.pose, x, y, 0).setUv(0, offsetV)
       r.addVertex(stack.last.pose, x, y + selectionSize, 0).setUv(0, offsetV + selectionStepV)
       r.addVertex(stack.last.pose, x + selectionSize, y + selectionSize, 0).setUv(1, offsetV + selectionStepV)
       r.addVertex(stack.last.pose, x + selectionSize, y, 0).setUv(1, offsetV)
-      t.end()
+      com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(r.buildOrThrow())
     }
   }
 }
