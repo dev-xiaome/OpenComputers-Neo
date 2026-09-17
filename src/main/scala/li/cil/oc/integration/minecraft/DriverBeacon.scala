@@ -46,9 +46,15 @@ object DriverBeacon extends DriverSidedBlockEntity {
       result(getEffectName(tileEntity.secondaryPower))
     }
 
-    private def getEffectName(effect: MobEffect): String = {
-      val name = BuiltInRegistries.MOB_EFFECT.getKey(effect).toString
-      if (effect != null) name else null
+    // 1.21.1 里 primaryPower / secondaryPower 的类型是 Holder[MobEffect]（且可为 null）。
+    private def getEffectName(effect: Holder[MobEffect]): String = {
+      if (effect == null) return null
+      val key = effect.unwrapKey().orElse(null)
+      if (key != null) key.location().toString
+      else {
+        val id = BuiltInRegistries.MOB_EFFECT.getKey(effect.value())
+        if (id == null) null else id.toString
+      }
     }
   }
 

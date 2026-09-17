@@ -9,11 +9,11 @@ import li.cil.oc.api.network.ManagedEnvironment
 import li.cil.oc.api.prefab.DriverSidedBlockEntity
 import li.cil.oc.integration.ManagedBlockEntityEnvironment
 import li.cil.oc.util.ResultWrapper.result
+import net.minecraft.core.Holder
 import net.minecraft.world.level.block.Blocks
-import net.minecraft.world.item.{Item, ItemStack, RecordItem}
+import net.minecraft.world.item.{ItemStack, JukeboxSong}
 import net.minecraft.core.Direction
 import net.minecraft.core.BlockPos
-import net.minecraft.locale.Language
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.entity.JukeboxBlockEntity
 
@@ -29,28 +29,37 @@ object DriverRecordPlayer extends DriverSidedBlockEntity {
     override def priority = 0
 
     @Callback(doc = "function():string -- Get the title of the record currently in the jukebox.")
-    def getRecord(context: Context, args: Arguments): Array[AnyRef] = {
-      val record = tileEntity.getFirstItem
-      if (!record.isEmpty && record.getItem.isInstanceOf[RecordItem]) {
-        result(Language.getInstance.getOrDefault(record.getItem.asInstanceOf[RecordItem].getDescriptionId))
-      }
-      else null
+    def getRecord(context: Context, args: Arguments): Array[AnyRef] = recordSong match {
+      case Some(song) => result(song.value().description().getString)
+      case _ => null
     }
 
     @Callback(doc = "function() -- Start playing the record currently in the jukebox.")
-    def play(context: Context, args: Arguments): Array[AnyRef] = {
-      val record = tileEntity.getFirstItem
-      if (!record.isEmpty && record.getItem.isInstanceOf[RecordItem]) {
-        tileEntity.getLevel.levelEvent(null, 1010, tileEntity.getBlockPos, Item.getId(record.getItem))
+    def play(context: Context, args: Arguments): Array[AnyRef] = recordSong match {
+      case Some(song) =>
+        // 1.21.1：唱片不再是 RecordItem，播放改由 JukeboxSongPlayer 负责，
+        // 它会写入歌曲状态并派发 1010 音效事件。
+        tileEntity.getSongPlayer.play(tileEntity.getLevel, song)
         result(true)
-      }
-      else null
+      case _ => null
     }
 
     @Callback(doc = "function() -- Stop playing the record currently in the jukebox.")
     def stop(context: Context, args: Arguments): Array[AnyRef] = {
-      tileEntity.getLevel.levelEvent(1010, tileEntity.getBlockPos, 0)
+      tileEntity.getSongPlayer.stop(tileEntity.getLevel, tileEntity.getBlockState)
       null
+    }
+
+    // 1.21.1 的唱片已改为携带 JukeboxPlayable 组件的普通物品，
+    // 曲目信息需要用 JukeboxSong.fromStack 从动态注册表 JukeboxSong 中解析。
+    private def recordSong: Option[Holder[JukeboxSong]] = {
+      val level = tileEntity.getLevel
+      val record = tileEntity.getTheItem
+      if (level == null || record.isEmpty) None
+      else {
+        val song = JukeboxSong.fromStack(level.registryAccess(), record)
+        if (song.isPresent) Some(song.get) else None
+      }
     }
   }
 

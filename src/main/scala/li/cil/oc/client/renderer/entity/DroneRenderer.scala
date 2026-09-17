@@ -9,7 +9,7 @@ import net.minecraft.client.renderer.RenderType
 import net.minecraft.client.renderer.entity.EntityRenderer
 import net.minecraft.client.renderer.entity.EntityRendererProvider  // 1.18.2: EntityRenderDispatcher → EntityRendererProvider
 import net.minecraft.client.renderer.texture.OverlayTexture
-import net.minecraft.util.Mth
+import net.minecraft.util.{FastColor, Mth}
 
 class DroneRenderer(ctx: EntityRendererProvider.Context) extends EntityRenderer[Drone](ctx) {
   private val model = new ModelQuadcopter(ctx.bakeLayer(ModelQuadcopter.LAYER_LOCATION))
@@ -24,7 +24,7 @@ class DroneRenderer(ctx: EntityRendererProvider.Context) extends EntityRenderer[
       val xRot = Mth.rotLerp(dt, entity.xRotO, entity.getXRot)
       val yRot = Mth.rotLerp(dt, entity.yRotO, entity.getYRot)
       model.setupAnim(entity, 0, 0, entity.tickCount, yRot, xRot)
-      model.renderToBuffer(stack, builder, light, OverlayTexture.NO_OVERLAY, 1, 1, 1, 1)
+      model.renderToBuffer(stack, builder, light, OverlayTexture.NO_OVERLAY, FastColor.ARGB32.color(255, 255, 255, 255))
       stack.popPose()
     }
     super.render(entity, yaw, dt, stack, buffer, light)

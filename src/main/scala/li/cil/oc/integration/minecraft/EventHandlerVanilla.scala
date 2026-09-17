@@ -8,7 +8,6 @@ import net.minecraft.world.level.block.{Block, Blocks, CropBlock, LiquidBlock, S
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.block.state.properties.IntegerProperty
 import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.neoforge.fluids.IFluidBlock
 import net.minecraft.core.registries.BuiltInRegistries
 
 import scala.jdk.CollectionConverters._
@@ -37,8 +36,9 @@ object EventHandlerVanilla {
       val index = (rx - e.minX) + ((rz - e.minZ) + (ry - e.minY) * d) * w
       if (world.isLoaded(pos) && !world.isEmptyBlock(pos)) {
         val blockState = world.getBlockState(pos)
-        val block = blockState.getBlock
-        val isFluid = block.isInstanceOf[LiquidBlock] || block.isInstanceOf[IFluidBlock]
+        // NeoForge 1.21.1 移除了 IFluidBlock：世界中的流体统一由 FluidState 描述，
+        // 因此改用「该方块状态带非空流体」来判断，比只认 LiquidBlock 更完整。
+        val isFluid = !blockState.getFluidState.isEmpty
         if (!blockState.isAir && (includeReplaceable || isFluid || !blockState.is(BlockTags.REPLACEABLE))) {
           val distance = math.sqrt(rx * rx + ry * ry + rz * rz).toFloat
           e.data(index) = e.data(index) * distance * Settings.get.geolyzerNoise + blockState.getDestroySpeed(world, pos)

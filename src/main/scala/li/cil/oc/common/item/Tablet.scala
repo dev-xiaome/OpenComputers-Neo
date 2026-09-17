@@ -45,7 +45,10 @@ import net.minecraft.world.item.{Item, ItemStack}
 import net.minecraft.world.level.Level
 import net.neoforged.api.distmarker.{Dist, OnlyIn}
 
-import net.neoforged.neoforge.event.tick.{ClientTickEvent, ServerTickEvent}
+// 1.21.1：tick 事件拆包了。服务端在 `neoforge.event.tick`，客户端在 `neoforge.client.event`，
+// 且各自拆成 `.Pre` / `.Post`，不再有 `TickEvent.Phase`。
+import net.neoforged.neoforge.client.event.ClientTickEvent
+import net.neoforged.neoforge.event.tick.ServerTickEvent
 import net.neoforged.neoforge.event.level.LevelEvent
 import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.neoforge.server.ServerLifecycleHooks
@@ -105,7 +108,9 @@ class Tablet(props: Properties) extends Item(props) with traits.SimpleItem with 
       case Some(state) => if (state) "_on" else "_off"
       case _ => ""
     }
-    new ModelResourceLocation(Settings.resourceDomain, Constants.ItemName.Tablet + suffix, "inventory")
+    // 1.21.1：`ModelResourceLocation` 的三参构造器已移除，命名空间 / 路径要先合成
+    // `ResourceLocation`，变体字符串单独传。
+    new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, Constants.ItemName.Tablet + suffix), "inventory")
   }
 
   def canCharge(stack: ItemStack): Boolean = true
@@ -501,7 +506,7 @@ object Tablet {
   }
 
   @SubscribeEvent
-  def onClientTick(e: ClientTickEvent): Unit = {
+  def onClientTick(e: ClientTickEvent.Post): Unit = {
     Client.cleanUp()
     ServerLifecycleHooks.getCurrentServer match {
       case integrated: IntegratedServer if Minecraft.getInstance.isPaused =>
@@ -514,7 +519,7 @@ object Tablet {
   }
 
   @SubscribeEvent
-  def onServerTick(e: ServerTickEvent): Unit = {
+  def onServerTick(e: ServerTickEvent.Post): Unit = {
     Server.cleanUp()
   }
 

@@ -8,7 +8,7 @@ import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.SideTracker
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.core.BlockPos
+import net.minecraft.core.{BlockPos, HolderLookup}
 import net.minecraft.world.level.Level
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
@@ -72,7 +72,10 @@ trait BaseBlockEntity extends net.minecraft.world.level.block.entity.BlockEntity
 
   def saveForServer(nbt: CompoundTag): Unit = {
     nbt.putBoolean(IsServerDataTag, true)
-    super.saveAdditional(nbt)
+    // 1.21.1：`saveAdditional` 需要注册表上下文，而 OC 自己的存档钩子
+    // （`saveForServer` / `saveForClient`）刻意不带 provider —— 子类里需要编解码物品堆叠的
+    // 地方统一走 `li.cil.oc.util.RegistryAccessHelper.getOrEmpty()`。这里同理。
+    super.saveAdditional(nbt, li.cil.oc.util.RegistryAccessHelper.getOrEmpty())
   }
 
   def loadForClient(nbt: CompoundTag): Unit = {}
@@ -83,8 +86,10 @@ trait BaseBlockEntity extends net.minecraft.world.level.block.entity.BlockEntity
 
   // ----------------------------------------------------------------------- //
 
-  override def load(nbt: CompoundTag): Unit = {
-    super.load(nbt)
+  // 1.21.1：`BlockEntity#load(CompoundTag)` 已被 `loadAdditional(CompoundTag, HolderLookup.Provider)`
+  // 取代（`load` 彻底移除，公开入口是 `loadWithComponents`）。
+  override def loadAdditional(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadAdditional(nbt, provider)
     if (isServer || nbt.getBoolean(IsServerDataTag)) {
       loadForServer(nbt)
     }
@@ -93,8 +98,8 @@ trait BaseBlockEntity extends net.minecraft.world.level.block.entity.BlockEntity
     }
   }
 
-  override def saveAdditional(nbt: CompoundTag): Unit = {
-    super.saveAdditional(nbt)
+  override def saveAdditional(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveAdditional(nbt, provider)
     save(nbt)
   }
 
@@ -109,8 +114,9 @@ trait BaseBlockEntity extends net.minecraft.world.level.block.entity.BlockEntity
     ClientboundBlockEntityDataPacket.create(this)
   }
 
-  override def getUpdateTag: CompoundTag = {
-    val nbt = super.getUpdateTag
+  // 1.21.1：`getUpdateTag()` 现在要接收注册表上下文。
+  override def getUpdateTag(provider: HolderLookup.Provider): CompoundTag = {
+    val nbt = super.getUpdateTag(provider)
 
     // See comment on savingForClients variable.
     SaveHandler.savingForClients = true

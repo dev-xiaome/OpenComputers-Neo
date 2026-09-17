@@ -21,17 +21,19 @@ object OreDictImageProvider extends ImageProvider {
   override def getImage(data: String): ImageRenderer = {
     val desired = ResourceLocation.tryParse(data.toLowerCase)
     val stacks = mutable.ArrayBuffer.empty[ItemStack]
+    // 1.21.1: Registry.getTags 现在返回 Stream<Pair<TagKey, HolderSet.Named>>，
+    // 取单个标签改用 Registry.getTag(TagKey)，返回 Optional<HolderSet.Named>。
     val itemTagKey = TagKey.create(BuiltInRegistries.ITEM.key(), desired)
-    val itemTag = BuiltInRegistries.ITEM.getTags.getTag(itemTagKey)
-    if (!itemTag.isEmpty) {
-      stacks ++= itemTag.asScala.map(new ItemStack(_))
+    val itemTag = BuiltInRegistries.ITEM.getTag(itemTagKey)
+    if (itemTag.isPresent) {
+      stacks ++= itemTag.get.asScala.map(holder => new ItemStack(holder.value()))
     }
     if (stacks.isEmpty) {
       val blockTagKey = TagKey.create(BuiltInRegistries.BLOCK.key(), desired)
-      val blockTag = BuiltInRegistries.BLOCK.getTags.getTag(blockTagKey)
+      val blockTag = BuiltInRegistries.BLOCK.getTag(blockTagKey)
 
-      if (!blockTag.isEmpty) {
-        stacks ++= blockTag.asScala.map(new ItemStack(_))
+      if (blockTag.isPresent) {
+        stacks ++= blockTag.get.asScala.map(holder => new ItemStack(holder.value()))
       }
     }
     if (stacks.nonEmpty) new ItemStackImageRenderer(stacks.toArray)

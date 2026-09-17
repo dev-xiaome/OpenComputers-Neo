@@ -30,11 +30,11 @@ import net.minecraft.world.entity.player.{Inventory => PlayerInventory}
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.level.portal.DimensionTransition
 import net.minecraft.world.phys.Vec3
 import net.minecraft.world.{InteractionHand, InteractionResult, MenuProvider}
 import net.neoforged.api.distmarker.{Dist, OnlyIn}
 import net.neoforged.neoforge.fluids.IFluidTank
-import net.neoforged.neoforge.network.NetworkHooks
 
 import java.lang
 import java.lang.Iterable
@@ -280,18 +280,20 @@ class Drone(selfType: EntityType[Drone], level: Level) extends Entity(selfType, 
 
   // ----------------------------------------------------------------------- //
 
-  override def defineSynchedData(): Unit = {
-    entityData.define(Drone.DataRunning, java.lang.Boolean.FALSE)
-    entityData.define(Drone.DataTargetX, Float.box(0f))
-    entityData.define(Drone.DataTargetY, Float.box(0f))
-    entityData.define(Drone.DataTargetZ, Float.box(0f))
-    entityData.define(Drone.DataMaxAcceleration, Float.box(0f))
-    entityData.define(Drone.DataSelectedSlot, Int.box(0))
-    entityData.define(Drone.DataCurrentEnergy, Int.box(0))
-    entityData.define(Drone.DataMaxEnergy, Int.box(100))
-    entityData.define(Drone.DataStatusText, "")
-    entityData.define(Drone.DataInventorySize, Int.box(0))
-    entityData.define(Drone.DataLightColor, Int.box(0x66DD55))
+  // 1.21.1：`SynchedEntityData#define` 已移除，`Entity#defineSynchedData` 改成接收
+  // `SynchedEntityData.Builder`，逐个 `builder.define(...)`。
+  override def defineSynchedData(builder: SynchedEntityData.Builder): Unit = {
+    builder.define(Drone.DataRunning, java.lang.Boolean.FALSE)
+    builder.define(Drone.DataTargetX, Float.box(0f))
+    builder.define(Drone.DataTargetY, Float.box(0f))
+    builder.define(Drone.DataTargetZ, Float.box(0f))
+    builder.define(Drone.DataMaxAcceleration, Float.box(0f))
+    builder.define(Drone.DataSelectedSlot, Int.box(0))
+    builder.define(Drone.DataCurrentEnergy, Int.box(0))
+    builder.define(Drone.DataMaxEnergy, Int.box(100))
+    builder.define(Drone.DataStatusText, "")
+    builder.define(Drone.DataInventorySize, Int.box(0))
+    builder.define(Drone.DataLightColor, Int.box(0x66DD55))
   }
 
   def initializeAfterPlacement(stack: ItemStack, player: Player, position: Vec3): Unit = {
@@ -528,7 +530,9 @@ class Drone(selfType: EntityType[Drone], level: Level) extends Entity(selfType, 
 
   private var isChangingDimension = false
 
-  override def changeDimension(dimension: ServerLevel): Entity = {
+  // 1.21.1：`Entity#changeDimension` 的参数从 `ServerLevel` 换成了
+  // `DimensionTransition`（目标维度、位置、朝向、后处理都在这个记录里）。
+  override def changeDimension(transition: DimensionTransition): Entity = {
     // Store relative target as target, to allow adding that in our "new self"
     // (entities get re-created after changing dimension).
     targetX = (targetX - getX).toFloat
@@ -536,7 +540,7 @@ class Drone(selfType: EntityType[Drone], level: Level) extends Entity(selfType, 
     targetZ = (targetZ - getZ).toFloat
     try {
       isChangingDimension = true
-      super.changeDimension(dimension)
+      super.changeDimension(transition)
     }
     finally {
       isChangingDimension = false
@@ -597,7 +601,9 @@ class Drone(selfType: EntityType[Drone], level: Level) extends Entity(selfType, 
 
   override def getName: Component = Localization.localizeLater("entity.oc.Drone.name")
 
-  override def getAddEntityPacket = NetworkHooks.getEntitySpawningPacket(this)
+  // 1.21.1 移除：原 `override def getAddEntityPacket = NetworkHooks.getEntitySpawningPacket(this)`。
+  // `NetworkHooks` 已随 NeoForge 的网络层重写一起消失；本实体没有自定义生成数据
+  // （未实现 `IEntityAdditionalSpawnData`），基类的 `getAddEntityPacket(ServerEntity)` 就够了。
 
   override protected def readAdditionalSaveData(nbt: CompoundTag): Unit = {
     info.loadData(nbt.getCompound("info"))

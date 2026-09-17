@@ -7,8 +7,8 @@ import net.minecraft.advancements.Advancement
 import net.minecraft.core.HolderLookup
 import net.minecraft.data.advancements.AdvancementProvider
 import net.minecraft.data.advancements.AdvancementSubProvider
-import net.minecraftforge.data.event.GatherDataEvent
-import net.minecraftforge.eventbus.api.SubscribeEvent
+import net.neoforged.neoforge.data.event.GatherDataEvent
+import net.neoforged.bus.api.SubscribeEvent
 
 object DataGenerators {
   @SubscribeEvent

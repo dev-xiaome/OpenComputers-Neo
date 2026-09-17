@@ -144,13 +144,13 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
     r.addVertex(stack.last.pose, l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, -0.2f, -1)
     r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last, -1, -0.2f, 0)
 
-    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last.normal, 0, 1, 0)
-    r.addVertex(stack.last.pose, l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last.normal, 0, 1, 0)
-    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last.normal, 0, 1, 0)
+    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last, 0, 1, 0)
+    r.addVertex(stack.last.pose, l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last, 0, 1, 0)
+    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last, 0, 1, 0)
 
-    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last.normal, 0, 1, 0)
-    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last.normal, 0, 1, 0)
-    r.addVertex(stack.last.pose, h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last.normal, 0, 1, 0)
+    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last, 0, 1, 0)
+    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last, 0, 1, 0)
+    r.addVertex(stack.last.pose, h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, 1, 0)
   }
 
   def resetMountPoints(running: Boolean): Unit = {

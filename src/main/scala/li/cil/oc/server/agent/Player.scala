@@ -46,11 +46,13 @@ import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.common.util.FakePlayer
 import java.util.Optional
 import java.util.function.Supplier
-import net.neoforged.neoforge.event.ForgeEventFactory
+import net.neoforged.neoforge.event.EventHooks
 import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent
+import net.neoforged.neoforge.common.CommonHooks
+import net.neoforged.neoforge.common.util.TriState
 import net.neoforged.fml.util.ObfuscationReflectionHelper
-import net.neoforged.bus.api.{Event, EventPriority, SubscribeEvent}
+import net.neoforged.bus.api.{EventPriority, SubscribeEvent}
 import net.neoforged.neoforge.items.IItemHandler
 import net.neoforged.neoforge.items.wrapper._
 
@@ -147,7 +149,9 @@ object Player {
 }
 
 class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentLevel.asInstanceOf[ServerLevel], Player.profileFor(agent)) {
-  connection = new ServerGamePacketListenerImpl(server, FakeNetworkManager, this)
+  // 1.21.1 起该构造器需要 CommonListenerCookie（NeoForge 在末尾追加了 connectionType 字段）。
+  connection = new ServerGamePacketListenerImpl(server, FakeNetworkManager, this,
+    CommonListenerCookie.createInitial(getGameProfile, false))
   val abilities = getAbilities
 
   abilities.mayfly = true
@@ -159,7 +163,8 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
 
   override def getStandingEyeHeight(pose: Pose, size: EntityDimensions) = 0f
 
-  override def getDimensions(pose: Pose) = new EntityDimensions(1, 1, true)
+  // 1.21.1 的 EntityDimensions 是 record，请使用 fixed/scalable 工厂方法。
+  override def getDimensions(pose: Pose) = EntityDimensions.fixed(1, 1)
   refreshDimensions()
 
   {
@@ -658,10 +663,4 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
           val expGained: Int = PlayerInteractionManagerHelper.blockRemoving(player, pos)
           this.player.setPos(this.player.getX + side.getStepX / 2.0, this.player.getY, this.player.getZ + side.getStepZ / 2.0)
           if (expGained >= 0) {
-            NeoForge.EVENT_BUS.post(new RobotBreakBlockEvent.Post(agent, expGained))
-          }
-        })
-      }
-    }
-  }
-}
+            NeoForge.EVENT_BUS.post(new Robot

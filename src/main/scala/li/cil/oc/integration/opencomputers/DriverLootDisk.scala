@@ -31,7 +31,8 @@ object DriverLootDisk extends Item {
           api.FileSystem.fromSaveDirectory(lootPath, 0, false)
         }
         else {
-          api.FileSystem.fromResource(new ResourceLocation(Settings.resourceDomain, lootPath))
+          // 1.21.1 的 ResourceLocation 构造函数已私有化，改用静态工厂。
+          api.FileSystem.fromResource(ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, lootPath))
         }
       val label =
         if (dataTag(stack).contains(Settings.namespace + "fs.label")) {

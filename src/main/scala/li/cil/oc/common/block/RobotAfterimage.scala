@@ -18,12 +18,14 @@ import net.minecraft.world.level.{BlockGetter => IBlockReader, Level => World}
 import net.minecraft.world.phys.shapes.{VoxelShape, CollisionContext => ISelectionContext}
 import net.minecraft.world.phys.{BlockHitResult => BlockRayTraceResult, HitResult => RayTraceResult}
 import net.minecraft.world.ticks.ScheduledTick
-import net.minecraft.world.{InteractionHand, InteractionResult => ActionResultType}
+import net.minecraft.world.{InteractionHand, InteractionResult => ActionResultType, ItemInteractionResult}
 
 import java.util.Random
 
 class RobotAfterimage(props: Properties) extends SimpleBlock(props) with traits.Tickable {
-  override def getCloneItemStack(state: BlockState, target: RayTraceResult, world: IBlockReader, pos: BlockPos, player: PlayerEntity): ItemStack =
+  // 1.21.1：`Block#getCloneItemStack` 的签名换成了 `(LevelReader, BlockPos, BlockState)`，
+  // 原来的「玩家 / 命中结果」参数已移除。
+  override def getCloneItemStack(world: IBlockReader, pos: BlockPos, state: BlockState): ItemStack =
     findMovingRobot(world, pos) match {
       case Some(robot) => robot.info.createItemStack()
       case _ => ItemStack.EMPTY
@@ -32,8 +34,9 @@ class RobotAfterimage(props: Properties) extends SimpleBlock(props) with traits.
   override def getShape(state: BlockState, world: IBlockReader, pos: BlockPos, ctx: ISelectionContext): VoxelShape = {
     findMovingRobot(world, pos) match {
       case Some(robot) =>
-        val block = robot.getBlockState.getBlock.asInstanceOf[SimpleBlock]
-        val shape = block.getShape(state, world, robot.getBlockPos, ctx)
+        // 1.21.1：`BlockBehaviour#getShape` 是 protected，不能对「另一个方块实例」调用；
+        // 改用 public 的 `BlockState#getShape(BlockGetter, BlockPos, CollisionContext)`。
+        val shape = robot.getBlockState.getShape(world, robot.getBlockPos, ctx)
         val delta = robot.moveFrom.fold(BlockPos.ZERO)(vec => {
           val blockPos = robot.getBlockPos
           new BlockPos(blockPos.getX - vec.getX, blockPos.getY - vec.getY, blockPos.getZ - vec.getZ)
@@ -82,11 +85,16 @@ class RobotAfterimage(props: Properties) extends SimpleBlock(props) with traits.
     }
   }
 
-  @Deprecated
-  override def use(state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hand: InteractionHand, trace: BlockRayTraceResult): ActionResultType = {
+  // 1.21.1：右击方块的入口从 `Block#use(state, level, pos, player, hand, hit)` 变成
+  // `BlockBehaviour#useItemOn(stack, state, level, pos, player, hand, hit)` —— 多了一个手持堆叠参数，
+  // 返回值也从 `InteractionResult` 换成 `ItemInteractionResult`。委托给机器人本体方块的状态。
+  override def useItemOn(stack: ItemStack, state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hand: InteractionHand, trace: BlockRayTraceResult): ItemInteractionResult = {
     findMovingRobot(world, pos) match {
-      case Some(robot) => api.Items.get(Constants.BlockName.Robot).block.use(world.getBlockState(robot.getBlockPos), world, robot.getBlockPos, player, hand, trace)
-      case _ => if (world.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState)) ActionResultType.sidedSuccess(world.isClientSide) else ActionResultType.PASS
+      case Some(robot) =>
+        world.getBlockState(robot.getBlockPos).useItemOn(stack, world, robot.getBlockPos, player, hand, trace)
+      case _ =>
+        if (world.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState)) ItemInteractionResult.sidedSuccess(world.isClientSide)
+        else ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION
     }
   }
 

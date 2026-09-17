@@ -7,12 +7,19 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import li.cil.oc.OpenComputers;
 import li.cil.oc.client.Textures;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 
 public class RenderTypes extends RenderType {
+    // 1.21.1: RenderStateShard.OC_POSITION_TEX_COLOR_SHADER 已被移除，而 position_tex_color
+    // 这个 shader 仍然存在（GameRenderer.getPositionTexColorShader），所以这里自行包一层。
+    // 必须声明在下面那些 RenderType 常量之前：Java 静态初始化是自上而下执行的。
+    private static final ShaderStateShard OC_POSITION_TEX_COLOR_SHADER =
+            new ShaderStateShard(GameRenderer::getPositionTexColorShader);
+
     public static final RenderStateShard.TextureStateShard ROBOT_CHASSIS_TEXTURE = new RenderStateShard.TextureStateShard(Textures.Model$.MODULE$.Robot(), false, false);
 
     public static final RenderType ROBOT_CHASSIS = create(OpenComputers.ID() + ":robot_chassis",
@@ -23,8 +30,8 @@ public class RenderTypes extends RenderType {
                     .createCompositeState(true));
 
     public static final RenderType ROBOT_LIGHT = create(OpenComputers.ID() + ":robot_light",
-            DefaultVertexFormat.POSITION_COLOR_TEX, VertexFormat.Mode.QUADS, 256, true, false, CompositeState.builder()
-                    .setShaderState(POSITION_COLOR_TEX_SHADER)
+            DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS, 256, true, false, CompositeState.builder()
+                    .setShaderState(OC_POSITION_TEX_COLOR_SHADER)
                     .setTextureState(ROBOT_CHASSIS_TEXTURE)
                     .setTransparencyState(LIGHTNING_TRANSPARENCY)
                     .createCompositeState(true));
@@ -104,8 +111,8 @@ public class RenderTypes extends RenderType {
                     .createCompositeState(false));
 
     public static final RenderType BLOCK_OVERLAY_COLOR = create(OpenComputers.ID() + ":overlay_block_color",
-            DefaultVertexFormat.POSITION_COLOR_TEX, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
-                    .setShaderState(POSITION_COLOR_TEX_SHADER)
+            DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
+                    .setShaderState(OC_POSITION_TEX_COLOR_SHADER)
                     .setTextureState(BLOCK_SHEET_MIPPED)
                     .setTransparencyState(LIGHTNING_TRANSPARENCY)
                     .createCompositeState(false));
@@ -143,8 +150,8 @@ public class RenderTypes extends RenderType {
 
     public static RenderType createFontTex(String name, ResourceLocation texture, boolean linear) {
         return create(OpenComputers.ID() + ":font_stat_" + name,
-                DefaultVertexFormat.POSITION_COLOR_TEX, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
-                        .setShaderState(POSITION_COLOR_TEX_SHADER)
+                DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
+                        .setShaderState(OC_POSITION_TEX_COLOR_SHADER)
                         .setTextureState(new RenderStateShard.TextureStateShard(texture, false, false))
                         .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                         .setTexturingState(linear ? LINEAR : NEAR)
@@ -156,8 +163,8 @@ public class RenderTypes extends RenderType {
 
     public static RenderType createFontTex(int id) {
         return create(OpenComputers.ID() + ":font_dyn_" + id,
-                DefaultVertexFormat.POSITION_COLOR_TEX, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
-                        .setShaderState(POSITION_COLOR_TEX_SHADER)
+                DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
+                        .setShaderState(OC_POSITION_TEX_COLOR_SHADER)
                         .setTexturingState(new CustomTextureState(id))
                         .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                         .setDepthTestState(LEQUAL_DEPTH_TEST)
@@ -167,7 +174,7 @@ public class RenderTypes extends RenderType {
     }
 
     public static RenderType createTexturedQuad(String name, ResourceLocation texture, VertexFormat format, boolean additive) {
-        RenderStateShard.ShaderStateShard shader = format == DefaultVertexFormat.POSITION_TEX ? POSITION_TEX_SHADER : POSITION_COLOR_TEX_SHADER;
+        RenderStateShard.ShaderStateShard shader = format == DefaultVertexFormat.POSITION_TEX ? POSITION_TEX_SHADER : OC_POSITION_TEX_COLOR_SHADER;
 
         return create(OpenComputers.ID() + ":tex_quad_" + name,
                 format, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()

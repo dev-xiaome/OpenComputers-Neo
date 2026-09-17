@@ -34,8 +34,6 @@ import li.cil.oc.common.template._
 import li.cil.oc.integration.ModProxy
 import li.cil.oc.integration.Mods
 import li.cil.oc.integration.util.BundledRedstone
-import li.cil.oc.server.machine.luac.LuaStateFactory
-import li.cil.oc.server.machine.luac.NativeLua53Architecture
 import li.cil.oc.server.network.Waypoints
 import li.cil.oc.server.network.WirelessNetwork
 import li.cil.oc.util.Color
@@ -47,8 +45,7 @@ import net.minecraft.world.level.Level
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
 import net.neoforged.neoforge.common.NeoForge
-import net.neoforged.neoforge.common.world.ForgeChunkManager
-import net.neoforged.fml.DistExecutor
+import net.neoforged.fml.loading.FMLEnvironment
 
 object ModOpenComputers extends ModProxy {
   override def getMod = Mods.OpenComputers
@@ -90,7 +87,9 @@ object ModOpenComputers extends ModProxy {
     api.IMC.registerProgramDiskLabel("opl-flash", "openloader", "Lua 5.2", "Lua 5.3", "LuaJ")
     api.IMC.registerProgramDiskLabel("oppm", "oppm", "Lua 5.2", "Lua 5.3", "LuaJ")
 
-    ForgeChunkManager.setForcedChunkLoadingCallback(OpenComputers.ID, ChunkloaderUpgradeHandler)
+    // 1.21.1 已取消 ForgeChunkManager：强制加载改为 TicketController 体系，
+    // 控制器在 mod 事件总线上通过 RegisterTicketControllersEvent 注册，
+    // 这一步已由 li.cil.oc.OpenComputers 里的 ChunkloaderUpgradeHandler.initialize(modBus) 完成。
 
     NeoForge.EVENT_BUS.register(EventHandler)
     NeoForge.EVENT_BUS.register(NanomachinesHandler.Common)
@@ -320,7 +319,9 @@ object ModOpenComputers extends ModProxy {
     api.Nanomachines.addProvider(PotionProvider)
     api.Nanomachines.addProvider(MagnetProvider)
 
-    DistExecutor.runWhenOn(Dist.CLIENT, () => () => initializeClient())
+    // NeoForge 移除了 net.neoforged.fml.DistExecutor，改为直接判断 FMLEnvironment.dist。
+    // 客户端的初始化方法带 @OnlyIn(Dist.CLIENT)，专服上既不会执行也不会被解析。
+    if (FMLEnvironment.dist == Dist.CLIENT) initializeClient()
   }
 
   @OnlyIn(Dist.CLIENT)

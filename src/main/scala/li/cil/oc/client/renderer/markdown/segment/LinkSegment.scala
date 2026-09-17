@@ -52,8 +52,8 @@ private[markdown] class LinkSegment(parent: Segment, text: String, val url: Stri
       case _: MalformedURLException =>
         Minecraft.getInstance.player.sendSystemMessage(Localization.Chat.WarningLink("Malformed URL"))
     }
-    // 1.21.1: Util.OS.openUrl → openUri。
-    Util.getPlatform.openUri(url)
+    // 1.21.1: Util.OS.openUrl 已改为 openUri，且只接受 String / URI。
+    Util.getPlatform.openUri(url.toURI)
   }
 
   override def toString(format: MarkupFormat.Value): String = format match {
