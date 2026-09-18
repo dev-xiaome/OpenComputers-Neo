@@ -29,11 +29,11 @@ The port is actively being worked on. Here is a rough overview:
 | Feature              | Status         |
 |----------------------|----------------|
 | Project setup        | ✅ Done        |
-| Basic blocks & items | 🔄 In progress |
-| Computer system      | 🔄 In progress |
-| Robots               | 🔄 In progress |
-| Networking           | 🔄 In progress |
-| Mod integrations     | 🔄 In progress |
+| Basic blocks & items | ✅ Done        |
+| Computer system      | ✅ Done        |
+| Robots               | ✅ Done        |
+| Networking           | ✅ Done        |
+| Mod integrations     | ✅ Done        |
 
 **Expected usable version: within 1 week.**
 
