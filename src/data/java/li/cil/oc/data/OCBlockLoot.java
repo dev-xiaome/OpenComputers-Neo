@@ -4,7 +4,6 @@ import li.cil.oc.OpenComputersNeo;
 import li.cil.oc.common.block.ChameliumBlock;
 import li.cil.oc.common.datacomponents.OCComponents;
 import li.cil.oc.common.init.OCBlocks;
-import li.cil.oc.common.openprinter.OpenPrinter;
 import li.cil.oc.server.loot.CopyColor;
 import li.cil.oc.server.loot.LootFunctions;
 import net.minecraft.advancements.critereon.StatePropertiesPredicate;
@@ -89,11 +88,6 @@ class OCBlockLoot extends BlockLootSubProvider {
         // v.1.7.2
         dropSelf(OCBlocks.CarpetedCapacitor().get());
 
-        // Open Printers
-        dropSelf(OpenPrinter.BRIEFCASE.get());
-        dropSelf(OpenPrinter.PRINTER.get());
-        dropSelf(OpenPrinter.FILE_CABINET.get());
-        dropSelf(OpenPrinter.SHREDDER.get());
     }
 
     private void dropChamelium() {

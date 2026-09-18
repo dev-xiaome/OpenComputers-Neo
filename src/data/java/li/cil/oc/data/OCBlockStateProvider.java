@@ -5,8 +5,6 @@ import li.cil.oc.common.block.property.PropertyCableConnection;
 import li.cil.oc.common.block.property.PropertyRotatable;
 import li.cil.oc.common.block.property.PropertyRunning;
 import li.cil.oc.common.init.OCBlocks;
-import li.cil.oc.common.openprinter.OpenPrinter;
-import li.cil.oc.common.openprinter.block.DeviceBlock;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.data.PackOutput;
@@ -119,18 +117,6 @@ public class OCBlockStateProvider extends BlockStateProvider {
 
         simpleBlockWithItem(OCBlocks.Transposer().get(), existingModel(OCBlocks.Transposer().get()));
 
-        // Open Printers
-        horizontalBlock(OpenPrinter.FILE_CABINET.get(), BLOCK_SIDE, ResourceLocation.fromNamespaceAndPath(OpenComputersNeo.ID(), "block/filingcabinet_front"), BLOCK_SIDE);
-        itemModels().simpleBlockItem(OpenPrinter.FILE_CABINET.get());
-
-        horizontalBlock(OpenPrinter.SHREDDER.get(), BLOCK_SIDE, textureName(OpenPrinter.SHREDDER.get(), "front"), BLOCK_SIDE);
-        itemModels().simpleBlockItem(OpenPrinter.SHREDDER.get());
-
-        horizontalBlock(OpenPrinter.BRIEFCASE.get(), existingModel(OpenPrinter.BRIEFCASE.get()));
-        itemModels().simpleBlockItem(OpenPrinter.BRIEFCASE.get());
-
-        printerBlock();
-        itemModels().simpleBlockItem(OpenPrinter.PRINTER.get());
 
         cableBlock();
     }
@@ -254,15 +240,6 @@ public class OCBlockStateProvider extends BlockStateProvider {
         );
     }
 
-    private void printerBlock() {
-        var block = OpenPrinter.PRINTER.get();
-        var model = existingModel(block);
-        getVariantBuilder(block).forAllStates(state -> ConfiguredModel.builder()
-            .modelFile(model)
-            .rotationY(getYRotation(state.getValue(DeviceBlock.FACING), 0))
-            .build()
-        );
-    }
 
     /**
      * Get the Y rotation of a direction.

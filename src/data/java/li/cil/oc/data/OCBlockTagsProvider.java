@@ -3,7 +3,6 @@ package li.cil.oc.data;
 
 import li.cil.oc.OpenComputersNeo;
 import li.cil.oc.common.init.OCBlocks;
-import li.cil.oc.common.openprinter.OpenPrinter;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.data.PackOutput;
 import net.minecraft.tags.BlockTags;
@@ -24,15 +23,6 @@ class OCBlockTagsProvider extends BlockTagsProvider {
 
     @Override
     protected void addTags(HolderLookup.Provider provider) {
-        tag(BlockTags.MINEABLE_WITH_AXE).add(
-            OpenPrinter.BRIEFCASE.get()
-        );
-
-        tag(BlockTags.MINEABLE_WITH_PICKAXE).add(
-            OpenPrinter.PRINTER.get(),
-            OpenPrinter.SHREDDER.get(),
-            OpenPrinter.FILE_CABINET.get()
-        );
 
         tag(BlockTags.BEACON_BASE_BLOCKS);
 

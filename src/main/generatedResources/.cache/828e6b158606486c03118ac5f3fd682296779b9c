@@ -1,7 +1,6 @@
-// 1.21.1	2026-09-18T19:43:18.2202463	vanilla/Loot Tables
+// 1.21.1	2026-09-18T20:46:19.7296001	vanilla/Loot Tables
 ce50d8e4c1eabea936b85ab32dcd02c8dc4e61ad data/opencomputers_neo/loot_table/blocks/adapter.json
 5921e81a94e696c98ab8ef532d6fdbbe957d353a data/opencomputers_neo/loot_table/blocks/assembler.json
-bc150255622492086aeccb25bc2abcd33cf1449c data/opencomputers_neo/loot_table/blocks/briefcase.json
 08a63b0fb0019e60c1ba3227ae015b12dea6b60e data/opencomputers_neo/loot_table/blocks/cable.json
 3d00c01f309e4093cfde608720ea2c21ea390da0 data/opencomputers_neo/loot_table/blocks/capacitor.json
 290f806ee851fd42462d814e9b25aeafc6140c65 data/opencomputers_neo/loot_table/blocks/carpetedcapacitor.json
@@ -13,9 +12,7 @@ d4c90a037e3d476a89dd1de8adcc799116cda6c3 data/opencomputers_neo/loot_table/block
 27d66d1759b700c35b8c2ad69989eaf7c771213d data/opencomputers_neo/loot_table/blocks/charger.json
 c8a0debbc749a7f1c3d10c8f03d1c55648eb4f03 data/opencomputers_neo/loot_table/blocks/disassembler.json
 957bc940a8d23304ed35a069b7440e2f615dc0e7 data/opencomputers_neo/loot_table/blocks/diskdrive.json
-03c7e3c20a081cae5f2204ef618b406e8e875287 data/opencomputers_neo/loot_table/blocks/document_printer.json
 b404b2a2aa473a16cf3a2c383f38a97e656a25b1 data/opencomputers_neo/loot_table/blocks/endstone.json
-dba41c6c1abd5597b97d656d541335376bf40732 data/opencomputers_neo/loot_table/blocks/filecabinet.json
 2509bf8ccce0adc45b6ac92b1d86432b72a02dd0 data/opencomputers_neo/loot_table/blocks/geolyzer.json
 b0ffaf253c564608a4469302460b78cb542d0a35 data/opencomputers_neo/loot_table/blocks/hologram1.json
 d3c46ff4167434018d6054a0ee3695f95b42eb93 data/opencomputers_neo/loot_table/blocks/hologram2.json
@@ -36,7 +33,6 @@ cb9f1f59caed6f7fe0228e393d9429725a8dce19 data/opencomputers_neo/loot_table/block
 17dcf2683285c8b12765e1ab2714d2c6435c5051 data/opencomputers_neo/loot_table/blocks/screen1.json
 4470d7f0c339e6d560d9ae7fda696b33c4b0a75e data/opencomputers_neo/loot_table/blocks/screen2.json
 df55743f5e21857348208764e15b41355b463186 data/opencomputers_neo/loot_table/blocks/screen3.json
-21b1a033ec1a4b958f1a6283b3e740a4950498e1 data/opencomputers_neo/loot_table/blocks/shredder.json
 a235f0228be66c99922437bc2117e2c8e07b7041 data/opencomputers_neo/loot_table/blocks/transposer.json
 3875d276837ae7185cc741c270f23f2e02a16226 data/opencomputers_neo/loot_table/blocks/waypoint.json
 1d2997e70577537141c9e77af9ec510025872c18 data/opencomputers_neo/loot_table/presents.json

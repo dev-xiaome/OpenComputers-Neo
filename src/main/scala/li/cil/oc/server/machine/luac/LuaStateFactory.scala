@@ -269,15 +269,22 @@ abstract class LuaStateFactory {
 
     if (currentLib.isEmpty) {
       val libraryPath = s"/assets/${Settings.resourceDomain}/lib/$libraryName"
+      // 随包发布的 JNLua natives jar 内部仍使用上游的 "opencomputers" 命名空间
+      // （assets/opencomputers/lib/...），改名后这里必须能回退到旧路径，
+      // 否则会找不到原生库并退化到 LuaJ（电脑无法保持运行状态）。
+      val legacyLibraryPath = s"/assets/opencomputers/lib/$libraryName"
       val libraryUrl = {
-        val path = libraryPath.stripPrefix("/")
         val loaders = Seq(
           Thread.currentThread().getContextClassLoader,
           getClass.getClassLoader,
           ClassLoader.getSystemClassLoader,
           classOf[LuaState].getClassLoader
         )
-        loaders.iterator.flatMap(cl => Option(cl.getResource(path))).nextOption().orNull
+        def find(path: String) = {
+          val relative = path.stripPrefix("/")
+          loaders.iterator.flatMap(cl => Option(cl.getResource(relative))).nextOption()
+        }
+        find(libraryPath).orElse(find(legacyLibraryPath)).orNull
       }
       if (libraryUrl == null) {
         OpenComputersNeo.log.warn(s"Native library with name '$libraryPath' not found.")

@@ -47,7 +47,6 @@ private[oc] class Proxy(modBus: IEventBus) extends CommonProxy(modBus) {
     NeoForge.EVENT_BUS.register(WirelessNetworkDebugRenderer)
     NeoForge.EVENT_BUS.register(Audio)
     NeoForge.EVENT_BUS.register(HologramRenderer)
-    NeoForge.EVENT_BUS.register(ScreenRenderer)
     NeoForge.EVENT_BUS.register(TabletRenderer)
   }
 

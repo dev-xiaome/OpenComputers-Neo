@@ -181,16 +181,6 @@ object EventHandler {
           ServerPacketSender.sendLootDisks(player)
           ServerPacketSender.sendLootEEPROMs(player)
         })
-        // Do update check in local games and for OPs.
-        val server = ServerLifecycleHooks.getCurrentServer
-        if (server.getPlayerList.isOp(player.getGameProfile)) {
-          Future {
-            UpdateCheck.info foreach {
-              case Some(release) => player.sendSystemMessage(Localization.Chat.InfoNewVersion(release.tag_name))
-              case _ =>
-            }
-          }
-        }
       case _ =>
     }
   }

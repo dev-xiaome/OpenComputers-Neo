@@ -1,4 +1,4 @@
-// 1.21.1	2026-09-18T19:43:18.2292647	vanilla/Item Models: opencomputers_neo
+// 1.21.1	2026-09-18T20:46:19.7371071	vanilla/Item Models: opencomputers_neo
 d0f1102511ad2df2fdc642280bad186dce32cbd0 assets/opencomputers_neo/models/item/acid.json
 37549f4531b884a50506359bbb1eac910ad559ca assets/opencomputers_neo/models/item/alu.json
 065e36de45b988477eba5e873ba40fc80bac1127 assets/opencomputers_neo/models/item/analyzer.json
@@ -47,7 +47,6 @@ ddcf0faca0e10938e5b82a229b52cbec351b748d assets/opencomputers_neo/models/item/dr
 3fd21c50edc01ef4aaf52bfccc5f8673836a7a8e assets/opencomputers_neo/models/item/dronecasecreative.json
 a0c3631c51902e00aeb4efe68ba22661f7aa223b assets/opencomputers_neo/models/item/eeprom.json
 fe7606c2724d8897e39563e864c0a09ace587225 assets/opencomputers_neo/models/item/experienceupgrade.json
-3784a5cb6166f6f3b180e5851572b45637bddac9 assets/opencomputers_neo/models/item/folder.json
 c163ac54d023d4d0026074357268fed37da8a74c assets/opencomputers_neo/models/item/generatorupgrade.json
 2396850d41ab47a0e2530627bec16b15b10c43fe assets/opencomputers_neo/models/item/graphicscard1.json
 d731e09631c1f2b8729533cf0ade3de34b4f02aa assets/opencomputers_neo/models/item/graphicscard2.json
@@ -74,12 +73,9 @@ a24838781429bf0a220cf99b16770632fa2558d6 assets/opencomputers_neo/models/item/mi
 d1dfab252d06a7821f4b5331a110cd738d7dec2d assets/opencomputers_neo/models/item/nanomachines.json
 11706d39c4dbc810de7db090297d9fb7d5820fd5 assets/opencomputers_neo/models/item/navigationupgrade.json
 f10a542771ea0c190826e266177244a6b33fd4f6 assets/opencomputers_neo/models/item/numpad.json
-121bcb0fc03fbba214f685abc2f6d19facfdb57e assets/opencomputers_neo/models/item/paper_shreds.json
 a57671ef21cb8fffdc89b7d3dac2a8a8c68b26e4 assets/opencomputers_neo/models/item/pistonupgrade.json
 fdde4a10ccfa3696afd93e478734866f2d1d394b assets/opencomputers_neo/models/item/present.json
 b3e31cebf73b917c4ae140d182fe8a533e37eae1 assets/opencomputers_neo/models/item/printedcircuitboard.json
-5246b70420017687a96bc62d2c032f89b9b18ac4 assets/opencomputers_neo/models/item/printer_ink_black.json
-845fee8a0d66f30bf7c39047850b2663fb61ab0b assets/opencomputers_neo/models/item/printer_ink_color.json
 87f73de5076e0109c068d41e6a44633b7b3f8ab3 assets/opencomputers_neo/models/item/ram1.json
 f2334be48546f630f6d5c160346d6c3ed06003d6 assets/opencomputers_neo/models/item/ram2.json
 e0735c2459c5f01adee970b057489f15f404e46a assets/opencomputers_neo/models/item/ram3.json

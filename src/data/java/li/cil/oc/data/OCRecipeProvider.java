@@ -8,7 +8,6 @@ import li.cil.oc.common.condition.Tier4EnabledCondition;
 import li.cil.oc.common.datacomponents.OCComponents;
 import li.cil.oc.common.init.OCBlocks;
 import li.cil.oc.common.init.OCItems;
-import li.cil.oc.common.openprinter.OpenPrinter;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.advancements.Advancement;
 import net.minecraft.advancements.AdvancementHolder;
@@ -90,7 +89,6 @@ class OCRecipeProvider extends RecipeProvider {
         addUpgrades(output);
         addStorage(output);
         addBlocks(output);
-        addOpenPrinter(output);
 
         addFloppy(output, "openos", "OpenOS (Operating System)", OCItems.Manual(), DyeColor.GREEN);
         addFloppy(output, "oppm", "OPPM (Package Manager)", OCItems.Interweb(), DyeColor.CYAN);
@@ -1119,96 +1117,6 @@ class OCRecipeProvider extends RecipeProvider {
             .save(output);
     }
 
-    private void addOpenPrinter(RecipeOutput output) {
-        ShapedRecipeBuilder.shaped(RecipeCategory.MISC, OpenPrinter.PRINTER, 1)
-            .pattern("iri")
-            .pattern("cpc")
-            .pattern("iri")
-            .define('i', Items.IRON_NUGGET)
-            .define('r', Items.REDSTONE)
-            .define('p', OCItems.PrintedCircuitBoard())
-            .define('c', OCItems.ChipTier1())
-            .unlockedBy(getHasName(OCItems.PrintedCircuitBoard()), has(OCItems.PrintedCircuitBoard()))
-            .save(output);
-
-        ShapedRecipeBuilder.shaped(RecipeCategory.MISC, OpenPrinter.SHREDDER, 1)
-            .pattern("i i")
-            .pattern("iSi")
-            .pattern("i i")
-            .define('i', Items.IRON_NUGGET)
-            .define('S', Items.SHEARS)
-            .unlockedBy(getHasName(OpenPrinter.PRINTER), has(OpenPrinter.PRINTER))
-            .save(output);
-
-        ShapedRecipeBuilder.shaped(RecipeCategory.MISC, OpenPrinter.BRIEFCASE, 1)
-            .pattern("SLS")
-            .pattern("SiS")
-            .pattern("SLS")
-            .define('S', Items.STICK)
-            .define('L', Items.LEATHER)
-            .define('i', Items.IRON_NUGGET)
-            .unlockedBy(getHasName(OpenPrinter.PRINTER), has(OpenPrinter.PRINTER))
-            .save(output);
-
-        ShapelessRecipeBuilder.shapeless(RecipeCategory.MISC, Items.PAPER, 1)
-            .requires(OpenPrinter.PAPER_SHREDS)
-            .requires(Items.WATER_BUCKET)
-            .unlockedBy(getHasName(OpenPrinter.PAPER_SHREDS), has(OpenPrinter.PAPER_SHREDS))
-            .save(output, ResourceLocation.fromNamespaceAndPath(OpenComputersNeo.ID(), "paper_from_shreds"));
-
-        ShapedRecipeBuilder.shaped(RecipeCategory.MISC, OpenPrinter.FILE_CABINET, 1)
-            .pattern("i i")
-            .pattern("ici")
-            .pattern("i i")
-            .define('i', Items.IRON_NUGGET)
-            .define('c', Items.CHEST)
-            .unlockedBy(getHasName(OpenPrinter.PRINTER), has(OpenPrinter.PRINTER))
-            .save(output);
-
-
-        ShapedRecipeBuilder.shaped(RecipeCategory.MISC, OpenPrinter.FOLDER, 1)
-            .pattern("P P")
-            .pattern(" P ")
-            .define('P', Items.PAPER)
-            .unlockedBy(getHasName(OpenPrinter.FOLDER), has(OpenPrinter.FOLDER))
-            .save(output);
-
-        ShapedRecipeBuilder.shaped(RecipeCategory.MISC, OpenPrinter.BLACK_INK, 1)
-            .pattern("BBB")
-            .pattern(" i ")
-            .define('B', Items.BLACK_DYE)
-            .define('i', Items.IRON_NUGGET)
-            .unlockedBy(getHasName(OpenPrinter.PRINTER), has(OpenPrinter.PRINTER))
-            .save(output);
-
-        ShapedRecipeBuilder.shaped(RecipeCategory.MISC, OpenPrinter.BLACK_INK, 1)
-            .pattern("BBB")
-            .pattern(" Z ")
-            .define('B', Items.BLACK_DYE)
-            .define('Z', OpenPrinter.BLACK_INK)
-            .unlockedBy(getHasName(OpenPrinter.BLACK_INK), has(OpenPrinter.BLACK_INK))
-            .save(output, ResourceLocation.fromNamespaceAndPath(OpenComputersNeo.ID(), "printer_ink_black_refill"));
-
-        ShapedRecipeBuilder.shaped(RecipeCategory.MISC, OpenPrinter.COLOR_INK, 1)
-            .pattern("RGB")
-            .pattern(" i ")
-            .define('R', Items.RED_DYE)
-            .define('G', Items.GREEN_DYE)
-            .define('B', Items.BLUE_DYE)
-            .define('i', Items.IRON_NUGGET)
-            .unlockedBy(getHasName(OpenPrinter.PRINTER), has(OpenPrinter.PRINTER))
-            .save(output);
-
-        ShapedRecipeBuilder.shaped(RecipeCategory.MISC, OpenPrinter.COLOR_INK, 1)
-            .pattern("RGB")
-            .pattern(" Z ")
-            .define('R', Items.RED_DYE)
-            .define('G', Items.GREEN_DYE)
-            .define('B', Items.BLUE_DYE)
-            .define('Z', OpenPrinter.COLOR_INK)
-            .unlockedBy(getHasName(OpenPrinter.COLOR_INK), has(OpenPrinter.COLOR_INK))
-            .save(output, ResourceLocation.fromNamespaceAndPath(OpenComputersNeo.ID(), "printer_ink_color_refill"));
-    }
 
     private void addBlocks(RecipeOutput output) {
         ShapedRecipeBuilder.shaped(RecipeCategory.MISC, OCBlocks.Adapter())

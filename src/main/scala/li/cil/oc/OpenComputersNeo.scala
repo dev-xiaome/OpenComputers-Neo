@@ -8,7 +8,6 @@ import li.cil.oc.common.entity.EntityTypes
 import li.cil.oc.common.init.{OCBlocks, OCItems}
 import li.cil.oc.common.menu.MenuTypes
 import li.cil.oc.common.VillageContent
-import li.cil.oc.common.openprinter.OpenPrinter
 import li.cil.oc.common.recipe.Recipes
 import li.cil.oc.common.{IMC, Proxy}
 import li.cil.oc.integration.Mods
@@ -81,7 +80,6 @@ class OpenComputersNeo(modBus: IEventBus, modContainer: ModContainer) {
   EntityTypes.ENTITY_TYPES.register(modBus)
   modBus.addListener(EntityTypes.onAttributeCreation)
   MenuTypes.MENU.register(modBus)
-  OpenPrinter.init(modBus, modContainer)
   modBus.register(CreativeTab)
   OpenComputersNeo.instance = Some(this)
   modBus.register(OpenComputersNeo.proxy)

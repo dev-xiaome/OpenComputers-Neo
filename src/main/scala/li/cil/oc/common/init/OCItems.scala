@@ -7,7 +7,6 @@ import li.cil.oc.common.block.SimpleBlock
 import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.common.item.data._
 import li.cil.oc.common.item.traits.SimpleItem
-import li.cil.oc.common.openprinter.OpenPrinter
 import li.cil.oc.common.{ContentVisibility, Loot, Tier, item}
 import li.cil.oc.integration.OpenComputersNeo.ModOpenComputers
 import li.cil.oc.server.machine.luac.LuaStateFactory
@@ -528,36 +527,19 @@ object OCItems extends ItemAPI {
     Loot.eepromsForClient.foreach(addToSection(Constants.SectionName.Component, _))
     additionalDisplayItems.forEach(addToSection(Constants.SectionName.Misc, _))
 
-    for (i <- 0 until 9) {
-      displayItems.accept(ItemStack.EMPTY)
-    }
-
     SECTION_Y_VALUES.clear()
-    var y = 0
     val sectionKeys = sectionMap.keySet.asScala
       .filter(_ != null)
       .toList
       .sorted
     sectionKeys.foreach(key =>{
-      var itemCount = 0
       val sectionItems = sectionMap.get(key)
       sectionItems.forEach(stack => {
         if (!stack.isEmpty) {
           displayItems.accept(stack)
           searchItems.accept(stack)
-          itemCount += 1
         }
       })
-      SECTION_Y_VALUES.put(key, y)
-      val rowCount = Math.ceil(itemCount / 9.0f).toInt
-      y += rowCount + 1
-      if (!key.equals(sectionKeys.last)) {
-        var padding = 9 - itemCount % 9
-        if (padding < 9) padding += 9
-        for (i <- 0 until padding) {
-          displayItems.accept(ItemStack.EMPTY)
-        }
-      }
     })
 
     additionalSearchItems.forEach(stack => if (!ContentVisibility.isHidden(stack)) searchItems.accept(stack))

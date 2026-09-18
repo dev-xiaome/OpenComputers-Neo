@@ -353,7 +353,6 @@ class Settings(val config: Config) {
   }
   val rTreeMaxEntries = 10
   val terminalsPerServer = 4
-  val updateCheck = config.getBoolean("misc.updateCheck")
   val lootProbability = config.getInt("misc.lootProbability")
   val lootRecrafting = config.getBoolean("misc.lootRecrafting")
   val geolyzerRange = config.getInt("misc.geolyzerRange")

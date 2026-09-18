@@ -14,7 +14,7 @@ object CreativeTab {
   var CURRENT_ROW = 0
   val MAIN: DeferredHolder[CreativeModeTab, CreativeModeTab] = CREATIVE_TABS.register("main", () =>
     CreativeModeTab.builder()
-      .title(Component.translatable(s"itemGroup.${OpenComputersNeo.Name}"))
+      .title(Component.translatable("itemGroup.OpenComputers"))
       .icon(() => api.Items.get(Constants.BlockName.CaseTier1).createItemStack(1))
       .build()
   )

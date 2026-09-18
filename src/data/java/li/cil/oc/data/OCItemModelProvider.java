@@ -3,7 +3,6 @@ package li.cil.oc.data;
 import li.cil.oc.OpenComputersNeo;
 import li.cil.oc.common.init.OCBlocks;
 import li.cil.oc.common.init.OCItems;
-import li.cil.oc.common.openprinter.OpenPrinter;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.data.PackOutput;
 import net.minecraft.resources.ResourceLocation;
@@ -146,12 +145,6 @@ public class OCItemModelProvider extends ItemModelProvider {
         basicItem(OCItems.Tablet().get());
         basicItem(OCItems.Present().get());
 
-        // Open Printers
-        basicItem(OpenPrinter.BLACK_INK.get());
-        basicItem(OpenPrinter.COLOR_INK.get());
-        basicItem(OpenPrinter.PAPER_SHREDS.get());
-        // TODO: This feels like it should have a custom full/empty texture?
-        basicItem(OpenPrinter.FOLDER.get(), "folder_empty");
     }
 
     private ItemModelBuilder basicItem(Item item, String texture) {

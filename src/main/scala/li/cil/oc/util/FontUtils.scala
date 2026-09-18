@@ -2,7 +2,7 @@ package li.cil.oc.util
 
 import java.io.{BufferedReader, InputStreamReader}
 import java.nio.charset.StandardCharsets
-import li.cil.oc.OpenComputersNeo
+import li.cil.oc.{OpenComputersNeo, Settings}
 
 import scala.collection.mutable
 
@@ -255,7 +255,7 @@ object FontUtils {
     try {
       OpenComputersNeo.log.info("Initializing font glyph width overrides...")
       val time = System.currentTimeMillis()
-      val font = FontUtils.getClass.getResourceAsStream("/assets/OpenComputersNeo/font.hex")
+      val font = FontUtils.getClass.getResourceAsStream(s"/assets/${Settings.resourceDomain}/font.hex")
       try {
         var line: String = null
         val input = new BufferedReader(new InputStreamReader(font, StandardCharsets.UTF_8))
