@@ -1,6 +1,6 @@
 # Carte graphique
 
-![Images fantaisie.](oredict:opencomputers_neo:graphicsCard1)
+![Images fantaisie.](oredict:opencomputers_neo:graphicscard1)
 
 La carte graphique est un composant essentiel pour la plupart des [ordinateurs](../general/computer.md), elle leur permet d'afficher du texte sur un [écran](../block/screen1.md) qui leur est connecté. La carte graphique a plusieurs niveaux, et comme les [écrans](../block/screen1.md), elle supporte différentes résolutions et profondeurs de couleur.
 

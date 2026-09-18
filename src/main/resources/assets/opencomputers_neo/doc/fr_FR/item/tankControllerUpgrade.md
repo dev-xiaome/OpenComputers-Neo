@@ -1,6 +1,6 @@
 # Amélioration du contrôleur de réservoir
 
-![Routage liquide.](oredict:opencomputers_neo:tankControllerUpgrade)
+![Routage liquide.](oredict:opencomputers_neo:tankcontrollerupgrade)
 
 L'amélioration du contrôleur de réservoir est aux réservoirs de fluides ce que l'[amélioration de contrôleur d'inventaire](inventoryControllerUpgrade.md) est aux inventaires. Elle permet aux appareils d'obtenir plus d'informations sur les réservoirs internes et adjacents.
 

@@ -6,7 +6,12 @@ repositories {
     mavenCentral()
 }
 
+// 版本号统一来自根 gradle.properties。
+def rootProperties = new Properties()
+file('../gradle.properties').withInputStream { rootProperties.load(it) }
+def asmVersion = rootProperties.getProperty('asm_version')
+
 dependencies {
-    implementation 'org.ow2.asm:asm:9.7.1'
-    implementation 'org.ow2.asm:asm-commons:9.7.1'
+    implementation "org.ow2.asm:asm:${asmVersion}"
+    implementation "org.ow2.asm:asm-commons:${asmVersion}"
 }

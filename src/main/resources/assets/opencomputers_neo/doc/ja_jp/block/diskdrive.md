@@ -1,6 +1,6 @@
 # ディスクドライブ
 
-![回り回って……](oredict:opencomputers_neo:diskDrive)
+![回り回って……](oredict:opencomputers_neo:diskdrive)
 
 ディスクドライブは、接続された[コンピューター](../general/computer.md)を使用して[フロッピーディスク](../item/floppy.md)を読み取るために使用されます。下位ティアの[コンピューターケース](case1.md)にはフロッピースロットが内蔵されていないため、[コンピューター](../general/computer.md)を起動するためのオペレーティングシステムを用意する際に役立ちます。 [OpenOS](../general/openOS.md) ディスクは、空の[フロッピーディスク](../item/floppy.md)と[マニュアル](../item/manual.md)をクラフトすることで作成できます。
 

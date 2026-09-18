@@ -1,5 +1,5 @@
 # 首輪アップグレード (Leash Upgrade)
 
-![-編集済- ~ Vexatos 2015](oredict:opencomputers_neo:leashUpgrade)
+![-編集済- ~ Vexatos 2015](oredict:opencomputers_neo:leashupgrade)
 
 首輪アップグレードを使用すると、[ドローン](drone.md)などのデバイスを使用して動物に首輪を付け、そのエンティティに結びつけることができます。このアップグレードを使用すると、同時に複数の動物に首輪を付けることができるため、家畜の群れを移動させるのに非常に便利です。

@@ -1,6 +1,6 @@
 # ドローンケース
 
-![延々と…… (Droning on)。](oredict:opencomputers_neo:droneCase1)
+![延々と…… (Droning on)。](oredict:opencomputers_neo:dronecase1)
 
 ドローンケースは、[アセンブラ](../block/assembler.md)で[ドローン](drone.md)を構築するために使用されます。[ドローン](drone.md)は軽量で高速、かつ非常に機動力の高いマシンですが、機能は制限されています（利用可能なアップグレードやコンポーネントのスロットが少ない）。[ロボット](../block/robot.md)とは異なり、ツールを使用することはできず、世界との相互作用も比較的限られています。
 

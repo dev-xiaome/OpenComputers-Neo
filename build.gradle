@@ -1,7 +1,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
-    id 'net.neoforged.moddev' version '2.0.141'
+    id 'net.neoforged.moddev'
     id 'idea'
     id 'scala'
 }
@@ -9,13 +9,13 @@ plugins {
 group = mod_group_id
 
 // GitHub tags are the canonical release version.
-// Tags use a leading "v" (for example v1.9.2), but the actual
+// Tags use a leading "v" (for example v${mod_version}), but the actual
 // Gradle/mod/Maven version must not include that prefix.
 //
-// - GitHub tag v1.9.2      -> 1.9.2
-// - Jenkins build 154      -> 1.9.2-dev.154
-// - GitHub CI build 154    -> 1.9.2-dev.154
-// - Local build            -> 1.9.2-dev.local
+// - GitHub tag v${mod_version}      -> ${mod_version}
+// - Jenkins build 154      -> ${mod_version}-dev.154
+// - GitHub CI build 154    -> ${mod_version}-dev.154
+// - Local build            -> ${mod_version}-dev.local
 def githubTag = System.getenv('GITHUB_REF_TYPE') == 'tag'
     ? System.getenv('GITHUB_REF_NAME')?.replaceFirst(/^v/, '')
     : null
@@ -224,12 +224,12 @@ dependencies {
     // Keep Scala in the parent mod and relocate it into a private namespace.
     // This lets OpenComputers coexist with older Scala mods which still ship
     // ScalableCatsForce and its scala.library module.
-    embedded("org.scala-lang:scala-library:2.13.12")
+    embedded("org.scala-lang:scala-library:${scala_version}")
 
     jarJar(implementation(group: "com.typesafe", name: "config")) {
         version {
-            strictly "[1.4.5,)"
-            prefer "1.4.5"
+            strictly "[${config_version},)"
+            prefer config_version
         }
     }
 
@@ -320,10 +320,10 @@ dependencies {
     // classpath on Minecraft 1.21.1. These are plain Java libraries that OC
     // embeds into its release jar, so they must also be explicitly added to
     // the development run's additional runtime classpath.
-    additionalRuntimeClasspath "com.typesafe:config:1.4.5"
+    additionalRuntimeClasspath "com.typesafe:config:${config_version}"
     additionalRuntimeClasspath luaJ
     additionalRuntimeClasspath jnluaNatives
-    additionalRuntimeClasspath "org.scala-lang:scala-library:2.13.12"
+    additionalRuntimeClasspath "org.scala-lang:scala-library:${scala_version}"
 
     def jeiSlug = "jei-${minecraft_version}"
 
@@ -333,7 +333,7 @@ dependencies {
     compileOnly integrationDeps
 
     // sable-companion 是**硬依赖**（Sable 缺席时由它提供 identity 实现），必须随包发布。
-    def sableCompanion = files("libs/deps/sable-companion-common-1.21.1-1.6.0.jar")
+    def sableCompanion = files("libs/deps/sable-companion-common-${minecraft_version}-${sable_companion_version}.jar")
     jarJar(api(sableCompanion))
     devRuntimeOnly sableCompanion
 
@@ -359,7 +359,7 @@ dependencies {
 // [移植裁剪]     compileOnly("dev.engine-room.flywheel:flywheel-neoforge-${minecraft_version}:${flywheel_version}")
 // [移植裁剪]     runtimeOnly("dev.engine-room.flywheel:flywheel-neoforge-${minecraft_version}:${flywheel_version}")
 // [移植裁剪]     runtimeOnly("com.tterrag.registrate:Registrate:${registrate_version}")
-// [移植裁剪]     compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:0.4.1"))
+// [移植裁剪]     compileOnly(annotationProcessor("io.github.llamalad7:mixinextras-common:${mixinextras_version}"))
 
     // AE2
 // [移植裁剪]     compileOnly("org.appliedenergistics:appliedenergistics2:${ae2_version}")
@@ -395,14 +395,14 @@ dependencies {
 
     // 官方 1.21.1 源码的 API 层用了 JSpecify 注解（org.jspecify.annotations）。
     // 它原本是第三方集成依赖的传递依赖，摘掉那些集成后必须显式声明。
-    compileOnly("org.jspecify:jspecify:1.0.0")
+    compileOnly("org.jspecify:jspecify:${jspecify_version}")
 
-    testImplementation("com.typesafe:config:1.4.5")
-    testImplementation("org.scala-lang:scala-library:2.13.12")
-    testImplementation("org.scalatest:scalatest_2.13:3.2.18")
-    testImplementation("org.scalatestplus:junit-4-13_2.13:3.2.18.0")
-    testImplementation("junit:junit:4.13.2")
-    testRuntimeOnly("org.apache.maven:maven-artifact:3.8.5")
+    testImplementation("com.typesafe:config:${config_version}")
+    testImplementation("org.scala-lang:scala-library:${scala_version}")
+    testImplementation("org.scalatest:scalatest_2.13:${scalatest_version}")
+    testImplementation("org.scalatestplus:junit-4-13_2.13:${scalatestplus_junit_version}")
+    testImplementation("junit:junit:${junit_version}")
+    testRuntimeOnly("org.apache.maven:maven-artifact:${maven_artifact_version}")
 }
 
 publishing {

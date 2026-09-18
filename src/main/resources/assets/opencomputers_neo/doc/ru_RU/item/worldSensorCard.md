@@ -1,4 +1,4 @@
 # Карта-мировой сенсор
-![Для смелых...](oredict:opencomputers_neo:worldSensorCard)
+![Для смелых...](oredict:opencomputers_neo:worldsensorcard)
 
 Данная карта позволяет получать информацию об атмосфере и гравитации на планетах, добавляемых модом GalactiCraft. Может быть полезно для [роботов](../block/robot.md) и [дронов](drone.md), работающих в космосе.

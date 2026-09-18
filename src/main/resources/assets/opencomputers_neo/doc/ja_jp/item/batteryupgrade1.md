@@ -1,5 +1,5 @@
 # バッテリーアップグレード
 
-![メタル製。](oredict:opencomputers_neo:batteryUpgrade1)
+![メタル製。](oredict:opencomputers_neo:batteryupgrade1)
 
 このアップグレードは、[ロボット](../block/robot.md)や[タブレット](tablet.md)などのデバイスの内部エネルギーバッファを増加させ、[充電器](../block/charger.md)に戻ることなくより長く動作できるようにします。ティアの高いバッテリーアップグレードほど、より多くのエネルギーを蓄えることができます。

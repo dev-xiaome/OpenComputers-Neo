@@ -79,7 +79,6 @@ object PacketHandler extends CommonPacketHandler {
       case PacketType.AudioStop   => onAudioStop(p)
       case PacketType.AudioClose  => onAudioClose(p)
       case PacketType.AudioSetLoop => onAudioSetLoop(p)
-      case PacketType.TapeAudioStart => onTapeAudioStart(p)
       case PacketType.ChargerState => onChargerState(p)
       case PacketType.ClientLog => onClientLog(p)
       case PacketType.Clipboard => onClipboard(p)
@@ -158,22 +157,6 @@ object PacketHandler extends CommonPacketHandler {
     s.loop = loop
     audioSessions.synchronized {
       audioSessions(handle) = s
-    }
-  }
-
-  def onTapeAudioStart(p: PacketParser): Unit = {
-    val handle = p.readInt()
-    val sampleRate = p.readInt()
-    val volume = p.readFloat()
-    val pos = new Vec3(p.readDouble(), p.readDouble(), p.readDouble())
-
-    OpenComputersNeo.log.info(s"Tape audio stream start: handle=$handle, sampleRate=$sampleRate, volume=$volume")
-
-    val session = new AudioSession(handle, 0, sampleRate, 1, org.lwjgl.openal.AL10.AL_FORMAT_MONO8,
-      pos, encodedDfpwm = true, streamGain = volume)
-    audioSessions.synchronized {
-      audioSessions.remove(handle).foreach(_.cleanup())
-      audioSessions(handle) = session
     }
   }
 
@@ -644,7 +627,7 @@ object PacketHandler extends CommonPacketHandler {
           val currentAddress = if (current.isEmpty) null else current.get(OCComponents.ADDRESS.get())
           val incomingAddress = if (incoming.isEmpty) null else incoming.get(OCComponents.ADDRESS.get())
 
-          // Saving a terminal server or rack KVM updates the framebuffer data
+          // Saving a terminal server updates the framebuffer data
           // embedded in its ItemStack. A later inventory synchronization must
           // not interpret that persistence-only change as removing and
           // reinstalling the mountable: an open Remote Terminal GUI would keep

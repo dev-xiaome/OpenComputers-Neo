@@ -1,6 +1,6 @@
 # インターネットカード
 
-![猫の動画を3、2、……。](oredict:opencomputers_neo:internetCard)
+![猫の動画を3、2、……。](oredict:opencomputers_neo:internetcard)
 
 インターネットカードは、[コンピューター](../general/computer.md)にインターネットへのアクセスを許可します。単純な HTTP リクエストを実行したり、読み書き可能なプレーンな TCP クライアントソケットを開いたりする手段を提供します。
 

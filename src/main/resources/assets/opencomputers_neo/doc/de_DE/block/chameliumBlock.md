@@ -1,6 +1,6 @@
 # Chamälium-Block
 
-![So... nichtssagend...](oredict:opencomputers_neo:chameliumBlock)
+![So... nichtssagend...](oredict:opencomputers_neo:chameliumblock)
 
 Einige Stücke [Chamälium](../item/chamelium.md) können kombiniert werden, um einen dekorativen Monochrom-Block zu schaffen. Chamäliumblöcke können mit einer der 16 Minecraft-Farben gefärbt werden.
 

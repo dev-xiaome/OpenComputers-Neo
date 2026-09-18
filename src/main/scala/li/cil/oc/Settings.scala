@@ -186,8 +186,6 @@ class Settings(val config: Config) {
   val hologramCost = config.getDouble("power.cost.hologram") max 0
   val hddReadCost = (config.getDouble("power.cost.hddRead") max 0) / 1024
   val hddWriteCost = (config.getDouble("power.cost.hddWrite") max 0) / 1024
-  val ssdReadCost = (config.getDouble("power.cost.ssdRead") max 0) / 1024
-  val ssdWriteCost = (config.getDouble("power.cost.ssdWrite") max 0) / 1024
   val gpuSetCost = (config.getDouble("power.cost.gpuSet") max 0) / Settings.basicScreenPixels
   val gpuFillCost = (config.getDouble("power.cost.gpuFill") max 0) / Settings.basicScreenPixels
   val gpuClearCost = (config.getDouble("power.cost.gpuClear") max 0) / Settings.basicScreenPixels
@@ -271,13 +269,6 @@ class Settings(val config: Config) {
     case _ =>
       OpenComputersNeo.log.warn("Bad number of HDD sizes, ignoring.")
       Array(1024, 2048, 4096, 8192)
-  }
-  val ssdSizes = config.getIntList("filesystem.ssdSizes").asScala.toArray match {
-    case Array(tier1, tier2, tier3) =>
-      Array(tier1: Int, tier2: Int, tier3: Int)
-    case _ =>
-      OpenComputersNeo.log.warn("Bad number of SSD sizes, ignoring.")
-      Array(4096, 8192, 16384)
   }
   val hddPlatterCounts = config.getIntList("filesystem.hddPlatterCounts").asScala.toArray match {
     case Array(tier1, tier2, tier3, tier4) =>

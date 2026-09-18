@@ -1,6 +1,6 @@
 # ホバーブーツ
 
-![踏み出そう。](oredict:opencomputers_neo:hoverBoots)
+![踏み出そう。](oredict:opencomputers_neo:hoverboots)
 
 [ドローン](drone.md)をプログラムするのが面倒なら、別の使い道があります：踏み台です！ あるいは、高性能なインラインスケートのようなものです。そんな感じの何かです。
 

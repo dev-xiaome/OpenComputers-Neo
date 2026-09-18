@@ -1,5 +1,5 @@
 # "Ангельское" улучешение
 
-![Аллилуйя](oredict:opencomputers_neo:angelUpgrade)
+![Аллилуйя](oredict:opencomputers_neo:angelupgrade)
 
 Данное улучшение позволяет [роботам](../block/robot.md) ставить блоки прямо в воздухе, без соседнего блока.

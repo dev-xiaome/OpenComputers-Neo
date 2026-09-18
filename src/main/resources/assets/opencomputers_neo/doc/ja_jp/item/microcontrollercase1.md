@@ -1,6 +1,6 @@
 # マイクロコントローラーケース (マイクロコントローラーケース)
 
-![とてもかわいい。](oredict:opencomputers_neo:microcontrollerCase1)
+![とてもかわいい。](oredict:opencomputers_neo:microcontrollercase1)
 
 マイクロコントローラーケースは、[アセンブラ](../block/assembler.md)で[マイクロコントローラー](../block/microcontroller.md)を構築するためのベースパーツです。[マイクロコントローラー](../block/microcontroller.md)は非常に原始的な[コンピューター](../general/computer.md)です。搭載できるコンポーネントの数は非常に限られており、レッドストーン信号の変換や反応、ネットワークメッセージの処理といった、非常に特定の用途での使用を想定しています。
 

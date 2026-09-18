@@ -135,8 +135,6 @@ object Textures {
     val PowerDistributorTopOn = L("overlay/powerdistributor_top_on")
     val RackDiskDrive = L("rack_disk_drive")
     val RackDiskDriveActivity = L("overlay/rack_disk_drive_activity")
-    val RackCapacitor = L("rack_capacitor")
-    val RackCapacitorOn = L("overlay/rack_capacitor_on")
     val RackServer = L("rack_server")
     val RackServerActivity = L("overlay/rack_server_activity")
     val RackServerOn = L("overlay/rack_server_on")

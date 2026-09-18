@@ -82,17 +82,6 @@ object PacketSender {
     sendToAudioListeners(host, pb)
   }
 
-  /** Start a Computronics-compatible client-side DFPWM stream. */
-  def sendTapeAudioStart(host: EnvironmentHost, sessionId: Int, sampleRate: Int, volume: Float): Unit = {
-    val pb = new SimplePacketBuilder(PacketType.TapeAudioStart)
-    pb.writeInt(sessionId)
-    pb.writeInt(sampleRate)
-    pb.writeFloat(volume)
-    val physical = SableCompat.physicalPosition(host)
-    pb.writeDouble(physical.x); pb.writeDouble(physical.y); pb.writeDouble(physical.z)
-    sendToAudioListeners(host, pb)
-  }
-
   def sendAudioChunk(host: EnvironmentHost, sessionId: Int, data: Array[Byte]): Unit = {
     val pb = new CompressedPacketBuilder(PacketType.AudioChunk)
     pb.writeInt(sessionId)

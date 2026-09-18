@@ -1,5 +1,5 @@
 # 看板 I/O (Sign I/O)
 
-![壁の看板が見える。](oredict:opencomputers_neo:signUpgrade)
+![壁の看板が見える。](oredict:opencomputers_neo:signupgrade)
 
 このアップグレードにより、デバイスが世界にある看板とやり取りできるようになります。看板に書かれているメッセージの読み取りや、メッセージの書き換え（許可されている場合）が可能です。

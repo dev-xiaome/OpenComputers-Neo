@@ -1,4 +1,13 @@
 pluginManagement {
+    // 版本号统一来自根 gradle.properties。
+    def buildProperties = new Properties()
+    file('gradle.properties').withInputStream { buildProperties.load(it) }
+
+    plugins {
+        id 'net.neoforged.moddev' version buildProperties.getProperty('moddev_version')
+        id 'org.gradle.toolchains.foojay-resolver-convention' version buildProperties.getProperty('foojay_resolver_version')
+    }
+
     repositories {
         mavenLocal()
         gradlePluginPortal()
@@ -8,5 +17,5 @@ pluginManagement {
 }
 
 plugins {
-    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+    id 'org.gradle.toolchains.foojay-resolver-convention'
 }

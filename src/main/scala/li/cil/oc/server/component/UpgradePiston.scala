@@ -111,28 +111,10 @@ abstract class UpgradePiston(val host: EnvironmentHost) extends AbstractManagedE
   }
 }
 
-abstract class UpgradeStickyPiston(host: EnvironmentHost) extends UpgradePiston(host) {
-  override val isSticky: Boolean = true
-
-  @Callback(doc = """function([side:number]):boolean -- Tries to reach out to the side given (default front) and pull a block similar to a vanilla sticky piston.""")
-  def pull(context: Context, args: Arguments): Array[AnyRef] = {
-    val side = pushDirection(args, index = 0)
-    doPistonAction(context, side, false)
-  }
-}
-
 object UpgradePiston {
   class Drone(drone: internal.Drone) extends UpgradePiston(drone) with PistonTraits.DroneLike
 
   class Rotatable(val rotatable: internal.Rotatable with EnvironmentHost) extends UpgradePiston(rotatable) with PistonTraits.RotatableLike
-
-  class Tablet(val tablet: internal.Tablet) extends Rotatable(tablet) with PistonTraits.TabletLike
-}
-
-object UpgradeStickyPiston {
-  class Drone(drone: internal.Drone) extends UpgradeStickyPiston(drone) with PistonTraits.DroneLike
-
-  class Rotatable(val rotatable: internal.Rotatable with EnvironmentHost) extends UpgradeStickyPiston(rotatable) with PistonTraits.RotatableLike
 
   class Tablet(val tablet: internal.Tablet) extends Rotatable(tablet) with PistonTraits.TabletLike
 }

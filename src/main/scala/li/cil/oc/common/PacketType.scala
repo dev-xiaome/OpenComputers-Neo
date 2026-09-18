@@ -114,7 +114,6 @@ object PacketType extends Enumeration {
 
   // Appended to preserve packet ordinals used by existing clients.
   ComputronicsTone,
-  TapeAudioStart,
 
   EndOfList = Value
 }

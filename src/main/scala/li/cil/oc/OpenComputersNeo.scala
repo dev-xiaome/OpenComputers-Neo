@@ -20,7 +20,7 @@ import net.neoforged.api.distmarker.Dist
 import net.neoforged.bus.api.{IEventBus, SubscribeEvent}
 import net.neoforged.fml.common.Mod
 import net.neoforged.fml.event.lifecycle.{FMLCommonSetupEvent, InterModProcessEvent}
-import net.neoforged.fml.loading.FMLPaths
+import net.neoforged.fml.loading.{FMLLoader, FMLPaths}
 import net.neoforged.fml.{InterModComms, ModContainer}
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforgespi.Environment
@@ -34,7 +34,10 @@ object OpenComputersNeo {
 
   final val Name = "OpenComputers Neo"
 
-  final val McVersion = "1.21.1-neoforge"
+  // 版本标识不硬编码：mod 版本来自 mods.toml（构建时由 gradle.properties 的
+  // mod_version 注入），MC 版本在运行时从加载器读取（来自构建配置的
+  // minecraft_version），两者始终保持一致。
+  def McVersion: String = s"${FMLLoader.versionInfo().mcVersion()}-neoforge"
 
   @volatile var Version = "unknown"
 

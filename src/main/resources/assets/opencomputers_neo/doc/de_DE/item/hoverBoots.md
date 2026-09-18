@@ -1,6 +1,6 @@
 # Schwebestiefel
 
-![Tritt drauf!](oredict:opencomputers_neo:hoverBoots)
+![Tritt drauf!](oredict:opencomputers_neo:hoverboots)
 
 Drohnen zu programmieren kann eine lange Zeit dauern. Es gibt allerdings eine Alternative dazu: Schwebestiefel.
 

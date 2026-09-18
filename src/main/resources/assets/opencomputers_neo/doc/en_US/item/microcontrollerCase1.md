@@ -1,6 +1,6 @@
 # Microcontroller Case
 
-![It's so cute.](oredict:opencomputers_neo:microcontrollerCase1)
+![It's so cute.](oredict:opencomputers_neo:microcontrollercase1)
 
 The Microcontroller case is the base part when building [microcontrollers](../block/microcontroller.md) in the [assembler](../block/assembler.md). [Microcontrollers](../block/microcontroller.md) are very primitive [computers](../general/computer.md). They may only contain a very limited number of components, and are intended to be used in very specific use-cases, such as transforming or reacting to redstone signals, or processing network messages.
 
