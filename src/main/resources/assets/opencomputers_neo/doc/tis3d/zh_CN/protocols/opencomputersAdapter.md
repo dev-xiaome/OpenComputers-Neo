@@ -1,6 +1,6 @@
 # 适配器
 
-![自——由——！](block:OpenComputers:adapter)
+![自——由——！](block:opencomputers_neo:adapter)
 
 适配器的串口接口实现并非为硬编码协议。相反，协议由控制适配器的电脑上的软件定义。请使用OC模组的电脑查看组件API以获取详细信息。
 

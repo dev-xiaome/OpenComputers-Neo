@@ -1,6 +1,6 @@
 # Briefcase
 
-![Portable bureaucracy.](item:opencomputers:briefcase)
+![Portable bureaucracy.](item:opencomputers_neo:briefcase)
 
 The Briefcase provides 18 portable inventory slots.
 

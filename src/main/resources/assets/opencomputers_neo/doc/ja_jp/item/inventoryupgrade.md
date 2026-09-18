@@ -1,6 +1,6 @@
 # インベントリアップグレード
 
-![これだけの物をどこにしまっているのか……](oredict:opencomputers:inventoryUpgrade)
+![これだけの物をどこにしまっているのか……](oredict:opencomputers_neo:inventoryUpgrade)
 
 インベントリアップグレードは、[ロボット](../block/robot.md)や[ドローン](drone.md)にインベントリスロットを提供します。インベントリアップグレード1つにつき、[ロボット](../block/robot.md)は16スロット（最大計64スロットまで）、[ドローン](drone.md)は4スロット（最大計8スロットまで）のインベントリを獲得します。
 

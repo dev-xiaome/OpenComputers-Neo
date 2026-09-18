@@ -1,6 +1,6 @@
 # Raid
 
-![40人インスタンス。](oredict:opencomputers:raid)
+![40人インスタンス。](oredict:opencomputers_neo:raid)
 
 Raid ブロックは3台の[ハードドライブ](../item/hdd1.md)を収容し、それらを1つの大きなファイルシステムに統合します。この統合されたファイルシステムのサイズは、個々の[ハードドライブ](../item/hdd1.md)の容量の合計となり、Raid に接続されたすべての[コンピューター](../general/computer.md)から利用可能です。
 

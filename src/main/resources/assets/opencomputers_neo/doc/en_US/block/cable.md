@@ -1,6 +1,6 @@
 # Cable
 
-![Salad.](oredict:opencomputers:cable)
+![Salad.](oredict:opencomputers_neo:cable)
 
 The cable serves as a way of connecting [computers](../general/computer.md) and machines that are far apart. If you have a compact build where all components touch each other (directly or indirectly, most blocks also behave the same way as cables) you will usually not need cables.
 

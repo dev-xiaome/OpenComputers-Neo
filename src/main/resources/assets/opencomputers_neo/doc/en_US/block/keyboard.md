@@ -1,6 +1,6 @@
 # Keyboard
 
-![QWERTY](oredict:opencomputers:keyboard)
+![QWERTY](oredict:opencomputers_neo:keyboard)
 
 A keyboard is needed to type text on [screens](screen1.md), be they in the world or built into devices such as [robots](robot.md) or [tablets](../item/tablet.md).
 

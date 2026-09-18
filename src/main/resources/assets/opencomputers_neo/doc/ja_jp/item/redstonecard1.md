@@ -1,6 +1,6 @@
 # レッドストーンカード
 
-![赤が見える。](oredict:opencomputers:redstoneCard1)
+![赤が見える。](oredict:opencomputers_neo:redstoneCard1)
 
 レッドストーンカードにより、[コンピューター](../general/computer.md)は隣接するブロックのレッドストーン信号（アナログ）を読み取ったり出力したりできるようになります。入力された信号の強さが変化すると、[コンピューター](../general/computer.md)に信号が送られます。
 

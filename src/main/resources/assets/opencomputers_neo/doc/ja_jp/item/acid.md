@@ -1,6 +1,6 @@
 # 酸 (酸性溶液)
 
-![逆流？ (Reflux?)](oredict:opencomputers:materialAcid)
+![逆流？ (Reflux?)](oredict:opencomputers_neo:materialAcid)
 
 この美味しそうな [要出典] 調合物は、何らかの……楽しみが必要になったときに摂取できます。あるいは、消化管を台無しにするためにも。あるいはその両方。また、他のより有用なアイテムの材料としても機能します。
 

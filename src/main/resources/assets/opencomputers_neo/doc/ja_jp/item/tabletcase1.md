@@ -1,6 +1,6 @@
 # タブレットケース
 
-![曲がりません。](oredict:opencomputers:tabletCase1)
+![曲がりません。](oredict:opencomputers_neo:tabletCase1)
 
 タブレットケースは、[アセンブラ](../block/assembler.md)で[タブレット](tablet.md)を構築するためのベースパーツです。[タブレット](tablet.md)は非常にコンパクトで持ち運び可能な[コンピューター](../general/computer.md)です。いくつかの選択されたアップグレードを搭載できますが、[コンピューターケース](../block/case1.md)のように（簡単な[ネットワークカード](lanCard.md)や[レッドストーンカード](redstonecard1.md)などを使用して）世界とやり取りすることはできません。
 

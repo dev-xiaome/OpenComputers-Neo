@@ -1,6 +1,6 @@
 # APU (加速演算装置)
 
-![最高に素晴らしき確率の統合者 (Awesomest Probability Unifier)。](oredict:opencomputers:apu1)
+![最高に素晴らしき確率の統合者 (Awesomest Probability Unifier)。](oredict:opencomputers_neo:apu1)
 
 このパーツは、[CPU](cpu1.md) と[グラフィックスカード](graphicsCard1.md)を幸せに結婚させたものです。これを使用することで、実質的にカードスロットを1つ節約できます。通常の CPU と同様に、[コンピューター](../general/computer.md)のアーキテクチャと、正常に動作を維持できる接続コンポーネント数を定義します。さらに、基本的なグラフィックス機能も提供します。
 

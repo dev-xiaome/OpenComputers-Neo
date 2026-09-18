@@ -1,6 +1,6 @@
 # Carte de Redstone
 
-![Voir rouge.](oredict:opencomputers:redstoneCard1)
+![Voir rouge.](oredict:opencomputers_neo:redstoneCard1)
 
 La carte de redstone permet aux [ordinateurs](../general/computer.md) de lire et émettre des signaux de redstone analogiques dans les blocs adjacents. Quand la force d'un signal entrant change, un signal est injecté dans l'[ordinateur](../general/computer.md).
 

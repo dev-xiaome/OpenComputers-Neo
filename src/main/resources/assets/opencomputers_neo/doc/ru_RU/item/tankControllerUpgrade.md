@@ -1,6 +1,6 @@
 # Улучшение "Контроллер бака"
 
-![Маршрутизация жидкостей.](oredict:opencomputers:tankControllerUpgrade)
+![Маршрутизация жидкостей.](oredict:opencomputers_neo:tankControllerUpgrade)
 
 Контроллер бака аналогичен [контроллеру инвентаря](inventoryControllerUpgrade.md), но для жидкостей. Позволяет устройствам получать подробную информацию о баках и их содержимом.
 

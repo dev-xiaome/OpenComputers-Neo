@@ -1,6 +1,6 @@
 # Internetkarte
 
-![Katzenvideos in 3, 2,....](oredict:opencomputers:internetCard)
+![Katzenvideos in 3, 2,....](oredict:opencomputers_neo:internetCard)
 
 Internetkarten bieten [Computern](../general/computer.md) Internetzugriff. Einfache HTTP-Anfragen sind möglich, sowie einfache TCP-Client-Sockets die gelesen und beschrieben werden können.
 

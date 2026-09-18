@@ -1,6 +1,6 @@
 # Tankcontroller
 
-![Flüssigrouting.](oredict:opencomputers:tankControllerUpgrade)
+![Flüssigrouting.](oredict:opencomputers_neo:tankControllerUpgrade)
 
 Das Tankcontroller-Upgrade ist das [Inventarcontroller-Upgrade](inventoryControllerUpgrade.md) für Tanks. Es können detaillierte Informationen über Tanks abgefragt werden. 
 

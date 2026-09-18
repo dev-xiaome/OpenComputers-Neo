@@ -1,6 +1,6 @@
 # 転送機 (Transposer)
 
-![ポーズを決めて。](oredict:opencomputers:transposer)
+![ポーズを決めて。](oredict:opencomputers_neo:transposer)
 
 転送機はレッドストーン制御のホッパーと[ロボット](robot.md)の橋渡しをし、隣接するブロック間でのアイテムや液体の[コンピューター](../general/computer.md)制御による転送を可能にします。
 

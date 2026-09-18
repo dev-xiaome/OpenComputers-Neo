@@ -1,6 +1,6 @@
 # CPU (中央演算装置)
 
-![脳。](oredict:opencomputers:cpu1)
+![脳。](oredict:opencomputers_neo:cpu1)
 
 CPU は、[コンピューター](../general/computer.md)や[サーバー](server1.md)の核心となるパーツです。 [コンピューター](../general/computer.md)のアーキテクチャと、動作上限となる接続コンポーネント数を定義します。上位ティアの CPU は、[コンピューター](../general/computer.md)に対してより高い「1ティックあたりの直接呼び出し上限 (direct call limit)」も提供します。簡単に言えば、良い CPU ほど高速に動作します。
 

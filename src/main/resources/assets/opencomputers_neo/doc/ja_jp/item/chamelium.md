@@ -1,6 +1,6 @@
 # カメリウム
 
-![カメレオン (Chameleon) から名付けられました。](oredict:opencomputers:chamelium)
+![カメレオン (Chameleon) から名付けられました。](oredict:opencomputers_neo:chamelium)
 
 カメリウムは、[3Dプリンター](../block/printer.md)で[3Dプリント](../block/print.md)を作成する際に使用される、形状を変化させる素材です。単体では無機質であるため、シンプルでプレーンなモノクロの領域を作成するのに非常に適しています。
 

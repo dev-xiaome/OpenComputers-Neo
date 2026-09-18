@@ -1,5 +1,5 @@
 # テンキー (Numeric Keypad)
 
-![指紋を確認してください。](oredict:opencomputers:materialNumPad)
+![指紋を確認してください。](oredict:opencomputers_neo:materialNumPad)
 
 テンキーは、すべての[キーボード](../block/keyboard.md)の一部です。数字を入力するために使用されます。

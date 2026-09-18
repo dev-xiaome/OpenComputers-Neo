@@ -1,5 +1,5 @@
 # Цифровой блок клавиш
 
-![Проверьте на отпечатки пальцев.](oredict:opencomputers:materialNumPad)
+![Проверьте на отпечатки пальцев.](oredict:opencomputers_neo:materialNumPad)
 
 Цифровая клавиатура - часть любой [клавиатуры](../block/keyboard.md). Позволяет вводить цифры.

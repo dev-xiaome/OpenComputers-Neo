@@ -1,6 +1,6 @@
 # Diskettenlaufwerk
 
-![Und das Rad dreht sich rundherum...](oredict:opencomputers:diskDrive)
+![Und das Rad dreht sich rundherum...](oredict:opencomputers_neo:diskDrive)
 
 Das Diskettenlaufwerk kann verwendet werden, um [Disketten](../item/floppy.md) mittels eines Computers auszulesen. Dies ist am Anfang nützlich, da niedrigstufige [Computergehäuse](case1.md) keinen eingebauten Diskettenslot haben. Dennoch benötigst du ein Betriebssystem um den Computer hochzufahren. Eine [OpenOS](../general/openOS.md)-Diskette kann mit einer leeren [Diskette](../item/floppy.md) und dem [Handbuch](../item/manual.md) gefertigt werden.
 

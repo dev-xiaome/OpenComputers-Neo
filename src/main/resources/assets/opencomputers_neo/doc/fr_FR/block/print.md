@@ -1,6 +1,6 @@
 # Impression 3D
 
-![Any way you want me.](block:OpenComputers:print)
+![Any way you want me.](block:opencomputers_neo:print)
 
 Une impression 3D est créée en utilisant une [imprimante 3D](printer.md). Ces impressions sont prévues initialement dans un but décoratif, mais elles peuvent également être créées de manière à ce qu'elles émettent ou réagissent à des signaux de redstone, permettant d'agrandir un peu leur champ de fonctionnalité.
 

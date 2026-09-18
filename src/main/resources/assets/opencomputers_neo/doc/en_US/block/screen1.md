@@ -1,6 +1,6 @@
 # Screens
 
-![See this?](oredict:opencomputers:screen1)
+![See this?](oredict:opencomputers_neo:screen1)
 
 A screen is used in combination with a [graphics card](../item/graphicsCard1.md), to allow [computers](../general/computer.md) to display text. Different screen tiers have different capabilities, such as supporting different resolutions and color depths. Screens range from low-resolution, monochrome displays to high-resolution displays with up to 65,536 colors.
 

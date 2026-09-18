@@ -1,6 +1,6 @@
 # Remote Terminal
 
-![Remote access.](oredict:opencomputers:terminal)
+![Remote access.](oredict:opencomputers_neo:terminal)
 
 The remote terminal can be used to remotely control computers via a [terminal server](terminalserver.md). Sneak-activate the device while it is installed in a [rack](../block/rack.md) to bind the remote terminal to it.
 

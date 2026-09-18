@@ -1,6 +1,6 @@
 # ピストンアップグレード
 
-![押せ。](oredict:opencomputers:pistonUpgrade)
+![押せ。](oredict:opencomputers_neo:pistonUpgrade)
 
 ピストンアップグレードを使用すると、一部のデバイスでバニラのピストンのような動作が可能になります。インストールすると、`push()` という単一のメソッドを持つコンポーネントが利用可能になります。呼び出されると、デバイスは正面方向にあるブロックを押し出そうと試みます。 [ロボット](../block/robot.md)と[マイクロコントローラー](../block/microcontroller.md)の場合は正面を指し、[タブレット](tablet.md)の場合はプレイヤーの向いている方向を使用します。
 

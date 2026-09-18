@@ -1,13 +1,13 @@
 # Headline with more lines  [with link](redirect1.md) and *some* more
 
 This is some test text for the subset of Markdown supported by the planned ingame documentation system for OpenComputers.
-![This is a tooltip...](opencomputers:textures/gui/printer_ink.png)
-![This is a tooltip...](opencomputers:/textures/gui/printer_material.png)
+![This is a tooltip...](opencomputers_neo:textures/gui/printer_ink.png)
+![This is a tooltip...](opencomputers_neo:/textures/gui/printer_material.png)
 *This* is *italic* text, ~~strikethrough~~ maybe abc-ter **some** text **in bold**. Is _this underlined_? Oh, no, _it's also italic!_ Well, this [a link](../index.md).
-![This is rendered live.](oredict:opencomputers:assembler)
+![This is rendered live.](oredict:opencomputers_neo:assembler)
 ## Smaller headline [also with *link* but this __one__ longer](../block/adapter.md)
 
-![This is another tooltip.](item:opencomputers:transistor)
+![This is another tooltip.](item:opencomputers_neo:transistor)
 
 some text directly above the item stack renderer to test spacing
 ![All the colors.](oredict:forge/piston)
@@ -53,17 +53,17 @@ wrap testing
 * 12345678901234567890.1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
 - `123456789012345678901234567890.12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890`
 
-this is a test for an![](oredict:opencomputers:cpu1)an inline image kakakakalalsd 123 as
+this is a test for an![](oredict:opencomputers_neo:cpu1)an inline image kakakakalalsd 123 as
 
-this is a test for an![](oredict:opencomputers:cpu1)
+this is a test for an![](oredict:opencomputers_neo:cpu1)
 an image with a break after it
 
 this is a test for an
-![](oredict:opencomputers:cpu1)
+![](oredict:opencomputers_neo:cpu1)
 an image between two lines
 
 this is a test for an
 
-![](oredict:opencomputers:cpu1)
+![](oredict:opencomputers_neo:cpu1)
 
 an image between two blank lines

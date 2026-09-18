@@ -1,6 +1,6 @@
 # Коммутатор
 
-![Строит мосты.](oredict:opencomputers:switch)
+![Строит мосты.](oredict:opencomputers_neo:switch)
 
 *Этот блок устарел и будет удален в следующих версиях.* Замените его на [ретранслятор](relay.md).
 

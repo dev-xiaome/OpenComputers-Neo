@@ -1,5 +1,5 @@
 # Микрочипы
 
-![Несъедобные.](oredict:opencomputers:circuitChip1)
+![Несъедобные.](oredict:opencomputers_neo:circuitChip1)
 
 Микрочипы - основа всех электронных компонентов в OpenComputers. Они имеют различные уровни для крафта компонентов разных уровней.

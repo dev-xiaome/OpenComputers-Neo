@@ -1,6 +1,6 @@
 # タブレット (Tablet)
 
-![触れるものなら触ってみろ。](item:opencomputers:tablet)
+![触れるものなら触ってみろ。](item:opencomputers_neo:tablet)
 
 タブレットは、[タブレットケース](tabletcase1.md)を[アセンブラ](../block/assembler.md)に入れ、必要に応じて構成して組み立てることで作成されます。タブレットは持ち運び可能なコンピューターとして機能しますが、世界と直接やり取りすることはできません。例えば、基本的な[レッドストーンカード](redstonecard1.md)は動作しません。ただし、[看板 I/O](signupgrade.md) アップグレードや[ピストン](pistonupgrade.md)アップグレードなど、いくつかのアップグレードは動作します。
 

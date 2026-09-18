@@ -1,6 +1,6 @@
 # 调试卡
 
-![等等，如果我…… 啊——](item:opencomputers:debugcard)
+![等等，如果我…… 啊——](item:opencomputers_neo:debugcard)
 
 调试卡是仅限创造模式的物品，最初目的仅是为了通过自动化进行某些处理来为调试提供便利。此后它有了更多的功能，让它能在地图制作领域发挥很大作用。
 

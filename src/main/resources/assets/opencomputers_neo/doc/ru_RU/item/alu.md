@@ -1,5 +1,5 @@
 # Арифметико-логическое устройство
 
-![Я могу считать!](oredict:opencomputers:materialALU)
+![Я могу считать!](oredict:opencomputers_neo:materialALU)
 
 Используется для крафта компонентов, выполняющие вычисления, например, [процессоров](cpu1.md) и [видеокарт](graphicsCard1.md).

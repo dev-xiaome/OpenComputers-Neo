@@ -1,6 +1,6 @@
 # ロボット
 
-![彼の名はトボール (Tobor)。](block:OpenComputers:robot)
+![彼の名はトボール (Tobor)。](block:opencomputers_neo:robot)
 
 [コンピューター](../general/computer.md)とは異なり、ロボットはプレイヤーと同じように移動したり、世界とやり取りしたりすることができます。ただし、ロボットは外部のコンポーネントと直接やり取りすることは*できません*！ [コンピューター](../general/computer.md)や他のロボットと通信する必要がある場合は、[無線ネットワークカード](../item/wlanCard1.md)を使用するか、[レッドストーンカード](../item/redstoneCard1.md)などを介したレッドストーン信号による低レベルプロトコルを作成してください。
 

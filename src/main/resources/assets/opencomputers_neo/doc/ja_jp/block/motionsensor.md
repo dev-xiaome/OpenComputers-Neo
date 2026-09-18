@@ -1,6 +1,6 @@
 # モーションセンサー
 
-![まばたきするな。](oredict:opencomputers:motionSensor)
+![まばたきするな。](oredict:opencomputers_neo:motionSensor)
 
 モーションセンサーを使用すると、[コンピューター](../general/computer.md)で生物（エンティティ）の動きを検出できます。エンティティが設定された閾値より速く動くと、接続された[コンピューター](../general/computer.md)に信号が送られます。閾値は、モーションセンサーが公開しているコンポーネント API を使用して、接続されたコンピューターから構成可能です。
 

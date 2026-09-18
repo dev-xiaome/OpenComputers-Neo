@@ -1,6 +1,6 @@
 # Transposeur
 
-![Quel poseur!](oredict:opencomputers:transposer)
+![Quel poseur!](oredict:opencomputers_neo:transposer)
 
 Le transposeur fait le lien entre les entonnoirs controlés par la redstone et les [robots](robot.md), ce qui permet le transfert d'objets et de fluides entre des blocs voisins contrôlé par [ordinateur](../general/computer.md).
 

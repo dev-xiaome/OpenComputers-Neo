@@ -1,6 +1,6 @@
 # ソーラー発電機
 
-![太陽の上を歩く。](oredict:opencomputers:solarGeneratorUpgrade)
+![太陽の上を歩く。](oredict:opencomputers_neo:solarGeneratorUpgrade)
 
 ソーラー発電機アップグレードは、[ロボット](../block/robot.md)、[ドローン](drone.md)、[タブレット](tablet.md)などのデバイスにインストールして、パッシブにエネルギーを生成するために使用されます。直射日光にさらされている間のみ動作し、密閉された場所や天候の影響を受けている場所ではエネルギーを生成しません。
 

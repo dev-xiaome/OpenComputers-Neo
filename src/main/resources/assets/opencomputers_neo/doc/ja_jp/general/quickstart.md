@@ -6,12 +6,12 @@
 
 まず最初に、[コンピューターケース](../block/case1.md)が必要です。これはすべてのコンポーネントを収容するブロックであり、構築するコンピューターの動作を定義するものです。
 
-![ティア2のコンピューターケース](oredict:opencomputers:case2)
+![ティア2のコンピューターケース](oredict:opencomputers_neo:case2)
 
 例えば、どのティアの[グラフィックスカード](../item/graphicsCard1.md)を使用するか、[ネットワークカード](../item/lanCard.md)、[レッドストーンカード](../item/redstoneCard1.md)、あるいはクリエイティブモードで遊んでいるなら[デバッグカード](../item/debugCard.md)が必要かどうかなどを選択する必要があります。
 
 [コンピューターケース](../block/case1.md)のGUIを開くと、右側にいくつかのスロットが表示されます。スロットの数や、どのティアのコンポーネントを配置できるか（各スロットにある小さなローマ数字で示されます）は、ケース自体のティアによって決まります。
-![ティア1コンピューターケースのGUI](opencomputers:doc/img/configuration_case1.png)
+![ティア1コンピューターケースのGUI](opencomputers_neo:doc/img/configuration_case1.png)
 空の状態の[コンピューターケース](../block/case1.md)は、それだけではほとんど役に立ちません。[コンピューター](computer.md)の電源を入れてみることはできますが、すぐにチャットログにエラーメッセージが表示され、ビープ音で不満を訴えてきます。幸い、エラーメッセージは解決方法を教えてくれます。エネルギーが必要です。[コンピューター](computer.md)を直接、または[パワーコンバーター](../block/powerConverter.md)を介して電源に接続してください。
 
 電源を接続して起動しようとすると、次は [CPU](../item/cpu1.md) が必要だと言われます。これらには異なるティアがあります（OpenComputers全体に見られる傾向です）。[CPU](../item/cpu1.md) のティアが高いほど、同時に使用できるコンポーネント数が増え、実行速度も速くなります。ティアを選んで、[コンピューターケース](../block/case1.md)に取り付けてください。
@@ -19,7 +19,7 @@
 次に、[メモリ (RAM)](../item/ram1.md) を挿入するように求められます。ビープ音が「長-短」に変わったことに気づくでしょう。より高いティアの[メモリ (RAM)](../item/ram1.md) を使用すると、[コンピューター](computer.md)上で実行されるプログラムがより多くのメモリを利用できるようになります。この導入ガイドの目標である [OpenOS](openOS.md) を実行するには、少なくとも2枚のティア1 [メモリ (RAM)](../item/ram1.md) スティックが必要です。
 
 順調に進んでいます。この時点で、[コンピューターケース](../block/case1.md)は以下のようになっているはずです：
-![一部構成済みのコンピューター](opencomputers:doc/img/configuration_case2.png)
+![一部構成済みのコンピューター](opencomputers_neo:doc/img/configuration_case2.png)
 ご覧の通り、電源を入れてもエラーメッセージは表示されなくなりました！ しかし、残念ながらまだ何も起こりません。少なくともビープ音が2回鳴るようになりました。これは、[コンピューター](computer.md)の実際の実行に失敗したことを意味します。言い換えれば、「技術的には動いている」ということです！ ここで非常に便利なツール、[解析機](../item/analyzer.md)の出番です。このツールはOpenComputersの多くのブロックを調べることができます。使い方は、スニーク（しゃがみ）状態で[コンピューターケース](../block/case1.md)を[解析機](../item/analyzer.md)で使用します。
 
 [コンピューター](computer.md)がクラッシュした原因となったエラーが表示されるはずです：
@@ -37,13 +37,13 @@
 動きました！ もし動かない場合は何かが間違っているので、[解析機](../item/analyzer.md)を使って調査してください。正常に動作していれば、ほぼ完了です。一番難しい部分は終わりました。あとは入力を受け付け、出力を表示させるだけです。
 
 [コンピューター](computer.md)に出力を表示させるには、[スクリーン](../block/screen1.md)と[グラフィックスカード](../item/graphicsCard1.md)が必要です。
-![液晶ではないようです](oredict:opencomputers:screen2)
+![液晶ではないようです](oredict:opencomputers_neo:screen2)
 
 [スクリーン](../block/screen1.md)を[コンピューターケース](../block/case1.md)に隣接させるか、[ケーブル](../block/cable.md)で接続します。次に、お好みの[グラフィックスカード](../item/graphicsCard1.md)をケースに取り付けます。[スクリーン](../block/screen1.md)上にカーソルが点滅しているのが見えるはずです。最後に、[キーボード](../block/keyboard.md)を[スクリーン](../block/screen1.md)に貼り付けるか、スクリーンを向くように配置すれば、入力が可能になります。
 
 これで完了です。コンピューターは立ち上がり、動作する準備が整いました。さっそく使ってみましょう！ シェルに `lua` と入力して Enter を押すと、Lua インタープリターの使い方に関する情報が表示されます。ここで基本的な Lua コマンドをテストできます。詳細は [Lua のページ](lua.md) を参照してください。
 
-![動きました！](opencomputers:doc/img/configuration_done.png)
+![動きました！](opencomputers_neo:doc/img/configuration_done.png)
 
 より複雑な[コンピューター](computer.md)の構築、[サーバー](../item/server1.md)の運用、そして[アセンブラー](../block/assembler.md)での[ロボット](../block/robot.md)、[ドローン](../item/drone.md)、[マイクロコントローラー](../block/microcontroller.md)、[タブレット](../item/tablet.md)の組み立てを楽しんでください。
 

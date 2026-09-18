@@ -1,10 +1,10 @@
 # Manual
 
-![A good read.](oredict:opencomputers:manual)
+![A good read.](oredict:opencomputers_neo:manual)
 
 The thing you're reading right now! The manual contains a wealth of information about OpenComputers (and possibly more). If you need information on an item or block in the mod, look no further! Scroll down to learn how to use (mouse wheel or the scroll bar to the right).
 
-![Your new best friend.](opencomputers:doc/img/manual.png)
+![Your new best friend.](opencomputers_neo:doc/img/manual.png)
 
 Navigating the manual is similar to browsing a wiki: click on links (1) to follow them to the page they reference. Right-click or press the jump key to go back one page. Press escape or the inventory key to close the manual. To the left you will find a few tabs (2) that provide a way to quickly jump to select pages, such as the block and item index. To the right you will find the scroll bar (3). You can either drag it manually, or use the mouse wheel to scroll in a page.
 

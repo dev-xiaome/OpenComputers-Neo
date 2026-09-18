@@ -1,6 +1,6 @@
 # アセンブラ
 
-![より強く、より速く、より良く。](oredict:opencomputers:assembler)
+![より強く、より速く、より良く。](oredict:opencomputers_neo:assembler)
 
 アセンブラは、[ロボット](robot.md)、[ドローン](../item/drone.md)、[タブレット](../item/tablet.md)などのより複雑な電子デバイスを構築するために使用される高度なワークステーションです。デバイスの組み立てには大量のエネルギーを必要とするため、[コンデンサ](capacitor.md)で十分な電力を供給することをお勧めします。
 

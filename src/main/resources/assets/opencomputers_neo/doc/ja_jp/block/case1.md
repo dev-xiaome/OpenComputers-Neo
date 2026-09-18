@@ -1,6 +1,6 @@
 # コンピューターケース
 
-![念のため (Just in case)。](oredict:opencomputers:case1)
+![念のため (Just in case)。](oredict:opencomputers_neo:case1)
 
 コンピューターケースには3つのティアがあり、それによって挿入可能なコンポーネントが制限されます。さらに、クリエイティブモード専用のティアも存在します。コンピューターケースを[アセンブラ](assembler.md)に入れて[ロボット](robot.md)を構築することも可能です。
 

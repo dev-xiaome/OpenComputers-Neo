@@ -1,6 +1,6 @@
 # コンデンサ
 
-![9000以上だ。](oredict:opencomputers:capacitor)
+![9000以上だ。](oredict:opencomputers_neo:capacitor)
 
 コンデンサはネットワークで使用されるエネルギーを蓄え、必要なときにエネルギーバッファとして機能します。他のMODのエネルギーから OpenComputers の内部エネルギータイプへの変換（[パワーコンバーター](powerConverter.md)を使用する場合など）とは異なり、単一のサブネットワーク内でのエネルギー転送は瞬時に行われます。内部にエネルギーバッファを持つことは、[ロボット](robot.md)や[ドローン](../item/drone.md)などのデバイスの[組み立て](assembler.md)や[充電](charger.md)など、大量のエネルギーを必要とする作業に役立ちます。
 

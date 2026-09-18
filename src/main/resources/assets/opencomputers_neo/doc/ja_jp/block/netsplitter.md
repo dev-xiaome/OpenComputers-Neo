@@ -1,6 +1,6 @@
 # ネット分割器 (Net Splitter)
 
-![*.net *.split](oredict:opencomputers:netSplitter)
+![*.net *.split](oredict:opencomputers_neo:netSplitter)
 
 ネット分割器は、サブネットワーク間の接続性を制御できるデバイスです。[中継機 (リレイ)](relay.md)や[パワーコンバーター](powerConverter.md)とは異なり、隣接するサブネットワークを直接接続するため、コンポーネントにアクセス可能です。各面の接続性は、レンチ（[スクレンチ](../item/wrench.md)など）を使用して切り替えることができます。ネット分割器にレッドストーン信号が適用されると、すべての面の接続状態が反転します。
 

@@ -1,6 +1,6 @@
 # Folder
 
-![Keep related documents together.](item:opencomputers:folder)
+![Keep related documents together.](item:opencomputers_neo:folder)
 
 A Folder stores up to nine document items while remaining portable.
 

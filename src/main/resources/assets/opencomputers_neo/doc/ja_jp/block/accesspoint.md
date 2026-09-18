@@ -1,6 +1,6 @@
 # アクセスポイント
 
-![AAA](oredict:opencomputers:accessPoint)
+![AAA](oredict:opencomputers_neo:accessPoint)
 
 *このブロックは非推奨であり、将来のバージョンで削除される予定です。* 紛失を避けるために[中継機](relay.md)にクラフトし直してください。
 

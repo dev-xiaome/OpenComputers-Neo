@@ -1,6 +1,6 @@
 # インベントリコントローラー
 
-![私がコントロールしています。](oredict:opencomputers:inventoryControllerUpgrade)
+![私がコントロールしています。](oredict:opencomputers_neo:inventoryControllerUpgrade)
 
 インベントリコントローラーアップグレードは、[ロボット](../block/robot.md)や[ドローン](drone.md)に拡張されたインベントリ操作機能を提供します。アイテムをドロップしたり吸い込んだりする際に、外部インベントリのスロットを明示的に指定できるようになります。また、アイテムスタックの詳細な情報を読み取ることも可能です。最後に、[ロボット](../block/robot.md)が外部の助けを借りずに装備中のツールを変更する手段を提供します。
 

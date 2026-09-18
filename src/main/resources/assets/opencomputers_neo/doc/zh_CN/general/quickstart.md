@@ -6,12 +6,12 @@
 
 首先，你需要一个[电脑机箱](../block/case1.md)。这个方块会容纳所有组件，也决定了你所搭建电脑的行为。
 
-![一个T2机箱](oredict:opencomputers:case2)
+![一个T2机箱](oredict:opencomputers_neo:case2)
 
 举例而言，你还需要决定使用什么等级的[显卡](../item/graphicsCard1.md)，是否要安装[网卡](../item/lanCard.md)、[红石卡](../item/redstoneCard1.md)，或者你只是想在创造模式中随便游玩的话，可能还要装一张[调试卡](../item/debugCard.md)。
 
 打开[机箱](../block/case1.md)的GUI后你会看到右边若干槽位。槽位数以及支持的组件等级（在槽位中用小号罗马数字标出）取决于机箱等级。  
-![T2机箱的GUI](opencomputers:doc/img/configuration_case1.png)  
+![T2机箱的GUI](opencomputers_neo:doc/img/configuration_case1.png)  
 空[机箱](../block/case1.md)基本没什么用。你可以尝试现在启动[电脑](computer.md)，但它会立刻向你的聊天框输出一条报错信息，然后用滴声表达它的不满。好消息是报错信息告诉了你修复方式：电脑需要能量。只需要给你的电脑接通电源，无论直接连接或是通过[能量转换器](../block/powerConverter.md)连接均可。
 
 这个时候再尝试启动，它会告诉你电脑需要安装[CPU](../item/cpu1.md)。CPU分不同等级，你会注意到等级这一概念在OC模组中普遍存在。对[CPU](../item/cpu1.md)而言，等级越高，同时连接的组件就越多，执行速度也越快。所以请挑一个等级，然后把它装进你的[电脑机箱](../block/case1.md)里。
@@ -19,7 +19,7 @@
 接下来会要求你安装一些[内存条（RAM）](../item/ram1.md)。你会发现报警音发生了变化：变成了长-短。[内存条（RAM）](../item/ram1.md)等级越高，能提供给你[computer](computer.md)上所运行程序的内存就越大。要运行[OpenOS](openOS.md)，即本教程的目标，你需要至少两根1级[内存条（RAM）](../item/ram1.md)。
 
 我们已经取得很大进展了。现在你的[电脑机箱](../block/case1.md)看上去应该类似这样：  
-![部分完工的电脑。](opencomputers:doc/img/configuration_case2.png)  
+![部分完工的电脑。](opencomputers_neo:doc/img/configuration_case2.png)  
 看啊，现在将它打开已经不会输出报错信息了！但是，哎呀，它还是干不了什么事情。至少它现在会滴两次了。这代表[电脑](computer.md)的实际运行失败了。换句话说：理论上它已经运行了！此时一个非常实用的工具该上场表演了：[分析器](../item/analyzer.md)。它可用来检查OC模组的很多方块，也支持其他模组的一些方块。要对[电脑](computer.md)进行使用，只需手持[分析器](../item/analyzer.md)潜行与机箱交互。
 
 你会看到导致[电脑](computer.md)发生崩溃的错误：
@@ -39,13 +39,13 @@
 它活了！或者说应该是。如果它没能启动的话，代表有什么东西出错了，你可以用[分析器](../item/analyzer.md)排查。不过我们先假设它现在已经开始运行了，你已经接近完工了，最困难的部分已经结束了。剩下要做的就是让它接收输入并显示输出。
 
 要让[电脑](computer.md)显示输出，你需要取一块[显示屏](../block/screen1.md)和一张[显卡](../item/graphicsCard1.md)。
-![这不是纯平显示器。](oredict:opencomputers:screen2)
+![这不是纯平显示器。](oredict:opencomputers_neo:screen2)
 
 请将[显示屏](../block/screen1.md)放置于直接相邻机箱的位置，或者再次通过[线缆](../block/cable.md)连接。然后将你选好的[显卡](../item/graphicsCard1.md)装进[电脑机箱](../block/case2.md)里。你应该会在[显示屏](../block/screen1.md)上看到闪烁的光标。最后，将[键盘](../block/keyboard.md)放置在[显示屏](../block/screen1.md)身上，或将其面对[显示屏](../block/screen1.md)放置，以启用[键盘](../block/keyboard.md)输入。
 
 做完这一步，你就完工了。此时[电脑](computer.md)已经启动，正在运行且准备好执行操作了。现在试试用电脑吧！在shell中输入`lua`并按回车键，然后你会看到欢迎界面，其中有一些关于如何使用Lua解释器的信息。在这里你可以尝试基础的Lua命令。有关这方面的更多信息见[Lua页面](lua.md)。
 
-![它活了！](opencomputers:doc/img/configuration_done.png)
+![它活了！](opencomputers_neo:doc/img/configuration_done.png)
 
 请享受搭建更复杂的[电脑](computer.md)，折腾[服务器](../item/server1.md)以及用[电子装配机](../block/assembler.md)组装[机器人](../block/robot.md)、[无人机](../item/drone.md)、[微控制器](../block/microcontroller.md)和[平板电脑](../item/tablet.md)。
 

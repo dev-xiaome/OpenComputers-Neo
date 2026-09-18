@@ -1,6 +1,6 @@
 # Printed Page
 
-![A physical copy of digital text.](item:opencomputers:printed_page)
+![A physical copy of digital text.](item:opencomputers_neo:printed_page)
 
 Printed Pages are produced by the [Document Printer](../block/documentprinter.md).
 

@@ -1,6 +1,6 @@
 # タンクコントローラー
 
-![流体のルーティング。](oredict:opencomputers:tankControllerUpgrade)
+![流体のルーティング。](oredict:opencomputers_neo:tankControllerUpgrade)
 
 タンクコントローラーアップグレードは、通常のインベントリに対する[インベントリコントローラーアップグレード](inventoryControllerUpgrade.md)と同様の機能を流体タンクに対して提供します。デバイスに内蔵されているタンクや隣接するタンクに関するより詳細な情報を取得できるようになります。
 

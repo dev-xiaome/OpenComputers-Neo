@@ -1,6 +1,6 @@
 # アダプター
 
-![100%増量中。](oredict:opencomputers:adapter)
+![100%増量中。](oredict:opencomputers_neo:adapter)
 
 アダプターを使用すると、[コンピューター](../general/computer.md)はバニラのブロックや他のMODのブロックとやり取りできるようになります。アダプターに隣接するサポート対象のブロックは、アダプターに接続された[コンピューター](../general/computer.md)にコンポーネントとして表示されます。
 

@@ -1,6 +1,6 @@
 # スイッチ
 
-![架け橋。](oredict:opencomputers:switch)
+![架け橋。](oredict:opencomputers_neo:switch)
 
 *このブロックは非推奨であり、将来のバージョンで削除される予定です。* 紛失を避けるために[中継機 (リレイ)](relay.md)にクラフトし直してください。
 

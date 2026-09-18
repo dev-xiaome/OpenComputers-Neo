@@ -1,6 +1,6 @@
 # 充電器
 
-![よし、やろう。](oredict:opencomputers:charger)
+![よし、やろう。](oredict:opencomputers_neo:charger)
 
 充電器は、[ロボット](robot.md)、[ドローン](../item/drone.md)、[タブレット](../item/tablet.md)などのデバイスを充電するために使用されます。充電器を動作させるには、レッドストーン信号を入力する必要があります。充電速度は入力されたレッドストーン信号の強度に基づき、信号強度 15 で 100% の充電速度になります。
 

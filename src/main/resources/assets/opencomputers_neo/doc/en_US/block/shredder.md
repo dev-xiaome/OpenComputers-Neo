@@ -1,6 +1,6 @@
 # Shredder
 
-![When paperwork has outlived its usefulness.](item:opencomputers:shredder)
+![When paperwork has outlived its usefulness.](item:opencomputers_neo:shredder)
 
 The Shredder converts paper documents into [Paper Shreds](../item/papershreds.md).
 

@@ -1,6 +1,6 @@
 # File Cabinet
 
-![Finally, somewhere to put all those TPS reports.](item:opencomputers:filecabinet)
+![Finally, somewhere to put all those TPS reports.](item:opencomputers_neo:filecabinet)
 
 The File Cabinet provides 30 storage slots intended for documents and office supplies.
 

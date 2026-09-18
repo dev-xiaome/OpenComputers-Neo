@@ -1,6 +1,6 @@
 # チャンクローダーアップグレード
 
-![どこへも行かせない。](oredict:opencomputers:chunkloaderUpgrade)
+![どこへも行かせない。](oredict:opencomputers_neo:chunkloaderUpgrade)
 
 チャンクローダーアップグレードをデバイス（[ロボット](../block/robot.md)や[マイクロコントローラー](../block/microcontroller.md)など）にインストールすると、そのデバイスがいるチャンク（および周囲のチャンク）をロードし続けることができます。ただし、動作にはエネルギーを消費します。チャンクローダーは、デバイスが公開しているコンポーネント API を使用してオン・オフを切り替えることができます。
 

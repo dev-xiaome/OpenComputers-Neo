@@ -1,13 +1,13 @@
 # 複数行のヘッドライン [リンク付き](redirect1.md) さらに*いくつか*
 
 これは、OpenComputers 用に計画されているゲーム内ドキュメントシステムがサポートする Markdown サブセットのテストテキストです。
-![これはツールチップです...](opencomputers:textures/gui/printer_ink.png)
-![これはツールチップです...](opencomputers:/textures/gui/printer_material.png)
+![これはツールチップです...](opencomputers_neo:textures/gui/printer_ink.png)
+![これはツールチップです...](opencomputers_neo:/textures/gui/printer_material.png)
 *これは* *斜体* テキスト、 ~~打ち消し線~~ たぶん abc-ter **いくつか** のテキスト **太字**。 _これは下線？_ いいえ、 _これも斜体です！_ さて、これは[リンク](../index.md)です。
-![これはライブレンダリングされます。](oredict:opencomputers:assembler)
+![これはライブレンダリングされます。](oredict:opencomputers_neo:assembler)
 ## 小さなヘッドライン [これも*リンク*付きですが__こちら__は長い](../block/adapter.md)
 
-![もう一つのツールチップ。](item:opencomputers:transistor)
+![もう一つのツールチップ。](item:opencomputers_neo:transistor)
 
 間隔をテストするためにアイテムスタックレンダラーの直上にテキストを配置
 ![すべての色。](oredict:forge/piston)
@@ -53,17 +53,17 @@
 * 12345678901234567890.1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
 - `123456789012345678901234567890.12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890`
 
-これはテスト用のインライン画像![](oredict:opencomputers:cpu1)です。かかかかああ。
+これはテスト用のインライン画像![](oredict:opencomputers_neo:cpu1)です。かかかかああ。
 
-これはテスト用の画像![](oredict:opencomputers:cpu1)
+これはテスト用の画像![](oredict:opencomputers_neo:cpu1)
 その後に改行がある場合
 
 これは2つの行の間にある
-![](oredict:opencomputers:cpu1)
+![](oredict:opencomputers_neo:cpu1)
 画像のテスト
 
 これは2つの空行の間にある
 
-![](oredict:opencomputers:cpu1)
+![](oredict:opencomputers_neo:cpu1)
 
 画像のテスト

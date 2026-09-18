@@ -1,6 +1,6 @@
 # Messgerät
 
-![Hat nichts mit Kirche zu tun.](oredict:opencomputers:analyzer)
+![Hat nichts mit Kirche zu tun.](oredict:opencomputers_neo:analyzer)
 
 Das Messgerät ist ein nützliches Werkzeug um OpenComputers-Geräte auszulesen. Mittels eines Rechtsklickes (ggf. auch beim Schleichen) werden die Informationen in den Chatlog geschrieben. Darunter fallen grundlegende Dinge wie die Adresse von Komponenten, den Energiemassen im Subnetzwerk bis zu Informationen über einen Crash.
 

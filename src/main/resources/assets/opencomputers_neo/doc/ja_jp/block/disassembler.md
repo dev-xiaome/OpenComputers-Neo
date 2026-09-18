@@ -1,6 +1,6 @@
 # 分解機
 
-![作っては、壊す。](oredict:opencomputers:disassembler)
+![作っては、壊す。](oredict:opencomputers_neo:disassembler)
 
 分解機を使用すると、OpenComputers のほとんどのアイテムを元のパーツに分解できます。これは主に、古くなって不要になったパーツから素材を回収したり、不要になったデバイスや作り間違えたデバイス（例：[オペレーティングシステム](../general/openOS.md)を入れ忘れた[ロボット](robot.md)）を解体したりするのに役立ちます。
 

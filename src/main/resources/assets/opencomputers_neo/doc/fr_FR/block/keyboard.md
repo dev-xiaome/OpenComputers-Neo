@@ -1,6 +1,6 @@
 # Clavier
 
-![AZERTY](oredict:opencomputers:keyboard)
+![AZERTY](oredict:opencomputers_neo:keyboard)
 
 Un clavier est requis pour saisir du texte sur l'[écran](screen1.md), qu'ils existent physiquement dans le monde ou intégrés à un appareil comme un [robot](robot.md) ou une [tablette](../item/tablet.md).
 

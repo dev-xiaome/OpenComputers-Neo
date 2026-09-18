@@ -1,6 +1,6 @@
 # リモートターミナル (Remote Terminal)
 
-![リモートアクセス。](oredict:opencomputers:terminal)
+![リモートアクセス。](oredict:opencomputers_neo:terminal)
 
 リモートターミナルは、[ターミナルサーバー](terminalserver.md)を介してコンピューターを遠隔操作するために使用されます。使用するには、[ラック](../block/rack.md)に設置された[ターミナルサーバー](terminalserver.md)をアクチュベートしてください（世界にある[ラック](../block/rack.md)ブロックをクリックし、対象の[ターミナルサーバー](terminalserver.md)を指定してターミナルをバインドします）。
 

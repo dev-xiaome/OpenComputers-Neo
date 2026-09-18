@@ -1,6 +1,6 @@
 # Document Printer
 
-![Paperwork, but programmable.](item:opencomputers:document_printer)
+![Paperwork, but programmable.](item:opencomputers_neo:document_printer)
 
 The Document Printer is the OpenPrinter peripheral integrated into OpenComputers. Connect it to an OpenComputers network and access it as the `openprinter` component.
 

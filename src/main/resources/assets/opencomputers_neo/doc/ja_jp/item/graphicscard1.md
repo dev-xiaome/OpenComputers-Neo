@@ -1,6 +1,6 @@
 # グラフィックスカード
 
-![綺麗な画像。](oredict:opencomputers:graphicsCard1)
+![綺麗な画像。](oredict:opencomputers_neo:graphicsCard1)
 
 グラフィックスカードはほとんどの[コンピューター](../general/computer.md)にとって不可欠なパーツであり、接続された[スクリーン](../block/screen1.md)にテキストを表示できるようにします。グラフィックスカードにはいくつかのティアがあり、[スクリーン](../block/screen1.md)と同様に、対応する解像度や色深度が異なります。
 

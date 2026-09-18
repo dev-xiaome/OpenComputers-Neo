@@ -1,6 +1,6 @@
 # キーボード
 
-![QWERTY](oredict:opencomputers:keyboard)
+![QWERTY](oredict:opencomputers_neo:keyboard)
 
 キーボードは、設置されている[スクリーン](screen1.md)や、[ロボット](robot.md)や[タブレット](../item/tablet.md)などのデバイスに内蔵されているスクリーンにテキストを入力するために必要です。
 

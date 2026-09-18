@@ -1,6 +1,6 @@
 # Debugkarte
 
-![Warte - Wenn ich... oooooh.](item:opencomputers:debugcard)
+![Warte - Wenn ich... oooooh.](item:opencomputers_neo:debugcard)
 
 Die Debugkarte ist ein Nur-Kreativ-Item das ursprünglich entwickelt wurde, um einige Vorgänge zu vereinfachen in dem sie einige Prozesse automatisieren. Es hat seitdem eine Vielfalt an Zusatzfunktionen erhalten.
 

@@ -1,6 +1,6 @@
 # マイクロコントローラー (マイコン)
 
-![侮るなかれ。](block:OpenComputers:microcontroller)
+![侮るなかれ。](block:opencomputers_neo:microcontroller)
 
 マイクロコントローラーは、[アセンブラ](assembler.md)で[マイクロコントローラーケース](../item/microcontrollerCase1.md)を使用して構築されます。[コンピューター](../general/computer.md)と比較して機能は少ないですが、安価に構築できます。特に、外部のコンポーネントとやり取りすることは*できません*。
 

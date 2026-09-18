@@ -1,6 +1,6 @@
 # カメリウムブロック
 
-![なんて...白い。](oredict:opencomputers:chameliumBlock)
+![なんて...白い。](oredict:opencomputers_neo:chameliumBlock)
 
 数個の[カメリウム](../item/chamelium.md)を組み合わせることで、装飾目的のモノクロブロックを作成できます。カメリウムブロックは、Minecraft の16色のいずれかで染色することも可能です。
 

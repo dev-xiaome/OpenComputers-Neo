@@ -1,7 +1,7 @@
 # Printer Ink Cartridges
 
-![Black Ink Cartridge](item:opencomputers:printer_ink_black)
-![Color Ink Cartridge](item:opencomputers:printer_ink_color)
+![Black Ink Cartridge](item:opencomputers_neo:printer_ink_black)
+![Color Ink Cartridge](item:opencomputers_neo:printer_ink_color)
 
 The [Document Printer](../block/documentprinter.md) uses separate black and color ink cartridges.
 

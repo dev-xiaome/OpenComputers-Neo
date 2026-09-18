@@ -1,6 +1,6 @@
 # メモリ (RAM)
 
-![覚えていますか、9月のダンスを…… (Do you remember, dancing in September~)](oredict:opencomputers:ram1)
+![覚えていますか、9月のダンスを…… (Do you remember, dancing in September~)](oredict:opencomputers_neo:ram1)
 
 メモリは [CPU](cpu1.md) と同様に、すべての[コンピューター](../general/computer.md)において不可欠なパーツです。[CPU](cpu1.md) のアーキテクチャにもよりますが、メモリは[コンピューター](../general/computer.md)ができること、できないことに非常に根本的な影響を与えます。例えば標準の Lua アーキテクチャでは、Lua スクリプトが実際に使用できるメモリ量を制御します。つまり、より大きく、よりメモリを消費するプログラムを実行するには、より多くのメモリが必要になります。
 

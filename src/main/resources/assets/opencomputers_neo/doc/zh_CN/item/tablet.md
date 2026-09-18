@@ -1,6 +1,6 @@
 # 平板电脑
 
-![摸摸我试试？](item:opencomputers:tablet)
+![摸摸我试试？](item:opencomputers_neo:tablet)
 
 将[平板电脑外壳](tabletCase1.md)放进[电子装配机](../block/assembler.md)，按需配置并进行组装即可得到平板电脑。平板电脑是移动式的电脑，不能直接与世界交互。比如T1的[红石卡](redstoneCard1.md)就不能在平板上工作。但[告示牌升级](signUpgrade.md)和[活塞升级](pistonUpgrade.md)等可以使用。
 

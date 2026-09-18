@@ -1,6 +1,6 @@
 # Carte internet
 
-![Vidéos de chat dans 3, 2, ...](oredict:opencomputers:internetCard)
+![Vidéos de chat dans 3, 2, ...](oredict:opencomputers_neo:internetCard)
 
 La carte internet donne accès à Internet aux [ordinateurs](../general/computer.md). Elle permet d'exécuter de simples requêtes HTTP, et aussi d'ouvrir des sockets client TCP dans lesquels vous pouvez lire et écrire.
 
