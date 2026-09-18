@@ -80,7 +80,10 @@ class OpenComputers(modBus: IEventBus, container: ModContainer) {
   modBus.register(li.cil.oc.data.DataGenerators)
   modBus.register(CreativeTab)
   OpenComputers.instance = Some(this)
-  NeoForge.EVENT_BUS.register(OpenComputers.proxy)
+  // proxy 上的监听器**全部**是 mod 总线事件（FMLCommonSetupEvent、EntityRenderersEvent.*、
+  // RegisterPayloadHandlersEvent、RegisterMenuScreensEvent 等）。NeoForge 会直接拒绝把
+  // IModBusEvent 监听器注册到公共总线（`IModBusEvent events are not allowed on the
+  // common NeoForge bus!`），所以这里只注册到 mod 总线。
   modBus.register(OpenComputers.proxy)
   Settings.load(FMLPaths.CONFIGDIR.get().resolve(Paths.get("opencomputers", "settings.conf")).toFile())
   OpenComputers.proxy.preInit()

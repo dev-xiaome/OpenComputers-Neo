@@ -87,7 +87,7 @@ object Blocks {
     // 注册表别名：对应原 `Proxy.blockRenames` 里 `serverRack` -> `rack` 一条。
     // NeoForge 已移除 `MissingMappingsEvent`，改用 `DeferredRegister#addAlias`。
     BLOCKS.addAlias(
-      ResourceLocation.fromNamespaceAndPath(li.cil.oc.OpenComputers.ID, "serverRack"),
+      ResourceLocation.fromNamespaceAndPath(li.cil.oc.OpenComputers.ID, "serverrack"),
       ResourceLocation.fromNamespaceAndPath(li.cil.oc.OpenComputers.ID, Constants.BlockName.Rack))
 
     BLOCKS.register(bus)

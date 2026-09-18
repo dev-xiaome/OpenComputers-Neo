@@ -5,8 +5,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.common.extensions.IForgeMenuType;
-import net.neoforged.neoforge.network.NetworkHooks;
+import net.neoforged.neoforge.common.extensions.IMenuTypeExtension;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -15,85 +14,85 @@ public final class MenuTypes {
     public static final DeferredRegister<MenuType<?>> MENU_TYPES =
             DeferredRegister.create(BuiltInRegistries.MENU, OpenComputers.ID());
 
-    public static final DeferredHolder<MenuType<Adapter>, MenuType<Adapter>> ADAPTER =
-            MENU_TYPES.register("adapter", () -> IForgeMenuType.create(
+    public static final DeferredHolder<MenuType<?>, MenuType<Adapter>> ADAPTER =
+            MENU_TYPES.register("adapter", () -> IMenuTypeExtension.create(
                     (id, plr, buff) -> new Adapter(id, plr, new SimpleContainer(1))));
 
-    public static final DeferredHolder<MenuType<Assembler>, MenuType<Assembler>> ASSEMBLER =
-            MENU_TYPES.register("assembler", () -> IForgeMenuType.create(
+    public static final DeferredHolder<MenuType<?>, MenuType<Assembler>> ASSEMBLER =
+            MENU_TYPES.register("assembler", () -> IMenuTypeExtension.create(
                     (id, plr, buff) -> new Assembler(id, plr, new SimpleContainer(22))));
 
-    public static final DeferredHolder<MenuType<Case>, MenuType<Case>> CASE =
-            MENU_TYPES.register("case", () -> IForgeMenuType.create((id, plr, buff) -> {
+    public static final DeferredHolder<MenuType<?>, MenuType<Case>> CASE =
+            MENU_TYPES.register("case", () -> IMenuTypeExtension.create((id, plr, buff) -> {
                 int invSize = buff.readVarInt();
                 int tier = buff.readVarInt();
                 return new Case(id, plr, new SimpleContainer(invSize), tier);
             }));
 
-    public static final DeferredHolder<MenuType<Charger>, MenuType<Charger>> CHARGER =
-            MENU_TYPES.register("charger", () -> IForgeMenuType.create(
+    public static final DeferredHolder<MenuType<?>, MenuType<Charger>> CHARGER =
+            MENU_TYPES.register("charger", () -> IMenuTypeExtension.create(
                     (id, plr, buff) -> new Charger(id, plr, new SimpleContainer(1))));
 
-    public static final DeferredHolder<MenuType<Database>, MenuType<Database>> DATABASE =
-            MENU_TYPES.register("database", () -> IForgeMenuType.create((id, plr, buff) -> {
-                ItemStack containerStack = buff.readItem();
+    public static final DeferredHolder<MenuType<?>, MenuType<Database>> DATABASE =
+            MENU_TYPES.register("database", () -> IMenuTypeExtension.create((id, plr, buff) -> {
+                ItemStack containerStack = ItemStack.OPTIONAL_STREAM_CODEC.decode(buff);
                 int invSize = buff.readVarInt();
                 int tier = buff.readVarInt();
                 return new Database(id, plr, containerStack, new SimpleContainer(invSize), tier);
             }));
 
-    public static final DeferredHolder<MenuType<Disassembler>, MenuType<Disassembler>> DISASSEMBLER =
-            MENU_TYPES.register("disassembler", () -> IForgeMenuType.create(
+    public static final DeferredHolder<MenuType<?>, MenuType<Disassembler>> DISASSEMBLER =
+            MENU_TYPES.register("disassembler", () -> IMenuTypeExtension.create(
                     (id, plr, buff) -> new Disassembler(id, plr, new SimpleContainer(1))));
 
-    public static final DeferredHolder<MenuType<DiskDrive>, MenuType<DiskDrive>> DISK_DRIVE =
-            MENU_TYPES.register("disk_drive", () -> IForgeMenuType.create(
+    public static final DeferredHolder<MenuType<?>, MenuType<DiskDrive>> DISK_DRIVE =
+            MENU_TYPES.register("disk_drive", () -> IMenuTypeExtension.create(
                     (id, plr, buff) -> new DiskDrive(id, plr, new SimpleContainer(1))));
 
-    public static final DeferredHolder<MenuType<HoloScreen>, MenuType<HoloScreen>> HOLO_SCREEN =
-            MENU_TYPES.register("holo_screen", () -> IForgeMenuType.create(
+    public static final DeferredHolder<MenuType<?>, MenuType<HoloScreen>> HOLO_SCREEN =
+            MENU_TYPES.register("holo_screen", () -> IMenuTypeExtension.create(
                     (id, plr, buff) -> new HoloScreen(id, plr, new SimpleContainer(1))));
 
-    public static final DeferredHolder<MenuType<Drone>, MenuType<Drone>> DRONE =
-            MENU_TYPES.register("drone", () -> IForgeMenuType.create((id, plr, buff) -> {
+    public static final DeferredHolder<MenuType<?>, MenuType<Drone>> DRONE =
+            MENU_TYPES.register("drone", () -> IMenuTypeExtension.create((id, plr, buff) -> {
                 int invSize = buff.readVarInt();
                 return new Drone(id, plr, new SimpleContainer(8), invSize);
             }));
 
-    public static final DeferredHolder<MenuType<Printer>, MenuType<Printer>> PRINTER =
-            MENU_TYPES.register("printer", () -> IForgeMenuType.create(
+    public static final DeferredHolder<MenuType<?>, MenuType<Printer>> PRINTER =
+            MENU_TYPES.register("printer", () -> IMenuTypeExtension.create(
                     (id, plr, buff) -> new Printer(id, plr, new SimpleContainer(3))));
 
-    public static final DeferredHolder<MenuType<Rack>, MenuType<Rack>> RACK =
-            MENU_TYPES.register("rack", () -> IForgeMenuType.create(
+    public static final DeferredHolder<MenuType<?>, MenuType<Rack>> RACK =
+            MENU_TYPES.register("rack", () -> IMenuTypeExtension.create(
                     (id, plr, buff) -> new Rack(id, plr, new SimpleContainer(4))));
 
-    public static final DeferredHolder<MenuType<Raid>, MenuType<Raid>> RAID =
-            MENU_TYPES.register("raid", () -> IForgeMenuType.create(
+    public static final DeferredHolder<MenuType<?>, MenuType<Raid>> RAID =
+            MENU_TYPES.register("raid", () -> IMenuTypeExtension.create(
                     (id, plr, buff) -> new Raid(id, plr, new SimpleContainer(3))));
 
-    public static final DeferredHolder<MenuType<Relay>, MenuType<Relay>> RELAY =
-            MENU_TYPES.register("relay", () -> IForgeMenuType.create(
+    public static final DeferredHolder<MenuType<?>, MenuType<Relay>> RELAY =
+            MENU_TYPES.register("relay", () -> IMenuTypeExtension.create(
                     (id, plr, buff) -> new Relay(id, plr, new SimpleContainer(4))));
 
-    public static final DeferredHolder<MenuType<Robot>, MenuType<Robot>> ROBOT =
-            MENU_TYPES.register("robot", () -> IForgeMenuType.create((id, plr, buff) -> {
+    public static final DeferredHolder<MenuType<?>, MenuType<Robot>> ROBOT =
+            MENU_TYPES.register("robot", () -> IMenuTypeExtension.create((id, plr, buff) -> {
                 RobotInfo info = RobotInfo$.MODULE$.readRobotInfo(buff);
                 return new Robot(id, plr, new SimpleContainer(100), info);
             }));
 
-    public static final DeferredHolder<MenuType<Server>, MenuType<Server>> SERVER =
-            MENU_TYPES.register("server", () -> IForgeMenuType.create((id, plr, buff) -> {
-                ItemStack containerStack = buff.readItem();
+    public static final DeferredHolder<MenuType<?>, MenuType<Server>> SERVER =
+            MENU_TYPES.register("server", () -> IMenuTypeExtension.create((id, plr, buff) -> {
+                ItemStack containerStack = ItemStack.OPTIONAL_STREAM_CODEC.decode(buff);
                 int invSize = buff.readVarInt();
                 int tier = buff.readVarInt();
                 int rackSlot = buff.readVarInt() - 1;
                 return new Server(id, plr, containerStack, new SimpleContainer(invSize), tier, rackSlot);
             }));
 
-    public static final DeferredHolder<MenuType<Tablet>, MenuType<Tablet>> TABLET =
-            MENU_TYPES.register("tablet", () -> IForgeMenuType.create((id, plr, buff) -> {
-                ItemStack containerStack = buff.readItem();
+    public static final DeferredHolder<MenuType<?>, MenuType<Tablet>> TABLET =
+            MENU_TYPES.register("tablet", () -> IMenuTypeExtension.create((id, plr, buff) -> {
+                ItemStack containerStack = ItemStack.OPTIONAL_STREAM_CODEC.decode(buff);
                 int invSize = buff.readVarInt();
                 String slot1 = buff.readUtf(32);
                 int tier1 = buff.readVarInt();
@@ -101,83 +100,83 @@ public final class MenuTypes {
             }));
 
     public static void openAdapterGui(ServerPlayer player, li.cil.oc.common.blockentity.Adapter adapter) {
-        NetworkHooks.openScreen(player, adapter);
+        player.openMenu(adapter);
     }
 
     public static void openAssemblerGui(ServerPlayer player, li.cil.oc.common.blockentity.Assembler assembler) {
-        NetworkHooks.openScreen(player, assembler);
+        player.openMenu(assembler);
     }
 
     public static void openCaseGui(ServerPlayer player, li.cil.oc.common.blockentity.Case computer) {
-        NetworkHooks.openScreen(player, computer, buff -> {
+        player.openMenu(computer, buff -> {
             buff.writeVarInt(computer.getContainerSize());
             buff.writeVarInt(computer.tier());
         });
     }
 
     public static void openChargerGui(ServerPlayer player, li.cil.oc.common.blockentity.Charger charger) {
-        NetworkHooks.openScreen(player, charger);
+        player.openMenu(charger);
     }
 
     public static void openDatabaseGui(ServerPlayer player, li.cil.oc.common.container.DatabaseInventory database) {
-        NetworkHooks.openScreen(player, database, buff -> {
-            buff.writeItem(database.container());
+        player.openMenu(database, buff -> {
+            ItemStack.OPTIONAL_STREAM_CODEC.encode(buff, database.container());
             buff.writeVarInt(database.getContainerSize());
             buff.writeVarInt(database.tier());
         });
     }
 
     public static void openDisassemblerGui(ServerPlayer player, li.cil.oc.common.blockentity.Disassembler disassembler) {
-        NetworkHooks.openScreen(player, disassembler);
+        player.openMenu(disassembler);
     }
 
     public static void openDiskDriveGui(ServerPlayer player, li.cil.oc.common.blockentity.DiskDrive diskDrive) {
-        NetworkHooks.openScreen(player, diskDrive);
+        player.openMenu(diskDrive);
     }
 
     public static void openDiskDriveGui(ServerPlayer player, li.cil.oc.server.component.DiskDriveMountable diskDrive) {
-        NetworkHooks.openScreen(player, diskDrive);
+        player.openMenu(diskDrive);
     }
 
     public static void openDiskDriveGui(ServerPlayer player, li.cil.oc.common.container.DiskDriveMountableInventory diskDrive) {
-        NetworkHooks.openScreen(player, diskDrive);
+        player.openMenu(diskDrive);
     }
 
     public static void openHoloScreenGui(ServerPlayer player, li.cil.oc.common.blockentity.HoloScreen screen) {
-        NetworkHooks.openScreen(player, screen);
+        player.openMenu(screen);
     }
 
     public static void openDroneGui(ServerPlayer player, li.cil.oc.common.entity.Drone drone) {
-        NetworkHooks.openScreen(player, drone.containerProvider(), buff -> {
+        player.openMenu(drone.containerProvider(), buff -> {
             buff.writeVarInt(drone.mainInventory().getContainerSize());
         });
     }
 
     public static void openPrinterGui(ServerPlayer player, li.cil.oc.common.blockentity.Printer printer) {
-        NetworkHooks.openScreen(player, printer);
+        player.openMenu(printer);
     }
 
     public static void openRackGui(ServerPlayer player, li.cil.oc.common.blockentity.Rack rack) {
-        NetworkHooks.openScreen(player, rack);
+        player.openMenu(rack);
     }
 
     public static void openRaidGui(ServerPlayer player, li.cil.oc.common.blockentity.Raid raid) {
-        NetworkHooks.openScreen(player, raid);
+        player.openMenu(raid);
     }
 
     public static void openRelayGui(ServerPlayer player, li.cil.oc.common.blockentity.Relay relay) {
-        NetworkHooks.openScreen(player, relay);
+        player.openMenu(relay);
     }
 
     public static void openRobotGui(ServerPlayer player, li.cil.oc.common.blockentity.Robot robot) {
-        NetworkHooks.openScreen(player, robot, buff -> {
+        player.openMenu(robot, buff -> {
             RobotInfo$.MODULE$.writeRobotInfo(buff, new RobotInfo(robot));
         });
     }
 
     public static void openServerGui(ServerPlayer player, li.cil.oc.common.container.ServerInventory server, int rackSlot) {
-        NetworkHooks.openScreen(player, server, buff -> {
-            buff.writeItem(server.container());
+        player.openMenu(server, buff -> {
+            ItemStack.OPTIONAL_STREAM_CODEC.encode(buff, server.container());
             buff.writeVarInt(server.getContainerSize());
             buff.writeVarInt(server.tier());
             buff.writeVarInt(rackSlot + 1);
@@ -185,8 +184,8 @@ public final class MenuTypes {
     }
 
     public static void openTabletGui(ServerPlayer player, li.cil.oc.common.item.TabletWrapper tablet) {
-        NetworkHooks.openScreen(player, tablet, buff -> {
-            buff.writeItem(tablet.stack());
+        player.openMenu(tablet, buff -> {
+            ItemStack.OPTIONAL_STREAM_CODEC.encode(buff, tablet.stack());
             buff.writeVarInt(tablet.getContainerSize());
             buff.writeUtf(tablet.containerSlotType(), 32);
             buff.writeVarInt(tablet.containerSlotTier());

@@ -376,9 +376,9 @@ object Items extends ItemAPI {
         ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, oldPath),
         ResourceLocation.fromNamespaceAndPath(OpenComputers.ID, newId))
 
-    alias("dataCard", Constants.ItemName.DataCardTier1)
-    alias("serverRack", Constants.BlockName.Rack)
-    alias("wlanCard", Constants.ItemName.WirelessNetworkCardTier2)
+    alias("datacard", Constants.ItemName.DataCardTier1)
+    alias("serverrack", Constants.BlockName.Rack)
+    alias("wlancard", Constants.ItemName.WirelessNetworkCardTier2)
 
     ITEMS.register(bus)
   }
@@ -587,10 +587,26 @@ object Items extends ItemAPI {
     import Constants.{BlockName => B, ItemName => I}
     val excluded = Set(B.Microcontroller, B.Print, B.Robot)
 
+    // 同一个 ItemStack 只能往标签页里放一次：`aliases`（`datacard` / `wlancard` 这类旧名）
+    // 指向的是同一个 ItemInfo，直接遍历 descriptors 会让同一物品进两次，而 NeoForge 1.21.1
+    // 的 `BuildCreativeModeTabContentsEvent#accept` 遇到重复条目会直接抛
+    // `IllegalArgumentException: Itemstack ... already exists in the tab's list`。
+    val seen = new java.util.HashSet[ItemStack]()
+
+    // 事件里的 parentEntries / searchEntries 是标签页**当前**的条目集合，必须一并查询：
+    // NeoForge 只在「该 stack 不在集合里」时才允许加入，而标签页会被反复重建
+    // （打开创造背包、权限变化、资源重载都会重建），只靠本地 seen 去重挡不住第二轮。
+    def acceptStack(stack: ItemStack): Unit =
+      if (!stack.isEmpty
+        && !event.getParentEntries.contains(stack)
+        && !event.getSearchEntries.contains(stack)
+        && seen.add(stack)) {
+        event.accept(stack)
+      }
+
     def accept(id: String, info: ItemInfo): Unit = {
       if (id != B.PowerConverter || !Settings.get.ignorePower) {
-        val stack = info.createItemStack(1)
-        if (!stack.isEmpty) event.accept(stack)
+        acceptStack(info.createItemStack(1))
       }
     }
 
@@ -602,16 +618,16 @@ object Items extends ItemAPI {
     for ((id, info) <- descriptors if info.block == null && !excluded.contains(id) && id != I.RedstoneCardTier2)
       accept(id, info)
 
-    event.accept(Items.createConfiguredDrone())
-    event.accept(Items.createConfiguredMicrocontroller())
-    event.accept(Items.createConfiguredRobot())
-    event.accept(Items.createConfiguredTablet())
-    Loot.disksForClient.foreach(event.accept)
-    registeredItems.foreach(event.accept)
+    acceptStack(Items.createConfiguredDrone())
+    acceptStack(Items.createConfiguredMicrocontroller())
+    acceptStack(Items.createConfiguredRobot())
+    acceptStack(Items.createConfiguredTablet())
+    Loot.disksForClient.foreach(acceptStack)
+    registeredItems.foreach(acceptStack)
 
     if (hasRedstoneCardT2) {
       descriptors.get(Constants.ItemName.RedstoneCardTier2).foreach { info =>
-        event.accept(info.createItemStack(1))
+        acceptStack(info.createItemStack(1))
       }
     }
   }

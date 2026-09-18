@@ -12,7 +12,15 @@ import net.minecraft.nbt.CompoundTag
 trait TextBuffer extends Environment with Tickable {
   lazy val buffer: internal.TextBuffer = {
     val screenItem = api.Items.get(Constants.BlockName.ScreenTier1).createItemStack(1)
-    val buffer = api.Driver.driverFor(screenItem, getClass).createEnvironment(screenItem, this).asInstanceOf[api.internal.TextBuffer]
+    val driver = Option(api.Driver.driverFor(screenItem, getClass))
+      .orElse(Option(api.Driver.driverFor(screenItem)))
+      .getOrElse {
+        li.cil.oc.OpenComputers.log.error(
+          s"[OC-DIAG] 屏幕 driver 查找失败：stack=$screenItem itemInfo=${api.Items.get(screenItem)} " +
+            s"host=${getClass.getName} 已注册 item driver 数=${api.Driver.itemDrivers.size}")
+        throw new IllegalStateException("No item driver found for the screen item.")
+      }
+    val buffer = driver.createEnvironment(screenItem, this).asInstanceOf[api.internal.TextBuffer]
     val (maxWidth, maxHeight) = Settings.screenResolutionsByTier(tier)
     buffer.setMaximumResolution(maxWidth, maxHeight)
     buffer.setMaximumColorDepth(Settings.screenDepthsByTier(tier))

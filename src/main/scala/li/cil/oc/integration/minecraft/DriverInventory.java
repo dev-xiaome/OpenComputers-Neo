@@ -23,6 +23,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.bus.api.Event;
+import net.neoforged.neoforge.common.util.TriState;
 
 public final class DriverInventory extends DriverSidedBlockEntity {
     @Override
@@ -185,7 +186,7 @@ public final class DriverInventory extends DriverSidedBlockEntity {
                 final BlockHitResult trace = new BlockHitResult(fakePlayer.position(), Direction.DOWN, position.toBlockPos(), false);
                 final PlayerInteractEvent.RightClickBlock event = new PlayerInteractEvent.RightClickBlock(fakePlayer, InteractionHand.MAIN_HAND, position.toBlockPos(), trace);
                 NeoForge.EVENT_BUS.post(event);
-                return !event.isCanceled() && event.getUseBlock() != Event.Result.DENY && !blockEntity.stillValid(fakePlayer);
+                return !event.isCanceled() && event.getUseBlock() != TriState.FALSE && !blockEntity.stillValid(fakePlayer);
             }
         }
     }

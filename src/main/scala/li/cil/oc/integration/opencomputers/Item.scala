@@ -27,7 +27,19 @@ trait Item extends DriverItem {
 
   override def dataTag(stack: ItemStack): CompoundTag = Item.dataTag(stack)
 
-  protected def isOneOf(stack: ItemStack, items: api.detail.ItemInfo*): Boolean = items.filter(_ != null).contains(api.Items.get(stack))
+  /// 1.21.1：`api.Items.get(stack)` 是**反查**（ItemStack → ItemInfo）。方块物品一旦反查失败，
+  /// 所有 `worksWith(stack)` 都会变成 false，driver 查找随之返回 null —— 屏幕上表现为
+  /// `Driver.driverFor(...)` 返回 null 的 NPE。这里补一条正向比较兜底。
+  protected def isOneOf(stack: ItemStack, items: api.detail.ItemInfo*): Boolean = {
+    val targets = items.filter(_ != null)
+    if (targets.isEmpty) return false
+    val own = api.Items.get(stack)
+    if (own != null && targets.contains(own)) true
+    else targets.exists { info =>
+      val candidate = info.createItemStack(1)
+      !candidate.isEmpty && ItemStack.isSameItem(candidate, stack)
+    }
+  }
 
   protected def isAdapter(host: Class[_ <: EnvironmentHost]): Boolean = classOf[internal.Adapter].isAssignableFrom(host)
 

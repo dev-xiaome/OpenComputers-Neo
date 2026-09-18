@@ -213,7 +213,7 @@ object Audio {
   }
 
   @SubscribeEvent
-  def onTick(e: ClientTickEvent): Unit = {
+  def onTick(e: ClientTickEvent.Post): Unit = {
     update()
   }
 }

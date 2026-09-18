@@ -75,7 +75,7 @@ object Sound {
   }
 
   @SubscribeEvent
-  def onTick(e: ClientTickEvent): Unit = {
+  def onTick(e: ClientTickEvent.Post): Unit = {
     sources.synchronized {
       updateCallable.foreach(_ ())
       updateCallable = None

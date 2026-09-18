@@ -32,7 +32,8 @@ import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent
 
 private[oc] class Proxy extends CommonProxy {
-  modBus.register(this)
+  // 本实例由 `OpenComputers` 主类统一注册到 mod 事件总线（那里同时覆盖专用服务端的
+  // `common.Proxy`），这里不再重复 `modBus.register(this)`，否则监听器会被调用两次。
   modBus.register(classOf[GuiTypes])
   modBus.register(ModelInitialization)
   modBus.register(NetSplitterModel)

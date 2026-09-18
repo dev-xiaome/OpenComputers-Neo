@@ -25,7 +25,13 @@ object CreativeTab {
     if (event.getTabKey == MAIN.getKey) {
       Items.decorateCreativeTab(event, ModOpenComputers.hasRedstoneCardT2)
     } else if (event.getTabKey == CreativeModeTabs.TOOLS_AND_UTILITIES) {
-      event.accept(Items.createChargedHoverBoots())
+      // 同 decorateCreativeTab：标签页会反复重建，NeoForge 的 accept 命中已存在条目会直接抛异常。
+      val hoverBoots = Items.createChargedHoverBoots()
+      if (!hoverBoots.isEmpty
+        && !event.getParentEntries.contains(hoverBoots)
+        && !event.getSearchEntries.contains(hoverBoots)) {
+        event.accept(hoverBoots)
+      }
     }
   }
 }

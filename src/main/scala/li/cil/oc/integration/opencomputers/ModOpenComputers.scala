@@ -107,8 +107,8 @@ object ModOpenComputers extends ModProxy {
     NeoForge.EVENT_BUS.register(Waypoints)
     NeoForge.EVENT_BUS.register(WirelessNetwork)
     NeoForge.EVENT_BUS.register(WirelessNetworkCardHandler)
-    NeoForge.EVENT_BUS.register(li.cil.oc.client.ComponentTracker)
-    NeoForge.EVENT_BUS.register(li.cil.oc.server.ComponentTracker)
+    li.cil.oc.client.ComponentTracker.registerOn(NeoForge.EVENT_BUS)
+    li.cil.oc.server.ComponentTracker.registerOn(NeoForge.EVENT_BUS)
 
     api.Driver.add(ConverterNanomachines)
     api.Driver.add(ConverterLinkedCard)

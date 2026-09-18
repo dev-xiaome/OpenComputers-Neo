@@ -62,5 +62,5 @@ object TextBufferRenderCache {
   // ----------------------------------------------------------------------- //
 
   @SubscribeEvent
-  def onTick(e: ClientTickEvent) = cache.cleanUp()
+  def onTick(e: ClientTickEvent.Post) = cache.cleanUp()
 }

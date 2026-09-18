@@ -36,6 +36,12 @@ class Proxy {
   // 所以这里做个幂等保护。
   private var payloadsRegistered = false
 
+  // NeoForge 的事件总线**不允许**被注册对象的父类带 `@SubscribeEvent` 方法
+  // （`common.Proxy` 正是 `client.Proxy` 的父类，子类类体里的 `modBus.register(this)`
+  // 会直接抛 IllegalArgumentException），所以这两个监听器改为在构造期显式注册。
+  modBus.addListener((event: RegisterPayloadHandlersEvent) => registerPacket(event))
+  modBus.addListener((event: FMLLoadCompleteEvent) => postInit(event))
+
   def preInit(): Unit = {
     OpenComputers.log.info("Initializing OpenComputers API.")
 
@@ -105,10 +111,8 @@ class Proxy {
     registrar.playBidirectional[PacketPayload](PacketPayload.TYPE, PacketPayload.STREAM_CODEC, handler)
   }
 
-  @SubscribeEvent
   def onRegisterPayloads(event: RegisterPayloadHandlersEvent): Unit = registerPacket(event)
 
-  @SubscribeEvent
   def postInit(e: FMLLoadCompleteEvent): Unit = {
     // Don't allow driver registration after this point, to avoid issues.
     driver.Registry.locked = true

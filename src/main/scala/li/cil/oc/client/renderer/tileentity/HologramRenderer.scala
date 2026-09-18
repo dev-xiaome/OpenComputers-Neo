@@ -32,7 +32,7 @@ object HologramRenderer extends BlockEntityRendererProvider[Hologram] {
     .build[Hologram, VertexBuffer]()
 
   @SubscribeEvent
-  def onClientTick(e: net.neoforged.neoforge.client.event.ClientTickEvent): Unit = cache.cleanUp()
+  def onClientTick(e: net.neoforged.neoforge.client.event.ClientTickEvent.Post): Unit = cache.cleanUp()
 }
 
 class HologramRenderer extends BlockEntityRenderer[Hologram] {

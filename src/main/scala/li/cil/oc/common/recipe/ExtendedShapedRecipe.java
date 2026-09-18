@@ -1,33 +1,37 @@
 package li.cil.oc.common.recipe;
 
-import com.google.gson.JsonObject;
+import com.mojang.serialization.MapCodec;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.core.NonNullList;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.inventory.CraftingContainer;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.*;
 import net.minecraft.world.level.Level;
-import net.neoforged.neoforge.common.crafting.IShapedRecipe;
 import org.jetbrains.annotations.NotNull;
 
-public class ExtendedShapedRecipe implements CraftingRecipe, IShapedRecipe<CraftingContainer> {
-    private ShapedRecipe wrapped;
+/// 1.21.1 适配要点：
+/// - 合成输入由 `CraftingContainer` 换成 `CraftingInput`（容器接口是 `size()`，不再是 `getContainerSize()`）；
+/// - 反序列化上下文由 `RegistryAccess` 换成 `HolderLookup.Provider`；
+/// - `RecipeSerializer` 变成 codec + streamCodec（`fromJson`/`fromNetwork`/`toNetwork` 已移除）；
+/// - NeoForge 的 `IShapedRecipe` 接口被移除，宽高直接由 `ShapedRecipe#getWidth/getHeight` 提供；
+/// - `Recipe#getId` 被移除（配方 id 由数据包与注册表决定）。
+public class ExtendedShapedRecipe implements CraftingRecipe {
+    private final ShapedRecipe wrapped;
 
     public ExtendedShapedRecipe(ShapedRecipe wrapped) {
         this.wrapped = ExtendedRecipe.patchRecipe(wrapped);
     }
 
     @Override
-    public boolean matches(@NotNull CraftingContainer inv, @NotNull Level level) {
+    public boolean matches(@NotNull CraftingInput inv, @NotNull Level level) {
         return wrapped.matches(inv, level);
     }
 
     @Override
     @NotNull
-    public ItemStack assemble(@NotNull CraftingContainer inv, @NotNull RegistryAccess registryAccess) {
-        return ExtendedRecipe.addNBTToResult(this, wrapped.assemble(inv, registryAccess), inv);
+    public ItemStack assemble(@NotNull CraftingInput inv, @NotNull HolderLookup.Provider registries) {
+        return ExtendedRecipe.addNBTToResult(this, wrapped.assemble(inv, registries), inv);
     }
 
     @Override
@@ -36,23 +40,18 @@ public class ExtendedShapedRecipe implements CraftingRecipe, IShapedRecipe<Craft
     }
 
     @Override
-    public ItemStack getResultItem(@NotNull RegistryAccess registryAccess) {
-        return wrapped.getResultItem(registryAccess);
+    public ItemStack getResultItem(@NotNull HolderLookup.Provider registries) {
+        return wrapped.getResultItem(registries);
     }
 
     @Override
-    public NonNullList<ItemStack> getRemainingItems(CraftingContainer inv) {
+    public NonNullList<ItemStack> getRemainingItems(CraftingInput inv) {
         return wrapped.getRemainingItems(inv);
     }
 
     @Override
     public NonNullList<Ingredient> getIngredients() {
         return wrapped.getIngredients();
-    }
-
-    @Override
-    public ResourceLocation getId() {
-        return wrapped.getId();
     }
 
     @Override
@@ -78,35 +77,29 @@ public class ExtendedShapedRecipe implements CraftingRecipe, IShapedRecipe<Craft
         return wrapped.getGroup();
     }
 
-    @Override
     public int getRecipeWidth() {
-        return wrapped.getRecipeWidth();
+        return wrapped.getWidth();
     }
 
-    @Override
     public int getRecipeHeight() {
-        return wrapped.getRecipeHeight();
+        return wrapped.getHeight();
     }
 
     public static final class Serializer implements RecipeSerializer<ExtendedShapedRecipe> {
+        public static final MapCodec<ExtendedShapedRecipe> CODEC =
+                RecipeSerializer.SHAPED_RECIPE.codec().xmap(ExtendedShapedRecipe::new, recipe -> recipe.wrapped);
+
+        public static final StreamCodec<RegistryFriendlyByteBuf, ExtendedShapedRecipe> STREAM_CODEC =
+                RecipeSerializer.SHAPED_RECIPE.streamCodec().map(ExtendedShapedRecipe::new, recipe -> recipe.wrapped);
 
         @Override
-        public ExtendedShapedRecipe fromJson(ResourceLocation recipeId, JsonObject json) {
-            ShapedRecipe wrapped = RecipeSerializer.SHAPED_RECIPE.fromJson(recipeId, json);
-            return new ExtendedShapedRecipe(wrapped);
+        public MapCodec<ExtendedShapedRecipe> codec() {
+            return CODEC;
         }
 
         @Override
-        public ExtendedShapedRecipe fromNetwork(ResourceLocation recipeId, FriendlyByteBuf buff) {
-            ShapedRecipe wrapped = RecipeSerializer.SHAPED_RECIPE.fromNetwork(recipeId, buff);
-            return new ExtendedShapedRecipe(wrapped);
-        }
-
-        @Override
-        public void toNetwork(FriendlyByteBuf buff, ExtendedShapedRecipe recipe) {
-            RecipeSerializer<ShapedRecipe> serializer =
-                (RecipeSerializer<ShapedRecipe>) recipe.wrapped.getSerializer();
-            serializer.toNetwork(buff, recipe.wrapped);
+        public StreamCodec<RegistryFriendlyByteBuf, ExtendedShapedRecipe> streamCodec() {
+            return STREAM_CODEC;
         }
     }
 }

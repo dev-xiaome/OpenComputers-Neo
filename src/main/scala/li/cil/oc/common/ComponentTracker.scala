@@ -47,7 +47,13 @@ abstract class ComponentTracker {
     Option(components(level).getIfPresent(address))
   }
 
-  @SubscribeEvent
+  /// NeoForge 不允许「被注册对象的**父类**带 `@SubscribeEvent` 方法」——
+  /// `client.ComponentTracker` / `server.ComponentTracker` 都是本类的子类，直接注册会抛
+  /// `IllegalArgumentException` 并让整个集成初始化中断（一个 driver 都注册不上）。
+  /// 因此这里去掉注解，改由子类通过本方法显式注册监听器。
+  def registerOn(bus: net.neoforged.bus.api.IEventBus): Unit =
+    bus.addListener((e: LevelEvent.Unload) => onWorldUnload(e))
+
   def onWorldUnload(e: LevelEvent.Unload): Unit = e.getLevel match {
     case level: Level => clear(level)
     case _ =>

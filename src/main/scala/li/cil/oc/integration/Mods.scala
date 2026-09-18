@@ -115,7 +115,11 @@ object Mods {
     final val JustEnoughItems = "jei"
     final val Mekanism = "mekanism"
     final val Minecraft = "minecraft"
-    final val OpenComputers = "opencomputers"
+    // 本移植的 mod id 是 `opencomputers_neo`（上游是 `opencomputers`），必须与 `OpenComputers.ID`
+    // 一致：`Mods.tryInit` 拿这个 id 去判断集成是否可用，写错就会跳过
+    // `ModOpenComputers.initialize()` —— 后果是**一个 driver 都注册不上**，
+    // 屏幕 / 键盘 / 机器人等一切依赖 driver 的东西在运行期全部 NPE。
+    final val OpenComputers = li.cil.oc.OpenComputers.ID
     final val TIS3D = "tis3d"
     final val ProjectRedTransmission = "projectred-transmission"
     final val DraconicEvolution = "draconicevolution"

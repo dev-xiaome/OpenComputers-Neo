@@ -4,6 +4,7 @@ import java.io.{BufferedReader, InputStreamReader}
 import java.nio.charset.StandardCharsets
 import scala.collection.mutable.BitSet
 import li.cil.oc.OpenComputers
+import li.cil.oc.Settings
 
 import scala.collection.mutable
 
@@ -233,7 +234,7 @@ object FontUtils {
     try {
       OpenComputers.log.info("Initializing font glyph width overrides...")
       val time = System.currentTimeMillis()
-      val font = FontUtils.getClass.getResourceAsStream("/assets/opencomputers/font.hex")
+      val font = FontUtils.getClass.getResourceAsStream(s"/assets/${Settings.resourceDomain}/font.hex")
       try {
         var line: String = null
         val input = new BufferedReader(new InputStreamReader(font, StandardCharsets.UTF_8))

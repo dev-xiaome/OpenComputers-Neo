@@ -1,7 +1,9 @@
 package li.cil.oc.server.loot;
 
-import com.google.gson.JsonDeserializationContext;
-import com.google.gson.JsonObject;
+import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+
+import java.util.List;
 import li.cil.oc.api.internal.Colored;
 import li.cil.oc.util.ItemColorizer;
 import net.minecraft.world.item.ItemStack;
@@ -11,15 +13,18 @@ import net.minecraft.world.level.storage.loot.functions.LootItemConditionalFunct
 import net.minecraft.world.level.storage.loot.functions.LootItemFunctionType;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
-import org.jetbrains.annotations.NotNull;
 
+/// 见 [SetColor]：1.21.1 的 loot function 改用 codec 序列化。
 public final class CopyColor extends LootItemConditionalFunction {
-    private CopyColor(LootItemCondition[] conditions) {
+    public static final MapCodec<CopyColor> CODEC = RecordCodecBuilder.mapCodec(inst ->
+            commonFields(inst).apply(inst, CopyColor::new));
+
+    private CopyColor(List<LootItemCondition> conditions) {
         super(conditions);
     }
 
     @Override
-    public LootItemFunctionType getType() {
+    public LootItemFunctionType<CopyColor> getType() {
         return LootFunctions.COPY_COLOR.get();
     }
 
@@ -28,7 +33,7 @@ public final class CopyColor extends LootItemConditionalFunction {
     }
 
     @Override
-    public @NotNull ItemStack run(ItemStack stack, @NotNull LootContext ctx) {
+    protected ItemStack run(ItemStack stack, LootContext ctx) {
         if (stack.isEmpty()) return stack;
 
         BlockEntity be = ctx.getParamOrNull(LootContextParams.BLOCK_ENTITY);
@@ -39,12 +44,5 @@ public final class CopyColor extends LootItemConditionalFunction {
             ItemColorizer.removeColor(stack);
         }
         return stack;
-    }
-
-    public static class Serializer extends LootItemConditionalFunction.Serializer<CopyColor> {
-        @Override
-        public CopyColor deserialize(JsonObject src, JsonDeserializationContext ctx, LootItemCondition[] conditions) {
-            return new CopyColor(conditions);
-        }
     }
 }

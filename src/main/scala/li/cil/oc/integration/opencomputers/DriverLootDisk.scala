@@ -24,7 +24,11 @@ object DriverLootDisk extends Item {
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) =
     if (!host.getEnvironmentLevel.isClientSide && stack.hasTag && ServerLifecycleHooks.getCurrentServer != null) {
-      val lootPath = Settings.savePath + "loot/" + stack.getTag.getString(Settings.namespace + "lootPath")
+      val lootName = stack.getTag.getString(Settings.namespace + "lootPath")
+      // 存档路径带 `opencomputers/` 前缀，**资源路径不能带** —— 否则会去找
+      // `assets/<ns>/opencomputers/loot/<name>`，那里永远不存在，软盘的文件系统就成了空的，
+      // BIOS 自然会报「找不到 /init.lua」。
+      val lootPath = Settings.savePath + "loot/" + lootName
       val savePath = ServerLifecycleHooks.getCurrentServer.getWorldPath(new LevelResource(lootPath)).toFile
       val fs =
         if (savePath.exists && savePath.isDirectory) {
@@ -32,7 +36,7 @@ object DriverLootDisk extends Item {
         }
         else {
           // 1.21.1 的 ResourceLocation 构造函数已私有化，改用静态工厂。
-          api.FileSystem.fromResource(ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, lootPath))
+          api.FileSystem.fromResource(ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "loot/" + lootName))
         }
       val label =
         if (dataTag(stack).contains(Settings.namespace + "fs.label")) {

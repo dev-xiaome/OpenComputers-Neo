@@ -29,6 +29,7 @@ if (Test-Path $manifest) {
 }
 $jars.Add((Join-Path $Project 'build\moddev\artifacts\neoforge-21.1.244-merged.jar'))
 $jars.Add((Join-Path $Project 'build\classes\java\main'))
+$jars.Add((Join-Path $Project 'build\classes\scala\main'))
 $cache = Join-Path $env:USERPROFILE '.gradle\caches\modules-2\files-2.1'
 Get-ChildItem $cache -Recurse -File -Filter '*.jar' -ErrorAction SilentlyContinue |
     Where-Object { $_.FullName -match 'scala-library-2\.13|config-1\.4\.3' } |
@@ -46,7 +47,7 @@ $logPath = if ($Log -ne '') { $Log } else { Join-Path $env:TEMP 'oc-javac-check.
 Remove-Item $logPath -Force -ErrorAction SilentlyContinue
 
 $javacArgs = @('-J-Duser.language=en', '-J-Duser.country=US', '-J-Dfile.encoding=UTF-8',
-    '-encoding', 'UTF-8', '-nowarn', '-proc:none', '-d', $out, '-cp', $cp) + $files
+    '-encoding', 'UTF-8', '-Xmaxerrs', '5000', '-nowarn', '-proc:none', '-d', $out, '-cp', $cp) + $files
 & javac @javacArgs 2>&1 | ForEach-Object { $_.ToString() } | Add-Content -Path $logPath -Encoding UTF8
 $exit = $LASTEXITCODE
 

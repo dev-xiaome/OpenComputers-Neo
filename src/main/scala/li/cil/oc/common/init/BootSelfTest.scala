@@ -82,6 +82,8 @@ object BootSelfTest {
     val origin = player.blockPosition()
     val fill = java.lang.Boolean.getBoolean(FillComponents)
     var found = 0
+    // 全新世界自检：附近没有机箱时先摆一台（等价 OCCE 的 `/oc_spawnComputer`）。
+    if (fill) spawnComputerIfMissing(level, origin)
     for (dx <- -24 to 24; dy <- -12 to 12; dz <- -24 to 24) {
       val pos = origin.offset(dx, dy, dz)
       level.getBlockEntity(pos) match {
@@ -158,6 +160,42 @@ object BootSelfTest {
         OpenComputers.log.info("[OC-DIAG] 已强制存盘一次。")
       }
     }
+  }
+
+  /**
+   * 全新世界自检：附近没有机箱时，就地摆一台 T3 机箱加一块 T1 屏幕。
+   *
+   * 旧存档（上一版 mod 存的）与新版的方块实体数据并不兼容，直接载入会在 tick 时
+   * 因为 driver / 文本缓冲为空而崩，所以开机链路必须在**全新世界**里验证。
+   */
+  private def spawnComputerIfMissing(level: net.minecraft.world.level.Level, origin: BlockPos): Unit = {
+    var hasComputer = false
+    for (dx <- -16 to 16; dy <- -8 to 8; dz <- -16 to 16 if !hasComputer) {
+      level.getBlockEntity(origin.offset(dx, dy, dz)) match {
+        case _: li.cil.oc.common.blockentity.traits.Computer => hasComputer = true
+        case _ =>
+      }
+    }
+    if (hasComputer) return
+
+    def blockOrNull(name: String): net.minecraft.world.level.block.Block = {
+      val block = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(
+        net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(li.cil.oc.Settings.resourceDomain, name))
+      if (block == null || block == net.minecraft.world.level.block.Blocks.AIR) {
+        OpenComputers.log.warn(s"[OC-DIAG] autoboot: 找不到方块 $name")
+        null
+      } else block
+    }
+
+    val caseBlock = blockOrNull(li.cil.oc.Constants.BlockName.CaseTier3)
+    val screenBlock = blockOrNull(li.cil.oc.Constants.BlockName.ScreenTier1)
+    if (caseBlock == null || screenBlock == null) return
+
+    val casePos = origin.offset(1, 0, 0)
+    val screenPos = origin.offset(2, 0, 0)
+    level.setBlockAndUpdate(casePos, caseBlock.defaultBlockState())
+    level.setBlockAndUpdate(screenPos, screenBlock.defaultBlockState())
+    OpenComputers.log.info(s"[OC-DIAG] autoboot: 已在 $casePos 放置机箱、$screenPos 放置屏幕。")
   }
 
   /** 往机箱里塞一整套能开机的组件（清单抄自 OCCE 的 `/oc_spawnComputer`，另加一张显卡）。 */

@@ -11,7 +11,7 @@ public final class EntityTypes {
     public static final DeferredRegister<EntityType<?>> ENTITY_TYPES =
             DeferredRegister.create(BuiltInRegistries.ENTITY_TYPE, OpenComputers.ID());
 
-    public static final DeferredHolder<EntityType<Drone>, EntityType<Drone>> DRONE =
+    public static final DeferredHolder<EntityType<?>, EntityType<Drone>> DRONE =
             ENTITY_TYPES.register("drone", () -> EntityType.Builder.of(Drone::new, MobCategory.MISC)
                     .sized(12 / 16f, 6 / 16f).fireImmune().build("drone"));
 

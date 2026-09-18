@@ -43,6 +43,12 @@ object ModelInitialization {
   private def loc(name: String, variant: String) =
     new ModelResourceLocation(ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, name), variant)
 
+  /// `ModelEvent.RegisterAdditional` 只接受 `standalone` 变体：NeoForge 1.21.1 会以
+  /// `IllegalArgumentException: Side-loaded models must use the 'standalone' variant` 直接
+  /// 打断 mod 加载，所以侧载模型必须走这个工厂方法（路径就是 `models/` 下的相对路径）。
+  private def standaloneLoc(name: String) =
+    ModelResourceLocation.standalone(ResourceLocation.fromNamespaceAndPath(Settings.resourceDomain, "item/" + name))
+
   private case class DynamicItemModel(
                                        getLocation:    ItemStack => ModelResourceLocation,
                                        bakeAdditional: ModelEvent.RegisterAdditional => Unit
@@ -73,20 +79,19 @@ object ModelInitialization {
   // ── Dynamic item models ────────────────────────────────────────────────────
 
   private def registerDroneModel(): Unit = {
-    val location = loc(Constants.ItemName.Drone, "inventory")
+    val location = standaloneLoc(Constants.ItemName.Drone)
     withItem(Constants.ItemName.Drone) { item =>
       dynamicItems += item -> DynamicItemModel(_ => location, _.register(location))
     }
   }
 
   private def registerTabletModel(): Unit = {
-    def tabletLoc(running: Option[Boolean]) = loc(
+    def tabletLoc(running: Option[Boolean]) = standaloneLoc(
       Constants.ItemName.Tablet + (running match {
         case Some(true)  => "_on"
         case Some(false) => "_off"
         case _           => ""
-      }),
-      "inventory"
+      })
     )
 
     withItem(Constants.ItemName.Tablet) { item =>
@@ -102,7 +107,7 @@ object ModelInitialization {
 
   private def registerTerminalModel(): Unit = {
     def termLoc(hasServer: Boolean) =
-      loc(Constants.ItemName.Terminal + (if (hasServer) "_on" else "_off"), "inventory")
+      standaloneLoc(Constants.ItemName.Terminal + (if (hasServer) "_on" else "_off"))
 
     withItem(Constants.ItemName.Terminal) { item =>
       dynamicItems += item -> DynamicItemModel(
