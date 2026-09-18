@@ -2,14 +2,15 @@ package li.cil.oc.server
 
 import java.io.InputStream
 import li.cil.oc.Localization
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
+import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.internal.Server
 import li.cil.oc.api.machine.Machine
 import li.cil.oc.api.network.Connector
-import li.cil.oc.common.Achievement
+import li.cil.oc.common.Advancement
 import li.cil.oc.common.PacketType
-import li.cil.oc.common.component.TextBuffer
+import li.cil.oc.common.component.{RemoteTerminalHost, TextBuffer}
 import li.cil.oc.common.menu
 import li.cil.oc.common.entity.Drone
 import li.cil.oc.common.entity.DroneInventory
@@ -18,26 +19,38 @@ import li.cil.oc.common.item.data.DriveData
 import li.cil.oc.common.item.traits.FileSystemLike
 import li.cil.oc.common.blockentity._
 import li.cil.oc.common.blockentity.traits.Computer
+import li.cil.oc.common.datacomponents.CompoundStorage
 import li.cil.oc.common.{PacketHandler => CommonPacketHandler}
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.Util
-import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.neoforge.server.ServerLifecycleHooks
 import org.apache.logging.log4j.MarkerManager
 import net.minecraft.world.entity.player.Player
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.resources.ResourceKey
 import net.minecraft.world.level.Level
 import net.minecraft.world.InteractionHand
-import net.minecraft.nbt.CompoundTag
+import net.minecraft.nbt.{CompoundTag, NbtOps}
 import net.minecraft.core.Registry
 import net.minecraft.core.registries.Registries
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 
 object PacketHandler extends CommonPacketHandler {
   private val securityMarker = MarkerManager.getMarker("SuspiciousPackets")
 
   private def logForgedPacket(player: ServerPlayer) =
-    OpenComputers.log.warn(securityMarker, "Player {} tried to send GUI packets without opening them", player.getGameProfile)
+    OpenComputersNeo.log.warn(securityMarker, "Player {} tried to send GUI packets without opening them", player.getGameProfile)
+
+  private def canInteractWith(buffer: api.internal.TextBuffer, player: Player): Boolean = buffer match {
+    case textBuffer: TextBuffer => textBuffer.host match {
+      case screen: Screen => screen.screens.exists(part =>
+        // A Create contraption keeps the fake Screen at its local block position,
+        // but EnvironmentHost exposes the real moving position for interaction.
+        player.distanceToSqr(part.xPosition, part.yPosition, part.zPosition) <= 64)
+      case remote: RemoteTerminalHost => remote.isBufferUsable(buffer, player)
+      case _ => true
+    }
+    case _ => false
+  }
 
   override protected def world(player: Player, dimension: ResourceLocation): Option[Level] =
     Option(ServerLifecycleHooks.getCurrentServer.getLevel(ResourceKey.create(Registries.DIMENSION, dimension)))
@@ -63,23 +76,10 @@ object PacketHandler extends CommonPacketHandler {
       case PacketType.RobotAssemblerStart => onRobotAssemblerStart(p)
       case PacketType.RobotStateRequest => onRobotStateRequest(p)
       case PacketType.ServerPower => onServerPower(p)
+      case PacketType.TabletCursorTick => onTabletCursorTick(p)
       case PacketType.TextBufferInit => onTextBufferInit(p)
       case PacketType.WaypointLabel => onWaypointLabel(p)
-      case PacketType.HoloScreenResize => onHoloScreenResize(p)
       case _ => // Invalid packet.
-    }
-  }
-
-  def onHoloScreenResize(p: PacketParser): Unit = {
-    val screen = p.readBlockEntity[HoloScreen]()
-    val side = p.readDirection()
-    (screen, side, p.player) match {
-      case (Some(holo), Some(resizeSide), player: ServerPlayer)
-        if player.distanceToSqr(holo.x + 0.5, holo.y + 0.5, holo.z + 0.5) <= 64 =>
-        if (holo.resize(resizeSide)) {
-          holo.getLevel.sendBlockUpdated(holo.getBlockPos, holo.getBlockState, holo.getBlockState, 3)
-        }
-      case _ =>
     }
   }
 
@@ -100,6 +100,14 @@ object PacketHandler extends CommonPacketHandler {
             case _ => logForgedPacket(player)
           }
         }
+        case tablet: menu.Tablet if tablet.containerId == containerId =>
+          tablet.otherInventory match {
+            case wrapper: TabletWrapper =>
+              trySetComputerPower(wrapper.machine, setPower, player)
+              wrapper.syncRunningState()
+              player.containerMenu.broadcastChanges()
+            case _ => logForgedPacket(player)
+          }
         case _ => logForgedPacket(player)
       }
       case _ =>
@@ -214,7 +222,7 @@ object PacketHandler extends CommonPacketHandler {
     val key = p.readChar()
     val code = p.readInt()
     ComponentTracker.get(p.player.level, address) match {
-      case Some(buffer: api.internal.TextBuffer) => buffer.keyDown(key, code, p.player.asInstanceOf[Player])
+      case Some(buffer: api.internal.TextBuffer) if canInteractWith(buffer, p.player) => buffer.keyDown(key, code, p.player)
       case _ => // Invalid Packet
     }
   }
@@ -224,7 +232,7 @@ object PacketHandler extends CommonPacketHandler {
     val key = p.readChar()
     val code = p.readInt()
     ComponentTracker.get(p.player.level, address) match {
-      case Some(buffer: api.internal.TextBuffer) => buffer.keyUp(key, code, p.player.asInstanceOf[Player])
+      case Some(buffer: api.internal.TextBuffer) if canInteractWith(buffer, p.player) => buffer.keyUp(key, code, p.player)
       case _ => // Invalid Packet
     }
   }
@@ -234,7 +242,7 @@ object PacketHandler extends CommonPacketHandler {
     val codePt = p.readInt()
     if (codePt >= 0 && codePt <= Character.MAX_CODE_POINT) {
       ComponentTracker.get(p.player.level, address) match {
-        case Some(buffer: api.internal.TextBuffer) => buffer.textInput(codePt, p.player.asInstanceOf[Player])
+        case Some(buffer: api.internal.TextBuffer) if canInteractWith(buffer, p.player) => buffer.textInput(codePt, p.player)
         case _ => // Invalid Packet
       }
     }
@@ -243,8 +251,9 @@ object PacketHandler extends CommonPacketHandler {
   def onClipboard(p: PacketParser): Unit = {
     val address = p.readUTF()
     val copy = p.readUTF()
+    if (copy.length > Settings.get.maxClipboardTextLength) return
     ComponentTracker.get(p.player.level, address) match {
-      case Some(buffer: api.internal.TextBuffer) => buffer.clipboard(copy, p.player.asInstanceOf[Player])
+      case Some(buffer: api.internal.TextBuffer) if canInteractWith(buffer, p.player) => buffer.clipboard(copy, p.player)
       case _ => // Invalid Packet
     }
   }
@@ -256,8 +265,8 @@ object PacketHandler extends CommonPacketHandler {
     val dragging = p.readBoolean()
     val button = p.readByte()
     ComponentTracker.get(p.player.level, address) match {
-      case Some(buffer: api.internal.TextBuffer) =>
-        val player = p.player.asInstanceOf[Player]
+      case Some(buffer: api.internal.TextBuffer) if canInteractWith(buffer, p.player) =>
+        val player = p.player
         if (dragging) buffer.mouseDrag(x, y, button, player)
         else buffer.mouseDown(x, y, button, player)
       case _ => // Invalid Packet
@@ -270,8 +279,8 @@ object PacketHandler extends CommonPacketHandler {
     val y = p.readFloat()
     val button = p.readByte()
     ComponentTracker.get(p.player.level, address) match {
-      case Some(buffer: api.internal.TextBuffer) =>
-        val player = p.player.asInstanceOf[Player]
+      case Some(buffer: api.internal.TextBuffer) if canInteractWith(buffer, p.player) =>
+        val player = p.player
         buffer.mouseUp(x, y, button, player)
       case _ => // Invalid Packet
     }
@@ -283,8 +292,8 @@ object PacketHandler extends CommonPacketHandler {
     val y = p.readFloat()
     val button = p.readByte()
     ComponentTracker.get(p.player.level, address) match {
-      case Some(buffer: api.internal.TextBuffer) =>
-        val player = p.player.asInstanceOf[Player]
+      case Some(buffer: api.internal.TextBuffer) if canInteractWith(buffer, p.player) =>
+        val player = p.player
         buffer.mouseScroll(x, y, button, player)
       case _ => // Invalid Packet
     }
@@ -355,7 +364,7 @@ object PacketHandler extends CommonPacketHandler {
             if (te.start(p.player match {
               case player: ServerPlayer => player.isCreative
               case _ => false
-            })) te.output.foreach(stack => Achievement.onAssemble(stack, p.player))
+            })) te.output.foreach(stack => Advancement.onAssemble(stack, p.player))
           case _ =>
         }
       }
@@ -378,23 +387,37 @@ object PacketHandler extends CommonPacketHandler {
     case _ => // ignore
   }
 
+  def onTabletCursorTick(p: PacketParser): Unit = p.player match {
+    case player: ServerPlayer => Tablet.tickCursorHeld(player, p.readUTF())
+    case _ => // Ignore.
+  }
+
   def onTextBufferInit(p: PacketParser): Unit = {
     val address = p.readUTF()
     p.player match {
       case entity: ServerPlayer =>
         ComponentTracker.get(p.player.level, address) match {
           case Some(buffer: TextBuffer) =>
+            buffer.host match {
+              case screen: Screen => screen.ensureServerBufferLoaded()
+              case _ =>
+            }
             if (buffer.host match {
               case screen: Screen if !screen.isOrigin => false
               case _ => true
             }) {
-              val nbt = new CompoundTag()
+              val nbt = new CompoundStorage()
               buffer.data.saveData(nbt)
-              nbt.putInt("maxWidth", buffer.getMaximumWidth)
-              nbt.putInt("maxHeight", buffer.getMaximumHeight)
-              nbt.putInt("viewportWidth", buffer.getViewportWidth)
-              nbt.putInt("viewportHeight", buffer.getViewportHeight)
-              PacketSender.sendTextBufferInit(address, nbt, entity)
+              PacketSender.sendTextBufferInit(
+                address,
+                CompoundStorage.CODEC.encode(nbt, NbtOps.INSTANCE, new CompoundTag()).getOrThrow().asInstanceOf[CompoundTag],
+                buffer.getMaximumWidth,
+                buffer.getMaximumHeight,
+                buffer.getMaximumColorDepth.ordinal,
+                buffer.getViewportWidth,
+                buffer.getViewportHeight,
+                entity
+              )
             }
           case _ => // Invalid packet.
         }

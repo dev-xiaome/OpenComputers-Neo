@@ -1,10 +1,10 @@
 package li.cil.oc.util
 
 import java.io.InputStreamReader
-import java.net.URL
+import java.net.URI
 import com.google.gson.Gson
 import com.google.gson.stream.JsonReader
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import org.apache.maven.artifact.versioning.ComparableVersion
 
@@ -14,7 +14,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
 object UpdateCheck {
-  private val releasesUrl = new URL("https://api.github.com/repos/akki697222/OpenComputers-CE/releases")
+  private val releasesUrl = URI.create("https://api.github.com/repos/CaitlynMainer/OpenComputersNeo/releases").toURL
 
   var info = Future {
     initialize()
@@ -22,9 +22,9 @@ object UpdateCheck {
 
   private def initialize(): Option[Release] = {
     // Keep the version template split up so it's not replaced with the actual version...
-    if (Settings.get.updateCheck && OpenComputers.Version != ("@" + "VERSION" + "@")) {
+    if (Settings.get.updateCheck && OpenComputersNeo.Version != ("@" + "VERSION" + "@")) {
       try {
-        OpenComputers.log.info("Starting OpenComputers version check.")
+        OpenComputersNeo.log.info("Starting OpenComputersNeo version check.")
         val reader = new JsonReader(new InputStreamReader(releasesUrl.openStream()))
         reader.beginArray()
         val candidates = mutable.ArrayBuffer.empty[Release]
@@ -37,7 +37,7 @@ object UpdateCheck {
               val tagNameParts = release.tag_name.split("/", 2)
               if (tagNameParts.length >= 2) {
                 release.tag_name = tagNameParts(1)
-                versionMatch = Objects.equals(OpenComputers.McVersion, tagNameParts(0))
+                versionMatch = Objects.equals(OpenComputersNeo.McVersion, tagNameParts(0))
               }
             }
             if (versionMatch) {
@@ -49,16 +49,16 @@ object UpdateCheck {
         if (candidates.nonEmpty) {
           val latest = candidates.maxBy(release => new ComparableVersion(release.tag_name.stripPrefix("v")))
           val remoteVersion = new ComparableVersion(latest.tag_name.stripPrefix("v"))
-          val localVersion = new ComparableVersion(OpenComputers.Version)
+          val localVersion = new ComparableVersion(OpenComputersNeo.Version)
           if (remoteVersion.compareTo(localVersion) > 0) {
-            OpenComputers.log.info(s"A newer version of OpenComputers is available: ${latest.tag_name}.")
+            OpenComputersNeo.log.info(s"A newer version of OpenComputersNeo is available: ${latest.tag_name}.")
             return Some(latest)
           }
         }
-        OpenComputers.log.info("Running the latest OpenComputers version.")
+        OpenComputersNeo.log.info("Running the latest OpenComputersNeo version.")
       }
       catch {
-        case t: Throwable => OpenComputers.log.warn("Update check for OpenComputers failed.", t)
+        case t: Throwable => OpenComputersNeo.log.warn("Update check for OpenComputersNeo failed.", t)
       }
     }
     None

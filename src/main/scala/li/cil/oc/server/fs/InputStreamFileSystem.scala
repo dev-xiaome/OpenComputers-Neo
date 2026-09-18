@@ -4,14 +4,16 @@ import java.io.FileNotFoundException
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels.ReadableByteChannel
-
 import li.cil.oc.api
 import li.cil.oc.api.fs.Mode
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 
 import scala.collection.mutable
 import net.minecraft.nbt.Tag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 trait InputStreamFileSystem extends api.fs.FileSystem {
   private val handles = mutable.Map.empty[Int, Handle]

@@ -10,23 +10,23 @@ import li.cil.oc.common.EventHandler
 import li.cil.oc.common.blockentity.traits.RedstoneChangedEventArgs
 import li.cil.oc.client.renderer.block.NetSplitterModel
 import li.cil.oc.server.PacketSender
-import li.cil.oc.util.RotationHelper
 import net.minecraft.sounds.SoundEvents
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.world.level.block.entity.BlockEntityType
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.sounds.SoundSource
 import net.minecraft.world.level.block.state.BlockState
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
 import net.neoforged.neoforge.client.model.data.ModelData
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.mutable
 
 class NetSplitter(pos: BlockPos, state: BlockState) 
-  extends BlockEntity(BlockEntityTypes.NET_SPLITTER.get(), pos, state) with traits.Environment with traits.OpenSides with traits.RedstoneAware with api.network.SidedEnvironment with DeviceInfo {
+  extends BlockEntity(BlockEntityTypes.NET_SPLITTER.get(), pos, state)
+    with traits.Environment with traits.OpenSides with traits.RedstoneAware with api.network.SidedEnvironment with DeviceInfo with IBlockEntityExtension {
   private lazy val deviceInfo: util.Map[String, String] = Map(
     DeviceAttribute.Class -> DeviceClass.Network,
     DeviceAttribute.Description -> "Ethernet controller",
@@ -111,24 +111,24 @@ class NetSplitter(pos: BlockPos, state: BlockState)
   private final val IsInvertedTag = Settings.namespace + "isInverted"
   private final val OpenSidesTag = Settings.namespace + "openSides"
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
+  override def loadForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForServer(nbt, provider)
     isInverted = nbt.getBoolean(IsInvertedTag)
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForServer(nbt, provider)
     nbt.putBoolean(IsInvertedTag, isInverted)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
+  override def loadForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForClient(nbt, provider)
     isInverted = nbt.getBoolean(IsInvertedTag)
     requestModelDataUpdate()
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
+  override def saveForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForClient(nbt, provider)
     nbt.putBoolean(IsInvertedTag, isInverted)
   }
 

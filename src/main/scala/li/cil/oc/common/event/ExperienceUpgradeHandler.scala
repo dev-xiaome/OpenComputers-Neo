@@ -38,7 +38,7 @@ object ExperienceUpgradeHandler {
   def onRobotAttackEntityPost(e: RobotAttackEntityEvent.Post): Unit = {
     e.agent match {
       case robot: Robot =>
-        if (!robot.equipmentInventory.getItem(0).isEmpty && !e.target.isAlive) {
+        if (robot.equipmentInventory.getItem(0) != null && !e.target.isAlive) {
           addExperience(robot, Settings.get.robotActionXp)
         }
       case _ =>

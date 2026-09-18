@@ -16,18 +16,19 @@ import net.minecraft.world.entity.player.{Player => PlayerEntity}
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.entity.BlockEntityType
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.phys.AABB
 import net.minecraft.world.phys.Vec3
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
-import scala.collection.convert.ImplicitConversionsToJava._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 class Hologram(pos: BlockPos, state: BlockState, var tier: Int) 
-  extends BlockEntity(BlockEntityTypes.HOLOGRAM.get(), pos, state) with traits.Environment with SidedEnvironment with Analyzable with traits.RotatableBaseBlock with traits.Tickable with DeviceInfo {
+  extends BlockEntity(BlockEntityTypes.HOLOGRAM.get(), pos, state) with traits.Environment with SidedEnvironment with Analyzable with traits.RotatableBaseBlock with traits.Tickable with DeviceInfo with IBlockEntityExtension {
   def this(pos: BlockPos, state: BlockState) = this(pos, state, 0)
 
   val node = api.Network.newNode(this, Visibility.Network).
@@ -48,7 +49,7 @@ class Hologram(pos: BlockPos, state: BlockState, var tier: Int)
     DeviceAttribute.Width -> colors.length.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -434,29 +435,9 @@ class Hologram(pos: BlockPos, state: BlockState, var tier: Int)
 
   // ----------------------------------------------------------------------- //
 
-  //this method removed in 1.18, but this method required by rendering so remove override
   def getViewDistance = scale / Settings.get.hologramMaxScaleByTier.max * Settings.get.hologramRenderDistance
 
   def getFadeStartDistanceSquared = scale / Settings.get.hologramMaxScaleByTier.max * Settings.get.hologramFadeStartDistance * Settings.get.hologramFadeStartDistance
-
-  private final val Sqrt2 = Math.sqrt(2)
-
-  // 1.21.1：`getRenderBoundingBox` 已从方块实体挪到渲染器，不再可覆写。
-  def getRenderBoundingBox = {
-    val cx = x + 0.5
-    val cy = y + 0.5
-    val cz = z + 0.5
-    val sh = width / 16 * scale * Sqrt2
-    // overscale to take into account 45 degree rotation
-    val sv = height / 16 * scale * Sqrt2
-    new AABB(
-      cx + (-0.5 + translation.x) * sh,
-      cy + translation.y * sv,
-      cz + (-0.5 + translation.z) * sh,
-      cx + (0.5 + translation.x) * sh,
-      cy + (1 + translation.y) * sv,
-      cz + (0.5 + translation.x) * sh)
-  }
 
   // ----------------------------------------------------------------------- //
 
@@ -479,9 +460,9 @@ class Hologram(pos: BlockPos, state: BlockState, var tier: Int)
   private final val RotationSpeedZTag = Settings.namespace + "rotationSpeedZ"
   private final val HasPowerTag = Settings.namespace + "hasPower"
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
+  override def loadForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
     tier = nbt.getByte(TierTag) max 0 min 2
-    super.loadForServer(nbt)
+    super.loadForServer(nbt, provider)
     val tag = SaveHandler.loadNBT(nbt, dataPath)
     tag.getIntArray(VolumeTag).copyToArray(volume)
     tag.getIntArray(ColorsTag).map(convertColor).copyToArray(colors)
@@ -500,9 +481,9 @@ class Hologram(pos: BlockPos, state: BlockState, var tier: Int)
     rotationSpeedZ = nbt.getFloat(RotationSpeedZTag)
   }
 
-  override def saveForServer(nbt: CompoundTag) = this.synchronized {
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = this.synchronized {
     nbt.putByte(TierTag, tier.toByte)
-    super.saveForServer(nbt)
+    super.saveForServer(nbt, provider)
     SaveHandler.scheduleSave(getLevel, x, z, nbt, dataPath, tag => {
       tag.putIntArray(VolumeTag, volume)
       tag.putIntArray(ColorsTag, colors.map(convertColor))
@@ -521,8 +502,8 @@ class Hologram(pos: BlockPos, state: BlockState, var tier: Int)
     nbt.putFloat(RotationSpeedZTag, rotationSpeedZ)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
+  override def loadForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForClient(nbt, provider)
     nbt.getIntArray(VolumeTag).copyToArray(volume)
     nbt.getIntArray(ColorsTag).copyToArray(colors)
     scale = nbt.getDouble(ScaleTag)
@@ -541,8 +522,8 @@ class Hologram(pos: BlockPos, state: BlockState, var tier: Int)
     rotationSpeedZ = nbt.getFloat(RotationSpeedZTag)
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
+  override def saveForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForClient(nbt, provider)
     nbt.putIntArray(VolumeTag, volume)
     nbt.putIntArray(ColorsTag, colors)
     nbt.putDouble(ScaleTag, scale)

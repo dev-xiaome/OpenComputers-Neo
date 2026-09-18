@@ -101,22 +101,22 @@ trait RedstoneBundled extends RedstoneVanilla {
 
   @Callback(doc = "function([side:number[, color:number,]] value:number or table):number or table --  Fewer params to assign set of outputs. Returns previous values")
   def setBundledOutput(context: Context, args: Arguments): Array[AnyRef] = {
-    var ret: AnyRef = null
+    var ret: Array[AnyRef] = null
     if (getBundleAssignment(args) match {
       case (side: Direction, color: Int, value: Int) =>
-        ret = new java.lang.Integer(redstone.getBundledOutput(side, color))
+        ret = result(redstone.getBundledOutput(side, color))
         redstone.setBundledOutput(side, color, value)
       case (side: Direction, value: util.Map[_, _], _) =>
-        ret = redstone.getBundledOutput(side)
+        ret = result(redstone.getBundledOutput(side))
         redstone.setBundledOutput(side, value)
       case (value: util.Map[_, _], _, _) =>
-        ret = redstone.getBundledOutput
+        ret = result(redstone.getBundledOutput)
         redstone.setBundledOutput(value)
     }) {
       if (Settings.get.redstoneDelay > 0)
         context.pause(Settings.get.redstoneDelay)
     }
-    result(ret)
+    ret
   }
 
   // ----------------------------------------------------------------------- //

@@ -1,119 +1,143 @@
 package li.cil.oc.server
 
 import com.google.common.cache.{Cache, CacheBuilder}
-import li.cil.oc.api.audio.{AudioHost, AudioReceiver}
-import li.cil.oc.{Settings, api}
+import io.netty.buffer.Unpooled
 import li.cil.oc.api.event.{FileSystemAccessEvent, NetworkActivityEvent}
-import li.cil.oc.api.network.EnvironmentHost
-import li.cil.oc.api.network.Node
+import li.cil.oc.api.network.{EnvironmentHost, Node}
 import li.cil.oc.common._
-import li.cil.oc.common.audio.Instruction
-import li.cil.oc.common.nanomachines.ControllerImpl
 import li.cil.oc.common.blockentity.Waypoint
 import li.cil.oc.common.blockentity.traits._
-import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.PackedColor
-import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.NbtIo
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.core.Direction
-import net.minecraft.resources.ResourceLocation
-import net.minecraft.core.BlockPos
-import net.neoforged.bus.api.ICancellableEvent
-import net.neoforged.neoforge.common.NeoForge
-import net.minecraft.core.registries.BuiltInRegistries
-
-import java.util.concurrent.{ConcurrentHashMap, TimeUnit}
-import scala.collection.mutable
-import net.minecraft.server.level.ServerPlayer
-import net.minecraft.world.inventory.AbstractContainerMenu
-import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.world.entity.player.Player
+import li.cil.oc.common.datacomponents.CompoundStorage
+import li.cil.oc.common.nanomachines.ControllerImpl
+import li.cil.oc.util.{BlockPosition, PackedColor, SableCompat}
+import li.cil.oc.{Settings, api}
+import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.core.particles.ParticleOptions
-import net.minecraft.world.level.Level
+import net.minecraft.core.registries.BuiltInRegistries
+import net.minecraft.nbt.{CompoundTag, NbtIo}
+import net.minecraft.network.RegistryFriendlyByteBuf
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.server.level.ServerPlayer
 import net.minecraft.sounds.SoundSource
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.inventory.AbstractContainerMenu
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.level.Level
+import net.minecraft.world.phys.Vec3
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.neoforged.neoforge.common.NeoForge
+import net.neoforged.neoforge.network.connection.ConnectionType
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 
+import java.util.concurrent.TimeUnit
+import scala.collection.mutable
 import scala.jdk.CollectionConverters._
 
 object PacketSender {
-  def sendSoundCardData(host: AudioHost, address: String, volume: Byte, receivers: java.util.Set[AudioReceiver], instructions: java.util.Queue[Instruction]): Unit = {
-    val pb = new CompressedPacketBuilder(PacketType.SoundCardData)
-    val pos = host.position()
-    pb.writeInt(host.getId)
-    pb.writeUTF(address)
-    pb.writeInt(instructions.size)
-    for (inst <- instructions.asScala) {
-      inst match {
-        case Instruction.Open(channel) =>
-          pb.writeByte(0)
-          pb.writeByte(channel)
-        case Instruction.Close(channel) =>
-          pb.writeByte(1)
-          pb.writeByte(channel)
-        case Instruction.SetWave(channel, wave) =>
-          pb.writeByte(2)
-          pb.writeByte(channel)
-          pb.writeInt(wave.ordinal())
-        case Instruction.Delay(delay) =>
-          pb.writeByte(3)
-          pb.writeInt(delay)
-        case Instruction.SetFM(channel, modulatorIndex, index) =>
-          pb.writeByte(4)
-          pb.writeByte(channel)
-          pb.writeInt(modulatorIndex)
-          pb.writeFloat(index)
-        case Instruction.ResetFM(channel) =>
-          pb.writeByte(5)
-          pb.writeByte(channel)
-        case Instruction.SetAM(channel, modulatorIndex) =>
-          pb.writeByte(6)
-          pb.writeByte(channel)
-          pb.writeInt(modulatorIndex)
-        case Instruction.ResetAM(channel) =>
-          pb.writeByte(7)
-          pb.writeByte(channel)
-        case Instruction.SetADSR(channel, attack, decay, attenuation, release) =>
-          pb.writeByte(8)
-          pb.writeByte(channel)
-          pb.writeInt(attack)
-          pb.writeInt(decay)
-          pb.writeFloat(attenuation)
-          pb.writeInt(release)
-        case Instruction.ResetEnvelope(channel) =>
-          pb.writeByte(9)
-          pb.writeByte(channel)
-        case Instruction.SetVolume(channel, volume) =>
-          pb.writeByte(10)
-          pb.writeByte(channel)
-          pb.writeFloat(volume)
-        case Instruction.SetFrequency(channel, frequency) =>
-          pb.writeByte(11)
-          pb.writeByte(channel)
-          pb.writeFloat(frequency)
-        case Instruction.SetWhiteNoise(channel) =>
-          pb.writeByte(12)
-          pb.writeByte(channel)
-        case Instruction.SetLFSR(channel, initial, mask) =>
-          pb.writeByte(13)
-          pb.writeByte(channel)
-          pb.writeInt(initial)
-          pb.writeInt(mask)
-      }
+  /**
+   * Sound is a physical-world effect.  In particular, a Sable sublevel is a
+   * different Level instance from the player standing next to it, so the
+   * normal same-Level packet fanout is not correct here.
+   */
+  private def sendToAudioListeners(sourceLevel: Level, source: Vec3, packet: PacketBuilder): Unit = {
+    if (sourceLevel == null) return
+    val physicalSource = SableCompat.physicalPosition(sourceLevel, source)
+    val range = Settings.get.maxNetworkClientSoundPacketDistance
+    val rangeSq = range * range
+    ServerLifecycleHooks.getCurrentServer.getPlayerList.getPlayers.asScala.filter(_.level.dimension == sourceLevel.dimension).foreach { player =>
+      val physicalPlayer = SableCompat.physicalPosition(player.level, player.position())
+      if (physicalPlayer.distanceToSqr(physicalSource) <= rangeSq) packet.sendToPlayer(player)
     }
-    pb.writeByte(volume)
-    pb.writeInt(receivers.size())
-    for (receiver <- receivers.asScala) {
-      pb.writeUTF(if (receiver.level() != null) receiver.level().dimension().toString else "")
-      val pos = receiver.position()
-      pb.writeFloat(pos.x.toFloat)
-      pb.writeFloat(pos.y.toFloat)
-      pb.writeFloat(pos.z.toFloat)
-      pb.writeShort(receiver.distance().toShort)
-      pb.writeUTF(receiver.address())
-    }
-    pb.sendToAllPlayers()
   }
 
+  private def sendToAudioListeners(host: EnvironmentHost, packet: PacketBuilder): Unit =
+    sendToAudioListeners(host.getEnvironmentLevel, new Vec3(host.xPosition, host.yPosition, host.zPosition), packet)
+
+  def sendComputronicsTone(level: Level, x: Double, y: Double, z: Double, mode: Int, frequency: Int,
+                           duration: Int, delay: Int, volume: Double, fmFrequency: Int = 0,
+                           fmIntensity: Double = 0, amFrequency: Int = 0, attack: Int = 0,
+                           decay: Int = 0, sustain: Double = 1, release: Int = 0): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.ComputronicsTone)
+    // Coordinates in audio packets are always physical-world coordinates.
+    // Clients convert them back to listener-relative OpenAL positions.
+    val pos = SableCompat.physicalPosition(level, new Vec3(x, y, z))
+    pb.writeDouble(pos.x); pb.writeDouble(pos.y); pb.writeDouble(pos.z)
+    pb.writeByte(mode); pb.writeShort(frequency.toShort); pb.writeShort(duration.toShort); pb.writeShort(delay.toShort)
+    pb.writeFloat(volume.toFloat); pb.writeShort(fmFrequency.toShort); pb.writeFloat(fmIntensity.toFloat)
+    pb.writeShort(amFrequency.toShort); pb.writeShort(attack.toShort); pb.writeShort(decay.toShort)
+    pb.writeFloat(sustain.toFloat); pb.writeShort(release.toShort)
+    sendToAudioListeners(level, new Vec3(x, y, z), pb)
+  }
+
+  def sendAudioStart(host: EnvironmentHost, sessionId: Int, channel: Int, sampleRate: Int, channels: Int, format: Int, loop: Boolean): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.AudioStart)
+    pb.writeInt(sessionId)
+    pb.writeInt(channel)
+    pb.writeInt(sampleRate)
+    pb.writeInt(channels)
+    pb.writeInt(format)
+    pb.writeBoolean(loop)
+    val physical = SableCompat.physicalPosition(host)
+    pb.writeDouble(physical.x); pb.writeDouble(physical.y); pb.writeDouble(physical.z)
+    sendToAudioListeners(host, pb)
+  }
+
+  /** Start a Computronics-compatible client-side DFPWM stream. */
+  def sendTapeAudioStart(host: EnvironmentHost, sessionId: Int, sampleRate: Int, volume: Float): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.TapeAudioStart)
+    pb.writeInt(sessionId)
+    pb.writeInt(sampleRate)
+    pb.writeFloat(volume)
+    val physical = SableCompat.physicalPosition(host)
+    pb.writeDouble(physical.x); pb.writeDouble(physical.y); pb.writeDouble(physical.z)
+    sendToAudioListeners(host, pb)
+  }
+
+  def sendAudioChunk(host: EnvironmentHost, sessionId: Int, data: Array[Byte]): Unit = {
+    val pb = new CompressedPacketBuilder(PacketType.AudioChunk)
+    pb.writeInt(sessionId)
+    pb.writeInt(data.length)
+    pb.write(data)
+    sendToAudioListeners(host, pb)
+  }
+
+  def sendAudioPlay(host: EnvironmentHost, sessionId: Int): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.AudioPlay)
+    pb.writeInt(sessionId)
+    sendToAudioListeners(host, pb)
+  }
+
+  def sendAudioPause(host: EnvironmentHost, sessionId: Int): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.AudioPause)
+    pb.writeInt(sessionId)
+    sendToAudioListeners(host, pb)
+  }
+
+  def sendAudioResume(host: EnvironmentHost, sessionId: Int): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.AudioResume)
+    pb.writeInt(sessionId)
+    sendToAudioListeners(host, pb)
+  }
+
+  def sendAudioStop(host: EnvironmentHost, sessionId: Int): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.AudioStop)
+    pb.writeInt(sessionId)
+    sendToAudioListeners(host, pb)
+  }
+
+  def sendAudioClose(host: EnvironmentHost, sessionId: Int): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.AudioClose)
+    pb.writeInt(sessionId)
+    sendToAudioListeners(host, pb)
+  }
+
+  def sendAudioSetLoop(host: EnvironmentHost, sessionId: Int, loop: Boolean): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.AudioSetLoop)
+    pb.writeInt(sessionId)
+    pb.writeBoolean(loop)
+    sendToAudioListeners(host, pb)
+  }
+  
   def sendAdapterState(t: blockentity.Adapter): Unit = {
     val pb = new SimplePacketBuilder(PacketType.AdapterState)
 
@@ -179,7 +203,7 @@ object PacketSender {
   def sendMachineItemState(player: ServerPlayer, stack: ItemStack, isRunning: Boolean): Unit = {
     val pb = new SimplePacketBuilder(PacketType.MachineItemStateResponse)
 
-    pb.writeItemStack(stack)
+    pb.writeItemStack(stack, player.server.registryAccess())
     pb.writeBoolean(isRunning)
 
     pb.sendToPlayer(player)
@@ -307,10 +331,7 @@ object PacketSender {
       case _ => new NetworkActivityEvent.Server(host.getEnvironmentLevel, host.xPosition, host.yPosition, host.zPosition, node)
     }
     NeoForge.EVENT_BUS.post(event)
-    // NeoForge 1.21.1 用 ICancellableEvent 取代了 Forge 的 @Cancelable 注解，
-    // Event 上不再有可读的 isCanceled 成员。NetworkActivityEvent 已补上该接口
-    // （见 api/event/NetworkActivityEvent.java），这里显式转型以免依赖预编译的旧 class。
-    if (!event.asInstanceOf[ICancellableEvent].isCanceled) {
+    if (!event.asInstanceOf[net.neoforged.bus.api.ICancellableEvent].isCanceled()) {
 
       val pb = new SimplePacketBuilder(PacketType.NetworkActivity)
 
@@ -335,7 +356,7 @@ object PacketSender {
     val pb = new SimplePacketBuilder(PacketType.FloppyChange)
 
     pb.writeTileEntity(t)
-    pb.writeItemStack(stack)
+    pb.writeItemStack(stack, t.getLevel.registryAccess())
 
     pb.sendToPlayersNearTileEntity(t)
   }
@@ -449,19 +470,33 @@ object PacketSender {
 
   def sendLootDisks(p: ServerPlayer): Unit = {
     // Sending as separate packets, because NbtIo hiccups otherwise...
+    val reset = new SimplePacketBuilder(PacketType.LootDisksReset)
+    reset.sendToPlayer(p)
+
     val stacks = Loot.worldDisks.map(_._1)
     for (stack <- stacks) {
       val pb = new SimplePacketBuilder(PacketType.LootDisk)
 
-      pb.writeItemStack(stack)
+      pb.writeItemStack(stack, p.server.registryAccess())
 
       pb.sendToPlayer(p)
     }
     for (stack <- Loot.disksForCyclingServer) {
       val pb = new SimplePacketBuilder(PacketType.CyclingDisk)
 
-      pb.writeItemStack(stack)
+      pb.writeItemStack(stack, p.server.registryAccess())
 
+      pb.sendToPlayer(p)
+    }
+  }
+
+  def sendLootEEPROMs(p: ServerPlayer): Unit = {
+    val reset = new SimplePacketBuilder(PacketType.LootEEPROMsReset)
+    reset.sendToPlayer(p)
+
+    for (stack <- Loot.eepromsForServer) {
+      val pb = new SimplePacketBuilder(PacketType.LootEEPROM)
+      pb.writeItemStack(stack, p.server.registryAccess())
       pb.sendToPlayer(p)
     }
   }
@@ -562,7 +597,7 @@ object PacketSender {
     val pb = new SimplePacketBuilder(PacketType.PowerState)
 
     pb.writeTileEntity(t)
-    pb.writeDouble(math.round(t.globalBuffer))
+    pb.writeDouble(math.round(t.globalBuffer).toDouble)
     pb.writeDouble(t.globalBufferSize)
 
     pb.sendToPlayersNearTileEntity(t)
@@ -584,7 +619,7 @@ object PacketSender {
     pb.writeInt(t.getContainerSize)
     for (slot <- 0 until t.getContainerSize) {
       pb.writeInt(slot)
-      pb.writeItemStack(t.getItem(slot))
+      pb.writeItemStack(t.getItem(slot), t.getLevel.registryAccess())
     }
 
     pb.sendToPlayersNearTileEntity(t)
@@ -596,7 +631,7 @@ object PacketSender {
     pb.writeTileEntity(t)
     pb.writeInt(1)
     pb.writeInt(slot)
-    pb.writeItemStack(t.getItem(slot))
+    pb.writeItemStack(t.getItem(slot), t.getLevel.registryAccess())
 
     pb.sendToPlayersNearTileEntity(t)
   }
@@ -606,7 +641,10 @@ object PacketSender {
 
     pb.writeTileEntity(t)
     pb.writeInt(mountable)
-    pb.writeNBT(t.lastData(mountable))
+
+    val bytes = new RegistryFriendlyByteBuf(Unpooled.buffer(), ServerLifecycleHooks.getCurrentServer.registryAccess(), ConnectionType.NEOFORGE)
+    CompoundStorage.OPTION_STREAM_CODEC.encode(bytes, t.lastData(mountable))
+    pb.write(bytes.array())
 
     pb.sendToPlayersNearTileEntity(t)
   }
@@ -680,7 +718,7 @@ object PacketSender {
 
     pb.writeTileEntity(t.proxy)
     pb.writeInt(slot)
-    pb.writeItemStack(stack)
+    pb.writeItemStack(stack, t.getLevel.registryAccess())
 
     pb.sendToPlayersNearTileEntity(t)
   }
@@ -690,6 +728,15 @@ object PacketSender {
 
     pb.writeTileEntity(t.proxy)
     pb.writeInt(t.info.lightColor)
+
+    pb.sendToPlayersNearTileEntity(t)
+  }
+
+  def sendRobotFlagChange(t: blockentity.Robot): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.RobotFlagChange)
+
+    pb.writeTileEntity(t.proxy)
+    pb.writeUTF(t.info.flag.map(_.toString).getOrElse(""))
 
     pb.sendToPlayersNearTileEntity(t)
   }
@@ -880,11 +927,17 @@ object PacketSender {
     }
   }
 
-  def sendTextBufferInit(address: String, value: CompoundTag, player: ServerPlayer): Unit = {
+  def sendTextBufferInit(address: String, value: CompoundTag, maxWidth: Int, maxHeight: Int, maxDepth: Int, viewportWidth: Int, viewportHeight: Int, player: ServerPlayer): Unit = {
     val pb = new CompressedPacketBuilder(PacketType.TextBufferInit)
 
     pb.writeUTF(address)
     pb.writeNBT(value)
+
+    pb.writeInt(maxWidth)
+    pb.writeInt(maxHeight)
+    pb.writeInt(maxDepth)
+    pb.writeInt(viewportWidth)
+    pb.writeInt(viewportHeight)
 
     pb.sendToPlayer(player)
   }

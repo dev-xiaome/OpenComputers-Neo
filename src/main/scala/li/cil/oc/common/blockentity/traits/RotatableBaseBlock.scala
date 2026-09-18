@@ -1,10 +1,7 @@
 package li.cil.oc.common.blockentity.traits
 
 import li.cil.oc.Settings
-import li.cil.oc.util.RotationHelper
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import net.minecraft.core.Direction
+import net.minecraft.core.{Direction, HolderLookup}
 import net.minecraft.nbt.CompoundTag
 
 /**
@@ -35,8 +32,8 @@ trait RotatableBaseBlock extends Rotatable {
   private final val PitchTag = Settings.namespace + "pitch"
   private final val YawTag = Settings.namespace + "yaw"
 
-  override def loadForServer(nbt: CompoundTag) = {
-    super.loadForServer(nbt)
+  override def loadForServer(nbt: CompoundTag, provider: HolderLookup.Provider) = {
+    super.loadForServer(nbt, provider)
     if (nbt.contains(PitchTag)) {
       pitch = Direction.from3DDataValue(nbt.getInt(PitchTag))
     }
@@ -46,21 +43,21 @@ trait RotatableBaseBlock extends Rotatable {
     validatePitchAndYaw()
   }
 
-  override def saveForServer(nbt: CompoundTag) = {
-    super.saveForServer(nbt)
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider) = {
+    super.saveForServer(nbt, provider)
     nbt.putInt(PitchTag, pitch.ordinal)
     nbt.putInt(YawTag, yaw.ordinal)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
+  override def loadForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForClient(nbt, provider)
     pitch = Direction.from3DDataValue(nbt.getInt(PitchTag))
     yaw = Direction.from3DDataValue(nbt.getInt(YawTag))
     validatePitchAndYaw()
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
+  override def saveForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForClient(nbt, provider)
     nbt.putInt(PitchTag, pitch.ordinal)
     nbt.putInt(YawTag, yaw.ordinal)
   }

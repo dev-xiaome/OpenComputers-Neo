@@ -1,12 +1,12 @@
 package li.cil.oc.server.network
 
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.network
 import li.cil.oc.api.network._
 import li.cil.oc.api.network.{Node => ImmutableNode}
-import li.cil.oc.common.capabilities.{CapabilityColored, CapabilityEnvironment, CapabilitySidedEnvironment}
+import li.cil.oc.common.{Capabilities => OCCapabilities}
 import li.cil.oc.common.blockentity
 import li.cil.oc.server.network.Component
 import li.cil.oc.server.network.ComponentConnector
@@ -294,7 +294,7 @@ private class Network private(private val data: mutable.Map[String, Network.Vert
           if (node.address == newAddress) {
             neighbors.filter(_.network != null).foreach(_.connect(node))
           } else {
-            OpenComputers.log.error("I can't see this happening any other way than someone directly setting node addresses, which they shouldn't. So yeah. Shit'll be borked. Deal with it.")
+            OpenComputersNeo.log.error("I can't see this happening any other way than someone directly setting node addresses, which they shouldn't. So yeah. Shit'll be borked. Deal with it.")
             node.remove() // well screw you then
           }
         })
@@ -492,15 +492,18 @@ object Network extends api.detail.NetworkAPI {
 
   def getNetworkNode(tileEntity: BlockEntity, side: Direction): Option[ImmutableNode] = {
     if (tileEntity != null) {
-      // 1.21.1 没有自定义能力了，直接做类型判断（顺序与 1.20.1 的注册顺序一致）。
-      CapabilitySidedEnvironment(tileEntity) match {
-        case Some(host) => return Option(host.sidedNode(side))
-        case _ =>
-      }
-
-      CapabilityEnvironment(tileEntity) match {
-        case Some(host) => return Option(host.node)
-        case _ =>
+      val level = tileEntity.getLevel
+      val pos = tileEntity.getBlockPos
+      if (level != null) {
+        // SidedEnvironment takes priority over plain Environment
+        Option(level.getCapability(OCCapabilities.SidedEnvironmentCapability, pos, side)) match {
+          case Some(host) => return Option(host.sidedNode(side))
+          case _ =>
+        }
+        Option(level.getCapability(OCCapabilities.EnvironmentCapability, pos, side)) match {
+          case Some(host) => return Option(host.node)
+          case _ =>
+        }
       }
     }
 
@@ -509,9 +512,13 @@ object Network extends api.detail.NetworkAPI {
 
   private def getConnectionColor(tileEntity: BlockEntity): Int = {
     if (tileEntity != null) {
-      CapabilityColored(tileEntity) match {
-        case Some(colored) if colored.controlsConnectivity => return colored.getColor
-        case _ =>
+      val level = tileEntity.getLevel
+      val pos = tileEntity.getBlockPos
+      if (level != null) {
+        Option(level.getCapability(OCCapabilities.ColoredCapability, pos, null)) match {
+          case Some(colored) if colored.controlsConnectivity => return colored.getColor
+          case _ =>
+        }
       }
     }
 
@@ -743,7 +750,7 @@ object Network extends api.detail.NetworkAPI {
         case value: java.lang.Double => nbt.putDouble("data" + i, value)
         case value: java.lang.String => nbt.putString("data" + i, value)
         case value: Array[Byte] => nbt.putByteArray("data" + i, value)
-        case value => OpenComputers.log.warn("Unexpected type while saving network packet: " + value.getClass.getName)
+        case value => OpenComputersNeo.log.warn("Unexpected type while saving network packet: " + value.getClass.getName)
       }
     }
 

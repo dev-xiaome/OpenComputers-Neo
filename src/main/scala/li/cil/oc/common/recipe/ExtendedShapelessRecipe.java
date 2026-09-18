@@ -9,24 +9,23 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.*;
 import net.minecraft.world.level.Level;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
-/// 见 [ExtendedShapedRecipe]：1.21.1 的合成输入、反序列化上下文与 `RecipeSerializer` 接口都已更换。
 public class ExtendedShapelessRecipe implements CraftingRecipe {
     private final ShapelessRecipe wrapped;
 
     public ExtendedShapelessRecipe(ShapelessRecipe wrapped) {
-        this.wrapped = ExtendedRecipe.patchRecipe(wrapped);
+        this.wrapped = wrapped;
     }
 
     @Override
-    public boolean matches(@NotNull CraftingInput inv, @NotNull Level level) {
+    public boolean matches(@NonNull CraftingInput inv, @NonNull Level level) {
         return wrapped.matches(inv, level);
     }
 
     @Override
-    @NotNull
-    public ItemStack assemble(@NotNull CraftingInput inv, @NotNull HolderLookup.Provider registries) {
-        return ExtendedRecipe.addNBTToResult(this, wrapped.assemble(inv, registries), inv);
+    public ItemStack assemble(@NonNull CraftingInput inv, @NotNull HolderLookup.Provider provider) {
+        return ExtendedRecipe.addNBTToResult(this, wrapped.assemble(inv, provider), inv, provider);
     }
 
     @Override
@@ -36,7 +35,9 @@ public class ExtendedShapelessRecipe implements CraftingRecipe {
 
     @Override
     public ItemStack getResultItem(@NotNull HolderLookup.Provider registries) {
-        return wrapped.getResultItem(registries);
+        ItemStack result = wrapped.getResultItem(registries);
+        ExtendedRecipe.initializeStaticResultData(this, result);
+        return result;
     }
 
     @Override
@@ -73,13 +74,13 @@ public class ExtendedShapelessRecipe implements CraftingRecipe {
     }
 
     public static final class Serializer implements RecipeSerializer<ExtendedShapelessRecipe> {
-        public static final MapCodec<ExtendedShapelessRecipe> CODEC =
+        private static final MapCodec<ExtendedShapelessRecipe> CODEC =
                 RecipeSerializer.SHAPELESS_RECIPE.codec().xmap(ExtendedShapelessRecipe::new, recipe -> recipe.wrapped);
-
-        public static final StreamCodec<RegistryFriendlyByteBuf, ExtendedShapelessRecipe> STREAM_CODEC =
+        private static final StreamCodec<RegistryFriendlyByteBuf, ExtendedShapelessRecipe> STREAM_CODEC =
                 RecipeSerializer.SHAPELESS_RECIPE.streamCodec().map(ExtendedShapelessRecipe::new, recipe -> recipe.wrapped);
 
         @Override
+        @NotNull
         public MapCodec<ExtendedShapelessRecipe> codec() {
             return CODEC;
         }

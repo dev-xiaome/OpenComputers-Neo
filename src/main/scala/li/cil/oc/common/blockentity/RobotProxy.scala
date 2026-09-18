@@ -1,5 +1,9 @@
 package li.cil.oc.common.blockentity
 
+import li.cil.oc.common.datacomponents.OCComponents
+
+import li.cil.oc.api.datacomponents.MutableNbtComponentHolder
+
 import java.util.UUID
 import java.util.function.Consumer
 import li.cil.oc.api
@@ -13,33 +17,30 @@ import li.cil.oc.api.network._
 import li.cil.oc.common.container.InventoryProxy
 import li.cil.oc.common.blockentity.traits.RedstoneAware
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
-import net.neoforged.neoforge.fluids.capability.IFluidHandler
-import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.world.item.ItemStack
-import net.minecraft.core.Direction
-import net.neoforged.neoforge.fluids.FluidStack
-import net.neoforged.neoforge.fluids.IFluidTank
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.WorldlyContainer
-import net.minecraft.core.BlockPos
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.world.phys.AABB
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity
 import net.minecraft.network.chat.{Component => MCComponent}
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
+import net.neoforged.neoforge.fluids.{FluidStack, IFluidTank}
+import net.neoforged.neoforge.fluids.capability.IFluidHandler
+import net.neoforged.neoforge.fluids.capability.IFluidHandler.FluidAction
 
 class RobotProxy(pos: BlockPos, state: BlockState, val robot: Robot)
   extends BlockEntity(BlockEntityTypes.ROBOT.get(), pos, state)
-  with traits.Computer with traits.PowerInformation with traits.RotatableBaseBlock with WorldlyContainer with IFluidHandler with internal.Robot {
+  with traits.Computer with traits.PowerInformation with traits.RotatableBaseBlock with WorldlyContainer with IFluidHandler with internal.Robot
+    with IBlockEntityExtension{
 
   def this(pos: BlockPos, state: BlockState) = this(pos, state, new Robot(pos, state))
 
   // ----------------------------------------------------------------------- //
-  // 流体储罐能力（IFluidHandler）在 1.21.1 由 RegisterCapabilitiesEvent 注册，
-  // 见 li.cil.oc.common.capabilities.Capabilities，这里不再覆写 getCapability。
 
   override val node: Component = api.Network.newNode(this, Visibility.Network).
     withComponent("robot", Visibility.Neighbors).
@@ -149,19 +150,44 @@ class RobotProxy(pos: BlockPos, state: BlockState, val robot: Robot)
   }
 
   override def clearRemoved(): Unit = {
-    super.clearRemoved()
+    // Modern chunk loading invokes clearRemoved after assigning the proxy's
+    // level, but Computer.initialize() is called by super.clearRemoved().
+    // The machine host is the real Robot, so synchronize its level/position
+    // first or Machine.loadData() will see a null environment level.
     val firstProxy = robot.proxy == null
     robot.proxy = this
     robot.setLevel(getLevel)
     robot.worldPosition = getBlockPos
+
+    super.clearRemoved()
+
     if (firstProxy) {
       robot.clearRemoved()
     }
     if (isServer) {
-      // Use the same address we use internally on the outside.
-      val nbt = new CompoundTag()
-      nbt.putString("address", robot.node.address)
-      node.loadData(nbt)
+      // Computer.initialize(), invoked by super.clearRemoved(), is where the
+      // deferred MachineData is finally restored on 1.21. Robot's own
+      // loadComponentsForServer() ran earlier while the machine still looked
+      // stopped, so its legacy onRobotStart() registration could not fire.
+      //
+      // Robots intentionally do not tick their Machine from updateEntity();
+      // EventHandler.runningRobots owns that tick. Re-register a restored
+      // running robot here, after the machine state actually exists.
+      if (robot.machine.isRunning) {
+        li.cil.oc.common.EventHandler.onRobotStart(robot)
+      }
+
+      // Both proxy and real Robot now have a live level; ensure every virtual
+      // component environment is on the machine network before rebuilding
+      // hardware bookkeeping.
+      robot.connectComponents()
+      robot.machine.onHostChanged()
+      // Use the same address internally and externally. Node.loadData() in the
+      // 1.21 port reads OCComponents.ADDRESS from a DataComponentHolder; the
+      // old raw NBT "address" key is ignored.
+      val addressHolder = new MutableNbtComponentHolder()
+      addressHolder.set(OCComponents.ADDRESS.get(), robot.node.address)
+      node.loadData(addressHolder)
     }
   }
 
@@ -172,28 +198,58 @@ class RobotProxy(pos: BlockPos, state: BlockState, val robot: Robot)
     }
   }
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    robot.info.loadData(nbt)
-    super.loadForServer(nbt)
-    robot.loadForServer(nbt)
+  override def loadComponentsCommon(holder: DataComponentHolder): Unit = {
+    // Preserve the original 1.12 load order: RobotData contains the installed
+    // hardware list and determines the robot's dynamic component-slot layout,
+    // so it must be restored before the proxy superclass reconstructs
+    // inventory/component state.
+    robot.loadComponentsCommon(holder)
+    super.loadComponentsCommon(holder)
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
-    robot.saveForServer(nbt)
+  override def saveComponentsCommon(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsCommon(holder)
+    // Robot component slots are virtual and live in RobotData.info.components.
+    // Persist them after their ManagedEnvironments have saved node state back
+    // into the ItemStacks, so addresses survive a world save/reload.
+    robot.saveComponentsCommon(holder)
   }
 
-  override def saveData(nbt: CompoundTag): Unit = robot.saveData(nbt)
+  override def loadComponentsForServer(holder: DataComponentHolder): Unit = {
+    super.loadComponentsForServer(holder)
 
-  override def loadData(nbt: CompoundTag): Unit = robot.loadData(nbt)
+    // RobotProxy delegates Inventory persistence to the real Robot, but no
+    // superclass server hook invokes RobotProxy.loadData(holder). Restore the
+    // ordinary backing inventory explicitly from the persistent CONTENTS
+    // component after RobotData has already established the dynamic slot layout.
+    robot.loadData(holder)
 
-  override def loadForClient(nbt: CompoundTag): Unit = robot.loadForClient(nbt)
+    // Do NOT create ManagedEnvironments here. Minecraft calls this while the
+    // BlockEntity is still being deserialized and before its Level is attached.
+    robot.loadComponentsForServer(holder)
+  }
 
-  override def saveForClient(nbt: CompoundTag): Unit = robot.saveForClient(nbt)
+  override def saveComponentsForServer(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsForServer(holder)
 
-  // 1.21.1：`getRenderBoundingBox` 已从方块实体挪到渲染器，不再可覆写。
-  // `Robot` 原本也没有覆写它，行为等同 NeoForge 的默认实现（该坐标上的单位立方体）。
-  def getRenderBoundingBox: AABB = new AABB(robot.getBlockPos)
+    // Persist the robot's ordinary backing inventory into THIS holder. This is
+    // the MutableNbtComponentHolder BaseBlockEntity serializes into chunk NBT.
+    // Previously Robot.saveData() only ran against a temporary Persistable
+    // holder, so CONTENTS vanished before the chunk was written.
+    robot.saveData(holder)
+
+    // Capture installed component stacks and robot-specific server state.
+    robot.saveComponentsCommon(holder)
+    robot.saveComponentsForServer(holder)
+  }
+
+  override def saveData(holder: MutableDataComponentHolder): Unit = robot.saveData(holder)
+
+  override def loadData(holder: DataComponentHolder): Unit = robot.loadData(holder)
+
+  override def loadComponentsForClient(holder: DataComponentHolder): Unit = robot.loadComponentsForClient(holder)
+
+  override def saveComponentsForClient(holder: MutableDataComponentHolder): Unit = robot.saveComponentsForClient(holder)
 
   override def setChanged(): Unit = robot.setChanged()
 

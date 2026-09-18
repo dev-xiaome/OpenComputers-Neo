@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers_neo:chip2"
+    },
+    "G": {
+      "tag": "c:glass_blocks"
+    },
+    "c": {
+      "tag": "c:dyes/red"
+    },
+    "g": {
+      "tag": "c:ingots/gold"
+    },
+    "p": {
+      "tag": "c:dyes/green"
+    },
+    "y": {
+      "tag": "c:dyes/blue"
+    }
+  },
+  "pattern": [
+    "gcg",
+    "pCG",
+    "gyg"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:screen2"
+  }
+}

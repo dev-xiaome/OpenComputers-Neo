@@ -1,11 +1,9 @@
 package li.cil.oc.client.renderer.block
 
 import java.util
-import java.util.Collections
-
-import li.cil.oc.OpenComputers
 import li.cil.oc.client.Textures
 import li.cil.oc.common.blockentity
+import net.minecraft.client.Minecraft
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.client.multiplayer.ClientLevel
 import net.minecraft.client.renderer.block.model.BakedQuad
@@ -21,9 +19,10 @@ import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.phys.Vec3
 import net.minecraft.util.RandomSource
 import net.minecraft.client.renderer.RenderType
+import net.neoforged.bus.api.SubscribeEvent
+import net.neoforged.neoforge.client.event.ModelEvent.ModifyBakingResult
 import net.neoforged.neoforge.client.event.TextureAtlasStitchedEvent
 import net.neoforged.neoforge.client.model.data.{ModelData, ModelProperty}
-import net.neoforged.bus.api.SubscribeEvent
 
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
@@ -33,19 +32,19 @@ object NetSplitterModel extends SmartBlockModelBase {
 
   override def getOverrides: ItemOverrides = ItemOverride
 
-  override def getQuads(state: BlockState, side: Direction, rand: RandomSource, data: ModelData, renderType: RenderType): util.List[BakedQuad] =
+  override def getQuads(state: BlockState, side: Direction, rand: RandomSource, data: ModelData, renderType: RenderType): util.List[BakedQuad] = {
+    val faces = mutable.ArrayBuffer.empty[BakedQuad]
+    faces ++= baseModel
     Option(data.get(NET_SPLITTER_PROPERTY)) match {
-      case Some(t) =>
-        val faces = mutable.ArrayBuffer.empty[BakedQuad]
-        faces ++= BaseModel
-        addSideQuads(faces, Direction.values().map(t.isSideOpen))
-        faces.asJava
-      case _ => super.getQuads(state, side, rand)
+      case Some(t) => addSideQuads(faces, Direction.values().map(t.isSideOpen))
+      case _ => addSideQuads(faces, Direction.values().map(_ => false))
     }
+    faces.asJava
+  }
 
   private def getSprite(location: ResourceLocation, atlas: Option[TextureAtlas]): TextureAtlasSprite = atlas match {
     case Some(atls) => atls.getSprite(location)
-    case None       => Textures.getSprite(location)
+    case None => Minecraft.getInstance().getTextureAtlas(InventoryMenu.BLOCK_ATLAS).apply(location)
   }
 
   protected def splitterTexture(atlas: Option[TextureAtlas]) = Array(
@@ -57,33 +56,40 @@ object NetSplitterModel extends SmartBlockModelBase {
     getSprite(Textures.Block.NetSplitterSide, atlas)
   )
 
-  protected def GenerateBaseModel(atlas: TextureAtlas) = {
+  protected def GenerateBaseModel(atlas: Option[TextureAtlas]) = {
     val faces = mutable.ArrayBuffer.empty[BakedQuad]
-    faces ++= bakeQuads(makeBox(new Vec3(0/16f,  0/16f,  5/16f),  new Vec3(5/16f,  5/16f,  11/16f)), splitterTexture(Some(atlas)), None)
-    faces ++= bakeQuads(makeBox(new Vec3(11/16f, 0/16f,  5/16f),  new Vec3(16/16f, 5/16f,  11/16f)), splitterTexture(Some(atlas)), None)
-    faces ++= bakeQuads(makeBox(new Vec3(5/16f,  0/16f,  0/16f),  new Vec3(11/16f, 5/16f,  5/16f)),  splitterTexture(Some(atlas)), None)
-    faces ++= bakeQuads(makeBox(new Vec3(5/16f,  0/16f,  11/16f), new Vec3(11/16f, 5/16f,  16/16f)), splitterTexture(Some(atlas)), None)
-    faces ++= bakeQuads(makeBox(new Vec3(0/16f,  0/16f,  0/16f),  new Vec3(5/16f,  16/16f, 5/16f)),  splitterTexture(Some(atlas)), None)
-    faces ++= bakeQuads(makeBox(new Vec3(11/16f, 0/16f,  0/16f),  new Vec3(16/16f, 16/16f, 5/16f)),  splitterTexture(Some(atlas)), None)
-    faces ++= bakeQuads(makeBox(new Vec3(0/16f,  0/16f,  11/16f), new Vec3(5/16f,  16/16f, 16/16f)), splitterTexture(Some(atlas)), None)
-    faces ++= bakeQuads(makeBox(new Vec3(11/16f, 0/16f,  11/16f), new Vec3(16/16f, 16/16f, 16/16f)), splitterTexture(Some(atlas)), None)
-    faces ++= bakeQuads(makeBox(new Vec3(0/16f,  11/16f, 5/16f),  new Vec3(5/16f,  16/16f, 11/16f)), splitterTexture(Some(atlas)), None)
-    faces ++= bakeQuads(makeBox(new Vec3(11/16f, 11/16f, 5/16f),  new Vec3(16/16f, 16/16f, 11/16f)), splitterTexture(Some(atlas)), None)
-    faces ++= bakeQuads(makeBox(new Vec3(5/16f,  11/16f, 0/16f),  new Vec3(11/16f, 16/16f, 5/16f)),  splitterTexture(Some(atlas)), None)
-    faces ++= bakeQuads(makeBox(new Vec3(5/16f,  11/16f, 11/16f), new Vec3(11/16f, 16/16f, 16/16f)), splitterTexture(Some(atlas)), None)
+    faces ++= bakeQuads(makeBox(new Vec3(0/16f,  0/16f,  5/16f),  new Vec3(5/16f,  5/16f,  11/16f)), splitterTexture(atlas), None)
+    faces ++= bakeQuads(makeBox(new Vec3(11/16f, 0/16f,  5/16f),  new Vec3(16/16f, 5/16f,  11/16f)), splitterTexture(atlas), None)
+    faces ++= bakeQuads(makeBox(new Vec3(5/16f,  0/16f,  0/16f),  new Vec3(11/16f, 5/16f,  5/16f)),  splitterTexture(atlas), None)
+    faces ++= bakeQuads(makeBox(new Vec3(5/16f,  0/16f,  11/16f), new Vec3(11/16f, 5/16f,  16/16f)), splitterTexture(atlas), None)
+    faces ++= bakeQuads(makeBox(new Vec3(0/16f,  0/16f,  0/16f),  new Vec3(5/16f,  16/16f, 5/16f)),  splitterTexture(atlas), None)
+    faces ++= bakeQuads(makeBox(new Vec3(11/16f, 0/16f,  0/16f),  new Vec3(16/16f, 16/16f, 5/16f)),  splitterTexture(atlas), None)
+    faces ++= bakeQuads(makeBox(new Vec3(0/16f,  0/16f,  11/16f), new Vec3(5/16f,  16/16f, 16/16f)), splitterTexture(atlas), None)
+    faces ++= bakeQuads(makeBox(new Vec3(11/16f, 0/16f,  11/16f), new Vec3(16/16f, 16/16f, 16/16f)), splitterTexture(atlas), None)
+    faces ++= bakeQuads(makeBox(new Vec3(0/16f,  11/16f, 5/16f),  new Vec3(5/16f,  16/16f, 11/16f)), splitterTexture(atlas), None)
+    faces ++= bakeQuads(makeBox(new Vec3(11/16f, 11/16f, 5/16f),  new Vec3(16/16f, 16/16f, 11/16f)), splitterTexture(atlas), None)
+    faces ++= bakeQuads(makeBox(new Vec3(5/16f,  11/16f, 0/16f),  new Vec3(11/16f, 16/16f, 5/16f)),  splitterTexture(atlas), None)
+    faces ++= bakeQuads(makeBox(new Vec3(5/16f,  11/16f, 11/16f), new Vec3(11/16f, 16/16f, 16/16f)), splitterTexture(atlas), None)
     faces.toArray
   }
 
   protected var BaseModel = Array.empty[BakedQuad]
 
+  private def baseModel: Array[BakedQuad] =
+    if (BaseModel.nonEmpty) BaseModel else GenerateBaseModel(None)
+
   def initBaseModel(atlas: TextureAtlas): Unit = {
-    if (atlas.location().equals(InventoryMenu.BLOCK_ATLAS)) BaseModel = GenerateBaseModel(atlas)
+    if (atlas.location().equals(InventoryMenu.BLOCK_ATLAS)) BaseModel = GenerateBaseModel(Some(atlas))
   }
 
-  // 1.21.1: TextureStitchEvent 已被移除，改用 TextureAtlasStitchedEvent（MOD 事件总线）。
   @SubscribeEvent
-  def onTextureStitchPost(event: TextureAtlasStitchedEvent): Unit = {
-    initBaseModel(event.getAtlas)
+  def onTextureAtlasStitched(event: TextureAtlasStitchedEvent): Unit = {
+    if (event.getAtlas.location() == InventoryMenu.BLOCK_ATLAS) {
+      val blockAtlas = event.getAtlas
+      if (blockAtlas != null) {
+        initBaseModel(blockAtlas)
+      }
+    }
   }
 
   protected def addSideQuads(faces: mutable.ArrayBuffer[BakedQuad], openSides: Array[Boolean]): Unit = {
@@ -102,9 +108,9 @@ object NetSplitterModel extends SmartBlockModelBase {
   }
 
   object ItemModel extends SmartBlockModelBase {
-    override def getQuads(state: BlockState, side: Direction, rand: RandomSource): util.List[BakedQuad] = {
+    override def getQuads(state: BlockState, side: Direction, rand: RandomSource, data: ModelData, renderType: RenderType): util.List[BakedQuad] = {
       val faces = mutable.ArrayBuffer.empty[BakedQuad]
-      faces ++= BaseModel
+      faces ++= baseModel
       addSideQuads(faces, Direction.values().map(_ => false))
       faces.asJava
     }

@@ -1,43 +1,31 @@
 package li.cil.oc.common.block
 
-import java.util
-import li.cil.oc.Constants
-import li.cil.oc.Settings
-import li.cil.oc.api
+import li.cil.oc.{api, Constants, Settings}
 import li.cil.oc.client.KeyBindings
-import li.cil.oc.common.Tier
 import li.cil.oc.common.block.property.PropertyRotatable
-import li.cil.oc.common.item.data.MicrocontrollerData
-import li.cil.oc.common.blockentity
+import li.cil.oc.common.{blockentity, Tier}
 import li.cil.oc.common.blockentity.BlockEntityTypes
+import li.cil.oc.common.item.data.MicrocontrollerData
 import li.cil.oc.integration.util.Wrench
 import li.cil.oc.server.loot.LootFunctions
-import li.cil.oc.util.InventoryUtils
 import li.cil.oc.util.StackOption._
-import li.cil.oc.util.Tooltip
-import net.minecraft.world.level.block.state.BlockBehaviour.Properties
-import net.minecraft.world.level.block.Block
-import net.minecraft.world.level.block.state.BlockState
-import net.minecraft.world.item.{TooltipFlag => ITooltipFlag}
+import li.cil.oc.util.{InventoryUtils, Tooltip}
+import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.network.chat.{Component => ITextComponent}
+import net.minecraft.world.{InteractionHand => Hand}
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.player.{Player => PlayerEntity}
-import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.Item.TooltipContext
+import net.minecraft.world.item.{ItemStack, TooltipFlag}
+import net.minecraft.world.level.{LevelReader, Level => World}
+import net.minecraft.world.level.block.state.BlockBehaviour.Properties
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
+import net.minecraft.world.level.block.state.{BlockState, StateDefinition => StateContainer}
 import net.minecraft.world.level.storage.loot.LootParams
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams
-import net.minecraft.world.level.block.state.{StateDefinition => StateContainer}
-import net.minecraft.core.Direction
-import net.minecraft.world.{InteractionHand => Hand}
-import net.minecraft.core.BlockPos
-import net.minecraft.world.phys.{HitResult => RayTraceResult}
-import net.minecraft.network.chat.{Component => ITextComponent}
-import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
-import net.minecraft.world.level.storage.loot.functions.LootItemFunctions
-import net.minecraft.world.level.{BlockGetter => IBlockReader}
-import net.minecraft.world.level.LevelReader
-import net.minecraft.world.level.{Level => World}
 
-
-import scala.reflect.ClassTag
+import java.util
 
 class Microcontroller(props: Properties)
   extends RedstoneAware(props) with traits.PowerAcceptor with traits.StateAware with traits.Tickable {
@@ -47,8 +35,6 @@ class Microcontroller(props: Properties)
 
   // ----------------------------------------------------------------------- //
 
-  // 1.21.1：`Block#getCloneItemStack` 只剩 3 个参数 `(LevelReader, BlockPos, BlockState)`，
-  // 玩家与命中结果已从签名里移除；这里本来也只用到世界和坐标。
   override def getCloneItemStack(world: LevelReader, pos: BlockPos, state: BlockState): ItemStack =
     world.getBlockEntity(pos) match {
       case mcu: blockentity.Microcontroller => mcu.info.copyItemStack()
@@ -57,9 +43,9 @@ class Microcontroller(props: Properties)
 
   // ----------------------------------------------------------------------- //
 
-  override protected def tooltipTail(stack: ItemStack, world: IBlockReader, tooltip: util.List[ITextComponent], advanced: ITooltipFlag): Unit = {
-    super.tooltipTail(stack, world, tooltip, advanced)
-    if (KeyBindings.showExtendedTooltips) {
+  override protected def tooltipTail(stack: ItemStack, context: TooltipContext, tooltip: util.List[ITextComponent], flag: TooltipFlag): Unit = {
+    super.tooltipTail(stack, context, tooltip, flag)
+    if (Tooltip.showExtendedTooltip(flag)) {
       val info = new MicrocontrollerData(stack)
       for (component <- info.components if !component.isEmpty) {
         tooltip.add(ITextComponent.literal("- " + component.getHoverName.getString).setStyle(Tooltip.DefaultStyle))

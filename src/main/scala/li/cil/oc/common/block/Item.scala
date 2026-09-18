@@ -1,49 +1,31 @@
 package li.cil.oc.common.block
 
-import java.util
-import li.cil.oc.Constants
-import li.cil.oc.Settings
-import li.cil.oc.api
-import li.cil.oc.common.block
-import li.cil.oc.common.item.data.MicrocontrollerData
-import li.cil.oc.common.item.data.PrintData
-import li.cil.oc.common.item.data.RobotData
-import li.cil.oc.common.blockentity
-import li.cil.oc.util.Color
-import li.cil.oc.util.ItemColorizer
-import li.cil.oc.util.Rarity
+import li.cil.oc.{Constants, Settings, api}
+import li.cil.oc.common.{block, blockentity}
+import li.cil.oc.common.item.data.{MicrocontrollerData, PrintData, RobotData}
+import li.cil.oc.util.{Rarity, RotationHelper, SableCompat}
+import net.minecraft.core.Direction
+import net.minecraft.core.component.DataComponents
+import net.minecraft.network.chat.Component
+import net.minecraft.world.item
+import net.minecraft.world.item.Item.{Properties, TooltipContext}
+import net.minecraft.world.item.{BlockItem, ItemStack, TooltipFlag}
+import net.minecraft.world.item.context.BlockPlaceContext
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.state.BlockState
-import net.minecraft.world.item // Rarity
-import net.minecraft.world.item.BlockItem
-import net.minecraft.world.item.DyeColor
-import net.minecraft.world.item.Item.Properties
-import net.minecraft.world.item.ItemStack
-import net.minecraft.core.Direction
-import net.minecraft.network.chat.Component
-import net.minecraft.world.item.context.BlockPlaceContext
 import net.minecraft.world.phys.BlockHitResult
+import net.minecraft.world.phys.Vec3
 
 class Item(value: Block, props: Properties) extends BlockItem(value, props) {
-  /**
-   * 原 1.20 的 `Item#getRarity(stack)` 覆写。
-   *
-   * 1.21.1 的物品品质改成了 `ItemStack` 的数据组件（`DataComponents.RARITY`），
-   * `Item` 上已经没有可覆写的 `getRarity(ItemStack)`，`ItemStack#getRarity()` 也不再回调物品。
-   * 因此这里退化为一个普通方法：**动态品质（单片机 / 机器人按 tier 变色）在本版丢失**，
-   * 这两种方块物品现在统一走注册时 `Item.Properties` 给的默认品质。
-   * 若要恢复，需要在写入 `MicrocontrollerData` / `RobotData` 的同时把 `RARITY` 组件写到堆叠上。
-   */
-  def rarity(stack: ItemStack): item.Rarity = getBlock match {
-    case _: block.Microcontroller => {
-      val data = new MicrocontrollerData(stack)
-      Rarity.byTier(data.tier)
+  override def appendHoverText(stack: ItemStack, ctx: TooltipContext, tooltip: java.util.List[Component], flag: TooltipFlag): Unit = {
+    getBlock match {
+      case _: block.Microcontroller =>
+        stack.set(DataComponents.RARITY, Rarity.byTier(new MicrocontrollerData(stack).tier))
+      case _: block.RobotProxy =>
+        stack.set(DataComponents.RARITY, Rarity.byTier(new RobotData(stack).tier))
+      case _ =>
     }
-    case _: block.RobotProxy => {
-      val data = new RobotData(stack)
-      Rarity.byTier(data.tier)
-    }
-    case _ => net.minecraft.world.item.Rarity.COMMON
+    super.appendHoverText(stack, ctx, tooltip, flag)
   }
 
   override def getName(stack: ItemStack): Component = {
@@ -66,7 +48,7 @@ class Item(value: Block, props: Properties) extends BlockItem(value, props) {
     // in the different robots, to avoid interference of screens e.g.
     val needsCopying = ctx.getPlayer.isCreative && api.Items.get(ctx.getItemInHand) == api.Items.get(Constants.BlockName.Robot)
     val ctxToUse = if (needsCopying) {
-      val stackToUse = new RobotData(ctx.getItemInHand).copyItemStack()
+      val stackToUse = new RobotData(ctx.getItemInHand).copyItemStack(ctx.getLevel.registryAccess())
       val hitResult = new BlockHitResult(ctx.getClickLocation, ctx.getClickedFace, ctx.getClickedPos, ctx.isInside)
       new BlockPlaceContext(ctx.getLevel, ctx.getPlayer, ctx.getHand, stackToUse, hitResult)
     }
@@ -76,10 +58,12 @@ class Item(value: Block, props: Properties) extends BlockItem(value, props) {
       ctx.getLevel.getBlockEntity(ctxToUse.getClickedPos) match {
         case keyboard: blockentity.Keyboard => // Ignore.
         case rotatable: blockentity.traits.Rotatable =>
-          rotatable.setFromEntityPitchAndYaw(ctxToUse.getPlayer)
-          if (!rotatable.validFacings.contains(rotatable.pitch)) {
-            rotatable.pitch = rotatable.validFacings.headOption.getOrElse(Direction.NORTH)
-          }
+          val localClickPos = Vec3.atCenterOf(ctxToUse.getClickedPos)
+          val forward = Vec3.directionFromRotation(ctxToUse.getPlayer.getXRot, ctxToUse.getPlayer.getYRot).reverse()
+          val side = Vec3.directionFromRotation(0, ctxToUse.getPlayer.getYRot + 90).reverse()
+          val localYaw = SableCompat.localHeading(ctxToUse.getLevel, localClickPos, forward, side)
+          val localPitch = SableCompat.localPitch(ctxToUse.getLevel, localClickPos, forward)
+          rotatable.setFromPitchAndYaw(localPitch.toFloat, localYaw.toFloat)
           if (!rotatable.isInstanceOf[blockentity.RobotProxy]) {
             rotatable.invertRotation()
           }

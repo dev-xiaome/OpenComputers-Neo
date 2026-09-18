@@ -5,7 +5,14 @@ object PacketType extends Enumeration {
   // Server -> Client
   AdapterState,
   Analyze,
-  SoundCardData,
+  AudioStart,
+  AudioChunk,
+  AudioPlay,
+  AudioPause ,
+  AudioResume,
+  AudioStop,
+  AudioClose,
+  AudioSetLoop,
   ChargerState,
   ClientLog,
   ColorChange,
@@ -95,7 +102,19 @@ object PacketType extends Enumeration {
   RobotAssemblerStart,
   RobotStateRequest,
   ServerPower,
-  HoloScreenResize,
+
+  LootDisksReset,
+  LootEEPROMsReset,
+  LootEEPROM,
+
+  RobotFlagChange,
+
+  // Client -> Server. Sent while a tablet is held by the client's cursor.
+  TabletCursorTick,
+
+  // Appended to preserve packet ordinals used by existing clients.
+  ComputronicsTone,
+  TapeAudioStart,
 
   EndOfList = Value
 }

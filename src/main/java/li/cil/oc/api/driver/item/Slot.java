@@ -1,7 +1,7 @@
 package li.cil.oc.api.driver.item;
 
 /**
- * Reference list of slot types in OpenComputers.
+ * Reference list of slot types in OpenComputersNeo.
  */
 public final class Slot {
     public static final String None = "none";

@@ -24,17 +24,19 @@ import net.minecraft.world.MenuProvider
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.world.level.block.state.BlockState
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
 import net.minecraft.network.chat
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
-import scala.collection.convert.ImplicitConversionsToJava._
+import scala.jdk.CollectionConverters._
 
-class Assembler(pos: BlockPos, state: BlockState) 
+class Assembler(pos: BlockPos, state: BlockState)
   extends BlockEntity(BlockEntityTypes.ASSEMBLER.get(), pos, state) with traits.Environment with traits.PowerAcceptor
-  with traits.Inventory with SidedEnvironment with traits.StateAware with traits.Tickable with DeviceInfo with MenuProvider {
+  with traits.Inventory with SidedEnvironment with traits.StateAware with traits.Tickable with DeviceInfo with MenuProvider
+    with IBlockEntityExtension {
 
   val node = api.Network.newNode(this, Visibility.Network).
     withComponent("assembler").
@@ -54,7 +56,7 @@ class Assembler(pos: BlockPos, state: BlockState)
     DeviceAttribute.Product -> "Factorizer R1D1"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -155,32 +157,37 @@ class Assembler(pos: BlockPos, state: BlockState)
   private final val TotalTag = Settings.namespace + "total"
   private final val RemainingTag = Settings.namespace + "remaining"
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
+  override def loadForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForServer(nbt, provider)
     if (nbt.contains(OutputTag)) {
-      output = StackOption(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(OutputTag)))
+      output = StackOption(ItemStack.parseOptional(provider, nbt.getCompound(OutputTag)))
     }
     else if (nbt.contains(OutputTagCompat)) {
-      output = StackOption(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(OutputTagCompat)))
+      output = StackOption(ItemStack.parseOptional(provider, nbt.getCompound(OutputTagCompat)))
     }
     totalRequiredEnergy = nbt.getDouble(TotalTag)
     requiredEnergy = nbt.getDouble(RemainingTag)
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
-    nbt.setNewItemStackTag(OutputTag, output.get)
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForServer(nbt, provider)
+    if (!output.isEmpty) {
+      nbt.put(OutputTag, output.get.save(provider))
+    }
+    else {
+      nbt.remove(OutputTag)
+    }
     nbt.putDouble(TotalTag, totalRequiredEnergy)
     nbt.putDouble(RemainingTag, requiredEnergy)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
+  override def loadForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForClient(nbt, provider)
     requiredEnergy = nbt.getDouble(RemainingTag)
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
+  override def saveForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForClient(nbt, provider)
     nbt.putDouble(RemainingTag, requiredEnergy)
   }
 

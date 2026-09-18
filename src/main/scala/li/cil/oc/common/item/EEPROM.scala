@@ -1,29 +1,18 @@
 package li.cil.oc.common.item
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
-import li.cil.oc.Settings
-import li.cil.oc.util.BlockPosition
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.Item.Properties
-import net.minecraft.world.item.ItemStack
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import net.minecraft.core.BlockPos
-
-import net.minecraft.world.level.LevelReader
 import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.Item.Properties
+import net.minecraft.world.item.{Item, ItemStack}
+import net.minecraft.world.level.LevelReader
+import net.neoforged.neoforge.common.extensions.IItemExtension
 
-class EEPROM(props: Properties) extends Item(props) with traits.SimpleItem {
+class EEPROM(props: Properties) extends Item(props) with traits.SimpleItem with IItemExtension {
   override def getName(stack: ItemStack): Component = {
-    if (stack.hasTag) {
-      val tag = stack.getTag
-      if (tag.contains(Settings.namespace + "data")) {
-        val data = tag.getCompound(Settings.namespace + "data")
-        if (data.contains(Settings.namespace + "label")) {
-          return Component.literal(data.getString(Settings.namespace + "label"))
-        }
-      }
-    }
+    stack.getComponent(OCComponents.LABEL).foreach(label => return Component.literal(label))
     super.getName(stack)
   }
 

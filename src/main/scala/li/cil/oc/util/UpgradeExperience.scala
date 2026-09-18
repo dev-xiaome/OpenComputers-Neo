@@ -1,17 +1,18 @@
 package li.cil.oc.util
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
 import li.cil.oc.Settings
-import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.item.ItemStack
 
 object UpgradeExperience {
   final val XpTag = Settings.namespace + "xp"
 
   def getExperience(nbt: CompoundTag): Double = nbt.getDouble(XpTag) max 0
 
-  def getExperience(stack: ItemStack): Double = if (!stack.hasTag) 0 else getExperience(stack.getTag)
+  def getExperience(stack: ItemStack): Double = {
+    val tag = ItemUtils.getTag(stack)
+    if (tag == null) 0 else getExperience(tag)
+  }
 
   def setExperience(nbt: CompoundTag, experience: Double): Unit = nbt.putDouble(XpTag, experience)
 

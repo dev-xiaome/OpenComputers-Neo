@@ -1,31 +1,29 @@
 package li.cil.oc.common.item
 
-import java.util
-
 import li.cil.oc.Settings
 import li.cil.oc.Settings.DebugCardAccess
 import li.cil.oc.common.item.data.DebugCardData
 import li.cil.oc.server.component.{DebugCard => CDebugCard}
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.Item.Properties
-import net.minecraft.world.item.ItemStack
-
-import net.minecraft.world.level.Level
-import net.minecraft.world.InteractionResultHolder
-import net.minecraft.world.InteractionResult
-import net.minecraft.world.InteractionHand
 import net.minecraft.network.chat.Component
+import net.minecraft.world.item.Item.Properties
+import net.minecraft.world.item.{Item, ItemStack, TooltipFlag}
+import net.minecraft.world.level.Level
+import net.minecraft.world.{InteractionHand, InteractionResult, InteractionResultHolder}
 import net.minecraft.world.entity.player.Player
-import net.minecraft.Util
+import net.neoforged.neoforge.common.extensions.IItemExtension
 
-class DebugCard(props: Properties) extends Item(props) with traits.SimpleItem {
-  override protected def tooltipExtended(stack: ItemStack, tooltip: util.List[Component]): Unit = {
-    super.tooltipExtended(stack, tooltip)
+import java.util
+
+class DebugCard(props: Properties) extends Item(props) with traits.ComponentItem with IItemExtension {
+
+  override protected def tooltipExtended(stack: ItemStack, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+    super.tooltipExtended(stack, tooltip, flag)
     val data = new DebugCardData(stack)
     data.access.foreach(access => tooltip.add(Component.literal(s"§8${access.player}§r")))
   }
 
-  override def use(stack: ItemStack, level: Level, player: Player): InteractionResultHolder[ItemStack] = {
+  override def use(level: Level, player: Player, hand: InteractionHand): InteractionResultHolder[ItemStack] = {
+    val stack = player.getItemInHand(hand)
     if (!level.isClientSide && player.isCrouching) {
       val data = new DebugCardData(stack)
       val name = player.getName
@@ -37,16 +35,15 @@ class DebugCard(props: Properties) extends Item(props) with traits.SimpleItem {
             case Some(n) => n
             case None =>
               player.sendSystemMessage(Component.literal("§cYou are not whitelisted to use debug card"))
-              player.swing(InteractionHand.MAIN_HAND)
-              return new InteractionResultHolder[ItemStack](InteractionResult.FAIL, stack)
+              return InteractionResultHolder.sidedSuccess(stack, level.isClientSide)
           }
 
           case _ => ""
         }))
 
       data.saveData(stack)
-      player.swing(InteractionHand.MAIN_HAND)
     }
-    new InteractionResultHolder(InteractionResult.sidedSuccess(level.isClientSide), stack)
+
+    InteractionResultHolder.sidedSuccess(stack, level.isClientSide)
   }
 }

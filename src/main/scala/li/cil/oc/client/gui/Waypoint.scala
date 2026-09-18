@@ -1,14 +1,11 @@
 package li.cil.oc.client.gui
 
-import com.mojang.blaze3d.vertex.PoseStack
-import com.mojang.blaze3d.systems.RenderSystem
-import li.cil.oc.client.PacketSender
-import li.cil.oc.client.Textures
+import li.cil.oc.client.{PacketSender, Textures}
 import li.cil.oc.common.blockentity
-import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.gui.components.EditBox
 import net.minecraft.client.KeyMapping
 import net.minecraft.client.gui.GuiGraphics
+import net.minecraft.client.gui.components.EditBox
+import net.minecraft.client.gui.screens.Screen
 import net.minecraft.network.chat.Component
 import org.lwjgl.glfw.GLFW
 
@@ -22,8 +19,6 @@ class Waypoint(val waypoint: blockentity.Waypoint) extends Screen(Component.empt
 
   override def tick(): Unit = {
     super.tick()
-    // 1.21.1: EditBox 不再暴露 tick()，光标闪烁由 Widget 内部基于时间处理。
-    // 1.21.1: renderBackground 已并入 render，不再单独调用。
     if (minecraft.player.distanceToSqr(waypoint.x + 0.5, waypoint.y + 0.5, waypoint.z + 0.5) > 64) {
       onClose()
     }
@@ -68,7 +63,6 @@ class Waypoint(val waypoint: blockentity.Waypoint) extends Screen(Component.empt
 
   override def render(graphics: GuiGraphics, mouseX: Int, mouseY: Int, dt: Float): Unit = {
     super.render(graphics, mouseX, mouseY, dt)
-    RenderSystem.setShaderColor(1, 1, 1, 1)
     graphics.blit(Textures.GUI.Waypoint, leftPos, topPos, 0, 0, imageWidth, imageHeight)
     textField.render(graphics, mouseX, mouseY, dt)
   }

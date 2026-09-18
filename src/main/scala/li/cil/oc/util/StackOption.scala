@@ -44,7 +44,6 @@ sealed abstract class StackOption(stack: ItemStack) extends Product with Seriali
 
   def map(f: ItemStack => ItemStack): StackOption = if (isEmpty) EmptyStack else SomeStack(f(this.get))
 
-  //def map[B](f: ItemStack => B): Option[B] = if (isEmpty) None else Some(f(this.get))
 
   def fold[B](ifEmpty: => B)(f: ItemStack => B): B = if (isEmpty) ifEmpty else f(this.get)
 
@@ -61,9 +60,7 @@ sealed abstract class StackOption(stack: ItemStack) extends Product with Seriali
   def withFilter(p: ItemStack => Boolean): WithFilter = new WithFilter(p)
 
   class WithFilter(p: ItemStack => Boolean) {
-    //def map[B](f: ItemStack => B): Option[B] = self filter p map f
 
-    //def flatMap[B](f: ItemStack => Option[B]): Option[B] = self filter p flatMap f
 
     def foreach[U](f: ItemStack => U): Unit = self filter p foreach f
 
@@ -96,4 +93,9 @@ sealed abstract class StackOption(stack: ItemStack) extends Product with Seriali
 
   def toLeft[X](right: => X): Either[ItemStack, X] =
     if (isEmpty) Right(right) else Left(this.get)
+
+  def toOption: Option[ItemStack] = this match {
+    case StackOption.EmptyStack => None
+    case SomeStack(stack) => Some(stack)
+  }
 }

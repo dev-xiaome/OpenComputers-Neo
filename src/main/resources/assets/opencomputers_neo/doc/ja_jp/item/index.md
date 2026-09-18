@@ -48,7 +48,6 @@
 * [ピストンアップグレード](pistonupgrade.md)
 * [看板アップグレード](signupgrade.md)
 * [太陽光発電アップグレード](solargeneratorupgrade.md)
-* [粘着ピストンアップグレード](stickypistonupgrade.md)
 * [タンクコントローラー](tankcontrollerupgrade.md)
 * [タンクアップグレード](tankupgrade.md)
 * [トラクタービームアップグレード](tractorbeamupgrade.md)

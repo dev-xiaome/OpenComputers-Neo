@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers_neo:case",
+  "criteria": {
+    "crafting_rack": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.rack.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers_neo:rack"
+    },
+    "title": {
+      "translate": "achievement.oc.rack"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_rack"
+    ]
+  ]
+}

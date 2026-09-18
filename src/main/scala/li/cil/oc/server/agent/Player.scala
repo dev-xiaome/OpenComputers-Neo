@@ -1,73 +1,52 @@
 package li.cil.oc.server.agent
 
-import java.util
-import java.util.UUID
-import com.mojang.datafixers.util.Either
 import com.mojang.authlib.GameProfile
-import li.cil.oc.OpenComputers
-import li.cil.oc.Settings
+import com.mojang.datafixers.util.Either
+import li.cil.oc.{OpenComputersNeo, Settings}
 import li.cil.oc.api.event._
 import li.cil.oc.api.internal
 import li.cil.oc.api.network.Connector
 import li.cil.oc.common.EventHandler
 import li.cil.oc.server.agent.{Inventory => AgentInventory}
-import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.InventoryUtils
-import net.minecraft.world.level.block.piston.PistonBaseBlock
-import net.minecraft.world.entity.{Entity, EntityDimensions, EquipmentSlot, LivingEntity, Pose}
-import net.minecraft.world.entity.item.ItemEntity
-import net.minecraft.world.entity.player.{Player => PlayerEntity}
-import net.minecraft.world.entity.player.Player.{BedSleepingProblem => BedStatus}
-import net.minecraft.world.level.block.Blocks
-import net.minecraft.world.item.Items
-import net.minecraft.world.Container
-import net.minecraft.world.MenuProvider
-import net.minecraft.world.inventory.InventoryMenu
-import net.minecraft.world.item.BlockItem
-import net.minecraft.world.item.context.UseOnContext
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.trading.MerchantOffers
-import net.minecraft.server.network.{CommonListenerCookie, ServerGamePacketListenerImpl}
-import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket
-import net.minecraft.world.effect.MobEffectInstance
-import net.minecraft.server.players.ServerOpListEntry
-import net.minecraft.world.level.block.entity.{CommandBlockEntity, SignBlockEntity}
-import net.minecraft.world.InteractionResult
-import net.minecraft.world.damagesource.DamageSource
-import net.minecraft.core.Direction
-import net.minecraft.world.InteractionHand
-import net.minecraft.core.BlockPos
-import net.minecraft.world.phys.BlockHitResult
-import net.minecraft.world.phys.Vec3
+import li.cil.oc.util.{BlockPosition, InventoryUtils}
+import net.minecraft.core.{BlockPos, Direction, NonNullList}
 import net.minecraft.network.chat.Component
+import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket
+import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket.Action
+import net.minecraft.server.level.{ClientInformation, ServerLevel}
+import net.minecraft.server.network.{CommonListenerCookie, ServerGamePacketListenerImpl}
+import net.minecraft.server.players.ServerOpListEntry
+import net.minecraft.world.{Container, InteractionHand, InteractionResult, MenuProvider}
+import net.minecraft.world.damagesource.DamageSource
+import net.minecraft.world.effect.MobEffectInstance
+import net.minecraft.world.entity.Entity.RemovalReason
+import net.minecraft.world.entity.item.ItemEntity
+import net.minecraft.world.entity.player.Player.{BedSleepingProblem => BedStatus}
+import net.minecraft.world.entity.player.{Player => PlayerEntity}
+import net.minecraft.world.entity._
+import net.minecraft.world.inventory.InventoryMenu
+import net.minecraft.world.item.{BlockItem, ItemStack, Items}
+import net.minecraft.world.item.context.UseOnContext
+import net.minecraft.world.item.trading.MerchantOffers
+import net.minecraft.world.level.block.Blocks
+import net.minecraft.world.level.block.entity.{CommandBlockEntity, SignBlockEntity}
+import net.minecraft.world.level.block.piston.PistonBaseBlock
 import net.minecraft.world.level.{BaseCommandBlock, Level}
-import net.minecraft.server.level.ServerLevel
+import net.minecraft.world.phys.{BlockHitResult, Vec3}
+import net.neoforged.bus.api.{EventPriority, ICancellableEvent, SubscribeEvent}
 import net.neoforged.neoforge.common.NeoForge
-import net.neoforged.neoforge.common.util.FakePlayer
-import java.util.Optional
-import java.util.function.Supplier
-import net.neoforged.neoforge.event.EventHooks
+import net.neoforged.neoforge.common.util.{FakePlayer, TriState}
 import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent
+import net.neoforged.neoforge.event.entity.player.PlayerEvent
+import net.neoforged.neoforge.network.connection.ConnectionType
 import net.neoforged.neoforge.common.CommonHooks
-import net.neoforged.neoforge.common.util.TriState
-import net.neoforged.fml.util.ObfuscationReflectionHelper
-import net.neoforged.bus.api.{EventPriority, SubscribeEvent}
-import net.neoforged.neoforge.items.IItemHandler
-import net.neoforged.neoforge.items.wrapper._
 
+import java.util
+import java.util.UUID
 import scala.jdk.CollectionConverters._
-import net.minecraft.core.NonNullList
-import net.minecraft.world.entity.Entity.RemovalReason
 
 object Player {
-  // These use unobfuscated names because they're added by forge (java.util.Optional / capabilities).
-  private val playerMainHandler = ObfuscationReflectionHelper.findField(classOf[PlayerEntity], "playerMainHandler")
-
-  private val playerEquipmentHandler = ObfuscationReflectionHelper.findField(classOf[PlayerEntity], "playerEquipmentHandler")
-
-  private val playerJoinedHandler = ObfuscationReflectionHelper.findField(classOf[PlayerEntity], "playerJoinedHandler")
-
   def profileFor(agent: internal.Agent): GameProfile = {
     val uuid = agent.ownerUUID
     val randomId = (agent.getEnvironmentLevel.random.nextInt(0xFFFFFF) + 1).toString
@@ -84,7 +63,7 @@ object Player {
       replace("$random$", randomUUID.toString).
       replace("$player$", playerUUID.getOrElse(randomUUID).toString)) catch {
       case t: Throwable =>
-        OpenComputers.log.warn("Failed determining robot UUID, check your config's `uuidFormat` entry!", t)
+        OpenComputersNeo.log.warn("Failed determining robot UUID, check your config's `uuidFormat` entry!", t)
         randomUUID
     }
   }
@@ -149,9 +128,7 @@ object Player {
 }
 
 class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentLevel.asInstanceOf[ServerLevel], Player.profileFor(agent)) {
-  // 1.21.1 起该构造器需要 CommonListenerCookie（NeoForge 在末尾追加了 connectionType 字段）。
-  connection = new ServerGamePacketListenerImpl(server, FakeNetworkManager, this,
-    CommonListenerCookie.createInitial(getGameProfile, false))
+  // NeoForge 1.21: FakePlayer already sets up connection internally
   val abilities = getAbilities
 
   abilities.mayfly = true
@@ -159,12 +136,7 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
   abilities.flying = true
   setOnGround(true)
 
-  // 1.21.1 移除了 getMyRidingOffset；假玩家不承载乘客，无需再覆写。
-
-  // 1.21.1 移除了 getStandingEyeHeight，眼高改为随 EntityDimensions 提供；
-  // 且 LivingEntity#getDimensions 已是 final，只能覆写 getDefaultDimensions。
-  // EntityDimensions 在 1.21.1 是 record，请使用 fixed/scalable 工厂方法。
-  override def getDefaultDimensions(pose: Pose) = EntityDimensions.fixed(1, 1).withEyeHeight(0f)
+  override def getDefaultDimensions(pose: Pose) = new EntityDimensions(1, 1, 1, EntityAttachments.createDefault(1, 1), true)
   refreshDimensions()
 
   {
@@ -173,19 +145,7 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
     this.inventoryMenu = new InventoryMenu(inventory, !level.isClientSide, this)
     this.containerMenu = this.inventoryMenu
 
-    try {
-      Player.playerMainHandler.set(this, java.util.Optional.of(new java.util.function.Supplier[IItemHandler] {
-        override def get = new PlayerMainInvWrapper(inventory)
-      }))
-      Player.playerEquipmentHandler.set(this, java.util.Optional.of(new java.util.function.Supplier[IItemHandler] {
-        override def get = new CombinedInvWrapper(new PlayerArmorInvWrapper(inventory), new PlayerOffhandInvWrapper(inventory))
-      }))
-      Player.playerJoinedHandler.set(this, java.util.Optional.of(new java.util.function.Supplier[IItemHandler] {
-        override def get = new PlayerInvWrapper(inventory)
-      }))
-    } catch {
-      case _: Exception =>
-    }
+    // NeoForge 1.21.1: LazyOptional-based inventory capability fields removed; AgentInventory is used directly
   }
 
   var facing, side = Direction.SOUTH
@@ -240,14 +200,12 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
 
   override def interactOn(entity: Entity, hand: InteractionHand): InteractionResult = {
     val cancel = try {
-      val event = new PlayerInteractEvent.EntityInteract(this, hand, entity)
-      // NeoForge 的 IEventBus.post 返回事件本身，取消状态需从事件读取。
-      NeoForge.EVENT_BUS.post(event)
-      event.isCanceled
+      NeoForge.EVENT_BUS.post(new PlayerInteractEvent.EntityInteract(this, hand, entity))
+      true
     } catch {
       case t: Throwable =>
         if (!t.getStackTrace.exists(_.getClassName.startsWith("mods.battlegear2."))) {
-          OpenComputers.log.warn("Some event handler screwed up!", t)
+          OpenComputersNeo.log.warn("Some event handler screwed up!", t)
         }
         false
     }
@@ -260,7 +218,6 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
         if (getItemInHand(InteractionHand.MAIN_HAND).getCount <= 0) {
           val orig = getItemInHand(InteractionHand.MAIN_HAND)
           this.inventory.setItem(this.inventory.selected, ItemStack.EMPTY)
-          EventHooks.onPlayerDestroyItem(this, orig, hand)
         } else {
           // because of various hacks for IC2, we expect the in-hand result to be moved to our offhand buffer
           this.inventory.offhand.set(0, getItemInHand(InteractionHand.MAIN_HAND))
@@ -288,7 +245,6 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
       val canActivate = !state.isAir() && Settings.get.allowActivateBlocks
       val shouldActivate = canActivate && (!isCrouching || (item == null || item.doesSneakBypassUse(stack, level, pos, this)))
       val result =
-        // 1.21.1 中 BlockState#use 被拆分为 useItemOn（带物品）/ useWithoutItem。
         if (shouldActivate && state.useItemOn(stack, level, this, InteractionHand.OFF_HAND, new BlockHitResult(new Vec3(hitX, hitY, hitZ), side, pos, false)).consumesAction)
           ActivationType.BlockActivated
         else if (duration <= Double.MinPositiveValue && isItemUseAllowed(stack) && tryPlaceBlockWhileHandlingFunnySpecialCases(stack, pos, side, hitX, hitY, hitZ))
@@ -337,7 +293,6 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
   }
 
   def fireLeftClickBlock(pos: BlockPos, side: Direction): PlayerInteractEvent.LeftClickBlock = {
-    // NeoForge 1.21.1 用 CommonHooks.onLeftClickBlock 取代了 ForgeHooks.onLeftClickBlock。
     CommonHooks.onLeftClickBlock(this, pos, side, ServerboundPlayerActionPacket.Action.START_DESTROY_BLOCK)
   }
 
@@ -482,21 +437,17 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
   private def shouldCancel(f: () => PlayerInteractEvent) = {
     try {
       val event = f()
-      // NeoForge 1.21.1 用 TriState 取代了 Event.Result；getResult/hasResult 只在部分事件上存在。
-      event match {
-        case rightClick: PlayerInteractEvent.RightClickBlock =>
-          rightClick.isCanceled || rightClick.getUseBlock == TriState.FALSE || rightClick.getUseItem == TriState.FALSE
-        case leftClick: PlayerInteractEvent.LeftClickBlock =>
-          leftClick.isCanceled || leftClick.getUseBlock == TriState.FALSE || leftClick.getUseItem == TriState.FALSE
-        case rightClick: PlayerInteractEvent.RightClickItem =>
-          rightClick.isCanceled
+      (event.isInstanceOf[ICancellableEvent] && event.asInstanceOf[ICancellableEvent].isCanceled) || (event match {
+        case rightClick: PlayerInteractEvent.RightClickBlock => rightClick.getUseBlock == TriState.FALSE || rightClick.getUseItem == TriState.FALSE
+        case leftClick: PlayerInteractEvent.LeftClickBlock => leftClick.getUseBlock == TriState.FALSE || leftClick.getUseItem == TriState.FALSE
+        case rightClick: PlayerInteractEvent.RightClickItem => rightClick.getCancellationResult == InteractionResult.FAIL
         case _ => false
-      }
+      })
     }
     catch {
       case t: Throwable =>
         if (!t.getStackTrace.exists(_.getClassName.startsWith("mods.battlegear2."))) {
-          OpenComputers.log.warn("Some event handler screwed up!", t)
+          OpenComputersNeo.log.warn("Some event handler screwed up!", t)
         }
         false
     }
@@ -528,7 +479,7 @@ class Player(val agent: internal.Agent) extends FakePlayer(agent.getEnvironmentL
         }
         if (repair) {
           if (newStack.getCount > 0) tryRepair(newStack, oldStack)
-          else EventHooks.onPlayerDestroyItem(this, newStack, InteractionHand.OFF_HAND)
+          else inventory.setItem(slot, ItemStack.EMPTY)
         }
       }
       collectDroppedItems(itemsBefore.asScala)

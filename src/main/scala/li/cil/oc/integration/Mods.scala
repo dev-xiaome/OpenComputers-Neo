@@ -1,13 +1,12 @@
 package li.cil.oc.integration
 
 import java.util.Optional
-
 import li.cil.oc.Settings
 import li.cil.oc.integration
 import net.neoforged.fml.ModList
 import net.neoforged.fml.ModContainer
+import net.neoforged.neoforgespi.language.MavenVersionAdapter
 import org.apache.maven.artifact.versioning.ArtifactVersion
-import org.apache.maven.artifact.versioning.VersionRange
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -21,42 +20,33 @@ object Mods {
   // ----------------------------------------------------------------------- //
 
   def All: ArrayBuffer[ModBase] = knownMods.clone()
-  val AppliedEnergistics2 = new ClassBasedMod(IDs.AppliedEnergistics2, "appeng.api.storage.channels.IItemStorageChannel")
-  val CoFHCore = new SimpleMod(IDs.CoFHCore)
   val Create = new SimpleMod(IDs.Create)
-  val ThermalFoundation = new SimpleMod(IDs.ThermalFoundation)
+  val Sable = new SimpleMod(IDs.Sable, "[2.0,3)")
   val ComputerCraft = new SimpleMod(IDs.ComputerCraft)
-  val Forge = new SimpleMod(IDs.Forge)
+  val NeoForge = new SimpleMod(IDs.Forge)
   val JustEnoughItems = new SimpleMod(IDs.JustEnoughItems)
+  val AppliedEnergistics2 = new SimpleMod(IDs.AppliedEnergistics2)
   val Mekanism = new SimpleMod(IDs.Mekanism)
   val Minecraft = new SimpleMod(IDs.Minecraft)
-  val OpenComputers = new SimpleMod(IDs.OpenComputers)
-  val TIS3D = new SimpleMod(IDs.TIS3D, version = "[0.9,)")
-  val ProjectRedTransmission = new SimpleMod((IDs.ProjectRedTransmission))
-  val DraconicEvolution = new SimpleMod(IDs.DraconicEvolution)
+  val OpenComputersNeo = new SimpleMod(IDs.OpenComputersNeo)
   val EnderStorage = new SimpleMod(IDs.EnderStorage)
+  val ProjectRedTransmission = new SimpleMod(IDs.ProjectRedTransmission)
 
   // ----------------------------------------------------------------------- //
 
   val Proxies = Array(
-    //integration.appeng.ModAppEng,
-    // 下列集成需要第三方 mod 依赖（cofh / create / mekanism / projectred /
-    // computercraft / enderstorage），这些集成包已暂时隔离到
-    // src/main/scala-pending/li/cil/oc/integration/ 下，等对应的 NeoForge 1.21.1
-    // 版本可用后再移回来并在此处重新登记：
-    //   integration.cofh.tileentity.ModCoFHBlockEntity
-    //   integration.create.ModCreate
-    //   integration.cofh.foundation.ModThermalFoundation
-    //   integration.mekanism.ModMekanism
-    //   integration.projectred.ModProjectRed
-    //   integration.computercraft.ModComputerCraft
-    //   integration.enderstorage.ModEnderStorage
-    integration.minecraftforge.ModNeoForge,
-    //integration.tis3d.ModTIS3D,
+    integration.create.ModCreate,
+    integration.neoforge.ModNeoForge,
+    integration.mekanism.ModMekanism.INSTANCE,
     integration.minecraft.ModMinecraft,
+    integration.computercraft.ModComputerCraft,
+    integration.appeng.ModAppliedEnergistics2.INSTANCE,
+    integration.enderstorage.ModEnderStorage,
+    integration.projectred.ModProjectRed,
+
     // We go late to ensure all other mod integration is done, e.g. to
     // allow properly checking if wireless redstone is present.
-    integration.opencomputers.ModOpenComputers
+    integration.OpenComputersNeo.ModOpenComputers
   )
 
   def preInit(): Unit = {
@@ -73,10 +63,10 @@ object Mods {
     val isBlacklisted = Settings.get.modBlacklist.contains(mod.getMod.id)
     val alwaysEnabled = mod.getMod == null || mod.getMod == Mods.Minecraft
     if (!isBlacklisted && (alwaysEnabled || mod.getMod.isModAvailable) && handlers.add(mod)) {
-      li.cil.oc.OpenComputers.log.debug(s"Pre-initializing mod integration for '${mod.getMod.id}'.")
+      li.cil.oc.OpenComputersNeo.log.debug(s"Pre-initializing mod integration for '${mod.getMod.id}'.")
       try mod.preInitialize() catch {
         case e: Throwable =>
-          li.cil.oc.OpenComputers.log.warn(s"Error pre-initializing integration for '${mod.getMod.id}'", e)
+          li.cil.oc.OpenComputersNeo.log.warn(s"Error pre-initializing integration for '${mod.getMod.id}'", e)
       }
     }
   }
@@ -95,10 +85,10 @@ object Mods {
     val isBlacklisted = Settings.get.modBlacklist.contains(mod.getMod.id)
     val alwaysEnabled = mod.getMod == null || mod.getMod == Mods.Minecraft
     if (!isBlacklisted && (alwaysEnabled || mod.getMod.isModAvailable) && handlers.add(mod)) {
-      li.cil.oc.OpenComputers.log.debug(s"Initializing mod integration for '${mod.getMod.id}'.")
+      li.cil.oc.OpenComputersNeo.log.debug(s"Initializing mod integration for '${mod.getMod.id}'.")
       try mod.initialize() catch {
         case e: Throwable =>
-          li.cil.oc.OpenComputers.log.warn(s"Error initializing integration for '${mod.getMod.id}'", e)
+          li.cil.oc.OpenComputersNeo.log.warn(s"Error initializing integration for '${mod.getMod.id}'", e)
       }
     }
   }
@@ -106,24 +96,17 @@ object Mods {
   // ----------------------------------------------------------------------- //
 
   object IDs {
-    final val AppliedEnergistics2 = "appliedenergistics2"
-    final val CoFHCore = "cofh_core"
     final val Create = "create"
-    final val ThermalFoundation = "thermal_foundation"
+    final val Sable = "sable"
     final val ComputerCraft = "computercraft"
     final val Forge = "forge"
     final val JustEnoughItems = "jei"
+    final val AppliedEnergistics2 = "ae2"
     final val Mekanism = "mekanism"
     final val Minecraft = "minecraft"
-    // 本移植的 mod id 是 `opencomputers_neo`（上游是 `opencomputers`），必须与 `OpenComputers.ID`
-    // 一致：`Mods.tryInit` 拿这个 id 去判断集成是否可用，写错就会跳过
-    // `ModOpenComputers.initialize()` —— 后果是**一个 driver 都注册不上**，
-    // 屏幕 / 键盘 / 机器人等一切依赖 driver 的东西在运行期全部 NPE。
-    final val OpenComputers = li.cil.oc.OpenComputers.ID
-    final val TIS3D = "tis3d"
-    final val ProjectRedTransmission = "projectred-transmission"
-    final val DraconicEvolution = "draconicevolution"
+    final val OpenComputersNeo = li.cil.oc.OpenComputersNeo.ID
     final val EnderStorage = "enderstorage"
+    final val ProjectRedTransmission = "projectred_transmission"
   }
 
   // ----------------------------------------------------------------------- //
@@ -144,11 +127,7 @@ object Mods {
 
   class SimpleMod(val id: String, version: String = "") extends ModBase {
     private lazy val isModAvailable_ = optionToScala(ModList.get.getModContainerById(id)) match {
-      // NeoForge 移除了 net.neoforged.neoforge.forgespi.language.MavenVersionAdapter，
-      // 这里改用 maven-artifact 自带的 VersionRange（NeoForge 的
-      // IModInfo.getVersion 返回的就是 org.apache.maven.artifact.versioning.ArtifactVersion，
-      // 版本范围字符串本身也是 Maven 语法，语义与原来一致）。
-      case Some(container) => version.isEmpty || VersionRange.createFromVersionSpec(version).containsVersion(container.getModInfo.getVersion)
+      case Some(container) => version.isEmpty || MavenVersionAdapter.createFromVersionSpec(version).containsVersion(container.getModInfo.getVersion)
       case _ => false
     }
 

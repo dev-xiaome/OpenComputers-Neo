@@ -2,7 +2,13 @@ package li.cil.oc.util
 
 import li.cil.oc.Settings
 import li.cil.oc.api
+import li.cil.oc.api.Persistable
+import li.cil.oc.common.datacomponents.{OCComponents, TextBufferContents}
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt._
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 import java.lang
 
@@ -14,7 +20,7 @@ import java.lang
  * relatively fast updates, given a smart algorithm (using copy()/fill()
  * instead of set()ing everything).
  */
-class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.ColorFormat) {
+class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.ColorFormat) extends Persistable {
   def this(size: (Int, Int), format: PackedColor.ColorFormat) = this(size._1, size._2, format)
 
   private var _format = initialFormat
@@ -25,27 +31,27 @@ class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.Col
 
   private var packed = PackedColor.pack(_foreground, _background, _format)
 
-  def foreground = _foreground
+  def foreground: PackedColor.Color = _foreground
 
-  def foreground_=(value: PackedColor.Color) = {
+  def foreground_=(value: PackedColor.Color): TextBuffer = {
     format.validate(value)
     _foreground = value
     packed = PackedColor.pack(_foreground, _background, _format)
     this
   }
 
-  def background = _background
+  def background: PackedColor.Color = _background
 
-  def background_=(value: PackedColor.Color) = {
+  def background_=(value: PackedColor.Color): TextBuffer = {
     format.validate(value)
     _background = value
     packed = PackedColor.pack(_foreground, _background, _format)
     this
   }
 
-  def format = _format
+  def format: PackedColor.ColorFormat = _format
 
-  def format_=(value: PackedColor.ColorFormat) = {
+  def format_=(value: PackedColor.ColorFormat): Boolean = {
     if (format.depth != value.depth) {
       for (row <- 0 until height) {
         val rowColor = color(row)
@@ -63,12 +69,12 @@ class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.Col
     else false
   }
 
-  var color = Array.fill(height, width)(packed)
+  var color: Array[Array[Short]] = Array.fill(height, width)(packed)
 
-  var buffer = Array.fill(height, width)(0x20)
+  var buffer: Array[Array[Int]] = Array.fill(height, width)(0x20)
 
   /** The current buffer size in columns by rows. */
-  def size = (width, height)
+  def size: (Int, Int) = (width, height)
 
   /**
    * Set the new buffer size, returns true if the size changed.
@@ -97,7 +103,7 @@ class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.Col
   }
 
   /** Get the char at the specified index. */
-  def get(col: Int, row: Int) = {
+  def get(col: Int, row: Int): Int = {
     if (col < 0 || col >= width || row < 0 || row >= height)
       throw new IndexOutOfBoundsException()
     else buffer(row)(col)
@@ -105,18 +111,23 @@ class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.Col
 
   /** String based fill starting at a specified location. */
   def set(col: Int, row: Int, s: String, vertical: Boolean): Boolean = {
-    val sLength = ExtendedUnicodeHelper.length(s)
     if (vertical) {
       if (col < 0 || col >= width) false
       else {
         var changed = false
+        var by = row
         var cx = 0
-        for (y <- row until math.min(row + sLength, height)) if (y >= 0) {
-          val line = buffer(y)
-          val lineColor = color(y)
+        while (cx < s.length && by < height) {
           val c = s.codePointAt(cx)
-          changed = changed || (line(col) != c) || (lineColor(col) != packed)
-          setChar(line, lineColor, col, c)
+          if (FontUtils.wcwidth(c) > 0) {
+            if (by >= 0) {
+              val line = buffer(by)
+              val lineColor = color(by)
+              changed = changed || (line(col) != c) || (lineColor(col) != packed)
+              setChar(line, lineColor, col, c)
+            }
+            by += 1
+          }
           cx = s.offsetByCodePoints(cx, 1)
         }
         changed
@@ -130,11 +141,14 @@ class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.Col
         val lineColor = color(row)
         var bx = math.max(col, 0)
         var cx = 0
-        for (x <- bx until math.min(col + sLength, width) if bx < line.length) {
+        while (cx < s.length && bx < line.length) {
           val c = s.codePointAt(cx)
-          changed = changed || (line(bx) != c) || (lineColor(bx) != packed)
-          setChar(line, lineColor, bx, c)
-          bx += math.max(1, FontUtils.wcwidth(c))
+          val charWidth = FontUtils.wcwidth(c)
+          if (charWidth > 0) {
+            changed = changed || (line(bx) != c) || (lineColor(bx) != packed)
+            setChar(line, lineColor, bx, c)
+            bx += charWidth
+          }
           cx = s.offsetByCodePoints(cx, 1)
         }
         changed
@@ -146,16 +160,17 @@ class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.Col
   def fill(col: Int, row: Int, w: Int, h: Int, c: Int): Boolean = {
     // Anything to do at all?
     if (w <= 0 || h <= 0) return false
+    if (FontUtils.wcwidth(c) == 0) return false
     if (col + w < 0 || row + h < 0 || col >= width || row >= height) return false
     var changed = false
     for (y <- math.max(row, 0) until math.min(row + h, height)) {
       val line = buffer(y)
       val lineColor = color(y)
       var bx = math.max(col, 0)
-      for (x <- bx until math.min(col + w, width) if bx < line.length) {
+      for (_ <- bx until math.min(col + w, width) if bx < line.length) {
         changed = changed || (line(bx) != c) || (lineColor(bx) != packed)
         setChar(line, lineColor, bx, c)
-        bx += math.max(1, FontUtils.wcwidth(c))
+        bx += FontUtils.wcwidth(c)
       }
     }
     changed
@@ -258,52 +273,46 @@ class TextBuffer(var width: Int, var height: Int, initialFormat: PackedColor.Col
     }
   }
 
-  def loadData(nbt: CompoundTag): Unit = {
-    val maxResolution = math.max(Settings.screenResolutionsByTier.last._1, Settings.screenResolutionsByTier.last._2)
-    val w = nbt.getInt("width") min maxResolution max 1
-    val h = nbt.getInt("height") min maxResolution max 1
-    size = (w, h)
+  override def loadData(holder: DataComponentHolder): Unit = {
+    for(TextBufferContents(width, height, depthTag, foreground, foregroundIsPalette, background, backgroundIsPalette, buffer, color) <- holder.getComponent(OCComponents.TEXT_BUFFER)) {
+      size = (width, height)
 
-    val b = nbt.getList("buffer", Tag.TAG_STRING)
-    for (i <- 0 until math.min(h, b.size)) {
-      val value = b.getString(i)
-      val valueIt = value.codePoints.iterator()
-      var j = 0
-      while (j < buffer(i).length && valueIt.hasNext) {
-        buffer(i)(j) = valueIt.nextInt()
-        j += 1
+      for (i <- 0 until math.min(height, buffer.size)) {
+        val value = buffer(i)
+        val valueIt = value.codePoints.iterator()
+        var j = 0
+        while (j < buffer(i).length && valueIt.hasNext) {
+          this.buffer(i)(j) = valueIt.nextInt()
+          j += 1
+        }
       }
-    }
 
-    val depth = api.internal.TextBuffer.ColorDepth.values.apply(nbt.getInt("depth") min (api.internal.TextBuffer.ColorDepth.values.length - 1) max 0)
-    _format = PackedColor.Depth.format(depth)
-    _format.loadData(nbt)
-    foreground = PackedColor.Color(nbt.getInt("foreground"), nbt.getBoolean("foregroundIsPalette"))
-    background = PackedColor.Color(nbt.getInt("background"), nbt.getBoolean("backgroundIsPalette"))
+      val depth = api.internal.TextBuffer.ColorDepth.values.apply(depthTag min (api.internal.TextBuffer.ColorDepth.values.length - 1) max 0)
+      _format = PackedColor.Depth.format(depth)
+      _format.loadData(holder)
+      this.foreground = PackedColor.Color(foreground, foregroundIsPalette)
+      this.background = PackedColor.Color(background, backgroundIsPalette)
 
-    if (!NbtDataStream.getShortArray(nbt, "colors", color, w, h)) {
-      NbtDataStream.getIntArrayLegacy(nbt, "color", color, w, h)
+      this.color = color.sized(width, height)
     }
   }
 
-  def saveData(nbt: CompoundTag): Unit = {
-    nbt.putInt("width", width)
-    nbt.putInt("height", height)
-
-    val b = new ListTag()
-    for (i <- 0 until height) {
-      b.add(StringTag.valueOf(lineToString(i)))
-    }
-    nbt.put("buffer", b)
-
-    nbt.putInt("depth", _format.depth.ordinal)
-    _format.saveData(nbt)
-    nbt.putInt("foreground", _foreground.value)
-    nbt.putBoolean("foregroundIsPalette", _foreground.isPalette)
-    nbt.putInt("background", _background.value)
-    nbt.putBoolean("backgroundIsPalette", _background.isPalette)
-
-    NbtDataStream.setShortArray(nbt, "colors", color.flatten.map(_.toShort))
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    holder.setComponent(OCComponents.TEXT_BUFFER, TextBufferContents(
+      width,
+      height,
+      _format.depth.ordinal,
+      _foreground.value,
+      _foreground.isPalette,
+      _background.value,
+      _background.isPalette,
+      List.tabulate[String](height) { lineToString },
+      new TextBufferContents.ShortArray(color)
+    ))
+    // Palette formats keep their mutable palette outside TextBufferContents.
+    // Persist it alongside the buffer so palette reads remain available after
+    // a reload or a client synchronization snapshot.
+    _format.saveData(holder)
   }
 
   def lineToString(y: Int): String = {

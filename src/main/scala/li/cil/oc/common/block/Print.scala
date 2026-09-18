@@ -1,36 +1,28 @@
 package li.cil.oc.common.block
 
-import java.util
-import java.util.Random
-import li.cil.oc.Localization
-import li.cil.oc.Settings
-import li.cil.oc.common.item.data.PrintData
+import li.cil.oc.{Localization, Settings}
 import li.cil.oc.common.blockentity
+import li.cil.oc.common.item.data.PrintData
 import li.cil.oc.server.loot.LootFunctions
 import li.cil.oc.util.Tooltip
-import net.minecraft.world.level.block.state.BlockBehaviour.Properties
-import net.minecraft.world.level.block.state.BlockState
-import net.minecraft.world.item.{TooltipFlag => ITooltipFlag}
-import net.minecraft.world.entity.LivingEntity
-import net.minecraft.world.entity.player.{Player => PlayerEntity}
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.level.storage.loot.LootParams
-import net.minecraft.world.level.storage.loot.parameters.LootContextParams
-import net.minecraft.world.{InteractionResult => ActionResultType, ItemInteractionResult}
-import net.minecraft.core.Direction
-import net.minecraft.world.{InteractionHand => Hand}
-import net.minecraft.core.BlockPos
-import net.minecraft.world.phys.{BlockHitResult => BlockRayTraceResult}
-import net.minecraft.world.phys.{HitResult => RayTraceResult}
-import net.minecraft.world.phys.shapes.{CollisionContext => ISelectionContext}
-import net.minecraft.world.phys.shapes.VoxelShape
+import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.network.chat.{Component => ITextComponent}
-import net.minecraft.world.level.{BlockGetter => IBlockReader}
-import net.minecraft.world.level.LevelReader
-import net.minecraft.world.level.{Level => World}
 import net.minecraft.server.level.{ServerLevel => ServerWorld}
 import net.minecraft.util.RandomSource
+import net.minecraft.world.{InteractionResult => ActionResultType}
+import net.minecraft.world.entity.LivingEntity
+import net.minecraft.world.entity.player.{Player => PlayerEntity}
+import net.minecraft.world.item.Item.TooltipContext
+import net.minecraft.world.item.{ItemStack, TooltipFlag}
+import net.minecraft.world.level.{BlockGetter => IBlockReader, Level => World}
+import net.minecraft.world.level.block.state.BlockBehaviour.Properties
+import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.level.storage.loot.LootParams
+import net.minecraft.world.level.storage.loot.parameters.LootContextParams
+import net.minecraft.world.phys.{BlockHitResult => BlockRayTraceResult}
+import net.minecraft.world.phys.shapes.{VoxelShape, CollisionContext => ISelectionContext}
 
+import java.util
 import scala.jdk.CollectionConverters._
 
 class Print(props: Properties) extends RedstoneAware(props) {
@@ -39,14 +31,14 @@ class Print(props: Properties) extends RedstoneAware(props) {
 
   // ----------------------------------------------------------------------- //
 
-  override protected def tooltipBody(stack: ItemStack, world: IBlockReader, tooltip: util.List[ITextComponent], advanced: ITooltipFlag) = {
-    super.tooltipBody(stack, world, tooltip, advanced)
+  override protected def tooltipBody(stack: ItemStack, context: TooltipContext, tooltip: util.List[ITextComponent], flag: TooltipFlag): Unit = {
+    super.tooltipBody(stack, context, tooltip, flag)
     val data = new PrintData(stack)
     data.tooltip.foreach(s => tooltip.addAll(s.linesIterator.map(ITextComponent.literal(_).setStyle(Tooltip.DefaultStyle)).toList.asJava))
   }
 
-  override protected def tooltipTail(stack: ItemStack, world: IBlockReader, tooltip: util.List[ITextComponent], advanced: ITooltipFlag) = {
-    super.tooltipTail(stack, world, tooltip, advanced)
+  override protected def tooltipTail(stack: ItemStack, context: TooltipContext, tooltip: util.List[ITextComponent], flag: TooltipFlag): Unit = {
+    super.tooltipTail(stack, context, tooltip, flag)
     val data = new PrintData(stack)
     if (data.isBeaconBase) {
       tooltip.add(ITextComponent.literal(Localization.Tooltip.PrintBeaconBase).setStyle(Tooltip.DefaultStyle))
@@ -77,15 +69,6 @@ class Print(props: Properties) extends RedstoneAware(props) {
       }
       case _ => super.getLightBlock(state, world, pos)
     }
-
-  // 1.21.1：`Block#getCloneItemStack` 只剩 3 个参数 `(LevelReader, BlockPos, BlockState)`，
-  // 玩家与命中结果已从签名里移除；这里本来也只用到世界和坐标。
-  override def getCloneItemStack(world: LevelReader, pos: BlockPos, state: BlockState): ItemStack = {
-    world.getBlockEntity(pos) match {
-      case print: blockentity.Print => print.data.createItemStack()
-      case _ => ItemStack.EMPTY
-    }
-  }
 
   override def getShape(state: BlockState, world: IBlockReader, pos: BlockPos, ctx: ISelectionContext): VoxelShape = {
     world.getBlockEntity(pos) match {
@@ -118,11 +101,10 @@ class Print(props: Properties) extends RedstoneAware(props) {
 
   // ----------------------------------------------------------------------- //
 
-  // 1.21.1：`Block#use(...)` 已拆成 `useItemOn(ItemStack, BlockState, ...)` / `useWithoutItem(...)`。
-  override def useItemOn(stack: ItemStack, state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hand: Hand, trace: BlockRayTraceResult): ItemInteractionResult = {
+  override def useWithoutItem(state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hitResult: BlockRayTraceResult): ActionResultType = {
     world.getBlockEntity(pos) match {
-      case print: blockentity.Print => if (print.activate()) ItemInteractionResult.sidedSuccess(world.isClientSide) else ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION
-      case _ => super.useItemOn(stack, state, world, pos, player, hand, trace)
+      case print: blockentity.Print => if (print.activate()) ActionResultType.sidedSuccess(world.isClientSide) else ActionResultType.PASS
+      case _ => super.useWithoutItem(state, world, pos, player, hitResult)
     }
   }
 

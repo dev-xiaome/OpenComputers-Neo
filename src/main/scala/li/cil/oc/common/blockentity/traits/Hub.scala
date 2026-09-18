@@ -7,12 +7,13 @@ import li.cil.oc.common.blockentity.traits
 import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.MovingAverage
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.core.Direction
+import net.minecraft.core.{Direction, HolderLookup}
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
 
 import scala.collection.mutable
 import net.minecraft.nbt.Tag
+
 import java.util.function.Consumer
 import scala.jdk.CollectionConverters._
 
@@ -116,11 +117,11 @@ trait Hub extends traits.Environment with SidedEnvironment with Tickable {
   private final val SideTag = "side"
   private final val RelayCooldownTag = Settings.namespace + "relayCooldown"
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
+  override def loadForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForServer(nbt, provider)
     nbt.getList(PlugsTag, 10).asScala.zipWithIndex.foreach {
       case (tag, index) =>
-        plugs(index).node.loadData(tag.asInstanceOf[CompoundTag])
+        plugs(index).node.loadData(tag.asInstanceOf[CompoundTag], provider)
     }
     nbt.getList(QueueTag, 10).forEach((t: Tag) => {
       val tag = t.asInstanceOf[CompoundTag]
@@ -133,14 +134,14 @@ trait Hub extends traits.Environment with SidedEnvironment with Tickable {
     }
   }
 
-  override def saveForServer(nbt: CompoundTag) = queue.synchronized {
-    super.saveForServer(nbt)
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = queue.synchronized {
+    super.saveForServer(nbt, provider)
     // Side check for Waila (and other mods that may call this client side).
     if (isServer) {
       nbt.setNewTagList(PlugsTag, plugs.map(plug => {
         val plugNbt = new CompoundTag()
         if (plug.node != null)
-          plug.node.saveData(plugNbt)
+          plug.node.saveData(plugNbt, provider)
         plugNbt
       }))
       nbt.setNewTagList(QueueTag, queue.map {

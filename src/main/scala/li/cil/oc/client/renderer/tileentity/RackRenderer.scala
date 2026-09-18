@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.math.Axis
 import li.cil.oc.api.event.RackMountableRenderEvent
 import li.cil.oc.common.blockentity.Rack
+import li.cil.oc.common.datacomponents.CompoundStorage
 import li.cil.oc.util.RenderState
 import net.minecraft.client.renderer.MultiBufferSource
 import net.minecraft.client.renderer.LevelRenderer
@@ -53,7 +54,7 @@ class RackRenderer extends TileEntityRenderer[Rack] {
       if (!rack.getItem(i).isEmpty) {
         val v0    = vOffset + i * vSize
         val v1    = vOffset + (i + 1) * vSize
-        val event = new RackMountableRenderEvent.BlockEntity(rack, i, rack.lastData(i), stack, buffer, rackLight, overlay, v0, v1)
+        val event = new RackMountableRenderEvent.BlockEntity(rack, i, rack.lastData(i) getOrElse CompoundStorage.EMPTY, stack, buffer, rackLight, overlay, v0, v1)
         NeoForge.EVENT_BUS.post(event)
       }
     }

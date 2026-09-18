@@ -18,7 +18,6 @@ import net.minecraft.world.entity.player.Player
 import net.minecraft.world.inventory.ClickType
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.inventory.Slot
-import net.neoforged.neoforge.common.util.FakePlayer
 import net.minecraft.world.inventory.ContainerListener
 import net.minecraft.nbt.CompoundTag
 import net.neoforged.api.distmarker.OnlyIn

@@ -1,43 +1,32 @@
 package li.cil.oc.server.component
 
-import java.lang.Iterable
-import java.util
-
-import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
-import li.cil.oc.OpenComputers
-import li.cil.oc.api
-import li.cil.oc.api.Machine
+import li.cil.oc.{Constants, api}
 import li.cil.oc.api.component.RackBusConnectable
 import li.cil.oc.api.driver.DeviceInfo
-import li.cil.oc.api.internal
+import li.cil.oc.api.driver.DeviceInfo.{DeviceAttribute, DeviceClass}
+import li.cil.oc.api.Persistable
+import li.cil.oc.api.{Machine, internal}
 import li.cil.oc.api.internal.Rack
-import li.cil.oc.api.machine
 import li.cil.oc.api.machine.MachineHost
-import li.cil.oc.api.network.Analyzable
-import li.cil.oc.api.network.Environment
-import li.cil.oc.api.network.Message
-import li.cil.oc.api.network.Node
-import li.cil.oc.common.InventorySlots
-import li.cil.oc.common.Slot
-import li.cil.oc.common.Tier
+import li.cil.oc.api.network.{Analyzable, Environment, Message, Node}
+import li.cil.oc.common.container.{ComponentInventory, ServerInventory}
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.common.{InventorySlots, Slot, Tier, item}
 import li.cil.oc.common.menu.MenuTypes
-import li.cil.oc.common.container.ComponentInventory
-import li.cil.oc.common.container.ServerInventory
-import li.cil.oc.common.item
 import li.cil.oc.server.network.Connector
-import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.ExtendedNBT._
-import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import net.minecraft.core.Direction
-
-import scala.collection.convert.ImplicitConversionsToJava._
+import net.minecraft.core.component.{DataComponentHolder, DataComponentMap}
+import net.minecraft.nbt.CompoundTag
 import net.minecraft.server.level.ServerPlayer
-import net.minecraft.world.entity.player.Player
 import net.minecraft.world.InteractionHand
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.ItemStack
 import net.minecraft.world.level.Level
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+
+import java.util
+import scala.collection.convert.ImplicitConversionsToJava._
 
 class Server(val rack: api.internal.Rack, val slot: Int) extends Environment with MachineHost with ServerInventory with ComponentInventory with Analyzable with internal.Server with DeviceInfo {
   lazy val machine: api.machine.Machine = Machine.create(this)
@@ -48,6 +37,7 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
   var hadErrored = false
   var lastFileSystemAccess = 0L
   var lastNetworkActivity = 0L
+  private var pendingMachineData: DataComponentMap = null
 
   private final lazy val deviceInfo = Map(
     DeviceAttribute.Class -> DeviceClass.System,
@@ -77,30 +67,46 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
   override def onMessage(message: Message): Unit = {
   }
 
-  private final val MachineTag = "machine"
-
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
-    if (!rack.getEnvironmentLevel.isClientSide) {
-      machine.loadData(nbt.getCompound(MachineTag))
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
+    if(!rack.getEnvironmentLevel.isClientSide) {
+      // Unlike a normal computer, a server is reconstructed as a component of
+      // its rack. Defer restoring its VM until the first live rack update so
+      // neighboring block entities (in particular a bound screen and its
+      // external buffer) have completed their own onLoad lifecycle.
+      pendingMachineData = holder.getComponents
     }
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
-    if (!rack.getEnvironmentLevel.isClientSide) {
-      nbt.setNewCompoundTag(MachineTag, machine.saveData)
+  private def loadPendingMachineData(): Unit = {
+    if (pendingMachineData != null) {
+      val data = pendingMachineData
+      pendingMachineData = null
+      machine.loadData(Persistable.holder(data))
+    }
+  }
+
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    if(!rack.getEnvironmentLevel.isClientSide) {
+      // Saving may happen before the rack receives its first update (for
+      // example when quitting immediately after loading). Never replace the
+      // deferred machine snapshot with a newly constructed stopped machine.
+      loadPendingMachineData()
+    }
+    super.saveData(holder)
+    if(!rack.getEnvironmentLevel.isClientSide) {
+      machine.saveData(holder)
     }
   }
 
   // ----------------------------------------------------------------------- //
   // MachineHost
 
-  override def internalComponents(): Iterable[ItemStack] = (0 until getContainerSize).collect {
+  override def internalComponents(): java.lang.Iterable[ItemStack] = (0 until getContainerSize).collect {
     case i if !getItem(i).isEmpty && isComponentSlot(i, getItem(i)) => getItem(i)
   }
 
-  override def componentSlot(address: String): Int = componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+  override def componentSlot(address: String): Int = componentSlots.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   override def onMachineConnect(node: Node): Unit = onConnect(node)
 
@@ -161,21 +167,19 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
   // ----------------------------------------------------------------------- //
   // RackMountable
 
-  override def getData: CompoundTag = {
-    val nbt = new CompoundTag()
-    nbt.putBoolean("isRunning", wasRunning)
-    nbt.putBoolean("hasErrored", hadErrored)
-    nbt.putLong("lastFileSystemAccess", lastFileSystemAccess)
-    nbt.putLong("lastNetworkActivity", lastNetworkActivity)
-    nbt
+  override def describeForClient(holder: MutableDataComponentHolder): Unit = {
+    holder.setComponent(OCComponents.IS_RUNNING, wasRunning)
+    holder.setComponent(OCComponents.IS_ERRORED, hadErrored)
+    holder.setComponent(OCComponents.Network.LAST_DISK_ACCESS, lastFileSystemAccess)
+    holder.setComponent(OCComponents.Network.LAST_NETWORK_ACCESS, lastNetworkActivity)
   }
 
-  override def getConnectableCount: Int = componentEnvironments.count {
+  override def getConnectableCount: Int = componentSlots.count {
     case Some(_: RackBusConnectable) => true
     case _ => false
   }
 
-  override def getConnectableAt(index: Int): RackBusConnectable = componentEnvironments.collect {
+  override def getConnectableAt(index: Int): RackBusConnectable = componentSlots.collect {
     case Some(busConnectable: RackBusConnectable) => busConnectable
   }.apply(index)
 
@@ -205,6 +209,7 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
 
   override def update(): Unit = {
     if (!rack.getEnvironmentLevel.isClientSide) {
+      loadPendingMachineData()
       machine.update()
 
       val isRunning = machine.isRunning
@@ -232,9 +237,4 @@ class Server(val rack: api.internal.Rack, val slot: Int) extends Environment wit
   // Analyzable
 
   override def onAnalyze(player: Player, side: Direction, hitX: Float, hitY: Float, hitZ: Float) = Array(machine.node)
-
-  // ----------------------------------------------------------------------- //
-  // 能力：1.20.1 时代这里把能力查询转发给机架组件（组件实现 Forge 的
-  // ICapabilityProvider）。1.21.1 没有这套机制，且 Server 本身不是方块实体，
-  // 无法在 RegisterCapabilitiesEvent 里注册，因此不再提供该转发。
 }

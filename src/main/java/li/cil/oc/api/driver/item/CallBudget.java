@@ -5,7 +5,7 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Common functionality provided by parts that influence a machine's speed.
  * <br>
- * By default, this is implemented by OpenComputers' {@link Processor}s and
+ * By default, this is implemented by OpenComputersNeo' {@link Processor}s and
  * {@link Memory}.
  * <br>
  * The actual call budget of a machine is set to the average of
@@ -19,7 +19,7 @@ public interface CallBudget {
     /**
      * The budget for direct calls provided by the specified component.
      * <br>
-     * For reference, the default budgets for OpenComputers' processors are
+     * For reference, the default budgets for OpenComputersNeo' processors are
      * 0.5, 1.0 and 1.5 for tier one, two and three, respectively. This means
      * you can consider it a multiplier for the machine's operation speed.
      *

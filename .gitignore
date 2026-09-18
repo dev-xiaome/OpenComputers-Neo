@@ -38,3 +38,16 @@ run/
 **/src/generated/**/.cache/
 repo/
 !**/src/**/repo/
+
+### OpenComputers Neo 移植工程 ###
+# 第三方集成依赖的本地 jar（体积大且有各自许可，按 README 里的地址自行下载）
+libs/deps/
+# 构建期从 GitHub 下载的 OC 运行时（可用 tools/fetch-runtime-deps.ps1 重新获取）
+libs/luaj/
+libs/jnlua/
+# 参考源码树与旧基线备份
+mod_src/
+src/backup/
+src/main-occe-baseline/
+# 运行日志
+logs/

@@ -1,16 +1,22 @@
 package li.cil.oc.api.prefab;
 
 import li.cil.oc.api.Network;
+import li.cil.oc.api.UnrecoverablePersistanceException;
 import li.cil.oc.api.network.Node;
 import li.cil.oc.api.network.SidedEnvironment;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.core.Direction;
-import org.jetbrains.annotations.NotNull;
+
+import javax.annotation.Nonnull;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * TileEntities can implement the {@link SidedEnvironment}
@@ -24,6 +30,7 @@ import org.jetbrains.annotations.NotNull;
  */
 @SuppressWarnings("UnusedDeclaration")
 public abstract class BlockEntitySidedEnvironment extends BlockEntity implements SidedEnvironment {
+    private static final Logger LOGGER = LoggerFactory.getLogger(BlockEntitySidedEnvironment.class);
     // See constructor.
     protected Node[] nodes = new Node[6];
 
@@ -115,8 +122,8 @@ public abstract class BlockEntitySidedEnvironment extends BlockEntity implements
     // ----------------------------------------------------------------------- //
 
     @Override
-    public void loadAdditional(final @NotNull CompoundTag nbt, final net.minecraft.core.HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
+    public void loadAdditional(final @Nonnull CompoundTag nbt, @Nonnull HolderLookup.Provider provider) {
+        super.loadAdditional(nbt, provider);
         int index = 0;
         for (Node node : nodes) {
             // The host check may be superfluous for you. It's just there to allow
@@ -124,25 +131,37 @@ public abstract class BlockEntitySidedEnvironment extends BlockEntity implements
             // some other instance (for example when you have multiple internal
             // nodes in this tile entity).
             if (node != null && node.host() == this) {
-                // This restores the node's address, which is required for networks
-                // to continue working without interruption across loads. If the
-                // node is a power connector this is also required to restore the
-                // internal energy buffer of the node.
-                node.loadData(nbt.getCompound("oc:node" + index));
+                try {
+                    // This restores the node's address, which is required for networks
+                    // to continue working without interruption across loads. If the
+                    // node is a power connector this is also required to restore the
+                    // internal energy buffer of the node.
+                    node.loadData(nbt.getCompound("oc:node" + index), provider);
+                } catch (UnrecoverablePersistanceException e) {
+                    // If something goes terribly wrong and the Persistable object
+                    // has no known default, some implementations of loadData()
+                    // may throw this exception to allow you to set the default
+                    // yourself. You should log it.
+                    LOGGER.warn("Node data failed to load!", e);
+
+                    // If you replace the Node field with your own type and remove
+                    // "throws UnrecoverablePersistanceException" from loadData()
+                    // you won't have to deal with this here.
+                }
             }
             ++index;
         }
     }
 
     @Override
-    public void saveAdditional(final CompoundTag nbt, final net.minecraft.core.HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+    public void saveAdditional(@Nonnull CompoundTag nbt, @Nonnull HolderLookup.Provider provider) {
+        super.saveAdditional(nbt, provider);
         int index = 0;
         for (Node node : nodes) {
             // See load() regarding host check.
             if (node != null && node.host() == this) {
                 final CompoundTag nodeNbt = new CompoundTag();
-                node.saveData(nodeNbt);
+                node.saveData(nodeNbt, provider);
                 nbt.put("oc:node" + index, nodeNbt);
             }
             ++index;

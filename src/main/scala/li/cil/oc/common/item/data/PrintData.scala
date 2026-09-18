@@ -1,38 +1,38 @@
 package li.cil.oc.common.item.data
 
-import java.lang.reflect.Method
-
-import li.cil.oc.Constants
-import li.cil.oc.Settings
-import li.cil.oc.api
+import com.mojang.serialization.Codec
+import com.mojang.serialization.codecs.RecordCodecBuilder
+import io.netty.buffer.ByteBuf
+import li.cil.oc.{Constants, Settings, api}
 import li.cil.oc.common.IMC
-import li.cil.oc.common.item.data.PrintData.Shape
+import li.cil.oc.common.datacomponents.{OCComponents, ScalaCodec, ScalaStreamCodec}
 import li.cil.oc.util.ExtendedAABB._
-import li.cil.oc.util.ExtendedNBT._
-import net.minecraft.world.item.ItemStack
-
-import scala.collection.mutable
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.network.codec.{ByteBufCodecs, StreamCodec}
+import net.minecraft.world.item.ItemStack
 import net.minecraft.world.phys.AABB
-import net.minecraft.nbt.Tag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
-class PrintData extends ItemData(Constants.BlockName.Print) {
-  def this(stack: ItemStack) = {
+import java.lang.reflect.Method
+import scala.collection.mutable
+
+case class PrintData(var label: Option[String] = None,
+                     var tooltip: Option[String] = None,
+                     var isButtonMode: Boolean = false,
+                     var redstoneLevel: Int = 0,
+                     var pressurePlate: Boolean = false,
+                     val stateOff: mutable.Set[PrintData.Shape] = mutable.Set.empty[PrintData.Shape],
+                     val stateOn: mutable.Set[PrintData.Shape] = mutable.Set.empty[PrintData.Shape],
+                     var isBeaconBase: Boolean = false,
+                     var lightLevel: Int = 0,
+                     var noclipOff: Boolean = false,
+                     var noclipOn: Boolean = false) extends ItemData(Constants.BlockName.Print) {
+  def this(holder: DataComponentHolder) = {
     this()
-    loadData(stack)
+    loadData(holder)
   }
-
-  var label: Option[String] = None
-  var tooltip: Option[String] = None
-  var isButtonMode = false
-  var redstoneLevel = 0
-  var pressurePlate = false
-  val stateOff = mutable.Set.empty[PrintData.Shape]
-  val stateOn = mutable.Set.empty[PrintData.Shape]
-  var isBeaconBase = false
-  var lightLevel = 0
-  var noclipOff = false
-  var noclipOn = false
 
   def complexity: Int = stateOn.size max stateOff.size
 
@@ -73,59 +73,30 @@ class PrintData extends ItemData(Constants.BlockName.Print) {
   private final val NoclipOffTag = "noclipOff"
   private final val NoclipOnTag = "noclipOn"
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    if (nbt.contains(LabelTag)) label = Option(nbt.getString(LabelTag)) else label = None
-    if (nbt.contains(TooltipTag)) tooltip = Option(nbt.getString(TooltipTag)) else tooltip = None
-    isButtonMode = nbt.getBoolean(IsButtonModeTag)
-    redstoneLevel = nbt.getInt(RedstoneLevelTag) max 0 min 15
-    if (nbt.getBoolean(RedstoneLevelTagCompat)) redstoneLevel = 15
-    pressurePlate = nbt.getBoolean(PressurePlateTag)
-    stateOff.clear()
-    stateOff ++= nbt.getList(StateOffTag, Tag.TAG_COMPOUND).map(PrintData.nbtToShape)
-    stateOn.clear()
-    stateOn ++= nbt.getList(StateOnTag, Tag.TAG_COMPOUND).map(PrintData.nbtToShape)
-    isBeaconBase = nbt.getBoolean(IsBeaconBaseTag)
-    lightLevel = (nbt.getByte(LightLevelTag) & 0xFF) max 0 min 15
-    noclipOff = nbt.getBoolean(NoclipOffTag)
-    noclipOn = nbt.getBoolean(NoclipOnTag)
+  override def loadData(holder: DataComponentHolder): Unit = {
+    for (print <- holder.getComponent(OCComponents.PRINT)) {
+      this.stateOff.clear()
+      this.stateOn.clear()
 
-    opacityDirty = true
+      this.label = print.label
+      this.tooltip = print.tooltip
+      this.isButtonMode = print.isButtonMode
+      this.redstoneLevel = print.redstoneLevel
+      this.pressurePlate = print.pressurePlate
+      this.stateOff ++= print.stateOff
+      this.stateOn ++= print.stateOn
+      this.isBeaconBase = print.isBeaconBase
+      this.lightLevel = print.lightLevel
+      this.noclipOff = print.noclipOff
+      this.noclipOn = print.noclipOn
+
+      opacityDirty = true
+    }
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    label.foreach(nbt.putString("label", _))
-    tooltip.foreach(nbt.putString("tooltip", _))
-    nbt.putBoolean("isButtonMode", isButtonMode)
-    nbt.putInt("redstoneLevel", redstoneLevel)
-    nbt.putBoolean("pressurePlate", pressurePlate)
-    setNewShapeSet(nbt, StateOffTag, stateOff)
-    setNewShapeSet(nbt, StateOnTag, stateOn)
-    nbt.putBoolean("isBeaconBase", isBeaconBase)
-    nbt.putByte("lightLevel", lightLevel.toByte)
-    nbt.putBoolean("noclipOff", noclipOff)
-    nbt.putBoolean("noclipOn", noclipOn)
-  }
-
-  // Shapes are stored in a set and sets do not have an order, that means NBT shape lists may be in any order.
-  // Because NBT list comparison considers order of tags in a list, and prints may have arbitrarily ordered list of shapes,
-  // the comparison fails and minecraft considers two identical prints different.
-  // One possible solution is to sort the shapes before serializing them to NBT
-  private def setNewShapeSet(nbt: CompoundTag, name: String, values: Iterable[Shape]) = {
-    val seq = values.toSeq.sortWith(compareShape);
-    nbt.setNewTagList(name, seq.map(PrintData.shapeToNBT))
-  }
-
-  private def compareShape(a: Shape, b: Shape): Boolean = {
-    import scala.math.Ordering.Implicits._
-    if (a.bounds.minX != b.bounds.minX) return a.bounds.minX > b.bounds.minX;
-    if (a.bounds.minY != b.bounds.minY) return a.bounds.minY > b.bounds.minY;
-    if (a.bounds.minZ != b.bounds.minZ) return a.bounds.minZ > b.bounds.minZ;
-    if (a.bounds.maxX != b.bounds.maxX) return a.bounds.maxX > b.bounds.maxX;
-    if (a.bounds.maxY != b.bounds.maxY) return a.bounds.maxY > b.bounds.maxY;
-    if (a.bounds.maxZ != b.bounds.maxZ) return a.bounds.maxZ > b.bounds.maxZ;
-    if (a.tint != b.tint) return a.tint > b.tint;
-    if (a.texture != b.texture) return a.texture > b.texture;
-    false
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    // how convenient!
+    holder.setComponent(OCComponents.PRINT, this)
   }
 }
 
@@ -144,6 +115,51 @@ object PrintData {
   private val invMaxVolume = 1f / (stepping * stepping * stepping)
 
   private val inkProviders = mutable.LinkedHashSet.empty[Method]
+
+  val CODEC: Codec[PrintData] = RecordCodecBuilder.create(inst => inst.group(
+    ScalaCodec.optionFieldOf("label", Codec.STRING).forGetter(_.label),
+    ScalaCodec.optionFieldOf("tooltip", Codec.STRING).forGetter(_.tooltip),
+    ScalaCodec.BOOL.fieldOf("button").forGetter(_.isButtonMode),
+    ScalaCodec.INT.fieldOf("redstone_level").forGetter(_.redstoneLevel),
+    ScalaCodec.BOOL.fieldOf("pressure_plate").forGetter(_.pressurePlate),
+    ScalaCodec.mutableSet(Shape.CODEC).fieldOf("state_off").forGetter(_.stateOff),
+    ScalaCodec.mutableSet(Shape.CODEC).fieldOf("state_on").forGetter(_.stateOn),
+    ScalaCodec.BOOL.fieldOf("beacon_base").forGetter(_.isBeaconBase),
+    ScalaCodec.INT.fieldOf("light_level").forGetter(_.lightLevel),
+    ScalaCodec.BOOL.fieldOf("noclip_off").forGetter(_.noclipOff),
+    ScalaCodec.BOOL.fieldOf("noclip_on").forGetter(_.noclipOn)
+  ).apply(inst, PrintData.apply _))
+
+  // this codec is too long for composite :(
+  val STREAM_CODEC: StreamCodec[ByteBuf, PrintData] = new StreamCodec[ByteBuf, PrintData] {
+    override def decode(buffer: ByteBuf): PrintData = PrintData(
+      label = ScalaStreamCodec.option(ByteBufCodecs.STRING_UTF8).decode(buffer),
+      tooltip = ScalaStreamCodec.option(ByteBufCodecs.STRING_UTF8).decode(buffer),
+      isButtonMode = ScalaStreamCodec.BOOL.decode(buffer),
+      redstoneLevel = ScalaStreamCodec.VAR_INT.decode(buffer),
+      pressurePlate = ScalaStreamCodec.BOOL.decode(buffer),
+      stateOff = ScalaStreamCodec.mutableSet(Shape.STREAM_CODEC).decode(buffer),
+      stateOn = ScalaStreamCodec.mutableSet(Shape.STREAM_CODEC).decode(buffer),
+      isBeaconBase = ScalaStreamCodec.BOOL.decode(buffer),
+      lightLevel = ScalaStreamCodec.INT.decode(buffer),
+      noclipOff = ScalaStreamCodec.BOOL.decode(buffer),
+      noclipOn = ScalaStreamCodec.BOOL.decode(buffer)
+    )
+
+    override def encode(buffer: ByteBuf, value: PrintData): Unit = {
+      ScalaStreamCodec.option(ByteBufCodecs.STRING_UTF8).encode(buffer, value.label)
+      ScalaStreamCodec.option(ByteBufCodecs.STRING_UTF8).encode(buffer, value.tooltip)
+      ScalaStreamCodec.BOOL.encode(buffer, value.isButtonMode)
+      ScalaStreamCodec.VAR_INT.encode(buffer, value.redstoneLevel)
+      ScalaStreamCodec.BOOL.encode(buffer, value.pressurePlate)
+      ScalaStreamCodec.mutableSet(Shape.STREAM_CODEC).encode(buffer, value.stateOff)
+      ScalaStreamCodec.mutableSet(Shape.STREAM_CODEC).encode(buffer, value.stateOn)
+      ScalaStreamCodec.BOOL.encode(buffer, value.isBeaconBase)
+      ScalaStreamCodec.INT.encode(buffer, value.lightLevel)
+      ScalaStreamCodec.BOOL.encode(buffer, value.noclipOff)
+      ScalaStreamCodec.BOOL.encode(buffer, value.noclipOn)
+    }
+  }
 
   def addInkProvider(provider: Method): Unit = inkProviders += provider
 
@@ -244,6 +260,34 @@ object PrintData {
     nbt
   }
 
-  class Shape(val bounds: AABB, val texture: String, val tint: Option[Int])
+  case class Shape(bounds: AABB, texture: String, tint: Option[Int]) extends Ordered[Shape] {
+    override def compare(that: Shape): Int = {
+      val (a, b) = (this, that)
 
+      if (a.bounds.minX != b.bounds.minX) return a.bounds.minX compare b.bounds.minX
+      if (a.bounds.minY != b.bounds.minY) return a.bounds.minY compare b.bounds.minY
+      if (a.bounds.minZ != b.bounds.minZ) return a.bounds.minZ compare b.bounds.minZ
+      if (a.bounds.maxX != b.bounds.maxX) return a.bounds.maxX compare b.bounds.maxX
+      if (a.bounds.maxY != b.bounds.maxY) return a.bounds.maxY compare b.bounds.maxY
+      if (a.bounds.maxZ != b.bounds.maxZ) return a.bounds.maxZ compare b.bounds.maxZ
+      if (a.tint != b.tint) return Ordering[Option[Int]].compare(a.tint, b.tint)
+      if (a.texture != b.texture) return a.texture compare b.texture
+      0
+    }
+  }
+
+  object Shape {
+    val CODEC: Codec[Shape] = RecordCodecBuilder.create(inst => inst.group(
+      ScalaCodec.AABB.fieldOf("bounds").forGetter(_.bounds),
+      Codec.STRING.fieldOf("texture").forGetter(_.texture),
+      ScalaCodec.optionFieldOf("tint", ScalaCodec.INT).forGetter(_.tint),
+    ).apply(inst, Shape.apply _))
+
+    val STREAM_CODEC: StreamCodec[ByteBuf, Shape] = StreamCodec.composite(
+      ScalaStreamCodec.AABB, _.bounds,
+      ByteBufCodecs.STRING_UTF8, _.texture,
+      ScalaStreamCodec.option(ScalaStreamCodec.INT), _.tint,
+      Shape.apply _
+    )
+  }
 }

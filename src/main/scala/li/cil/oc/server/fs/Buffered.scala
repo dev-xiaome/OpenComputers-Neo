@@ -8,11 +8,11 @@ import java.util.concurrent.CancellationException
 import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.api.fs.Mode
 import li.cil.oc.util.ThreadPoolFactory
 import li.cil.oc.util.SafeThreadPool
+import net.minecraft.core.HolderLookup
 import net.minecraft.nbt.CompoundTag
 import org.apache.commons.io.FileUtils
 
@@ -53,7 +53,7 @@ trait Buffered extends OutputStreamFileSystem {
     saving.foreach(f => try {
       f.get(120L, TimeUnit.SECONDS)
     } catch {
-      case e: TimeoutException => OpenComputers.log.warn("Waiting for filesystem to save took two minutes! Aborting.")
+      case e: TimeoutException => OpenComputersNeo.log.warn("Waiting for filesystem to save took two minutes! Aborting.")
       case e: CancellationException => // NO-OP
     })
     loadFiles(nbt)

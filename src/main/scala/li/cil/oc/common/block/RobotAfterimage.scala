@@ -15,28 +15,18 @@ import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.block.{Block, Blocks}
 import net.minecraft.world.level.material.FluidState
 import net.minecraft.world.level.{BlockGetter => IBlockReader, Level => World}
-import net.minecraft.world.level.LevelReader
 import net.minecraft.world.phys.shapes.{VoxelShape, CollisionContext => ISelectionContext}
 import net.minecraft.world.phys.{BlockHitResult => BlockRayTraceResult, HitResult => RayTraceResult}
 import net.minecraft.world.ticks.ScheduledTick
-import net.minecraft.world.{InteractionHand, InteractionResult => ActionResultType, ItemInteractionResult}
+import net.minecraft.world.{InteractionHand, InteractionResult => ActionResultType}
 
 import java.util.Random
 
 class RobotAfterimage(props: Properties) extends SimpleBlock(props) with traits.Tickable {
-  // 1.21.1：`Block#getCloneItemStack` 的签名换成了 `(LevelReader, BlockPos, BlockState)`，
-  // 原来的「玩家 / 命中结果」参数已移除。
-  override def getCloneItemStack(world: LevelReader, pos: BlockPos, state: BlockState): ItemStack =
-    findMovingRobot(world, pos) match {
-      case Some(robot) => robot.info.createItemStack()
-      case _ => ItemStack.EMPTY
-    }
 
   override def getShape(state: BlockState, world: IBlockReader, pos: BlockPos, ctx: ISelectionContext): VoxelShape = {
     findMovingRobot(world, pos) match {
       case Some(robot) =>
-        // 1.21.1：`BlockBehaviour#getShape` 是 protected，不能对「另一个方块实例」调用；
-        // 改用 public 的 `BlockState#getShape(BlockGetter, BlockPos, CollisionContext)`。
         val shape = robot.getBlockState.getShape(world, robot.getBlockPos, ctx)
         val delta = robot.moveFrom.fold(BlockPos.ZERO)(vec => {
           val blockPos = robot.getBlockPos
@@ -86,18 +76,12 @@ class RobotAfterimage(props: Properties) extends SimpleBlock(props) with traits.
     }
   }
 
-  // 1.21.1：右击方块的入口从 `Block#use(state, level, pos, player, hand, hit)` 变成
-  // `BlockBehaviour#useItemOn(stack, state, level, pos, player, hand, hit)` —— 多了一个手持堆叠参数，
-  // 返回值也从 `InteractionResult` 换成 `ItemInteractionResult`。委托给机器人本体方块的状态。
-  override def useItemOn(stack: ItemStack, state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hand: InteractionHand, trace: BlockRayTraceResult): ItemInteractionResult = {
+  override def useWithoutItem(state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, trace: BlockRayTraceResult): ActionResultType = {
     findMovingRobot(world, pos) match {
       case Some(robot) =>
-        // 1.21.1：public 的 `BlockState#useItemOn` 只有 5 个参数
-        // （stack, level, player, hand, hit）—— 方块状态与坐标已经隐含在接收者里。
-        world.getBlockState(robot.getBlockPos).useItemOn(stack, world, player, hand, trace)
+        world.getBlockState(robot.getBlockPos).useWithoutItem(world, player, trace)
       case _ =>
-        if (world.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState)) ItemInteractionResult.sidedSuccess(world.isClientSide)
-        else ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION
+        if (world.setBlockAndUpdate(pos, Blocks.AIR.defaultBlockState)) ActionResultType.sidedSuccess(world.isClientSide) else ActionResultType.PASS
     }
   }
 

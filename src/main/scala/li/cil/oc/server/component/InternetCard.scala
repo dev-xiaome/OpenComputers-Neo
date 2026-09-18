@@ -16,7 +16,7 @@ import java.util
 import java.util.UUID
 import java.util.concurrent._
 import li.cil.oc.Constants
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api.Network
 import li.cil.oc.api.driver.DeviceInfo
@@ -63,7 +63,7 @@ class InternetCard extends AbstractManagedEnvironment with DeviceInfo {
   @Callback(direct = true, doc = """function():boolean -- Returns whether HTTP requests can be made (config setting).""")
   def isHttpEnabled(context: Context, args: Arguments): Array[AnyRef] = result(Settings.get.httpEnabled)
 
-  @Callback(doc = """function(url:string[, postData:string[, headers:table[, method:string]]]):userdata -- Starts an HTTP request. If this returns true, further results will be pushed using `http_response` signals.""")
+  @Callback(doc = """function(url:string[, postData:string[, headers:table[, method:string[, allowErrorBody:boolean]]]]):userdata -- Starts an HTTP request. If allowErrorBody is true, HTTP error responses will return their body instead of throwing an exception.""")
   def request(context: Context, args: Arguments): Array[AnyRef] = this.synchronized {
     checkOwner(context)
     val address = args.checkString(0)
@@ -85,7 +85,8 @@ class InternetCard extends AbstractManagedEnvironment with DeviceInfo {
       return result((), "http request headers are unavailable")
     }
     val method = if (args.isString(3)) Option(args.checkString(3)) else None
-    val request = new InternetCard.HTTPRequest(this, checkAddress(address), post, headers, method)
+    val allowErrorBody = args.optBoolean(4, false)
+    val request = new InternetCard.HTTPRequest(this, checkAddress(address), post, headers, method, allowErrorBody)
     connections += request
     result(request)
   }
@@ -230,7 +231,7 @@ object InternetCard {
           }
         } catch {
           case e: IOException =>
-            OpenComputers.log.error("Error in TCP selector loop.", e)
+            OpenComputersNeo.log.error("Error in TCP selector loop.", e)
         }
       }
     }
@@ -331,7 +332,9 @@ object InternetCard {
     private def checkConnected() = {
       if (owner.isEmpty) throw new IOException("connection lost")
       try {
-        if (isAddressResolved) channel.finishConnect()
+        if (isAddressResolved) {
+          channel.finishConnect()
+        }
         else if (address.isCancelled) {
           // I don't think this can ever happen, Justin Case.
           channel.close()
@@ -343,14 +346,15 @@ object InternetCard {
             case e: ExecutionException => throw e.getCause
           }
           isAddressResolved = true
-          false
+          // After address resolution, immediately attempt connection.
+          channel.finishConnect()
         }
         else false
       }
       catch {
         case t: Throwable =>
           close()
-          false
+          throw t
       }
     }
 
@@ -366,6 +370,19 @@ object InternetCard {
       }
     }
 
+  }
+
+  private def isNAT64Address(addr: Inet6Address): Boolean = {
+    val b = addr.getAddress
+    // 64:ff9b::/96 — NAT64 well-known prefix (RFC 6052)
+    b(0) == 0x00 && b(1) == 0x64 && b(2) == 0xff.toByte && b(3) == 0x9b.toByte &&
+      b(4) == 0 && b(5) == 0 && b(6) == 0 && b(7) == 0 &&
+      b(8) == 0 && b(9) == 0 && b(10) == 0 && b(11) == 0
+  }
+
+  private def extractNAT64EmbeddedAddress(addr: Inet6Address): Inet4Address = {
+    val b = addr.getAddress
+    InetAddress.getByAddress(Array(b(12), b(13), b(14), b(15))).asInstanceOf[Inet4Address]
   }
 
   def isRequestAllowed(settings: Settings, inetAddress: InetAddress, host: String): Boolean = {
@@ -385,6 +402,14 @@ object InternetCard {
             }
           }
 
+          // As above, but with NAT64 addresses.
+          if (isNAT64Address(inet6Address)) {
+            val inet4in6Address = extractNAT64EmbeddedAddress(inet6Address)
+            if (!rules.map(r => r.apply(inet4in6Address, host)).collectFirst({ case Some(r) => r }).getOrElse(true)) {
+              return false
+            }
+          }
+
           // Process address as an IPv6 address.
           rules.map(r => r.apply(inet6Address, host)).collectFirst({ case Some(r) => r }).getOrElse(false)
         // IPv4 handling
@@ -393,7 +418,7 @@ object InternetCard {
           rules.map(r => r.apply(inet4Address, host)).collectFirst({ case Some(r) => r }).getOrElse(false)
         case _ =>
           // Unrecognized address type - block.
-          OpenComputers.log.warn("Internet Card blocked unrecognized address type: " + inetAddress.toString)
+          OpenComputersNeo.log.warn("Internet Card blocked unrecognized address type: " + inetAddress.toString)
           false
       }
     }
@@ -405,11 +430,31 @@ object InternetCard {
     }
   }
 
+  private[component] def responseStream(http: HttpURLConnection, allowErrorBody: Boolean): InputStream = {
+    val responseCode = http.getResponseCode
+    if (responseCode >= 200 && responseCode < 300) {
+      // Successful responses always use getInputStream().
+      http.getInputStream
+    }
+    else if (allowErrorBody) {
+      // Error responses may expose their body when explicitly requested.
+      Option(http.getErrorStream).getOrElse(new java.io.ByteArrayInputStream(Array.empty[Byte]))
+    }
+    else {
+      // Preserve the historical behavior for existing callers.
+      http.getInputStream
+    }
+  }
+
   class HTTPRequest extends AbstractValue with Closable {
-    def this(owner: InternetCard, url: URL, post: Option[String], headers: Map[String, String], method: Option[String]) = {
+    def this(owner: InternetCard, url: URL, post: Option[String], headers: Map[String, String], method: Option[String], allowErrorBody: Boolean) = {
       this()
       this.owner = Some(owner)
-      this.stream = threadPool.submit(new RequestSender(url, post, headers, method))
+      this.stream = threadPool.submit(new RequestSender(url, post, headers, method, allowErrorBody))
+    }
+
+    def this(owner: InternetCard, url: URL, post: Option[String], headers: Map[String, String], method: Option[String]) = {
+      this(owner, url, post, headers, method, false)
     }
 
     private var owner: Option[InternetCard] = None
@@ -508,20 +553,24 @@ object InternetCard {
     }
 
     // This one doesn't (see comment in TCP socket), but I like to keep it consistent.
-    private class RequestSender(val url: URL, val post: Option[String], val headers: Map[String, String], val method: Option[String]) extends Callable[InputStream] {
+    private class RequestSender(val url: URL, val post: Option[String], val headers: Map[String, String], val method: Option[String], val allowErrorBody: Boolean) extends Callable[InputStream] {
       override def call() = try {
         checkLists(InetAddress.getByName(url.getHost), url.getHost)
         val proxy = ServerLifecycleHooks.getCurrentServer.proxy
         url.openConnection(proxy) match {
           case http: HttpURLConnection => try {
+            // Redirect destinations must be checked just like the original URL.
+            // Do not let HttpURLConnection silently follow a redirect to a
+            // private or otherwise blocked address.
+            http.setInstanceFollowRedirects(false)
+            http.setConnectTimeout(Settings.get.httpTimeout)
+            http.setReadTimeout(Settings.get.httpTimeout)
             http.setDoInput(true)
             http.setDoOutput(post.isDefined)
             http.setRequestMethod(if (method.isDefined) method.get else if (post.isDefined) "POST" else "GET")
-            http.setRequestProperty("User-Agent", Settings.get.httpUserAgent.replace("$version", OpenComputers.Version))
+            http.setRequestProperty("User-Agent", Settings.get.httpUserAgent.replace("$version", OpenComputersNeo.Version))
             headers.foreach(Function.tupled(http.setRequestProperty))
             if (post.isDefined) {
-              http.setReadTimeout(Settings.get.httpTimeout)
-
               val out = new BufferedWriter(new OutputStreamWriter(http.getOutputStream))
               out.write(post.get)
               out.close()
@@ -539,9 +588,7 @@ object InternetCard {
               response = Some((http.getResponseCode, http.getResponseMessage, http.getHeaderFields))
             }
 
-            // TODO: This should allow accessing getErrorStream() for reading unsuccessful HTTP responses' output,
-            // but this would be a breaking change for existing OC code.
-            http.getInputStream
+            responseStream(http, allowErrorBody)
           }
           catch {
             case t: Throwable =>

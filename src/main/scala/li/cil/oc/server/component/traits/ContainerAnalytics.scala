@@ -26,7 +26,7 @@ trait ContainerAnalytics extends ContainerAware with NetworkAware {
     val slot = args.checkSlot(inventory, 0)
     result((stackInSlot(selectedSlot), stackInSlot(slot)) match {
       case (SomeStack(stackA), SomeStack(stackB)) =>
-        stackA == stackB || InventoryUtils.haveSameItemType(stackA, stackB, args.optBoolean(3, false))
+        result(stackA == stackB || InventoryUtils.haveSameItemType(stackA, stackB, args.optBoolean(3, false)))
       case (EmptyStack, EmptyStack) => true
       case _ => false
     })

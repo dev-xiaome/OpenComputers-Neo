@@ -6,7 +6,7 @@ import net.minecraft.world.level.block.state.BlockBehaviour.{Properties => Prope
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.entity.player.{Player => PlayerEntity}
 import net.minecraft.world.item.ItemStack
-import net.minecraft.world.{InteractionResult => ActionResultType, ItemInteractionResult}
+import net.minecraft.world.{InteractionResult => ActionResultType}
 import net.minecraft.core.Direction
 import net.minecraft.world.{InteractionHand => Hand}
 import net.minecraft.core.BlockPos
@@ -19,10 +19,10 @@ class NetSplitter(props: Properties) extends RedstoneAware(props) {
 
   // ----------------------------------------------------------------------- //
 
-  // 1.21.1：`Block#use(...)` 已拆成 `useItemOn(ItemStack, BlockState, ...)` / `useWithoutItem(...)`。
-  override def useItemOn(stack: ItemStack, state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hand: Hand, trace: BlockRayTraceResult): ItemInteractionResult = {
+  // NOTE: must not be final for immibis microblocks to work.
+  override def useWithoutItem(state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hitResult: BlockRayTraceResult): ActionResultType = {
     if (Wrench.holdsApplicableWrench(player, pos)) {
-      val side = trace.getDirection
+      val side = hitResult.getDirection
       val sideToToggle = if (player.isCrouching) side.getOpposite else side
       world.getBlockEntity(pos) match {
         case splitter: blockentity.NetSplitter =>
@@ -30,10 +30,10 @@ class NetSplitter(props: Properties) extends RedstoneAware(props) {
             val oldValue = splitter.openSides(sideToToggle.ordinal())
             splitter.setSideOpen(sideToToggle, !oldValue)
           }
-          ItemInteractionResult.sidedSuccess(world.isClientSide)
-        case _ => ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION
+          ActionResultType.sidedSuccess(world.isClientSide)
+        case _ => ActionResultType.PASS
       }
     }
-    else super.useItemOn(stack, state, world, pos, player, hand, trace)
+    else super.useWithoutItem(state, world, pos, player, hitResult)
   }
 }

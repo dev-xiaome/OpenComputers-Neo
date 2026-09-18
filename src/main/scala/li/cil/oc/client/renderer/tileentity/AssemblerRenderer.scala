@@ -42,10 +42,10 @@ class AssemblerRenderer extends BlockEntityRenderer[Assembler] {
     for (_ <- 0 until 4) {
       if (assembler.isAssembling) {
         val icon = Textures.getSprite(Textures.Block.AssemblerSideAssembling)
-        vBuffer.addVertex(matrix, indent, 0.5f, -indent).setUv(icon.getU((0.5f - indent) * 16), icon.getV1)
-        vBuffer.addVertex(matrix, indent, 0.5f, indent).setUv(icon.getU((0.5f + indent) * 16), icon.getV1)
-        vBuffer.addVertex(matrix, indent, -0.5f, indent).setUv(icon.getU((0.5f + indent) * 16), icon.getV0)
-        vBuffer.addVertex(matrix, indent, -0.5f, -indent).setUv(icon.getU((0.5f - indent) * 16), icon.getV0)
+        vBuffer.addVertex(matrix, indent, 0.5f, -indent).setUv(icon.getU(0.5f - indent), icon.getV1)
+        vBuffer.addVertex(matrix, indent, 0.5f, indent).setUv(icon.getU(0.5f + indent), icon.getV1)
+        vBuffer.addVertex(matrix, indent, -0.5f, indent).setUv(icon.getU(0.5f + indent), icon.getV0)
+        vBuffer.addVertex(matrix, indent, -0.5f, -indent).setUv(icon.getU(0.5f - indent), icon.getV0)
       }
 
       {

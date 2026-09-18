@@ -1,7 +1,7 @@
 /**
  * This package contains manual related interfaces.
  * <br>
- * The manual represents the in-game documentation of OpenComputers and any
+ * The manual represents the in-game documentation of OpenComputersNeo and any
  * other mod that may choose to add its documentation to it, such as addon
  * mods.
  */

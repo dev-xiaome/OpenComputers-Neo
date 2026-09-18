@@ -20,10 +20,9 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.common.util.TriState;
 import net.neoforged.neoforge.common.util.FakePlayerFactory;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-import net.neoforged.bus.api.Event;
-import net.neoforged.neoforge.common.util.TriState;
 
 public final class DriverInventory extends DriverSidedBlockEntity {
     @Override
@@ -145,13 +144,19 @@ public final class DriverInventory extends DriverSidedBlockEntity {
         }
 
         @Callback(doc = "function(slot:number):table -- Get a description of the item stack in the specified slot.")
-        public Object[] getItem(final Context context, final Arguments args) {
+        public Object[] getStackInSlot(final Context context, final Arguments args) {
             if (Settings.get().allowItemStackInspection()) {
                 if (notPermitted()) return new Object[]{null, "permission denied"};
                 return new Object[]{blockEntity.getItem(checkSlot(args, 0))};
             } else {
                 return new Object[]{null, "not enabled in config"};
             }
+        }
+
+        // 1.21 compatibility alias. Keep the newer name without breaking OC1 scripts.
+        @Callback(doc = "function(slot:number):table -- Alias for getStackInSlot.")
+        public Object[] getItem(final Context context, final Arguments args) {
+            return getStackInSlot(context, args);
         }
 
         @Callback(doc = "function():table -- Get a list of descriptions for all item stacks in this inventory.")

@@ -21,8 +21,8 @@ import java.util.Optional;
  * paths that are identical except for their resource domain will be the same,
  * as seen from the manual. This means you should probably place your
  * documentation somewhere other than {@code doc/}, because that's where the
- * OpenComputers documentation lives, and it is queried first - meaning if you
- * have a page with the same path as one in OpenComputers, it is practically
+ * OpenComputersNeo documentation lives, and it is queried first - meaning if you
+ * have a page with the same path as one in OpenComputersNeo, it is practically
  * unreachable (because the OC provider is always queried first).
  */
 @SuppressWarnings("UnusedDeclaration")

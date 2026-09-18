@@ -1,35 +1,36 @@
 package li.cil.oc.common.item.data
 
+import com.mojang.serialization.Codec
+import com.mojang.serialization.codecs.RecordCodecBuilder
 import li.cil.oc.Constants
 import li.cil.oc.Settings
+import li.cil.oc.api.Persistable
+import li.cil.oc.common.datacomponents.ScalaCodec
 import li.cil.oc.server.component.DebugCard.AccessContext
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
-class DebugCardData extends ItemData(Constants.ItemName.DebugCard) {
-  def this(stack: ItemStack) = {
+case class DebugCardData(var access: Option[AccessContext] = None) extends ItemData(Constants.ItemName.DebugCard) {
+  def this(stack: DataComponentHolder) = {
     this()
     loadData(stack)
   }
 
-  var access: Option[AccessContext] = None
-
-  private final val DataTag = Settings.namespace + "data"
-
-  override def loadData(nbt: CompoundTag): Unit = {
-    access = AccessContext.loadData(dataTag(nbt))
+  override def loadData(holder: DataComponentHolder): Unit = {
+    access = AccessContext.loadData(holder)
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    val tag = dataTag(nbt)
-    AccessContext.remove(tag)
-    access.foreach(_.saveData(tag))
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    AccessContext.remove(holder)
+    access.foreach(_.saveData(holder))
   }
+}
 
-  private def dataTag(nbt: CompoundTag) = {
-    if (!nbt.contains(DataTag)) {
-      nbt.put(DataTag, new CompoundTag())
-    }
-    nbt.getCompound(DataTag)
-  }
+object DebugCardData {
+  val CODEC = RecordCodecBuilder.create[DebugCardData](inst => inst.group(
+    ScalaCodec.optionFieldOf("access", AccessContext.CODEC).forGetter(_.access)
+  ).apply(inst, DebugCardData.apply _))
 }

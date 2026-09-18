@@ -1,0 +1,28 @@
+{
+  "type": "opencomputers_neo:crafting_shaped_extended",
+  "pattern": [
+    "dCd",
+    "PBG",
+    "dCd"
+  ],
+  "key": {
+    "d": {
+      "tag": "opencomputers_neo:chipdiamond"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip2"
+    },
+    "B": {
+      "tag": "opencomputers_neo:componentbus2"
+    },
+    "P": {
+      "tag": "opencomputers_neo:cpu3"
+    },
+    "G": {
+      "tag": "opencomputers_neo:graphicscard2"
+    }
+  },
+  "result": {
+    "id": "opencomputers_neo:apu2"
+  }
+}

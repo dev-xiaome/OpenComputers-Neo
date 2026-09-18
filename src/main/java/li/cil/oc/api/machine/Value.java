@@ -1,6 +1,11 @@
 package li.cil.oc.api.machine;
 
-import li.cil.oc.api.Persistable;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.component.DataComponentHolder;
+import net.minecraft.nbt.CompoundTag;
+import net.neoforged.neoforge.common.MutableDataComponentHolder;
+
+import javax.annotation.Nonnull;
 
 /**
  * A value object can be pushed to a machine like a primitive value.
@@ -20,7 +25,7 @@ import li.cil.oc.api.Persistable;
  * Callbacks can be defined in a manner similar to environments, e.g. using the
  * {@link Callback} annotation.
  */
-public interface Value extends Persistable {
+public interface Value {
     /**
      * This is called when the code running on a machine tries to index this
      * value.
@@ -74,4 +79,25 @@ public interface Value extends Persistable {
      *                garbage collected the object.
      */
     void dispose(Context context);
+
+    /**
+     * Restores a previous state of the object from the specified NBT tag.
+     *
+     * @param holder   The root, machine-wide holder
+     * @param nbt      An isolated tag for this value
+     * @param provider Provider to help with serializing registry values
+     */
+    void loadData(DataComponentHolder holder, @Nonnull CompoundTag nbt, @Nonnull HolderLookup.Provider provider);
+
+    /**
+     * Saves the current state of the object into the specified NBT tag.
+     * <br>
+     * This should write the state in such a way that it can be restored when
+     * {@link #loadData} is called with that tag.
+     *
+     * @param holder   The root, machine-wide holder
+     * @param nbt      An isolated tag for this value
+     * @param provider Provider to help with serializing registry values
+     */
+    void saveData(MutableDataComponentHolder holder, @Nonnull CompoundTag nbt, @Nonnull HolderLookup.Provider provider);
 }

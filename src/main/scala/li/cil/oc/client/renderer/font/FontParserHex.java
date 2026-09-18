@@ -2,7 +2,7 @@ package li.cil.oc.client.renderer.font;
 
 import it.unimi.dsi.fastutil.ints.Int2ObjectMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import li.cil.oc.OpenComputers;
+import li.cil.oc.OpenComputersNeo;
 import li.cil.oc.Settings;
 import li.cil.oc.util.FontUtils;
 import net.minecraft.client.Minecraft;
@@ -41,7 +41,7 @@ public class FontParserHex implements IGlyphProvider {
     public void initialize() {
         glyphs.clear();
 
-        OpenComputers.log().info("Loading Unicode glyphs...");
+        OpenComputersNeo.log().info("Loading Unicode glyphs...");
         long time = System.currentTimeMillis();
         int glyphCount = 0;
 
@@ -56,7 +56,7 @@ public class FontParserHex implements IGlyphProvider {
                     final String info = line.substring(0, line.indexOf(':'));
                     final int charCode = Integer.parseInt(info, 16);
                     if (charCode < 0 || charCode >= FontUtils.codepoint_limit()) {
-                        OpenComputers.log().warn(String.format("Unicode font contained unexpected glyph: U+%04X, ignoring", charCode));
+                        OpenComputersNeo.log().warn(String.format("Unicode font contained unexpected glyph: U+%04X, ignoring", charCode));
                         continue; // Out of bounds.
                     }
                     final int expectedWidth = FontUtils.wcwidth(charCode);
@@ -74,15 +74,15 @@ public class FontParserHex implements IGlyphProvider {
                         }
                         glyphs.put(charCode, glyph);
                     } else if (Settings.get().logHexFontErrors()) {
-                        OpenComputers.log().warn(String.format("Size of glyph for code point U+%04X (%s) in font (%d) does not match expected width (%d), ignoring.", charCode, (char) charCode, glyphWidth, expectedWidth));
+                        OpenComputersNeo.log().warn(String.format("Size of glyph for code point U+%04X (%s) in font (%d) does not match expected width (%d), ignoring.", charCode, (char) charCode, glyphWidth, expectedWidth));
                     }
                 }
             } catch (IOException ex) {
-                OpenComputers.log().warn("Error parsing font.", ex);
+                OpenComputersNeo.log().warn("Error parsing font.", ex);
             }
         }
 
-        OpenComputers.log().info("Loaded " + glyphCount + " glyphs in " + (System.currentTimeMillis() - time) + " milliseconds.");
+        OpenComputersNeo.log().info("Loaded " + glyphCount + " glyphs in " + (System.currentTimeMillis() - time) + " milliseconds.");
     }
 
     @Override

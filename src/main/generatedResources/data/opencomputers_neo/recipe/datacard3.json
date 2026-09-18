@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers_neo:card"
+    },
+    "M": {
+      "item": "opencomputers_neo:ram5"
+    },
+    "P": {
+      "item": "opencomputers_neo:cpu2"
+    },
+    "d": {
+      "item": "opencomputers_neo:chipdiamond"
+    }
+  },
+  "pattern": [
+    "dPM",
+    " B "
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:datacard3"
+  }
+}

@@ -1,21 +1,22 @@
 package li.cil.oc.common.event
 
-import li.cil.oc.Settings
+import li.cil.oc.{OpenComputersNeo, Settings}
 import li.cil.oc.common.item.HoverBoots
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.world.effect.{MobEffectInstance, MobEffects}
+import net.minecraft.world.entity.ai.attributes.{AttributeModifier, Attributes}
+import net.minecraft.world.entity.player.Player
+import net.neoforged.bus.api.SubscribeEvent
 import net.neoforged.neoforge.common.util.FakePlayer
 import net.neoforged.neoforge.event.entity.living.LivingEvent.LivingJumpEvent
 import net.neoforged.neoforge.event.entity.living.LivingFallEvent
 import net.neoforged.neoforge.event.tick.EntityTickEvent
-import net.neoforged.bus.api.SubscribeEvent
 
 import scala.collection.convert.ImplicitConversionsToScala._
-import net.minecraft.world.entity.player.Player
 
 object HoverBootsHandler {
-  // 1.21.1：`LivingEvent.LivingTickEvent` 已被 NeoForge 移除，实体每 tick 的事件改为
-  // `EntityTickEvent.Pre`（对所有实体触发，本方法内部再筛 `Player`，语义等价）。
   @SubscribeEvent
-  def onLivingUpdate(e: EntityTickEvent.Pre): Unit = e.getEntity match {
+  def onLivingUpdate(e: EntityTickEvent.Post): Unit = e.getEntity match {
     case player: Player if !player.isInstanceOf[FakePlayer] =>
       val nbt = player.getPersistentData
       val hadHoverBoots = nbt.getBoolean(Settings.namespace + "hasHoverBoots")
@@ -34,13 +35,31 @@ object HoverBootsHandler {
       })
       if (hasHoverBoots != hadHoverBoots) {
         nbt.putBoolean(Settings.namespace + "hasHoverBoots", hasHoverBoots)
-        // 1.21.1：`Entity#setMaxUpStep` 已移除，抬腿高度改由 `STEP_HEIGHT` 属性控制
-        // （玩家默认 0.6 格）。
-        player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.STEP_HEIGHT).
-          setBaseValue(if (hasHoverBoots) 1.0 else 0.6)
+        val stepHeightAttr = player.getAttribute(Attributes.STEP_HEIGHT)
+        if (stepHeightAttr != null) {
+          val modifierId = ResourceLocation.fromNamespaceAndPath(OpenComputersNeo.ID, "hover_boots_step")
+          stepHeightAttr.removeModifier(modifierId)
+          if (hasHoverBoots) {
+            stepHeightAttr.addTransientModifier(new AttributeModifier(
+              modifierId,
+              0.5,
+              AttributeModifier.Operation.ADD_VALUE
+            ))
+          }
+        }
       }
       if (hasHoverBoots && !player.onGround && player.fallDistance < 5 && player.getDeltaMovement.y < 0) {
         player.setDeltaMovement(player.getDeltaMovement.multiply(1, 0.9, 1))
+      }
+      if (hasHoverBoots && !Settings.get.ignorePower && player.getEffect(MobEffects.MOVEMENT_SLOWDOWN) == null) {
+        equippedArmor(player).foreach {
+          case stack if stack.getItem.isInstanceOf[HoverBoots] =>
+            val boots = stack.getItem.asInstanceOf[HoverBoots]
+            if (boots.getCharge(stack) == 0) {
+              player.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 20, 1))
+            }
+          case _ =>
+        }
       }
     case _ => // Ignore.
   }

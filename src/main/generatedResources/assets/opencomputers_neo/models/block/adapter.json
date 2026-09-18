@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_top",
+  "textures": {
+    "side": "opencomputers_neo:block/adapter_side",
+    "top": "opencomputers_neo:block/adapter_top"
+  }
+}

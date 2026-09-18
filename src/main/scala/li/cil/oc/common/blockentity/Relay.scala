@@ -1,17 +1,19 @@
 package li.cil.oc.common.blockentity
 
 import com.google.common.base.Charsets
-import li.cil.oc.{Constants, Localization, Settings, api}
+import dan200.computercraft.api.peripheral.IComputerAccess
 import li.cil.oc.api.Driver
 import li.cil.oc.api.detail.ItemInfo
 import li.cil.oc.api.machine.{Arguments, Callback, Context}
 import li.cil.oc.api.network._
 import li.cil.oc.common._
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.integration.Mods
-import li.cil.oc.integration.opencomputers.DriverLinkedCard
 import li.cil.oc.server.PacketSender
 import li.cil.oc.server.network.QuantumNetwork
-import net.minecraft.core.{BlockPos, Direction}
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import li.cil.oc.{Constants, Localization, Settings, api}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.nbt.{CompoundTag, ListTag, Tag}
 import net.minecraft.world.MenuProvider
 import net.minecraft.world.entity.player.{Inventory, Player}
@@ -20,12 +22,14 @@ import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.state.BlockState
 import net.neoforged.api.distmarker.{Dist, OnlyIn}
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
 import scala.collection.mutable
 
 class Relay(pos: BlockPos, state: BlockState) 
   extends BlockEntity(BlockEntityTypes.RELAY.get(), pos, state) with traits.Hub with traits.ComponentInventory
-  with traits.PowerAcceptor with Analyzable with WirelessEndpoint with QuantumNetwork.QuantumNode with MenuProvider {
+  with traits.PowerAcceptor with Analyzable with WirelessEndpoint with QuantumNetwork.QuantumNode with MenuProvider
+    with IBlockEntityExtension {
 
   lazy final val WirelessNetworkCardTier1: ItemInfo = api.Items.get(Constants.ItemName.WirelessNetworkCardTier1)
   lazy final val WirelessNetworkCardTier2: ItemInfo = api.Items.get(Constants.ItemName.WirelessNetworkCardTier2)
@@ -111,12 +115,23 @@ class Relay(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  // 1.21.1 移除：原 `RelayCCAdapter`（把消息桥接到 ComputerCraft 计算机）。
-  // 它直接依赖 `dan200.computercraft.api.peripheral.IComputerAccess`，而整个
-  // `li.cil.oc.integration.computercraft` 包已被隔离到 `src/main/scala-pending`（不在编译集里），
-  // 因此这里不能再有编译期引用。将来恢复 CC 集成时，请把这段桥接逻辑一并挪进
-  // `integration/computercraft/RelayPeripheral.scala`（那里本来就要拿到 `IComputerAccess`）。
-  // `computers` / `openPorts` 两个容器保留，供恢复集成时复用。
+// Isolated from parent class so automatic callbacks don't depend on optional mods.
+  protected object RelayCCAdapter {
+    def queueMessage(source: String, destination: String, port: Int, answerPort: Int, args: Array[AnyRef]): Unit = {
+      computers.foreach { c =>
+        val computer: IComputerAccess = c.asInstanceOf[IComputerAccess]
+        val address = s"cc${computer.getID}_${computer.getAttachmentName}"
+        if (source != address && Option(destination).forall(_ == address) && openPorts(computer).contains(port)) {
+          val header = Seq(computer.getAttachmentName, Int.box(port), Int.box(answerPort))
+          val payload = args.map {
+            case x: Array[Byte] => new String(x, Charsets.UTF_8)
+            case x => x
+          }
+          computer.queueEvent("modem_message", Array((header :+ (if (payload.length > 1) payload else payload(0))): _*): _*)
+        }
+      }
+    }
+  }
 
   // ----------------------------------------------------------------------- //
 
@@ -135,8 +150,12 @@ class Relay(pos: BlockPos, state: BlockState)
   val computers = mutable.Buffer.empty[AnyRef]
 
   override def tryEnqueuePacket(sourceSide: Option[Direction], packet: Packet): Boolean = {
-    // 1.21.1：原先这里会在 CC 可用时把包转发给 `RelayCCAdapter`；
-    // ComputerCraft 集成已隔离到 `src/main/scala-pending`，故该分支移除（见上）。
+    if (Mods.ComputerCraft.isModAvailable) {
+      packet.data.headOption match {
+        case Some(answerPort: java.lang.Double) => RelayCCAdapter.queueMessage(packet.source, packet.destination, packet.port, answerPort.toInt, packet.data.drop(1))
+        case _ => RelayCCAdapter.queueMessage(packet.source, packet.destination, packet.port, -1, packet.data)
+      }
+    }
     super.tryEnqueuePacket(sourceSide, packet)
   }
 
@@ -173,7 +192,7 @@ class Relay(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
 
   override protected def createNode(plug: Plug): Connector = api.Network.newNode(plug, Visibility.Network).
-    withConnector(math.round(Settings.get.bufferAccessPoint)).
+    withConnector(math.round(Settings.get.bufferAccessPoint).toDouble).
     create()
 
   override protected def onPlugConnect(plug: Plug, node: Node): Unit = {
@@ -221,9 +240,8 @@ class Relay(pos: BlockPos, state: BlockState)
         if (descriptor == WirelessNetworkCardTier1 || descriptor == WirelessNetworkCardTier2)
           wirelessTier = if (descriptor == WirelessNetworkCardTier1) Tier.One else Tier.Two
         if (descriptor == LinkedCard) {
-          val data = DriverLinkedCard.dataTag(stack)
-          if (data.contains(Settings.namespace + "tunnel")) {
-            tunnel = data.getString(Settings.namespace + "tunnel")
+          for(tunnelTag <- stack.getComponent(OCComponents.TUNNEL)) {
+            tunnel = tunnelTag
             isLinkedEnabled = true
             QuantumNetwork.add(this)
           }
@@ -267,8 +285,8 @@ class Relay(pos: BlockPos, state: BlockState)
   private final val IsRepeaterTag = Settings.namespace + "isRepeater"
   private final val ComponentNodesTag = Settings.namespace + "componentNodes"
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
+  override def loadForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForServer(nbt, provider)
     for (slot <- items.indices) if (!items(slot).isEmpty) {
       updateLimits(slot, items(slot))
     }
@@ -282,19 +300,19 @@ class Relay(pos: BlockPos, state: BlockState)
     val list = nbt.getList(ComponentNodesTag, Tag.TAG_COMPOUND)
     for (i <- 0 until math.min(list.size(), componentNodes.length)) {
       val tag = list.getCompound(i)
-      componentNodes(i).loadData(tag)
+      componentNodes(i).loadData(tag, provider)
     }
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForServer(nbt, provider)
     nbt.putDouble(StrengthTag, strength)
     nbt.putBoolean(IsRepeaterTag, isRepeater)
     val componentNodesList = new ListTag()
     componentNodes.foreach {
       case node: Node =>
         val tag = new CompoundTag()
-        node.saveData(tag)
+        node.saveData(tag, provider)
         componentNodesList.add(tag)
       case _ => 
         componentNodesList.add(new CompoundTag())

@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": {
+      "item": "opencomputers_neo:acid"
+    },
+    "C": {
+      "item": "opencomputers_neo:capacitor"
+    },
+    "M": {
+      "item": "opencomputers_neo:ram1"
+    },
+    "P": {
+      "item": "opencomputers_neo:cpu2"
+    },
+    "R": {
+      "item": "opencomputers_neo:wlancard2"
+    },
+    "S": {
+      "item": "opencomputers_neo:chamelium"
+    }
+  },
+  "pattern": [
+    "SRS",
+    "PAM",
+    "SCS"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:nanomachines"
+  }
+}

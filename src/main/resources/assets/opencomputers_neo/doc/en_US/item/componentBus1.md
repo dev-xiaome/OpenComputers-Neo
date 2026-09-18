@@ -8,3 +8,4 @@ The number of components each component bus allows access to is as follows:
 - Tier 1: 8 components.
 - Tier 2: 12 components.
 - Tier 3: 16 components. 
+- Tier 4: 20 components. 

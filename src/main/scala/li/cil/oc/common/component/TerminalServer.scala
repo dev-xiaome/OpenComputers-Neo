@@ -1,10 +1,7 @@
 package li.cil.oc.common.component
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
 import java.util
 import java.util.UUID
-
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
@@ -24,12 +21,15 @@ import li.cil.oc.api.util.Lifecycle
 import li.cil.oc.api.util.StateAware
 import li.cil.oc.api.util.StateAware.State
 import li.cil.oc.common.Tier
+import li.cil.oc.common.datacomponents.{CompoundStorage, OCComponents, TerminalReference}
 import li.cil.oc.common.item
 import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.component.{DataComponentHolder, DataComponents}
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.StringTag
-import net.minecraft.core.Direction
+import net.minecraft.core.{Direction, HolderLookup}
 
 import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.convert.ImplicitConversionsToJava._
@@ -37,9 +37,11 @@ import scala.collection.mutable
 import net.minecraft.world.entity.player.Player
 import net.minecraft.nbt.Tag
 import net.minecraft.world.InteractionHand
+import net.minecraft.world.item.component.CustomData
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
-class TerminalServer(val rack: api.internal.Rack, val slot: Int) extends Environment with EnvironmentHost with Analyzable with RackMountable with Lifecycle with DeviceInfo {
-  val node = api.Network.newNode(this, Visibility.None).create()
+class TerminalServer(val rack: api.internal.Rack, val slot: Int) extends Environment with EnvironmentHost with Analyzable with RackMountable with Lifecycle with DeviceInfo with RemoteTerminalHost {
+  override val node = api.Network.newNode(this, Visibility.None).create()
 
   lazy val buffer = {
     val screenItem = api.Items.get(Constants.BlockName.ScreenTier1).createItemStack(1)
@@ -53,36 +55,16 @@ class TerminalServer(val rack: api.internal.Rack, val slot: Int) extends Environ
   lazy val keyboard = {
     val keyboardItem = api.Items.get(Constants.BlockName.Keyboard).createItemStack(1)
     val keyboard = api.Driver.driverFor(keyboardItem, getClass).createEnvironment(keyboardItem, this).asInstanceOf[api.internal.Keyboard]
-    keyboard.setUsableOverride(new UsabilityChecker {
-      override def isUsableByPlayer(keyboard: api.internal.Keyboard, player: Player) = {
-        val stack = player.getItemInHand(InteractionHand.MAIN_HAND)
-        stack.getItem match {
-          case t: item.Terminal if stack.hasTag => sidedKeys.contains(stack.getTag.getString(Settings.namespace + "key"))
-          case _ => false
-        }
-      }
-    })
+    keyboard.setUsableOverride((keyboard: api.internal.Keyboard, player: Player) => isRemoteUsable(player))
     keyboard
   }
 
-  var range = Settings.get.maxWirelessRange(Tier.Two)
+  override val range = Settings.get.maxWirelessRange(Tier.Two)
   val keys = mutable.ListBuffer.empty[String]
 
-  def hasAddress: Boolean = {
-    if (rack != null) {
-      val data = rack.getMountableData(slot)
-      if (data != null) {
-        return data.contains("terminalAddress")
-      }
-    }
-    false
-  }
-
-  def address: String = rack.getMountableData(slot).getString("terminalAddress")
-
-  def sidedKeys = {
+  override def sidedKeys = {
     if (!rack.getEnvironmentLevel.isClientSide) keys
-    else rack.getMountableData(slot).getList("keys", Tag.TAG_STRING).map((tag: StringTag) => tag.getAsString)
+    else rack.getMountableData(slot).getComponent(OCComponents.KEYS) getOrElse List.empty
   }
 
   // ----------------------------------------------------------------------- //
@@ -134,13 +116,11 @@ class TerminalServer(val rack: api.internal.Rack, val slot: Int) extends Environ
   // ----------------------------------------------------------------------- //
   // RackMountable
 
-  override def getData: CompoundTag = {
+  override def describeForClient(holder: MutableDataComponentHolder): Unit = {
     if (node.address == null) api.Network.joinNewNetwork(node)
 
-    val nbt = new CompoundTag()
-    nbt.setNewTagList("keys", keys)
-    nbt.putString("terminalAddress", node.address)
-    nbt
+    holder.setComponent(OCComponents.KEYS, keys.toList)
+    holder.setComponent(OCComponents.ADDRESS, node.address)
   }
 
   override def getConnectableCount: Int = 0
@@ -148,17 +128,20 @@ class TerminalServer(val rack: api.internal.Rack, val slot: Int) extends Environ
   override def getConnectableAt(index: Int): RackBusConnectable = null
 
   override def onActivate(player: Player, hand: InteractionHand, heldItem: ItemStack, hitX: Float, hitY: Float): Boolean = {
-    if (api.Items.get(heldItem) == api.Items.get(Constants.ItemName.Terminal)) {
+    if (player.isCrouching && api.Items.get(heldItem) == api.Items.get(Constants.ItemName.Terminal)) {
       if (!getEnvironmentLevel.isClientSide) {
         val key = UUID.randomUUID().toString
-        keys -= heldItem.getOrCreateTag.getString(Settings.namespace + "key")
+        
+        for(component <- heldItem.getComponent(OCComponents.TERMINAL_REFERENCE)) {
+          keys -= component.key
+        }
+        
         val maxSize = Settings.get.terminalsPerServer
         while (keys.length >= maxSize) {
           keys.remove(0)
         }
         keys += key
-        heldItem.getTag.putString(Settings.namespace + "key", key)
-        heldItem.getTag.putString(Settings.namespace + "server", node.address)
+        heldItem.setComponent(OCComponents.TERMINAL_REFERENCE, TerminalReference(key, node.address))
         rack.markChanged(slot)
         player.getInventory.setChanged()
       }
@@ -170,25 +153,39 @@ class TerminalServer(val rack: api.internal.Rack, val slot: Int) extends Environ
   // ----------------------------------------------------------------------- //
   // Persistable
 
-  private final val BufferTag = Settings.namespace + "buffer"
-  private final val KeyboardTag = Settings.namespace + "keyboard"
-  private final val KeysTag = Settings.namespace + "keys"
-
-  override def loadData(nbt: CompoundTag): Unit = {
+  override def loadData(holder: DataComponentHolder): Unit = {
     if (!rack.getEnvironmentLevel.isClientSide) {
-      node.loadData(nbt)
+      node.loadData(holder)
     }
-    buffer.loadData(nbt.getCompound(BufferTag))
-    keyboard.loadData(nbt.getCompound(KeyboardTag))
+    holder.getComponent(OCComponents.TERMINAL_SERVER_BUFFER) match {
+      case Some(data) => buffer.loadData(new CompoundStorage().andApply(data))
+      // Compatibility with terminal servers saved by the initial 1.21 port,
+      // which flattened all three environments into the mountable's holder.
+      case _ => buffer.loadData(holder)
+    }
+    holder.getComponent(OCComponents.TERMINAL_SERVER_KEYBOARD) match {
+      case Some(data) => keyboard.loadData(new CompoundStorage().andApply(data))
+      case _ => keyboard.loadData(holder)
+    }
     keys.clear()
-    nbt.getList(KeysTag, Tag.TAG_STRING).foreach((tag: StringTag) => keys += tag.getAsString)
+    keys ++= holder.getOrDefault(OCComponents.KEYS, List.empty)
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    node.saveData(nbt)
-    nbt.setNewCompoundTag(BufferTag, buffer.saveData)
-    nbt.setNewCompoundTag(KeyboardTag, keyboard.saveData)
-    nbt.setNewTagList(KeysTag, keys)
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    node.saveData(holder)
+
+    // The terminal server, its virtual screen, and its virtual keyboard each
+    // have their own node. Keep their component data isolated so their shared
+    // ADDRESS component cannot overwrite the other two node identities.
+    val bufferData = new CompoundStorage()
+    buffer.saveData(bufferData)
+    holder.setComponent(OCComponents.TERMINAL_SERVER_BUFFER, bufferData.toPatch)
+
+    val keyboardData = new CompoundStorage()
+    keyboard.saveData(keyboardData)
+    holder.setComponent(OCComponents.TERMINAL_SERVER_KEYBOARD, keyboardData.toPatch)
+
+    holder.set(OCComponents.KEYS, keys.toList)
   }
 
   // ----------------------------------------------------------------------- //
@@ -237,11 +234,11 @@ object TerminalServer {
   // As an address loads, repeated addresses are dropped from the list
   class TerminalServerCache {
 
-    private val ready: mutable.Map[String, TerminalServer] = new mutable.HashMap[String, TerminalServer]()
-    private val pending: mutable.Buffer[TerminalServer] = mutable.Buffer.empty[TerminalServer]
+    private val ready: mutable.Map[String, RemoteTerminalHost] = new mutable.HashMap[String, RemoteTerminalHost]()
+    private val pending: mutable.Buffer[RemoteTerminalHost] = mutable.Buffer.empty[RemoteTerminalHost]
 
     private def completePending(): Unit = {
-      val promoted: mutable.Buffer[TerminalServer] = mutable.Buffer.empty[TerminalServer]
+      val promoted: mutable.Buffer[RemoteTerminalHost] = mutable.Buffer.empty[RemoteTerminalHost]
       pending.foreach { term => if (term.hasAddress)
         promoted += term
       }
@@ -254,7 +251,7 @@ object TerminalServer {
       }
     }
 
-    def add(terminal: TerminalServer): Boolean = {
+    def add(terminal: RemoteTerminalHost): Boolean = {
       completePending()
       if (terminal.hasAddress) {
         val newAddress: String = terminal.address
@@ -271,7 +268,7 @@ object TerminalServer {
       }
     }
 
-    def remove(terminal: TerminalServer): Boolean = {
+    def remove(terminal: RemoteTerminalHost): Boolean = {
       completePending()
       if (terminal.hasAddress)
         ready.remove(terminal.address).isDefined
@@ -287,10 +284,10 @@ object TerminalServer {
       pending.clear()
     }
 
-    def find(address: String): Option[TerminalServer] = {
+    def find(address: String): Option[RemoteTerminalHost] = {
       completePending()
       ready.getOrDefault(address, null) match {
-        case term: TerminalServer => Option(term)
+        case term: RemoteTerminalHost => Option(term)
         case _ => None
       }
     }

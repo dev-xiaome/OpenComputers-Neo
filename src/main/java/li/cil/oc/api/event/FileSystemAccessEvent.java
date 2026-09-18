@@ -1,11 +1,10 @@
 package li.cil.oc.api.event;
 
-import net.neoforged.bus.api.ICancellableEvent;
-
 import li.cil.oc.api.network.Node;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.neoforged.bus.api.ICancellableEvent;
 import net.neoforged.bus.api.Event;
 
 import javax.annotation.Nullable;

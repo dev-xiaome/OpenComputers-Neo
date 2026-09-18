@@ -1,6 +1,7 @@
 package li.cil.oc.api.fs;
 
 import li.cil.oc.api.Persistable;
+import net.minecraft.core.HolderLookup;
 
 /**
  * Used by file system components to get and set the file system's label.
@@ -15,7 +16,7 @@ public interface Label extends Persistable {
      *
      * @return the current label.
      */
-    String getLabel();
+    String getLabel(HolderLookup.Provider provider);
 
     /**
      * Set the new value of this label.

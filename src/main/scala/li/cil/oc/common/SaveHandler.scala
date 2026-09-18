@@ -1,36 +1,25 @@
 package li.cil.oc.common
 
+import li.cil.oc.{OpenComputersNeo, Settings}
+import li.cil.oc.api.machine.MachineHost
+import li.cil.oc.api.network.EnvironmentHost
+import li.cil.oc.util.{BlockPosition, SafeThreadPool, ThreadPoolFactory}
+import net.minecraft.nbt.{CompoundTag, NbtIo}
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.server.level.ServerLevel
+import net.minecraft.world.level.{ChunkPos, Level}
+import net.minecraft.world.level.storage.LevelResource
+import net.neoforged.bus.api.{EventPriority, SubscribeEvent}
+import net.neoforged.neoforge.event.level.LevelEvent
+import net.neoforged.neoforge.server.ServerLifecycleHooks
+
 import java.io
 import java.io._
 import java.nio.file._
 import java.nio.file.attribute.BasicFileAttributes
-import java.util.concurrent.CancellationException
-import java.util.concurrent.ConcurrentLinkedDeque
-import java.util.concurrent.Future
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
-import li.cil.oc.OpenComputers
-import li.cil.oc.Settings
-import li.cil.oc.api.machine.MachineHost
-import li.cil.oc.api.network.EnvironmentHost
-import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.SafeThreadPool
-import li.cil.oc.util.ThreadPoolFactory
-import net.minecraft.resources.ResourceLocation
-import net.minecraft.world.level.ChunkPos
-import net.neoforged.bus.api.EventPriority
-import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.neoforge.server.ServerLifecycleHooks
-import org.apache.commons.lang3.JavaVersion
-import org.apache.commons.lang3.SystemUtils
-
+import java.util.concurrent._
 import scala.collection.mutable
-import net.minecraft.world.level.storage.LevelResource
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.server.level.ServerLevel
-import net.minecraft.world.level.Level
-import net.minecraft.nbt.NbtIo
-import net.neoforged.neoforge.event.level.LevelEvent
+import scala.collection.concurrent.TrieMap
 
 // Used by the native lua state to store kernel and stack data in auxiliary
 // files instead of directly in the tile entity data, avoiding potential
@@ -50,9 +39,9 @@ object SaveHandler {
   // which takes a lot of time and is completely unnecessary in those cases.
   var savingForClients = false
 
-  class SaveDataEntry(val data: Array[Byte], val pos: ChunkPos, val name: String, val dimension: ResourceLocation) extends Runnable {
+  class SaveDataEntry(val root: File, val data: Array[Byte], val pos: ChunkPos, val name: String, val dimension: ResourceLocation) extends Runnable {
     override def run(): Unit = {
-      val path = statePath
+      val path = statePath(root)
       val dimPath = new io.File(path, dimension.toString.replace(':', '/').replace('.', '/'))
       val chunkPath = new io.File(dimPath, s"${this.pos.x}.${this.pos.z}")
       chunkDirs.add(chunkPath)
@@ -60,26 +49,41 @@ object SaveHandler {
         chunkPath.mkdirs()
       }
       val file = new io.File(chunkPath, this.name)
+      val temporary = new io.File(chunkPath, this.name + ".tmp")
       try {
-        // val fos = new GZIPOutputStream(new io.FileOutputStream(file))
-        val fos = new io.BufferedOutputStream(new io.FileOutputStream(file))
-        fos.write(this.data)
-        fos.close()
+        val raw = new io.FileOutputStream(temporary)
+        val fos = new io.BufferedOutputStream(raw)
+        try {
+          fos.write(this.data)
+          fos.flush()
+          raw.getFD.sync()
+        }
+        finally fos.close()
+        try {
+          Files.move(temporary.toPath, file.toPath, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        }
+        catch {
+          case _: AtomicMoveNotSupportedException =>
+            Files.move(temporary.toPath, file.toPath, StandardCopyOption.REPLACE_EXISTING)
+        }
       }
       catch {
-        case e: io.IOException => OpenComputers.log.warn(s"Error saving auxiliary tile entity data to '${file.getAbsolutePath}.", e)
+        case e: io.IOException => OpenComputersNeo.log.warn(s"Error saving auxiliary tile entity data to '${file.getAbsolutePath}.", e)
       }
+      finally temporary.delete()
     }
   }
 
   val stateSaveHandler: SafeThreadPool = ThreadPoolFactory.createSafePool("SaveHandler", 1)
 
   val chunkDirs = new ConcurrentLinkedDeque[io.File]()
-  val saving = mutable.HashMap.empty[String, Future[_]]
+  val saving = TrieMap.empty[String, Future[_]]
 
   def savePath = ServerLifecycleHooks.getCurrentServer.getWorldPath(LevelResource.ROOT).resolve(Settings.savePath).toFile
 
   def statePath: File = new io.File(savePath, "state")
+
+  private def statePath(root: File): File = new io.File(root, "state")
 
   def scheduleSave(host: MachineHost, nbt: CompoundTag, name: String, data: Array[Byte]): Unit = {
     scheduleSave(BlockPosition(host), nbt, name, data)
@@ -129,6 +133,16 @@ object SaveHandler {
 
   def loadNBT(nbt: CompoundTag, name: String): CompoundTag = {
     val data = load(nbt, name)
+    parseNBT(data)
+  }
+  
+  def loadNBT(dimension: ResourceLocation, chunk: ChunkPos, name: String): CompoundTag = {
+    waitForSaveToComplete(name)
+    val data = load(dimension, chunk, name)
+    parseNBT(data)
+  }
+
+  private def parseNBT(data: Array[Byte]) = {
     if (data.length > 0) try {
       val bais = new ByteArrayInputStream(data)
       val dis = new DataInputStream(bais)
@@ -136,7 +150,7 @@ object SaveHandler {
     }
     catch {
       case t: Throwable =>
-        OpenComputers.log.warn("There was an error trying to restore a block's state from external data. This indicates that data was somehow corrupted.", t)
+        OpenComputersNeo.log.warn("There was an error trying to restore a block's state from external data. This indicates that data was somehow corrupted.", t)
         new CompoundTag()
     }
     else new CompoundTag()
@@ -149,24 +163,26 @@ object SaveHandler {
     val dimension = nbt.getString("dimension")
     val chunk = new ChunkPos(nbt.getInt("chunkX"), nbt.getInt("chunkZ"))
 
+    waitForSaveToComplete(name)
+
+    load(ResourceLocation.tryParse(dimension), chunk, name)
+  }
+
+  private def waitForSaveToComplete(name: String) = {
     // Wait for the latest save task for the requested file to complete.
     // This prevents the chance of loading an outdated version
     // of this file.
     saving.get(name).foreach(f => try {
       f.get(120L, TimeUnit.SECONDS)
     } catch {
-      case e: TimeoutException => OpenComputers.log.warn("Waiting for state data to save took two minutes! Aborting.")
+      case e: TimeoutException => OpenComputersNeo.log.warn("Waiting for state data to save took two minutes! Aborting.")
       case e: CancellationException => // NO-OP
     })
     saving.remove(name)
-
-    val dimLoc = ResourceLocation.tryParse(dimension)
-    if (dimLoc == null) {
-      OpenComputers.log.warn(s"SaveHandler.load: invalid or missing dimension '$dimension' for '$name', skipping")
-      return Array.empty[Byte]
-    }
-    load(dimLoc, chunk, name)
   }
+
+  def scheduleSave(dimension: ResourceLocation, chunk: ChunkPos, name: String, data: CompoundTag => Unit): Unit =
+    scheduleSave(dimension, chunk, name, writeNBT(data))
 
   def scheduleSave(dimension: ResourceLocation, chunk: ChunkPos, name: String, data: Array[Byte]): Unit = {
     if (chunk == null) throw new IllegalArgumentException("chunk is null")
@@ -175,7 +191,11 @@ object SaveHandler {
       // save submitted for the requested file
       // allows for better concurrency at the cost of
       // doing more writing operations.
-      stateSaveHandler.withPool(_.submit(new SaveDataEntry(data, chunk, name, dimension))).foreach(saving.put(name, _))
+      // Resolve the world path while the server is guaranteed to be alive.
+      // The worker may execute during shutdown after the global server has
+      // already been cleared.
+      val root = savePath
+      stateSaveHandler.withPool(_.submit(new SaveDataEntry(root, data, chunk, name, dimension))).foreach(saving.put(name, _))
     }
   }
 
@@ -188,23 +208,21 @@ object SaveHandler {
     val file = new io.File(chunkPath, name)
     if (!file.exists()) return Array.empty[Byte]
     try {
-      // val bis = new io.BufferedInputStream(new GZIPInputStream(new io.FileInputStream(file)))
       val bis = new io.BufferedInputStream(new io.FileInputStream(file))
       val bos = new io.ByteArrayOutputStream
       val buffer = new Array[Byte](8 * 1024)
       var read = 0
-      do {
-        read = bis.read(buffer)
+      while ({ read = bis.read(buffer); read >= 0 }) {
         if (read > 0) {
           bos.write(buffer, 0, read)
         }
-      } while (read >= 0)
+      }
       bis.close()
       bos.toByteArray
     }
     catch {
       case e: io.IOException =>
-        OpenComputers.log.warn("Error loading auxiliary tile entity data.", e)
+        OpenComputersNeo.log.warn("Error loading auxiliary tile entity data.", e)
         Array.empty[Byte]
     }
   }

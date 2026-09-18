@@ -1,4 +1,4 @@
-package li.cil.oc.integration.opencomputers
+package li.cil.oc.integration.OpenComputersNeo
 
 import java.util
 

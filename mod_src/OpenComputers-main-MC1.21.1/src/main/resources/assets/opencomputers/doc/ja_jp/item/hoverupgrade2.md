@@ -1,1 +1,0 @@
-#REDIRECT hoverupgrade1.md

@@ -1,9 +1,0 @@
-{
-    "parent": "block/orientable",
-    "textures": {
-        "bottom": "opencomputers_neo:block/generic_top",
-        "top": "opencomputers_neo:block/waypoint_top",
-        "side": "opencomputers_neo:block/waypoint_side",
-        "front": "opencomputers_neo:block/waypoint_front"
-    }
-}

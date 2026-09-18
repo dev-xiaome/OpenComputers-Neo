@@ -12,8 +12,7 @@ import li.cil.oc.util.ItemUtils
 import net.minecraft.world.Container
 import net.minecraft.world.item.ItemStack
 
-import scala.collection.JavaConverters.asJavaIterable
-import scala.collection.convert.ImplicitConversionsToJava._
+import scala.jdk.CollectionConverters.IterableHasAsJava
 
 object MicrocontrollerTemplate extends Template {
   override protected val suggestedComponents = Array(
@@ -24,8 +23,6 @@ object MicrocontrollerTemplate extends Template {
   def selectTier1(stack: ItemStack): Boolean = api.Items.get(stack) == api.Items.get(Constants.ItemName.MicrocontrollerCaseTier1)
 
   def selectTier2(stack: ItemStack): Boolean = api.Items.get(stack) == api.Items.get(Constants.ItemName.MicrocontrollerCaseTier2)
-  
-  def selectTier3(stack: ItemStack): Boolean = api.Items.get(stack) == api.Items.get(Constants.ItemName.MicrocontrollerCaseTier3)
 
   def selectTierCreative(stack: ItemStack): Boolean = api.Items.get(stack) == api.Items.get(Constants.ItemName.MicrocontrollerCaseCreative)
 
@@ -49,7 +46,7 @@ object MicrocontrollerTemplate extends Template {
     val info = new MicrocontrollerData(stack)
     val itemName = Constants.ItemName.MicrocontrollerCase(info.tier)
 
-    Array(api.Items.get(itemName).createItemStack(1)) ++ info.components
+    Array(api.Items.get(itemName).createItemStack(1)) ++ info.components.filter(!_.isEmpty)
   }
 
   def register(): Unit = {
@@ -64,7 +61,7 @@ object MicrocontrollerTemplate extends Template {
       Array(
         Tier.Two
       ),
-      asJavaIterable(Iterable(
+      Iterable(
         (Slot.Card, Tier.One),
         (Slot.Card, Tier.One),
         null,
@@ -72,7 +69,7 @@ object MicrocontrollerTemplate extends Template {
         (Slot.Memory, Tier.One),
         null,
         (Slot.EEPROM, Tier.Any)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
     // Tier 2
     api.IMC.registerAssemblerTemplate(
@@ -85,7 +82,7 @@ object MicrocontrollerTemplate extends Template {
       Array(
         Tier.Three
       ),
-      asJavaIterable(Iterable(
+      Iterable(
         (Slot.Card, Tier.Two),
         (Slot.Card, Tier.One),
         null,
@@ -93,29 +90,8 @@ object MicrocontrollerTemplate extends Template {
         (Slot.Memory, Tier.One),
         (Slot.Memory, Tier.One),
         (Slot.EEPROM, Tier.Any)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
-    // Tier 3
-    api.IMC.registerAssemblerTemplate(
-      "Microcontroller (Tier 3)",
-      "li.cil.oc.common.template.MicrocontrollerTemplate.selectTier3",
-      "li.cil.oc.common.template.MicrocontrollerTemplate.validate",
-      "li.cil.oc.common.template.MicrocontrollerTemplate.assemble",
-      hostClass,
-      null,
-      Array(
-        Tier.Four
-      ),
-      asJavaIterable(Iterable(
-        (Slot.Card, Tier.Two),
-        (Slot.Card, Tier.Two),
-        null,
-        (Slot.CPU, Tier.One),
-        (Slot.Memory, Tier.Two),
-        (Slot.Memory, Tier.One),
-        (Slot.EEPROM, Tier.Any)
-      ).map(toPair)))
-    
     // Creative
     api.IMC.registerAssemblerTemplate(
       "Microcontroller (Creative)",
@@ -125,25 +101,25 @@ object MicrocontrollerTemplate extends Template {
       hostClass,
       null,
       Array(
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four
       ),
-      asJavaIterable(Iterable(
-        (Slot.Card, Tier.Three),
-        (Slot.Card, Tier.Three),
-        (Slot.Card, Tier.Three),
-        (Slot.CPU, Tier.Three),
-        (Slot.Memory, Tier.Three),
-        (Slot.Memory, Tier.Three),
+      Iterable(
+        (Slot.Card, Tier.Four),
+        (Slot.Card, Tier.Four),
+        (Slot.Card, Tier.Four),
+        (Slot.CPU, Tier.Four),
+        (Slot.Memory, Tier.Four),
+        (Slot.Memory, Tier.Four),
         (Slot.EEPROM, Tier.Any)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
     // Disassembler
     api.IMC.registerDisassemblerTemplate(

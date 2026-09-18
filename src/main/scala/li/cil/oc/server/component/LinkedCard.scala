@@ -11,11 +11,15 @@ import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
 import li.cil.oc.api.driver.DeviceInfo
-import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.common.Tier
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.server.network.{Connector, QuantumNetwork}
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.convert.ImplicitConversionsToScala._
@@ -87,17 +91,18 @@ class LinkedCard extends AbstractManagedEnvironment with QuantumNetwork.QuantumN
 
   private final val TunnelTag = Settings.namespace + "tunnel"
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
-    if (nbt.contains(TunnelTag)) {
-      tunnel = nbt.getString(TunnelTag)
-    }
-    loadWakeMessage(nbt)
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
+
+    for(tunnel <- holder.getComponent(OCComponents.TUNNEL))
+      this.tunnel = tunnel
+
+    loadWakeMessage(holder)
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
-    nbt.putString(TunnelTag, tunnel)
-    saveWakeMessage(nbt)
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super.saveData(holder)
+    holder.setComponent(OCComponents.TUNNEL, tunnel)
+    saveWakeMessage(holder)
   }
 }

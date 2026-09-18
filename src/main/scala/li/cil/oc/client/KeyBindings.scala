@@ -1,7 +1,7 @@
 package li.cil.oc.client
 
 import com.mojang.blaze3d.platform.InputConstants
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.client.gui.traits.InputBuffer
 import net.minecraft.client.{KeyMapping, Minecraft}
 import net.neoforged.neoforge.client.settings.IKeyConflictContext
@@ -36,20 +36,18 @@ object KeyBindings {
 
   def isAnalyzeCopyingAddress: Boolean = analyzeCopyAddr.isDown
 
-  def getKeyBindingName(keyBinding: KeyMapping) = keyBinding.getTranslatedKeyMessage.getString
-
   val textInputConflict = new IKeyConflictContext {
     override def isActive: Boolean = Minecraft.getInstance.screen.isInstanceOf[InputBuffer]
 
     override def conflicts(other: IKeyConflictContext): Boolean = this == other
   }
 
-  val extendedTooltip = new KeyMapping("key.opencomputers.extendedTooltip", KeyConflictContext.GUI,
-    InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_SHIFT, OpenComputers.Name)
+  val extendedTooltip = new KeyMapping("key.OpenComputersNeo.extendedTooltip", KeyConflictContext.GUI,
+    InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_SHIFT, OpenComputersNeo.Name)
 
-  val analyzeCopyAddr = new KeyMapping("key.opencomputers.analyzeCopyAddress", KeyConflictContext.IN_GAME,
-    InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, OpenComputers.Name)
+  val analyzeCopyAddr = new KeyMapping("key.OpenComputersNeo.analyzeCopyAddress", KeyConflictContext.IN_GAME,
+    InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_CONTROL, OpenComputersNeo.Name)
 
-  val clipboardPaste = new KeyMapping("key.opencomputers.clipboardPaste", textInputConflict,
-    InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_INSERT, OpenComputers.Name)
+  val clipboardPaste = new KeyMapping("key.OpenComputersNeo.clipboardPaste", textInputConflict,
+    InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_INSERT, OpenComputersNeo.Name)
 }

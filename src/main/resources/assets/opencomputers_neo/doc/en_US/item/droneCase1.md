@@ -9,26 +9,42 @@ They make up for their limitations with speed and lower running energy costs. Th
 Like [microcontrollers](../block/microcontroller.md), [drones](drone.md) can only be programmed using their [EEPROM](eeprom.md). Accordingly, the [EEPROM](eeprom.md) can be changed by crafting the [drone](drone.md) with another [EEPROM](eeprom.md); the existing [EEPROM](eeprom.md) is return to the player's inventory.
 
 The tier 1 drone case is capable of taking the following components:
-- 1x tier 1 [CPU](cpu1.md)
-- 1x tier 1 [RAM](ram1.md)
+- 1x tier 2 [CPU](cpu1.md)
+- 2x tier 2 [RAM](ram1.md)
 - 1x [EEPROM](eeprom.md)
-- 1x Expansion card (tier 2)
-- 1x Expansion card (tier 1)
-- 1x Upgrade (tier 1)
-- 1x Upgrade (tier 2)
-
-The tier 2 drone case is capable of taking the following components:
-- 1x tier 1 [CPU)](cpu1.md)
-- 2x tier 1 [RAM](ram1.md)
-- 1x [EEPROM](eeprom.md)
+- 1x tier 2 [HDD](../item/hdd3.md)
 - 2x Expansion card (tier 2)
-- 1x Upgrade (tier 1) 
+- 1x Upgrade (tier 1)
 - 1x Upgrade (tier 2)
 - 1x Upgrade (tier 3)
 
-The tier 4 (Creative) drone case is capable of taking the following components:
+The tier 2 drone case is capable of taking the following components:
+- 1x tier 3 [CPU)](cpu1.md)
+- 2x tier 2 [RAM](ram1.md)
+- 1x [EEPROM](eeprom.md)
+- 1x tier 2 [HDD](../item/hdd3.md)
+- 1x Expansion card (tier 3)
+- 1x Expansion card (tier 2)
+- 2x Upgrade (tier 2)
+- 1x Upgrade (tier 3)
+- 1x Container (tier 2)
+
+The tier 4 drone case is capable of taking the following components:
+- 1x tier 4 [CPU)](cpu1.md)
+- 2x tier 3 [RAM](ram1.md)
+- 1x [EEPROM](eeprom.md)
+- 1x tier 3 [HDD](../item/hdd3.md)
+- 1x Expansion card (tier 4)
+- 1x Expansion card (tier 3)
+- 2x Upgrade (tier 3)
+- 1x Upgrade (tier 4)
+- 1x Container (tier 3)
+
+The Creative drone case is capable of taking the following components:
 - 1x tier 3 [CPU](cpu3.md)
 - 2x tier 3 [RAM](ram5.md)
 - 1x [EEPROM](eeprom.md)
+- 1x tier 3 [HDD](../item/hdd3.md)
 - 3x Expansion card (tier 3)
 - 9x Upgrade (tier 3)
+- 1x Container (tier 3)

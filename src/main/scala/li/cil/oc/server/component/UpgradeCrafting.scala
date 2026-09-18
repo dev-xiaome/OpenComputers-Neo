@@ -20,10 +20,13 @@ import net.minecraft.world.inventory
 import net.minecraft.world.inventory.AbstractContainerMenu
 import net.minecraft.world.inventory.ResultContainer
 import net.minecraft.world.inventory.ResultSlot
+import net.minecraft.world.item.crafting.CraftingInput
 import net.minecraft.world.item.crafting.RecipeType
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.Container
 import net.minecraft.world.item.ItemStack
+
+import scala.collection.mutable
 
 class UpgradeCrafting(val host: EnvironmentHost with internal.Robot) extends AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
@@ -53,41 +56,55 @@ class UpgradeCrafting(val host: EnvironmentHost with internal.Robot) extends Abs
       val player = host.player
       copyItemsFromHost(player.inventory)
       var countCrafted = 0
+      // Do not let crafted results occupy an empty slot in the crafting grid
+      // before all requested rounds have been attempted.
+      val craftedStacks = mutable.ArrayBuffer.empty[ItemStack]
       val manager = host.getEnvironmentLevel.getRecipeManager
-      // 1.21.1 的配方查询改用 CraftingInput（CraftingContainer 不再是 RecipeInput），
-      // 且返回 RecipeHolder 而非配方本身。
-      val initialCraft = manager.getRecipeFor(RecipeType.CRAFTING, CraftingContainer.asCraftInput, host.getEnvironmentLevel)
+      val initialCraft = manager.getRecipeFor(RecipeType.CRAFTING, this.asCraftInput(), host.getEnvironmentLevel)
       if (initialCraft.isPresent) {
         def tryCraft() : Boolean = {
-          val craftInput = CraftingContainer.asCraftInput
-          val craft = manager.getRecipeFor(RecipeType.CRAFTING, craftInput, host.getEnvironmentLevel)
+          val craft = manager.getRecipeFor(RecipeType.CRAFTING, this.asCraftInput(), host.getEnvironmentLevel)
           if (craft != initialCraft) {
             return false
           }
 
           val craftResult = new ResultContainer
           val craftingSlot = new ResultSlot(player, CraftingContainer, craftResult, 0, 0, 0)
-          val craftedResult = craft.get.value.assemble(craftInput, host.getEnvironmentLevel.registryAccess())
+          val craftedResult = craft.get.value().assemble(this.asCraftInput(), player.registryAccess())
           craftResult.setItem(0, craftedResult)
           if (!craftingSlot.hasItem)
             return false
 
           val stack = craftingSlot.remove(1)
-          countCrafted += stack.getCount max 1
+          if (stack.isEmpty)
+            return false
+          countCrafted += stack.getCount
           craftingSlot.onTake(player, stack)
-          val taken = stack
           copyItemsToHost(player.inventory)
-          if (taken.getCount > 0) {
-            InventoryUtils.addToPlayerInventory(taken, player)
-          }
           copyItemsFromHost(player.inventory)
+          craftedStacks += stack
           true
         }
         while (countCrafted < wantedCount && tryCraft()) {
           //
         }
       }
+      val craftingSlots = (0 until getContainerSize).map(toParentSlot).toSet
+      val outputSlots = (0 until player.inventory.getContainerSize).filterNot(craftingSlots)
+      craftedStacks.foreach(addCraftedStack(_, player, outputSlots))
       Seq(countCrafted > 0, countCrafted)
+    }
+
+    private def addCraftedStack(stack: ItemStack, player: Player, outputSlots: Iterable[Int]): Unit = {
+      if (!stack.isEmpty) {
+        val inventory = player.inventory
+        InventoryUtils.insertIntoInventory(stack, InventoryUtils.asItemHandler(inventory), slots = Some(outputSlots))
+        if (stack.getCount > 0)
+          player.drop(stack, false, false)
+        inventory.setChanged()
+        if (player.containerMenu != null)
+          player.containerMenu.broadcastChanges()
+      }
     }
 
     def copyItemsFromHost(inventory: Container): Unit = {

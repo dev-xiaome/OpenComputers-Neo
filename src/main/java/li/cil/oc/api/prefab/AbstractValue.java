@@ -3,12 +3,17 @@ package li.cil.oc.api.prefab;
 import li.cil.oc.api.machine.Arguments;
 import li.cil.oc.api.machine.Context;
 import li.cil.oc.api.machine.Value;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.component.DataComponentHolder;
 import net.minecraft.nbt.CompoundTag;
+import net.neoforged.neoforge.common.MutableDataComponentHolder;
+import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 /**
  * Basic implementation for the {@link Value} interface.
  */
-public class AbstractValue implements Value {
+public abstract class AbstractValue implements Value {
     @Override
     public Object apply(Context context, Arguments arguments) {
         return null;
@@ -28,10 +33,10 @@ public class AbstractValue implements Value {
     }
 
     @Override
-    public void loadData(CompoundTag nbt) {
+    public void loadData(DataComponentHolder holder, @NonNull CompoundTag nbt, @NotNull HolderLookup.Provider provider) {
     }
 
     @Override
-    public void saveData(CompoundTag nbt) {
+    public void saveData(MutableDataComponentHolder holder, @NotNull CompoundTag nbt, @NotNull HolderLookup.Provider provider) {
     }
 }

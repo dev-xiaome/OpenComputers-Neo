@@ -1,0 +1,21 @@
+{
+  "type": "opencomputers_neo:crafting_robot_flag",
+  "category": "redstone",
+  "group": "robot_flags",
+  "ingredients": [
+    { "tag": "c:dyes/red" },
+    { "tag": "c:dyes/orange" },
+    { "tag": "c:dyes/white" },
+    { "tag": "c:dyes/pink" },
+    { "tag": "c:dyes/magenta" },
+    { "item": "minecraft:stick" },
+    { "item": "opencomputers_neo:robot" }
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:robot",
+    "components": {
+      "opencomputers_neo:robot_flag": "opencomputers_neo:lesbian_flag"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers_neo:card"
+    },
+    "C": {
+      "item": "opencomputers_neo:chip1"
+    },
+    "r": {
+      "item": "minecraft:redstone_torch"
+    }
+  },
+  "pattern": [
+    "rCr",
+    " B "
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:wlancard1"
+  }
+}

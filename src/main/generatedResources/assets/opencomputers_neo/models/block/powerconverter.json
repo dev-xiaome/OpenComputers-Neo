@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:block/cube_column",
+  "textures": {
+    "end": "opencomputers_neo:block/generic_top",
+    "side": "opencomputers_neo:block/powerconverter_side"
+  }
+}

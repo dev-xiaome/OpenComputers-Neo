@@ -7,12 +7,13 @@ import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.prefab.AbstractValue
 import li.cil.oc.common.EventHandler
 import li.cil.oc.util.InventoryUtils
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.item.trading.MerchantOffer
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.resources.{ResourceKey, ResourceLocation}
-import net.minecraft.core.BlockPos
+import net.minecraft.core.{BlockPos, HolderLookup, Registry}
 import net.minecraft.world.item.trading.Merchant
 import net.neoforged.neoforge.server.ServerLifecycleHooks
 
@@ -20,9 +21,8 @@ import scala.collection.convert.ImplicitConversionsToScala._
 import scala.ref.WeakReference
 import net.minecraft.world.Container
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.core.Registry
 import net.minecraft.core.registries.Registries
-import net.minecraft.server.level.ServerLevel
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 class Trade(val info: TradeInfo) extends AbstractValue {
   def this() = this(new TradeInfo())
@@ -39,9 +39,9 @@ class Trade(val info: TradeInfo) extends AbstractValue {
 
   // Queue the load because when load is called we can't access the world yet
   // and we need to access it to get the Robot's TileEntity / Drone's Entity.
-  override def loadData(nbt: CompoundTag) = EventHandler.scheduleServer(() => info.loadData(nbt))
+  override def loadData(holder: DataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = EventHandler.scheduleServer(() => info.loadData(nbt))
 
-  override def saveData(nbt: CompoundTag) = info.saveData(nbt)
+  override def saveData(holder: MutableDataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = info.saveData(nbt)
 
   @Callback(doc = "function():number -- Returns a sort index of the merchant that provides this trade")
   def getMerchantId(context: Context, arguments: Arguments): Array[AnyRef] =
@@ -81,7 +81,7 @@ class Trade(val info: TradeInfo) extends AbstractValue {
                     if (!hasRoomForRecipe(inventory, recipe)) {
                       result(false, "not enough inventory space to trade")
                     } else {
-                      if (completeTrade(inventory, recipe, exact = true) || completeTrade(inventory, recipe, exact = false)) {
+                      if (completeTrade(inventory, recipe, exact = true)) {
                         result(true)
                       } else {
                         result(false, "not enough items to trade")
@@ -196,15 +196,12 @@ class TradeInfo(var host: Option[EnvironmentHost], var merchant: WeakReference[M
     nbt.putInt(MerchantID, merchantID)
   }
 
-  private def resolveLevel(nbt: CompoundTag): Option[ServerLevel] = {
-    val dimLoc = ResourceLocation.tryParse(nbt.getString(DimensionIDTag))
-    if (dimLoc == null) return None
-    val dimKey = ResourceKey.create(Registries.DIMENSION, dimLoc)
-    Option(ServerLifecycleHooks.getCurrentServer.getLevel(dimKey))
-  }
-
   private def loadEntity(nbt: CompoundTag, uuid: UUID): Option[Entity] = {
-    resolveLevel(nbt).flatMap(world => Option(world.getEntity(uuid)))
+    val dimension = ResourceLocation.tryParse(nbt.getString(DimensionIDTag))
+    val dimKey = ResourceKey.create(Registries.DIMENSION, dimension)
+    val world = ServerLifecycleHooks.getCurrentServer.getLevel(dimKey)
+
+    Option(world.getEntity(uuid))
   }
 
   private def loadHostEntity(nbt: CompoundTag): Option[EnvironmentHost] = {
@@ -215,15 +212,18 @@ class TradeInfo(var host: Option[EnvironmentHost], var merchant: WeakReference[M
   }
 
   private def loadHostTileEntity(nbt: CompoundTag): Option[EnvironmentHost] = {
-    resolveLevel(nbt) match {
-      case None => None
-      case Some(world) =>
-        val pos = new BlockPos(nbt.getInt(HostXTag), nbt.getInt(HostYTag), nbt.getInt(HostZTag))
-        world.getBlockEntity(pos) match {
-          case robotProxy: li.cil.oc.common.blockentity.RobotProxy => Option(robotProxy.robot)
-          case agent: li.cil.oc.api.internal.Agent => Option(agent)
-          case _ => None
-        }
+    val dimension = ResourceLocation.tryParse(nbt.getString(DimensionIDTag))
+    val dimKey = ResourceKey.create(Registries.DIMENSION, dimension)
+    val world = ServerLifecycleHooks.getCurrentServer.getLevel(dimKey)
+
+    val x = nbt.getInt(HostXTag)
+    val y = nbt.getInt(HostYTag)
+    val z = nbt.getInt(HostZTag)
+
+    world.getBlockEntity(new BlockPos(x, y, z)) match {
+      case robotProxy: li.cil.oc.common.blockentity.RobotProxy => Option(robotProxy.robot)
+      case agent: li.cil.oc.api.internal.Agent => Option(agent)
+      case null => None
     }
   }
 }

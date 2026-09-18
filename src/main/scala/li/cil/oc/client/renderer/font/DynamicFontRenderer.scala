@@ -130,6 +130,7 @@ object DynamicFontRenderer {
       builder.addVertex(matrix, tx, ty + h, 0).setColor(r, g, b, 255).setUv(u1, v2)
       builder.addVertex(matrix, tx + w, ty + h, 0).setColor(r, g, b, 255).setUv(u2, v2)
       builder.addVertex(matrix, tx + w, ty, 0).setColor(r, g, b, 255).setUv(u2, v1)
-      builder.addVertex(matrix, tx, ty, 0).setColor(r, g, b, 255).setUv(u1, v1)}
+      builder.addVertex(matrix, tx, ty, 0).setColor(r, g, b, 255).setUv(u1, v1)
+    }
   }
 }

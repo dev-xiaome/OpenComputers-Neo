@@ -1,7 +1,6 @@
 package li.cil.oc.server.component
 
 import java.util
-
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
@@ -18,7 +17,7 @@ import li.cil.oc.api
 import li.cil.oc.api.driver.DriverBlock
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.core.Direction
+import net.minecraft.core.{Direction, HolderLookup}
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import net.minecraft.world.level.block.entity.BlockEntity
@@ -72,7 +71,7 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
           otherDrv match {
             case Some((environment, driver)) =>
               node.disconnect(environment.node)
-              environment.saveData(blockData.get.data)
+              environment.saveData(blockData.get.data, host.getEnvironmentLevel.registryAccess())
               Option(environment.node).foreach(_.remove())
               otherDrv = None
             case _ => // Nothing to do here.
@@ -112,7 +111,7 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
                     otherDrv = Some((environment, newDriver))
                     blockData match {
                       case Some(data) if data.name == environment.getClass.getName =>
-                        environment.loadData(data.data)
+                        environment.loadData(data.data, host.getEnvironmentLevel.registryAccess())
                       case _ =>
                     }
                     blockData = Some(new BlockData(environment.getClass.getName, new CompoundTag()))
@@ -123,7 +122,7 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
               case Some((environment, driver)) =>
                 // We had something there, but it's gone now...
                 node.disconnect(environment.node)
-                environment.saveData(blockData.get.data)
+                environment.saveData(blockData.get.data, host.getEnvironmentLevel.registryAccess())
                 Option(environment.node).foreach(_.remove())
                 otherDrv = None
               case _ => // Nothing before, nothing now.
@@ -143,7 +142,7 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
     otherDrv match {
       case Some((environment, driver)) =>
         node.disconnect(environment.node)
-        environment.saveData(blockData.get.data)
+        environment.saveData(blockData.get.data, host.getEnvironmentLevel.registryAccess())
         Option(environment.node).foreach(_.remove())
         otherDrv = None
       case _ => // Nothing to do here.
@@ -191,8 +190,8 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
     }
   }
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
+  override def loadData(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadData(nbt, provider)
     Option(nbt.getCompound(Settings.namespace + "adapter.block")) match {
       case Some(blockNbt: CompoundTag) =>
         if (blockNbt.contains("name") && blockNbt.contains("data")) {
@@ -202,11 +201,11 @@ class UpgradeMF(val host: EnvironmentHost, val coord: BlockPosition, val dir: Di
     }
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
+  override def saveData(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveData(nbt, provider)
     val blockNbt = new CompoundTag()
     blockData.foreach({ data =>
-      otherDrv.foreach(_._1.saveData(data.data))
+      otherDrv.foreach(_._1.saveData(data.data, provider))
       blockNbt.putString("name", data.name)
       blockNbt.put("data", data.data)
     })

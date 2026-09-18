@@ -1,5 +1,5 @@
 {
-    "parent": "opencomputers_neo:item/flat",
+    "parent": "minecraft:item/generated",
     "textures": {
         "layer0": "opencomputers_neo:item/hoverboots",
         "layer1": "opencomputers_neo:item/hoverbootslight"

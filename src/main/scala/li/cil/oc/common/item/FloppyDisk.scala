@@ -6,9 +6,10 @@ import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.{Item, ItemStack}
 import net.minecraft.world.level.LevelReader
+import net.neoforged.neoforge.common.extensions.IItemExtension
 
 
-class FloppyDisk(props: Properties) extends Item(props) with traits.SimpleItem with traits.FileSystemLike {
+class FloppyDisk(props: Properties) extends Item(props) with traits.SimpleItem with traits.FileSystemLike with IItemExtension {
   // Necessary for anonymous subclasses used for loot disks.
   unlocalizedName = "floppydisk"
 

@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers_neo:cpu",
+  "criteria": {
+    "crafting_geolyzer": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.geolyzer.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers_neo:geolyzer"
+    },
+    "title": {
+      "translate": "achievement.oc.geolyzer"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_geolyzer"
+    ]
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "type": "opencomputers_neo:crafting_shapeless_extended",
+  "ingredients": [
+    {
+      "item": "opencomputers_neo:eeprom"
+    },
+    {
+      "tag": "opencomputers_neo:manual"
+    }
+  ],
+  "result": {
+    "id": "opencomputers_neo:eeprom",
+    "components": {
+      "minecraft:custom_data": {
+        "oc:data": {
+          "oc:label": "EEPROM (Lua BIOS)",
+          "oc:eeprom": "bios.lua",
+          "oc:readonly": false
+        }
+      }
+    }
+  }
+}

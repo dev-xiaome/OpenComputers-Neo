@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "T": {
+      "item": "opencomputers_neo:transistor"
+    },
+    "d": {
+      "item": "opencomputers_neo:chipdiamond"
+    },
+    "r": {
+      "tag": "c:dusts/redstone"
+    }
+  },
+  "pattern": [
+    "ddd",
+    "rTr",
+    "ddd"
+  ],
+  "result": {
+    "count": 2,
+    "id": "opencomputers_neo:chip3"
+  }
+}

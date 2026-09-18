@@ -1,22 +1,17 @@
 package li.cil.oc.client.renderer
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
 import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.blaze3d.vertex.VertexConsumer
-import li.cil.oc.Constants
-import li.cil.oc.Settings
-import li.cil.oc.api
-import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.RenderState
+import li.cil.oc.{api, Constants}
+import li.cil.oc.common.datacomponents.{MFCoords, OCComponents}
+import li.cil.oc.util.{BlockPosition, RenderState}
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import net.minecraft.client.Minecraft
-import net.minecraft.client.renderer.RenderType
+import net.minecraft.core.Direction
 import net.minecraft.world.item.ItemStack
-import net.minecraft.resources.ResourceLocation
 import net.minecraft.world.InteractionHand
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent
 import net.neoforged.bus.api.SubscribeEvent
-import net.minecraft.nbt.Tag
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent
 import org.joml.Matrix4f
 
 object MFUTargetRenderer {
@@ -30,12 +25,10 @@ object MFUTargetRenderer {
     val player = mc.player
     if (player == null) return
     player.getItemInHand(InteractionHand.MAIN_HAND) match {
-      case stack: ItemStack if api.Items.get(stack) == mfu && stack.hasTag =>
-        val data = stack.getTag
-        if (data.contains(Settings.namespace + "coord", Tag.TAG_INT_ARRAY)) {
-          val dimension = ResourceLocation.tryParse(data.getString(Settings.namespace + "dimension"))
+      case stack: ItemStack if api.Items.get(stack) == mfu && stack.has(OCComponents.MF_COORD) =>
+        for(MFCoords(dimension, blockPos, side) <- stack.getComponent(OCComponents.MF_COORD)) {
           if (!player.level.dimension.location.equals(dimension)) return
-          val Array(x, y, z, side) = data.getIntArray(Settings.namespace + "coord")
+          val (x, y, z) = (blockPos.getX, blockPos.getY, blockPos.getZ)
           if (player.distanceToSqr(x, y, z) > 64 * 64) return
 
           val bounds = BlockPosition(x, y, z).bounds.inflate(0.1, 0.1, 0.1)
@@ -95,39 +88,39 @@ object MFUTargetRenderer {
     builder.addVertex(matrix, maxX, maxY, minZ).setColor(r, g, b, 0.5f)
   }
 
-  private def drawFace(matrix: Matrix4f, builder: VertexConsumer, minX: Float, minY: Float, minZ: Float, maxX: Float, maxY: Float, maxZ: Float, side: Int, r: Float, g: Float, b: Float): Unit = {
+  private def drawFace(matrix: Matrix4f, builder: VertexConsumer, minX: Float, minY: Float, minZ: Float, maxX: Float, maxY: Float, maxZ: Float, side: Direction, r: Float, g: Float, b: Float): Unit = {
     side match {
-      case 0 => // Down
+      case Direction.DOWN =>
         builder.addVertex(matrix, minX, minY, minZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, minX, minY, maxZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, maxX, minY, maxZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, maxX, minY, minZ).setColor(r, g, b, 0.25f)
-      case 1 => // Up
+      case Direction.UP =>
         builder.addVertex(matrix, maxX, maxY, minZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, maxX, maxY, maxZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, minX, maxY, maxZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, minX, maxY, minZ).setColor(r, g, b, 0.25f)
-      case 2 => // North
+      case Direction.NORTH =>
         builder.addVertex(matrix, minX, minY, minZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, maxX, minY, minZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, maxX, maxY, minZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, minX, maxY, minZ).setColor(r, g, b, 0.25f)
-      case 3 => // South
+      case Direction.SOUTH =>
         builder.addVertex(matrix, maxX, maxY, maxZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, maxX, minY, maxZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, minX, minY, maxZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, minX, maxY, maxZ).setColor(r, g, b, 0.25f)
-      case 4 => // East
+      case Direction.EAST =>
         builder.addVertex(matrix, minX, minY, minZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, minX, maxY, minZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, minX, maxY, maxZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, minX, minY, maxZ).setColor(r, g, b, 0.25f)
-      case 5 => // West
+      case Direction.WEST =>
         builder.addVertex(matrix, maxX, minY, minZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, maxX, minY, maxZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, maxX, maxY, maxZ).setColor(r, g, b, 0.25f)
         builder.addVertex(matrix, maxX, maxY, minZ).setColor(r, g, b, 0.25f)
-      case _ => // WTF?
+      //case _ => // WTF? (unreachable)
     }
   }
 

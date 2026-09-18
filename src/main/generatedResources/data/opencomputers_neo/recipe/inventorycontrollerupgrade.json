@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "A": {
+      "item": "opencomputers_neo:analyzer"
+    },
+    "C": {
+      "item": "opencomputers_neo:chip2"
+    },
+    "P": {
+      "item": "opencomputers_neo:printedcircuitboard"
+    },
+    "d": {
+      "item": "minecraft:dropper"
+    },
+    "g": {
+      "tag": "c:ingots/gold"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    }
+  },
+  "pattern": [
+    "gAg",
+    "dCp",
+    "gPg"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:inventorycontrollerupgrade"
+  }
+}

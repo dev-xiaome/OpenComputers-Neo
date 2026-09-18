@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "front": "opencomputers_neo:block/shredder_front",
+    "side": "opencomputers_neo:block/block_side",
+    "top": "opencomputers_neo:block/block_side"
+  }
+}

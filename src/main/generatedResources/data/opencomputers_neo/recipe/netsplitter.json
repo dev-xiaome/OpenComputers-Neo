@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "P": {
+      "item": "opencomputers_neo:printedcircuitboard"
+    },
+    "c": {
+      "item": "opencomputers_neo:cable"
+    },
+    "i": {
+      "tag": "c:ingots/iron"
+    },
+    "p": {
+      "item": "minecraft:piston"
+    }
+  },
+  "pattern": [
+    "ici",
+    "cpc",
+    "iPi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:netsplitter"
+  }
+}

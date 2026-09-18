@@ -30,7 +30,16 @@ The tier 3 server is capable of taking the following components:
 - 2x Expansion cards (tier 3)
 - 1x [EEPROM](eeprom.md)
 
-The tier 4 (Creative) server is capable of taking the following components: 
+The tier 4 server is capable of taking the following components:
+- 1x tier 4 [CPU](cpu3.md)
+- 4x tier 4 [RAM](ram5.md)
+- 4x tier 4 [HDD](hdd3.md)
+- 3x tier 4 [component bus](componentBus3.md)
+- 2x Expansion cards (tier 4)
+- 2x Expansion cards (tier 3)
+- 1x [EEPROM](eeprom.md)
+
+The Creative server is capable of taking the following components: 
 - 1x tier 3 [CPU](cpu3.md)
 - 4x tier 3 [RAM](ram5.md)
 - 4x tier 3 [HDD](hdd3.md)

@@ -4,7 +4,7 @@ import java.util
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.driver.DeviceInfo
@@ -67,15 +67,15 @@ class UpgradeChunkloader(val host: EnvironmentHost) extends AbstractManagedEnvir
   override def onConnect(node: Node): Unit = {
     super.onConnect(node)
     if (node == this.node) {
-      val restoredTicket = ChunkloaderUpgradeHandler.claimTicket(node.address)
+      val restoredTicket = ChunkloaderUpgradeHandler.claimTicket(node.address, host.getEnvironmentLevel)
       if (restoredTicket.isDefined) {
         if (!isDimensionAllowed) {
           host.getEnvironmentLevel match {
             case world: ServerLevel => ChunkloaderUpgradeHandler.releaseTicket(world, node.address, restoredTicket.get)
           }
-          OpenComputers.log.info(s"Releasing chunk loader ticket at (${host.xPosition()}, ${host.yPosition()}, ${host.zPosition()}) in blacklisted dimension ${host.getEnvironmentLevel().dimension}.")
+          OpenComputersNeo.log.info(s"Releasing chunk loader ticket at (${host.xPosition()}, ${host.yPosition()}, ${host.zPosition()}) in blacklisted dimension ${host.getEnvironmentLevel().dimension}.")
         } else {
-          OpenComputers.log.info(s"Reclaiming chunk loader ticket at (${host.xPosition()}, ${host.yPosition()}, ${host.zPosition()}) in dimension ${host.getEnvironmentLevel().dimension}.")
+          OpenComputersNeo.log.info(s"Reclaiming chunk loader ticket at (${host.xPosition()}, ${host.yPosition()}, ${host.zPosition()}) in dimension ${host.getEnvironmentLevel().dimension}.")
           ticket = restoredTicket
           ChunkloaderUpgradeHandler.updateLoadedChunk(this)
         }
@@ -122,26 +122,25 @@ class UpgradeChunkloader(val host: EnvironmentHost) extends AbstractManagedEnvir
     }
   }
 
-  @Deprecated
   private def isDimensionAllowed: Boolean = {
-    val id: Int = host.getEnvironmentLevel().dimension match {
-      case Level.OVERWORLD => 0
-      case Level.NETHER => -1
-      case Level.END => 1
-      case dim => dim.location().hashCode()
+    // These settings are retained as legacy numeric dimension IDs for config
+    // compatibility. Modern/modded dimensions have no stable numeric ID.
+    val legacyId = host.getEnvironmentLevel().dimension match {
+      case Level.OVERWORLD => Some(0)
+      case Level.NETHER => Some(-1)
+      case Level.END => Some(1)
+      case _ => None
     }
     val whitelist = Settings.get.chunkloadDimensionWhitelist
     val blacklist = Settings.get.chunkloadDimensionBlacklist
-    if (!whitelist.isEmpty) {
-      if (!whitelist.contains(id))
-        return false
+
+    if (!whitelist.isEmpty && !legacyId.exists(whitelist.contains)) {
+      false
+    } else if (legacyId.exists(blacklist.contains)) {
+      false
+    } else {
+      true
     }
-    if (!blacklist.isEmpty) {
-      if (blacklist.contains(id)) {
-        return false
-      }
-    }
-    true
   }
 
   private def requestTicket(throwIfBlocked: Boolean = false): Unit = {
@@ -150,9 +149,7 @@ class UpgradeChunkloader(val host: EnvironmentHost) extends AbstractManagedEnvir
         throw new Exception("this dimension is blacklisted")
       }
     } else {
-      // This ticket is a lie, but ChunkloaderUpgradeHandler won't crash or load it.
-      ticket = Some(new ChunkPos(0, 0))
-      ChunkloaderUpgradeHandler.updateLoadedChunk(this)
+      ChunkloaderUpgradeHandler.requestTicket(this)
     }
   }
 }

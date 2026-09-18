@@ -1,6 +1,6 @@
 package li.cil.oc.util
 
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api.machine.Value
 import li.cil.repack.org.luaj.vm2.LuaString
@@ -44,7 +44,7 @@ object ScalaClosure {
       case value: java.lang.Character => LuaValue.valueOf(String.valueOf(value))
       case value: java.lang.Short => LuaValue.valueOf(value.shortValue)
       case value: java.lang.Integer => LuaValue.valueOf(value.intValue)
-      case value: java.lang.Long => LuaValue.valueOf(value.longValue)
+      case value: java.lang.Long => LuaValue.valueOf(value.longValue.toDouble)
       case value: java.lang.Float => LuaValue.valueOf(value.floatValue)
       case value: java.lang.Double => LuaValue.valueOf(value.doubleValue)
       case value: java.lang.String => LuaValue.valueOf(value)
@@ -57,7 +57,7 @@ object ScalaClosure {
       case value: Map[_, _] => toLuaTable(value)
       case value: mutable.Map[_, _] => toLuaTable(value.toMap)
       case _ =>
-        OpenComputers.log.warn("Tried to push an unsupported value of type to Lua: " + value.getClass.getName + ".")
+        OpenComputersNeo.log.warn("Tried to push an unsupported value of type to Lua: " + value.getClass.getName + ".")
         LuaValue.NIL
     }
   }

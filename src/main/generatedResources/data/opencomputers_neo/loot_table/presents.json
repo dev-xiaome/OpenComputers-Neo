@@ -1,0 +1,893 @@
+{
+  "type": "minecraft:empty",
+  "pools": [
+    {
+      "bonus_rolls": 0.0,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:arrowkeys"
+            }
+          ],
+          "name": "opencomputers_neo:arrowkeys",
+          "weight": 520
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:buttongroup"
+            }
+          ],
+          "name": "opencomputers_neo:buttongroup",
+          "weight": 460
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:numpad"
+            }
+          ],
+          "name": "opencomputers_neo:numpad",
+          "weight": 410
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:disk"
+            }
+          ],
+          "name": "opencomputers_neo:disk",
+          "weight": 370
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:transistor"
+            }
+          ],
+          "name": "opencomputers_neo:transistor",
+          "weight": 350
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:floppy"
+            }
+          ],
+          "name": "opencomputers_neo:floppy",
+          "weight": 340
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:printedcircuitboard"
+            }
+          ],
+          "name": "opencomputers_neo:printedcircuitboard",
+          "weight": 320
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:chip1"
+            }
+          ],
+          "name": "opencomputers_neo:chip1",
+          "weight": 290
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:eeprom"
+            }
+          ],
+          "name": "opencomputers_neo:eeprom",
+          "weight": 250
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:interweb"
+            }
+          ],
+          "name": "opencomputers_neo:interweb",
+          "weight": 220
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:card"
+            }
+          ],
+          "name": "opencomputers_neo:card",
+          "weight": 190
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:analyzer"
+            }
+          ],
+          "name": "opencomputers_neo:analyzer",
+          "weight": 170
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:signupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:signupgrade",
+          "quality": 1,
+          "weight": 150
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:inventoryupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:inventoryupgrade",
+          "weight": 130
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:craftingupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:craftingupgrade",
+          "quality": 1,
+          "weight": 110
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:tankupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:tankupgrade",
+          "weight": 90
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:pistonupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:pistonupgrade",
+          "quality": 1,
+          "weight": 80
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:leashupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:leashupgrade",
+          "weight": 70
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:angelupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:angelupgrade",
+          "quality": 1,
+          "weight": 55
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:redstonecard1"
+            }
+          ],
+          "name": "opencomputers_neo:redstonecard1",
+          "weight": 50
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:ram1"
+            }
+          ],
+          "name": "opencomputers_neo:ram1",
+          "weight": 48
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:cu"
+            }
+          ],
+          "name": "opencomputers_neo:cu",
+          "weight": 46
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:alu"
+            }
+          ],
+          "name": "opencomputers_neo:alu",
+          "weight": 45
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:batteryupgrade1"
+            }
+          ],
+          "name": "opencomputers_neo:batteryupgrade1",
+          "weight": 43
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:lancard"
+            }
+          ],
+          "name": "opencomputers_neo:lancard",
+          "weight": 38
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:wlancard1"
+            }
+          ],
+          "name": "opencomputers_neo:wlancard1",
+          "weight": 37
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:hdd1"
+            }
+          ],
+          "name": "opencomputers_neo:hdd1",
+          "weight": 36
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:generatorupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:generatorupgrade",
+          "quality": 1,
+          "weight": 35
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:cpu1"
+            }
+          ],
+          "name": "opencomputers_neo:cpu1",
+          "weight": 31
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:microcontrollercase1"
+            }
+          ],
+          "name": "opencomputers_neo:microcontrollercase1",
+          "weight": 30
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:dronecase1"
+            }
+          ],
+          "name": "opencomputers_neo:dronecase1",
+          "weight": 25
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:upgradecontainer1"
+            }
+          ],
+          "name": "opencomputers_neo:upgradecontainer1",
+          "weight": 23
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:cardcontainer1"
+            }
+          ],
+          "name": "opencomputers_neo:cardcontainer1",
+          "weight": 23
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:graphicscard1"
+            }
+          ],
+          "name": "opencomputers_neo:graphicscard1",
+          "weight": 19
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:redstonecard2"
+            }
+          ],
+          "name": "opencomputers_neo:redstonecard2",
+          "quality": 1,
+          "weight": 17
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:ram2"
+            }
+          ],
+          "name": "opencomputers_neo:ram2",
+          "weight": 15
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:databaseupgrade1"
+            }
+          ],
+          "name": "opencomputers_neo:databaseupgrade1",
+          "weight": 15
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:chip2"
+            }
+          ],
+          "name": "opencomputers_neo:chip2",
+          "quality": 1,
+          "weight": 15
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:componentbus1"
+            }
+          ],
+          "name": "opencomputers_neo:componentbus1",
+          "weight": 13
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:batteryupgrade2"
+            }
+          ],
+          "name": "opencomputers_neo:batteryupgrade2",
+          "quality": 1,
+          "weight": 12
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:wlancard2"
+            }
+          ],
+          "name": "opencomputers_neo:wlancard2",
+          "quality": 1,
+          "weight": 11
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:ram3"
+            }
+          ],
+          "name": "opencomputers_neo:ram3",
+          "quality": 1,
+          "weight": 10
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:server1"
+            }
+          ],
+          "name": "opencomputers_neo:server1",
+          "weight": 10
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:internetcard"
+            }
+          ],
+          "name": "opencomputers_neo:internetcard",
+          "quality": 1,
+          "weight": 9
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:terminal"
+            }
+          ],
+          "name": "opencomputers_neo:terminal",
+          "weight": 9
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:solargeneratorupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:solargeneratorupgrade",
+          "quality": 1,
+          "weight": 9
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:hdd2"
+            }
+          ],
+          "name": "opencomputers_neo:hdd2",
+          "quality": 1,
+          "weight": 7
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:navigationupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:navigationupgrade",
+          "quality": 1,
+          "weight": 7
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:inventorycontrollerupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:inventorycontrollerupgrade",
+          "quality": 1,
+          "weight": 7
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:tankcontrollerupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:tankcontrollerupgrade",
+          "quality": 1,
+          "weight": 7
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:cpu2"
+            }
+          ],
+          "name": "opencomputers_neo:cpu2",
+          "quality": 1,
+          "weight": 6
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:microcontrollercase2"
+            }
+          ],
+          "name": "opencomputers_neo:microcontrollercase2",
+          "quality": 1,
+          "weight": 6
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:componentbus2"
+            }
+          ],
+          "name": "opencomputers_neo:componentbus2",
+          "quality": 1,
+          "weight": 6
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:tabletcase1"
+            }
+          ],
+          "name": "opencomputers_neo:tabletcase1",
+          "weight": 5
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:upgradecontainer2"
+            }
+          ],
+          "name": "opencomputers_neo:upgradecontainer2",
+          "quality": 1,
+          "weight": 5
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:cardcontainer2"
+            }
+          ],
+          "name": "opencomputers_neo:cardcontainer2",
+          "quality": 1,
+          "weight": 5
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:graphicscard2"
+            }
+          ],
+          "name": "opencomputers_neo:graphicscard2",
+          "quality": 1,
+          "weight": 4
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:ram4"
+            }
+          ],
+          "name": "opencomputers_neo:ram4",
+          "quality": 1,
+          "weight": 4
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:dronecase2"
+            }
+          ],
+          "name": "opencomputers_neo:dronecase2",
+          "quality": 1,
+          "weight": 4
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:databaseupgrade2"
+            }
+          ],
+          "name": "opencomputers_neo:databaseupgrade2",
+          "quality": 1,
+          "weight": 4
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:server2"
+            }
+          ],
+          "name": "opencomputers_neo:server2",
+          "quality": 1,
+          "weight": 4
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:chip3"
+            }
+          ],
+          "name": "opencomputers_neo:chip3",
+          "quality": 2,
+          "weight": 3
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:componentbus3"
+            }
+          ],
+          "name": "opencomputers_neo:componentbus3",
+          "quality": 2,
+          "weight": 3
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:tractorbeamupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:tractorbeamupgrade",
+          "quality": 2,
+          "weight": 3
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:batteryupgrade3"
+            }
+          ],
+          "name": "opencomputers_neo:batteryupgrade3",
+          "quality": 2,
+          "weight": 3
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:experienceupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:experienceupgrade",
+          "quality": 2,
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:ram5"
+            }
+          ],
+          "name": "opencomputers_neo:ram5",
+          "quality": 2,
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:upgradecontainer3"
+            }
+          ],
+          "name": "opencomputers_neo:upgradecontainer3",
+          "quality": 2,
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:cardcontainer3"
+            }
+          ],
+          "name": "opencomputers_neo:cardcontainer3",
+          "quality": 2,
+          "weight": 2
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:tabletcase2"
+            }
+          ],
+          "name": "opencomputers_neo:tabletcase2",
+          "quality": 1
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:hdd3"
+            }
+          ],
+          "name": "opencomputers_neo:hdd3",
+          "quality": 2
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:chunkloaderupgrade"
+            }
+          ],
+          "name": "opencomputers_neo:chunkloaderupgrade",
+          "quality": 2
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:cpu3"
+            }
+          ],
+          "name": "opencomputers_neo:cpu3",
+          "quality": 2
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:graphicscard3"
+            }
+          ],
+          "name": "opencomputers_neo:graphicscard3",
+          "quality": 2
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:server3"
+            }
+          ],
+          "name": "opencomputers_neo:server3",
+          "quality": 2
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:databaseupgrade3"
+            }
+          ],
+          "name": "opencomputers_neo:databaseupgrade3",
+          "quality": 2
+        },
+        {
+          "type": "minecraft:item",
+          "conditions": [
+            {
+              "condition": "opencomputers_neo:is_craftable",
+              "item": "opencomputers_neo:ram6"
+            }
+          ],
+          "name": "opencomputers_neo:ram6",
+          "quality": 2
+        }
+      ],
+      "rolls": 1.0
+    }
+  ],
+  "random_sequence": "opencomputers_neo:presents"
+}

@@ -1,11 +1,10 @@
 package li.cil.oc.server.component
 
 import java.util
-
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.driver.DeviceInfo
@@ -17,19 +16,24 @@ import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.common.ToolDurabilityProviders
 import li.cil.oc.common.blockentity
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.common.RobotFlags
 import li.cil.oc.server.PacketSender
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.util.StackOption
 import li.cil.oc.util.StackOption._
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.core.particles.ParticleTypes
-import net.minecraft.core.Direction
+import net.minecraft.core.{Direction, HolderLookup}
 import net.minecraft.resources.ResourceLocation
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 class Robot(val agent: blockentity.Robot) extends AbstractManagedEnvironment with Agent with DeviceInfo {
   override val node = api.Network.newNode(this, Visibility.Network).
@@ -69,6 +73,32 @@ class Robot(val agent: blockentity.Robot) extends AbstractManagedEnvironment wit
     agent.setLightColor(args.checkInteger(0))
     context.pause(0.1)
     result(agent.info.lightColor)
+  }
+
+  @Callback(direct = true, doc = "function():string or nil -- Gets the currently displayed pride flag name, if any.")
+  def getFlag(context: Context, args: Arguments): Array[AnyRef] =
+    agent.info.flag.flatMap(RobotFlags.byId) match {
+      case Some(flag) => result(flag.name)
+      case _ => result(null)
+    }
+
+  @Callback(doc = "function(name:string):string -- Sets the displayed pride flag and returns its canonical name.")
+  def setFlag(context: Context, args: Arguments): Array[AnyRef] = {
+    RobotFlags.byName(args.checkString(0)) match {
+      case Some(flag) =>
+        agent.setFlag(Some(flag.id))
+        context.pause(0.1)
+        result(flag.name)
+      case _ =>
+        result(null, "unknown pride flag")
+    }
+  }
+
+  @Callback(doc = "function() -- Hides the currently displayed pride flag.")
+  def clearFlag(context: Context, args: Arguments): Array[AnyRef] = {
+    agent.setFlag(None)
+    context.pause(0.1)
+    result(true)
   }
 
   // ----------------------------------------------------------------------- //
@@ -159,13 +189,22 @@ class Robot(val agent: blockentity.Robot) extends AbstractManagedEnvironment wit
 
   private final val RomRobotTag = "romRobot"
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
-    romRobot.foreach(_.loadData(nbt.getCompound(RomRobotTag)))
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
+
+    for(rom <- romRobot;
+        tag <- holder.getComponent(OCComponents.ROBOT_ROM_FILESYSTEM_DATA)) {
+      rom.asInstanceOf[li.cil.oc.server.component.FileSystem].fileSystem.loadData(tag)
+    }
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
-    romRobot.foreach(fs => nbt.setNewCompoundTag(RomRobotTag, fs.saveData))
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super.saveData(holder)
+
+    for(rom <- romRobot) {
+      val tag = new CompoundTag()
+      rom.asInstanceOf[li.cil.oc.server.component.FileSystem].fileSystem.saveData(tag)
+      holder.setComponent(OCComponents.ROBOT_ROM_FILESYSTEM_DATA, tag)
+    }
   }
 }

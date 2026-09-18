@@ -50,6 +50,8 @@ class BlockPosition(val x: Int, val y: Int, val z: Int, val world: Option[Level]
       hash().
       asInt()
   }
+
+  def unapply(): Option[(Int, Int, Int)] = Some((x, y, z))
 }
 
 object BlockPosition {
@@ -72,4 +74,6 @@ object BlockPosition {
   def apply(pos: BlockPos, world: Level): BlockPosition = BlockPosition(pos.getX, pos.getY, pos.getZ, world)
 
   def apply(pos: BlockPos): BlockPosition = BlockPosition(pos.getX, pos.getY, pos.getZ)
+  
+  def unapply(blockPos: BlockPos): Option[(Int, Int, Int)] = Some((blockPos.getX, blockPos.getY, blockPos.getZ))
 }

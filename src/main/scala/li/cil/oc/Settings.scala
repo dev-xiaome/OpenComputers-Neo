@@ -1,20 +1,17 @@
 package li.cil.oc
 
-import com.google.common.net.InetAddresses
 import com.mojang.authlib.GameProfile
 import com.typesafe.config._
 import li.cil.oc.Settings.DebugCardAccess
 import li.cil.oc.common.Tier
 import li.cil.oc.server.component.DebugCard
 import li.cil.oc.server.component.DebugCard.AccessContext
-import li.cil.oc.util.{InetAddressRange, InternetFilteringRule}
+import li.cil.oc.util.InternetFilteringRule
 import net.neoforged.fml.loading.FMLPaths
 import org.apache.commons.codec.binary.Hex
-import org.apache.maven.artifact.versioning.DefaultArtifactVersion
-import org.apache.maven.artifact.versioning.VersionRange
+import org.apache.maven.artifact.versioning.{DefaultArtifactVersion, VersionRange}
 
 import java.io._
-import java.net.{Inet4Address, Inet6Address, InetAddress}
 import java.nio.charset.StandardCharsets
 import java.nio.file.Paths
 import java.security.SecureRandom
@@ -46,7 +43,7 @@ class Settings(val config: Config) {
     case Array(x, y) =>
       (x: Double, y: Double)
     case _ =>
-      OpenComputers.log.warn("Bad number of HUD coordiantes, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of HUD coordiantes, ignoring.")
       (-1.0, -1.0)
   }
   val enableNanomachinePfx = config.getBoolean("client.enableNanomachinePfx")
@@ -63,14 +60,14 @@ class Settings(val config: Config) {
     case Array(tier1, tier2, tier3, tier4, tierCreative) =>
       Array(tier1: Int, tier2: Int, tier3: Int, tier4: Int, tierCreative: Int)
     case _ =>
-      OpenComputers.log.warn("Bad number of CPU component counts, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of CPU component counts, ignoring.")
       Array(8, 12, 16, 20, 1024)
   }
   val callBudgets = config.getDoubleList("computer.callBudgets").asScala.toArray match {
     case Array(tier1, tier2, tier3, tier4) =>
       Array(tier1: Double, tier2: Double, tier3: Double, tier4: Double)
     case _ =>
-      OpenComputers.log.warn("Bad number of call budgets, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of call budgets, ignoring.")
       Array(0.5, 1.0, 1.5, 2.0)
   }
   val canComputersBeOwned = config.getBoolean("computer.canComputersBeOwned")
@@ -89,8 +86,8 @@ class Settings(val config: Config) {
     case Array(tier1, tier2, tier3, tier4, tier5, tier6, tier7, tier8) =>
       Array(tier1: Int, tier2: Int, tier3: Int, tier4: Int, tier5: Int, tier6: Int, tier7: Int, tier8: Int)
     case _ =>
-      OpenComputers.log.warn("Bad number of RAM sizes, ignoring.")
-      Array(128, 256, 512, 1024, 2048, 4096, 8192, 16384)
+      OpenComputersNeo.log.warn("Bad number of RAM sizes, ignoring.")
+      Array(256, 384, 512, 768, 1024, 1536, 2048, 3072)
   }
   val ramScaleFor64Bit = config.getDouble("computer.lua.ramScaleFor64Bit") max 1
   val maxTotalRam = config.getInt("computer.lua.maxTotalRam") max 0
@@ -111,7 +108,7 @@ class Settings(val config: Config) {
     case Array(tier1, tier2) =>
       Array(tier1: Int, tier2: Int)
     case _ =>
-      OpenComputers.log.warn("Bad number of hover flight height counts, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of hover flight height counts, ignoring.")
       Array(64, 256)
   }
 
@@ -169,7 +166,7 @@ class Settings(val config: Config) {
     case Array(tier1, tier2, tier3) =>
       Array(tier1: Double, tier2: Double, tier3: Double)
     case _ =>
-      OpenComputers.log.warn("Bad number of battery upgrade buffer sizes, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of battery upgrade buffer sizes, ignoring.")
       Array(10000.0, 15000.0, 20000.0)
   }
   val bufferTablet = config.getDouble("power.buffer.tablet") max 0
@@ -189,6 +186,8 @@ class Settings(val config: Config) {
   val hologramCost = config.getDouble("power.cost.hologram") max 0
   val hddReadCost = (config.getDouble("power.cost.hddRead") max 0) / 1024
   val hddWriteCost = (config.getDouble("power.cost.hddWrite") max 0) / 1024
+  val ssdReadCost = (config.getDouble("power.cost.ssdRead") max 0) / 1024
+  val ssdWriteCost = (config.getDouble("power.cost.ssdWrite") max 0) / 1024
   val gpuSetCost = (config.getDouble("power.cost.gpuSet") max 0) / Settings.basicScreenPixels
   val gpuFillCost = (config.getDouble("power.cost.gpuFill") max 0) / Settings.basicScreenPixels
   val gpuClearCost = (config.getDouble("power.cost.gpuClear") max 0) / Settings.basicScreenPixels
@@ -200,7 +199,7 @@ class Settings(val config: Config) {
     case Array(tier1, tier2) =>
       Array((tier1: Double) max 0.0, (tier2: Double) max 0.0)
     case _ =>
-      OpenComputers.log.warn("Bad number of wireless card energy costs, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of wireless card energy costs, ignoring.")
       Array(0.05, 0.05)
   }
   val abstractBusPacketCost = config.getDouble("power.cost.abstractBusPacket") max 0
@@ -240,7 +239,7 @@ class Settings(val config: Config) {
     case Array(tier1, tier2, tier3, tier4) =>
       Array(tier1: Double, tier2: Double, tier3: Double, tier4: Double)
     case _ =>
-      OpenComputers.log.warn("Bad number of computer case conversion rates, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of computer case conversion rates, ignoring.")
       Array(5.0, 10.0, 20.0, 30.0)
   }) ++ Array(9001.0)
   // Creative case.
@@ -251,25 +250,15 @@ class Settings(val config: Config) {
 
   // power.value
   private val valueAppliedEnergistics2 = config.getDouble("power.value.AppliedEnergistics2")
-  private val valueFactorization = config.getDouble("power.value.Factorization")
-  private val valueGalacticraft = config.getDouble("power.value.Galacticraft")
-  private val valueIndustrialCraft2 = config.getDouble("power.value.IndustrialCraft2")
   private val valueMekanism = config.getDouble("power.value.Mekanism")
-  private val valuePowerAdvantage = config.getDouble("power.value.PowerAdvantage")
   private val valueRedstoneFlux = config.getDouble("power.value.RedstoneFlux")
-  private val valueRotaryCraft = config.getDouble("power.value.RotaryCraft") / 11256.0
   private val valueForgeEnergy = if (config.hasPath("power.value.ForgeEnergy")) config.getDouble("power.value.ForgeEnergy") else valueRedstoneFlux
 
   private val valueInternal = 1000
 
   val ratioAppliedEnergistics2 = valueAppliedEnergistics2 / valueInternal
-  val ratioFactorization = valueFactorization / valueInternal
-  val ratioGalacticraft = valueGalacticraft / valueInternal
-  val ratioIndustrialCraft2 = valueIndustrialCraft2 / valueInternal
   val ratioMekanism = valueMekanism / valueInternal
-  val ratioPowerAdvantage = valuePowerAdvantage / valueInternal
   val ratioRedstoneFlux = valueRedstoneFlux / valueInternal
-  val ratioRotaryCraft = valueRotaryCraft / valueInternal
   val ratioForgeEnergy = valueForgeEnergy / valueInternal
 
   // ----------------------------------------------------------------------- //
@@ -280,22 +269,22 @@ class Settings(val config: Config) {
     case Array(tier1, tier2, tier3, tier4) =>
       Array(tier1: Int, tier2: Int, tier3: Int, tier4: Int)
     case _ =>
-      OpenComputers.log.warn("Bad number of HDD sizes, ignoring.")
-      Array(2048, 4096, 8192, 16384)
+      OpenComputersNeo.log.warn("Bad number of HDD sizes, ignoring.")
+      Array(1024, 2048, 4096, 8192)
   }
   val ssdSizes = config.getIntList("filesystem.ssdSizes").asScala.toArray match {
     case Array(tier1, tier2, tier3) =>
       Array(tier1: Int, tier2: Int, tier3: Int)
     case _ =>
-      OpenComputers.log.warn("Bad number of SSD sizes, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of SSD sizes, ignoring.")
       Array(4096, 8192, 16384)
   }
   val hddPlatterCounts = config.getIntList("filesystem.hddPlatterCounts").asScala.toArray match {
     case Array(tier1, tier2, tier3, tier4) =>
       Array(tier1: Int, tier2: Int, tier3: Int, tier4: Int)
     case _ =>
-      OpenComputers.log.warn("Bad number of HDD platter counts, ignoring.")
-      Array(2, 4, 6, 8)
+      OpenComputersNeo.log.warn("Bad number of HDD platter counts, ignoring.")
+      Array(2, 4, 8, 12)
   }
   val floppySize = config.getInt("filesystem.floppySize") max 0
   val tmpSize = config.getInt("filesystem.tmpSize") max 0
@@ -334,14 +323,14 @@ class Settings(val config: Config) {
     case Array(tier1, tier2, tier3) =>
       Array((tier1: Double) max 1.0, (tier2: Double) max 1.0, (tier3: Double) max 1.0)
     case _ =>
-      OpenComputers.log.warn("Bad number of hologram max scales, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of hologram max scales, ignoring.")
       Array(3.0, 4.0, 5.0)
   }
   val hologramMaxTranslationByTier = config.getDoubleList("hologram.maxTranslation").asScala.toArray match {
     case Array(tier1, tier2, tier3) =>
       Array((tier1: Double) max 0.0, (tier2: Double) max 0.0, (tier3: Double) max 0.0)
     case _ =>
-      OpenComputers.log.warn("Bad number of hologram max translations, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of hologram max translations, ignoring.")
       Array(0.25, 0.5, 0.75)
   }
   val hologramSetRawDelay = config.getDouble("hologram.setRawDelay") max 0
@@ -352,6 +341,7 @@ class Settings(val config: Config) {
   val maxScreenWidth = config.getInt("misc.maxScreenWidth") max 1
   val maxScreenHeight = config.getInt("misc.maxScreenHeight") max 1
   val inputUsername = config.getBoolean("misc.inputUsername")
+  val maxClipboardTextLength = config.getInt("misc.maxClipboard") max 0
   val initialNetworkPacketTTL = config.getInt("misc.initialNetworkPacketTTL") max 5
   val maxNetworkPacketSize = config.getInt("misc.maxNetworkPacketSize") max 0
   // Need at least 4 for nanomachine protocol. Because I can!
@@ -360,14 +350,14 @@ class Settings(val config: Config) {
     case Array(wired, tier1, tier2) =>
       Array((wired: Int) max 0, (tier1: Int) max 0, (tier2: Int) max 0)
     case _ =>
-      OpenComputers.log.warn("Bad number of max open ports, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of max open ports, ignoring.")
       Array(16, 1, 16)
   }
   val maxWirelessRange = config.getDoubleList("misc.maxWirelessRange").asScala.toArray match {
     case Array(tier1, tier2) =>
       Array((tier1: Double) max 0.0, (tier2: Double) max 0.0)
     case _ =>
-      OpenComputers.log.warn("Bad number of wireless card max ranges, ignoring.")
+      OpenComputersNeo.log.warn("Bad number of wireless card max ranges, ignoring.")
       Array(16.0, 400.0)
   }
   val rTreeMaxEntries = 10
@@ -380,6 +370,8 @@ class Settings(val config: Config) {
   val disassembleAllTheThings = config.getBoolean("misc.disassembleAllTheThings")
   val disassemblerBreakChance = config.getDouble("misc.disassemblerBreakChance") max 0 min 1
   val disassemblerInputBlacklist = config.getStringList("misc.disassemblerInputBlacklist")
+  val hideTier4 = config.getBoolean("misc.hideTier4")
+  val hideOpenScreens = config.getBoolean("misc.hideOpenScreens")
   val hideOwnPet = config.getBoolean("misc.hideOwnSpecial")
   val allowItemStackInspection = config.getBoolean("misc.allowItemStackInspection")
   val databaseEntriesPerTier = Array(9, 25, 81)
@@ -473,7 +465,7 @@ class Settings(val config: Config) {
       DebugCardAccess.Whitelist(wlFile)
 
     case _ => // Fallback to most secure configuration
-      OpenComputers.log.warn("Unknown debug card access type, falling back to `deny`. Allowed values: `allow`, `deny`, `whitelist`.")
+      OpenComputersNeo.log.warn("Unknown debug card access type, falling back to `deny`. Allowed values: `allow`, `deny`, `whitelist`.")
       DebugCardAccess.Forbidden
   }
 
@@ -487,11 +479,18 @@ class Settings(val config: Config) {
   val vramSizes: Array[Double] = config.getDoubleList("gpu.vramSizes").asScala.toArray match {
     case Array(tier1, tier2, tier3, tier4) => Array(tier1: Double, tier2: Double, tier3: Double, tier4: Double)
     case _ =>
-      OpenComputers.log.warn("Bad number of VRAM sizes (expected 4), ignoring.")
+      OpenComputersNeo.log.warn("Bad number of VRAM sizes (expected 4), ignoring.")
       Array(1, 2, 3, 4)
   }
 
   val bitbltCost: Double = if (config.hasPath("gpu.bitbltCost")) config.getDouble("gpu.bitbltCost") else 0.5
+
+  val defaultResolution: (Int, Int) = config.getIntList("gpu.defaultResolution").asScala.map(_.intValue()).toArray match {
+    case Array(width, height) if width >= 0 && height >= 0 => (width, height)
+    case _ =>
+      OpenComputersNeo.log.warn("Bad default resolution (expected two non-negative integers), ignoring.")
+      (0, 0)
+  }
 
   // >= 1.8.2
   val diskActivitySoundDelay: Int = config.getInt("misc.diskActivitySoundDelay") max -1
@@ -515,16 +514,15 @@ class Settings(val config: Config) {
   val httpUserAgent = config.getString("internet.httpUserAgent")
 
   // >= 1.9.0
-  val audioSampleRate: Int = config.getInt("audio.sampleRate") max 0 // 44100
-  val audioChannelCount: Int = config.getInt("audio.channelCount") min 65535 max 1 // 8
-  val audioMaxDelay: Int = config.getInt("audio.maxDelay") max 0 // 5000
-  val audioQueueSize: Int = config.getInt("audio.queueSize") max 0 // 1024
-  val audioEnergyCost: Double = config.getDouble("audio.energyCost") max 0 // 1.0
-  val audioRadius: Double = config.getDouble("audio.radius") max 0 // 24
+  val audioCardChunkSize: Int = config.getInt("audio.chunkSize") max 0 // 4096
+  val audioCardEnablePcm: Boolean = config.getBoolean("audio.enablePcm")
+  val audioCardBufferLimit: Int = config.getInt("audio.bufferLimit") max 0 // 8 MiB (8 * 1024 * 1024)
+  val audioCardSampleRate: Int = config.getInt("audio.sampleRate") min 48000 max 0 // 48000
+  val audioCardFormat: Int = config.getInt("audio.format") // 1
 }
 
 object Settings {
-  val resourceDomain = OpenComputers.ID
+  val resourceDomain = OpenComputersNeo.ID
   val namespace = "oc:"
   val savePath = "opencomputers/"
   val scriptPath: String = "/assets/" + resourceDomain + "/lua/"
@@ -596,7 +594,7 @@ object Settings {
     }
     catch {
       case e: Throwable =>
-        OpenComputers.log.warn("Failed saving config.", e)
+        OpenComputersNeo.log.warn("Failed saving config.", e)
     }
   }
 
@@ -622,27 +620,26 @@ object Settings {
     VersionRange.createFromVersionSpec("[0.0, 1.8.0)") -> Array(
       "computer.robot.limitFlightHeight"
     ),
-    // Upgrading to version 1.9.1, sound card reworks.
-    VersionRange.createFromVersionSpec("[0.0, 1.9.1)") -> Array(
-      "audio"
+    // Item loss was made opt-in in config schema 1.9.4.
+    VersionRange.createFromVersionSpec("[0.0, 1.9.4)") -> Array(
+      "misc.disassemblerBreakChance"
     )
   )
   private val fileringRulesPatchVersion = VersionRange.createFromVersionSpec("[0.0, 1.8.3)")
 
-  // Checks the config version (i.e. the version of the mod the config was
-  // created by) against the current version to see if some hard changes
-  // were made. If so, the new default values are copied over.
+  // Checks the saved config schema against the bundled schema to see if some
+  // hard changes were made. If so, the new default values are copied over.
   private def patchConfig(config: Config, defaults: Config) = {
-    val modVersion = new DefaultArtifactVersion(OpenComputers.Version)
     val configVersion = new DefaultArtifactVersion(if (config.hasPath(prefix + "version")) config.getString(prefix + "version") else "0.0.0")
+    val currentConfigVersion = new DefaultArtifactVersion(defaults.getString(prefix + "version"))
     var patched = config
-    if (configVersion.compareTo(modVersion) != 0) {
-      OpenComputers.log.info(s"Updating config from version '${configVersion}' to '${defaults.getString(prefix + "version")}'.")
+    if (configVersion.compareTo(currentConfigVersion) != 0) {
+      OpenComputersNeo.log.info(s"Updating config from version '${configVersion}' to '${defaults.getString(prefix + "version")}'.")
       patched = patched.withValue(prefix + "version", defaults.getValue(prefix + "version"))
       for ((version, paths) <- configPatches if version.containsVersion(configVersion)) {
         for (path <- paths) {
           val fullPath = prefix + path
-          OpenComputers.log.info(s"=> Updating setting '$fullPath'. ")
+          OpenComputersNeo.log.info(s"=> Updating setting '$fullPath'. ")
           if (defaults.hasPath(fullPath)) {
             patched = patched.withValue(fullPath, defaults.getValue(fullPath))
           }
@@ -654,7 +651,7 @@ object Settings {
 
       // Migrate filtering rules to 1.8.3+
       if (fileringRulesPatchVersion.containsVersion(configVersion) && patched.hasPath(prefix + "internet.whitelist") && patched.hasPath(prefix + "internet.blacklist")) {
-        OpenComputers.log.info(s"=> Migrating Internet Card filtering rules. ")
+        OpenComputersNeo.log.info(s"=> Migrating Internet Card filtering rules. ")
         val cidrPattern = """(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?:/(\d{1,2}))""".r
         val httpHostWhitelist = patched.getStringList(prefix + "internet.whitelist").asScala
         val httpHostBlacklist = patched.getStringList(prefix + "internet.blacklist").asScala
@@ -685,18 +682,10 @@ object Settings {
           for (key <- List("internet.whitelist", "internet.blacklist")) {
             if (patched.hasPath(prefix + key)) {
               val originalValue = patched.getValue(prefix + key)
-              var deprecatedValue: ConfigValue = ConfigValueFactory.fromIterable(new java.util.ArrayList[String](), originalValue.origin().description())
-              val comments = mutable.ArrayBuffer("No longer used! See internet.filteringRules.", "", "Previous contents:")
-              for (value <- patched.getStringList(prefix + key).asScala) {
-                comments += "\"" + value + "\""
-              }
-              //deprecatedValue = OpenComputersConfigCommentManipulationHook.setComments(deprecatedValue, comments.asJava)
+              val deprecatedValue: ConfigValue = ConfigValueFactory.fromIterable(new java.util.ArrayList[String](), originalValue.origin().description())
               patched = patched.withValue(prefix + key, deprecatedValue)
             }
           }
-          //patchedRules = OpenComputersConfigCommentManipulationHook.setComments(
-          //  patchedRules, defaults.getValue(prefix + "internet.filteringRules").origin().comments()
-          //)
         } catch {
           case _: Throwable => /* pass */
         }

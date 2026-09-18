@@ -1,1 +1,0 @@
-#REDIRECT graphicscard1.md

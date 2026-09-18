@@ -1,54 +1,45 @@
 package li.cil.oc.common.item
 
+import li.cil.oc.{api, OpenComputersNeo}
+import net.minecraft.network.chat.Component
+import net.minecraft.world.{InteractionHand, InteractionResult, InteractionResultHolder}
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.{Item, ItemStack, TooltipFlag}
+import net.minecraft.world.item.Item.{Properties, TooltipContext}
+import net.minecraft.world.level.Level
+import net.minecraft.ChatFormatting
+import net.minecraft.world.item.context.UseOnContext
+import net.neoforged.neoforge.common.extensions.IItemExtension
+
 import java.util
 
-import li.cil.oc.OpenComputers
-import li.cil.oc.api
-import li.cil.oc.util.BlockPosition
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.Item.Properties
-import net.minecraft.world.item.ItemStack
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-
-import net.minecraft.world.level.Level
-import net.minecraft.network.chat.Component
-import net.minecraft.world.item.TooltipFlag
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.InteractionResultHolder
-import net.minecraft.world.InteractionResult
-import net.minecraft.ChatFormatting
-import net.minecraft.core.Direction
-
-class Manual(props: Properties) extends Item(props) with traits.SimpleItem {
-  @OnlyIn(Dist.CLIENT)
-  // 1.21.1：Item#appendHoverText 的第二个参数从 `Level` 换成了 `Item.TooltipContext`。
-  override def appendHoverText(stack: ItemStack, context: net.minecraft.world.item.Item.TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+class Manual(props: Properties) extends Item(props) with traits.SimpleItem with IItemExtension {
+  override def appendHoverText(stack: ItemStack, context: TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
     super.appendHoverText(stack, context, tooltip, flag)
-    tooltip.add(Component.literal(ChatFormatting.DARK_GRAY.toString + "v" + OpenComputers.Version))
+    tooltip.add(Component.literal(ChatFormatting.DARK_GRAY.toString + "v" + OpenComputersNeo.Version))
   }
 
-  override def use(stack: ItemStack, level: Level, player: Player): InteractionResultHolder[ItemStack] = {
+  override def use(level: Level, player: Player, hand: InteractionHand): InteractionResultHolder[ItemStack] = {
     if (level.isClientSide) {
       if (player.isCrouching) {
         api.Manual.reset()
       }
       api.Manual.openFor(player)
     }
-    new InteractionResultHolder(InteractionResult.sidedSuccess(level.isClientSide), stack)
+    InteractionResultHolder.sidedSuccess(player.getItemInHand(hand), level.isClientSide)
   }
 
-  override def onItemUse(stack: ItemStack, player: Player, position: BlockPosition, side: Direction, hitX: Float, hitY: Float, hitZ: Float): Boolean = {
-    val world = player.level
-    api.Manual.pathFor(world, position.toBlockPos) match {
+  override def useOn(ctx: UseOnContext): InteractionResult = {
+    val level = ctx.getLevel
+    api.Manual.pathFor(level, ctx.getClickedPos) match {
       case path: String =>
-        if (world.isClientSide) {
-          api.Manual.openFor(player)
+        if (level.isClientSide && ctx.getPlayer != null) {
+          api.Manual.openFor(ctx.getPlayer)
           api.Manual.reset()
           api.Manual.navigate(path)
         }
-        true
-      case _ => super.onItemUse(stack, player, position, side, hitX, hitY, hitZ)
+        InteractionResult.sidedSuccess(level.isClientSide)
+      case _ => super.useOn(ctx)
     }
   }
 }

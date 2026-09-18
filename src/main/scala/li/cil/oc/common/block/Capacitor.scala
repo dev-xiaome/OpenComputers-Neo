@@ -1,8 +1,11 @@
 package li.cil.oc.common.block
 
+import com.mojang.serialization.MapCodec
+import li.cil.oc.common.block.Capacitor.CODEC
+
 import java.util.Random
 import li.cil.oc.common.blockentity
-import net.minecraft.world.level.block.state.BlockBehaviour.Properties
+import net.minecraft.world.level.block.state.BlockBehaviour.{Properties, simpleCodec}
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.core.BlockPos
@@ -12,6 +15,8 @@ import net.minecraft.server.level.{ServerLevel => ServerWorld}
 import net.minecraft.util.RandomSource
 
 class Capacitor(props: Properties) extends SimpleBlock(props) {
+  override def codec(): MapCodec[_ <: Capacitor] = CODEC
+  
   @Deprecated
   override def isRandomlyTicking(state: BlockState) = true
 
@@ -40,4 +45,8 @@ class Capacitor(props: Properties) extends SimpleBlock(props) {
       case capacitor: blockentity.Capacitor => capacitor.recomputeCapacity()
       case _ =>
     }
+}
+
+object Capacitor {
+  final val CODEC = simpleCodec(new Capacitor(_))
 }

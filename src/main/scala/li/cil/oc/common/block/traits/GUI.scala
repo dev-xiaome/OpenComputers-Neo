@@ -1,6 +1,6 @@
 package li.cil.oc.common.block.traits
 
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.common.block.SimpleBlock
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.entity.player.{Player => PlayerEntity}

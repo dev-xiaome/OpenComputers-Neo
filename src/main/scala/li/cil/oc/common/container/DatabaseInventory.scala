@@ -3,7 +3,7 @@ package li.cil.oc.common.container
 import li.cil.oc.Settings
 import li.cil.oc.common.menu.MenuTypes
 import li.cil.oc.common.menu.{Database => DatabaseContainer}
-import li.cil.oc.integration.opencomputers.DriverUpgradeDatabase
+import li.cil.oc.integration.OpenComputersNeo.DriverUpgradeDatabase
 import net.minecraft.world.MenuProvider
 import net.minecraft.world.entity.player.Inventory
 import net.minecraft.world.entity.player.Player

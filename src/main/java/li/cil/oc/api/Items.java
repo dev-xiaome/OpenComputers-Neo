@@ -9,7 +9,7 @@ import java.util.concurrent.Callable;
 
 /**
  * Access to item definitions for all blocks and items provided by
- * OpenComputers.
+ * OpenComputersNeo.
  */
 public final class Items {
     /**
@@ -40,7 +40,7 @@ public final class Items {
      *
      * @param stack the stack to get the descriptor for.
      * @return the descriptor for the specified item stack, or {@code null}
-     * if the stack is not a valid OpenComputers item or block.
+     * if the stack is not a valid OpenComputersNeo item or block.
      */
     public static ItemInfo get(ItemStack stack) {
         if (API.items != null)
@@ -51,7 +51,7 @@ public final class Items {
     /**
      * Register a single loot floppy disk.
      * <br>
-     * The disk will be listed in the creative tab of OpenComputers.
+     * The disk will be listed in the creative tab of OpenComputersNeo.
      * <br>
      * The specified factory callable will be used to generate a new file
      * system when the loot disk is used as a component. The specified name
@@ -78,14 +78,14 @@ public final class Items {
                                            Callable<li.cil.oc.api.fs.FileSystem> factory, boolean doRecipeCycling) {
 
         if (API.items != null)
-            return API.items.registerFloppy(name, loc, color, factory, doRecipeCycling);
+            return API.items.registerFloppy(name, name, loc, color, factory, doRecipeCycling);
         return ItemStack.EMPTY;
     }
 
     /**
      * Register a single custom EEPROM.
      * <br>
-     * The EEPROM will be listed in the creative tab of OpenComputers.
+     * The EEPROM will be listed in the creative tab of OpenComputersNeo.
      * <br>
      * The EEPROM will be initialized with the specified code and data byte
      * arrays. For script code (e.g. a Lua script) use {@code String.getBytes("UTF-8")}.
@@ -101,6 +101,22 @@ public final class Items {
     public static ItemStack registerEEPROM(String name, byte[] code, byte[] data, boolean readonly) {
         if (API.items != null)
             return API.items.registerEEPROM(name, code, data, readonly);
+        return ItemStack.EMPTY;
+    }
+
+    /**
+     * The stack will be listed in the creative tab of OpenComputersNeo.
+     *
+     * Call this in the init phase or later, <em>not</em> in pre-init.
+     *
+     * @param stack     the stack to add in the creative tab.
+     * @param name      the label of the EEPROM.
+     * @param section_id the section to put the stack in.
+     *
+     */
+    public static ItemStack registerStack(ItemStack stack, String name, String section_id) {
+        if (API.items != null)
+            return API.items.registerStack(stack, name, section_id);
         return ItemStack.EMPTY;
     }
 

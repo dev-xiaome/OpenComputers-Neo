@@ -20,7 +20,6 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.core.Direction
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.common.util.FakePlayerFactory
-import net.neoforged.bus.api.Event
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import net.minecraft.server.level.ServerLevel
@@ -66,12 +65,7 @@ abstract class UpgradeSign extends AbstractManagedEnvironment with DeviceInfo {
           return result((), "not allowed")
         }
 
-        var frontText = sign.getFrontText
-        for (i <- lines.indices) {
-          frontText = frontText.setMessage(i, Component.literal(lines(i)))
-        }
-        sign.setText(frontText, true)
-        sign.setChanged()
+        lines.map(line => Component.literal(line)).copyToArray(getAllMessages(sign).toArray)
         host.getEnvironmentLevel.notifyBlockUpdate(sign.getBlockPos)
 
         NeoForge.EVENT_BUS.post(new SignChangeEvent.Post(sign, lines))
@@ -98,7 +92,6 @@ abstract class UpgradeSign extends AbstractManagedEnvironment with DeviceInfo {
     }
     val event = new BlockEvent.BreakEvent(host.getEnvironmentLevel, tileEntity.getBlockPos, tileEntity.getLevel.getBlockState(tileEntity.getBlockPos), player)
     NeoForge.EVENT_BUS.post(event)
-    // 1.21.1 的 BreakEvent 只有取消状态，没有 getResult/Result。
     if (event.isCanceled) {
       return false
     }

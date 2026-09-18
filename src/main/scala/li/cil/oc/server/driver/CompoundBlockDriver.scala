@@ -9,9 +9,9 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.core.Direction
 import net.minecraft.core.BlockPos
+import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.core.registries.BuiltInRegistries
 
 class CompoundBlockDriver(val sidedBlocks: Array[DriverBlock]) extends DriverBlock {
   override def createEnvironment(level: Level, pos: BlockPos, side: Direction): CompoundBlockEnvironment = {

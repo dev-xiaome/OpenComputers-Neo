@@ -1,4 +1,4 @@
-package li.cil.oc.integration.opencomputers
+package li.cil.oc.integration.OpenComputersNeo
 
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.EnvironmentProvider

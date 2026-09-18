@@ -2,7 +2,6 @@ package li.cil.oc.server.component
 
 import java.io._
 import java.util
-
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
@@ -15,9 +14,15 @@ import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.util.BlockPosition
+import li.cil.oc.util.SableCompat
 import li.cil.oc.util.ExtendedLevel._
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import scala.language.implicitConversions
@@ -47,8 +52,11 @@ abstract class WirelessNetworkCard(host: EnvironmentHost) extends NetworkCard(ho
   override def getWirelessLevel = host.getEnvironmentLevel
 
   def receivePacket(packet: Packet, source: WirelessEndpoint): Unit = {
-    val (dx, dy, dz) = ((source.x + 0.5) - host.xPosition, (source.y + 0.5) - host.yPosition, (source.z + 0.5) - host.zPosition)
-    val distance = Math.sqrt(dx * dx + dy * dy + dz * dz)
+    val sourcePosition = SableCompat.physicalPosition(getWirelessLevel,
+      new net.minecraft.world.phys.Vec3(source.x + 0.5, source.y + 0.5, source.z + 0.5))
+    val receiverPosition = SableCompat.physicalPosition(getWirelessLevel,
+      new net.minecraft.world.phys.Vec3(host.xPosition, host.yPosition, host.zPosition))
+    val distance = Math.sqrt(SableCompat.distanceSquared(getWirelessLevel, sourcePosition, receiverPosition))
     receivePacket(packet, distance, host)
   }
 
@@ -121,18 +129,16 @@ abstract class WirelessNetworkCard(host: EnvironmentHost) extends NetworkCard(ho
 
   // ----------------------------------------------------------------------- //
 
-  private final val StrengthTag = "strength"
-
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
-    if (nbt.contains(StrengthTag)) {
-      strength = nbt.getDouble(StrengthTag) max 0 min maxWirelessRange
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
+    for(strength <- holder.getComponent(OCComponents.STRENGTH)) {
+      this.strength = strength
     }
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
-    nbt.putDouble(StrengthTag, strength)
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super.saveData(holder)
+    holder.setComponent(OCComponents.STRENGTH, strength)
   }
 }
 

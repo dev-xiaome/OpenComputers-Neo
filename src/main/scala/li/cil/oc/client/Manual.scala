@@ -1,7 +1,7 @@
 package li.cil.oc.client
 
 import com.google.common.base.Strings
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.api.detail.ManualAPI
 import li.cil.oc.api.manual.ContentProvider
 import li.cil.oc.api.manual.ImageProvider
@@ -15,9 +15,7 @@ import net.minecraft.core.BlockPos
 import net.minecraft.world.level.Level
 
 import scala.annotation.tailrec
-import scala.collection.JavaConverters.asJavaIterable
-import scala.collection.convert.ImplicitConversionsToJava._
-import scala.collection.convert.ImplicitConversionsToScala._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 object Manual extends ManualAPI {
@@ -44,7 +42,7 @@ object Manual extends ManualAPI {
   override def addTab(renderer: TabIconRenderer, tooltip: String, path: String): Unit = {
     tabs += new Tab(renderer, Option(tooltip), path)
     if (tabs.length > 7) {
-      OpenComputers.log.warn("Gosh I'm popular! Too many tabs were added to the OpenComputers in-game manual, so some won't be shown. In case this actually happens, let me know and I'll look into making them scrollable or something...")
+      OpenComputersNeo.log.warn("Gosh I'm popular! Too many tabs were added to the OpenComputersNeo in-game manual, so some won't be shown. In case this actually happens, let me know and I'll look into making them scrollable or something...")
     }
   }
 
@@ -64,7 +62,7 @@ object Manual extends ManualAPI {
     for (provider <- pathProviders) {
       val path = try provider.pathFor(stack) catch {
         case t: Throwable =>
-          OpenComputers.log.warn("A path provider threw an error when queried with an item.", t)
+          OpenComputersNeo.log.warn("A path provider threw an error when queried with an item.", t)
           null
       }
       if (path != null) return path
@@ -76,7 +74,7 @@ object Manual extends ManualAPI {
     for (provider <- pathProviders) {
       val path = try provider.pathFor(world, pos) catch {
         case t: Throwable =>
-          OpenComputers.log.warn("A path provider threw an error when queried with a block.", t)
+          OpenComputersNeo.log.warn("A path provider threw an error when queried with a block.", t)
           null
       }
       if (path != null) return path
@@ -90,7 +88,7 @@ object Manual extends ManualAPI {
       Minecraft.getInstance.getLanguageManager.getSelected
     } catch {
       case t: Throwable =>
-        OpenComputers.log.warn("The game threw an error when querying current language.", t)
+        OpenComputersNeo.log.warn("The game threw an error when querying current language.", t)
         FallbackLanguage
     }
     contentForWithRedirects(cleanPath.replaceAll(LanguageKey, language)).
@@ -103,7 +101,7 @@ object Manual extends ManualAPI {
       if (href.startsWith(prefix)) {
         val image = try provider.getImage(href.stripPrefix(prefix)) catch {
           case t: Throwable =>
-            OpenComputers.log.warn("An image provider threw an error when queried.", t)
+            OpenComputersNeo.log.warn("An image provider threw an error when queried.", t)
             null
         }
         if (image != null) return image
@@ -140,9 +138,9 @@ object Manual extends ManualAPI {
     }
 
   @tailrec private def contentForWithRedirects(path: String, seen: List[String] = List.empty): Option[java.lang.Iterable[String]] = {
-    if (seen.contains(path)) return Some(asJavaIterable(Iterable("Redirection loop: ") ++ seen ++ Iterable(path)))
+    if (seen.contains(path)) return Some((Iterable("Redirection loop: ") ++ seen ++ Iterable(path)).asJava)
     doContentLookup(path) match {
-      case Some(content) => content.headOption match {
+      case Some(content) => content.asScala.headOption match {
         case Some(line) if line.toLowerCase.startsWith("#redirect ") =>
           contentForWithRedirects(makeRelative(line.substring("#redirect ".length), path), seen :+ path)
         case _ => Some(content)
@@ -155,7 +153,7 @@ object Manual extends ManualAPI {
     for (provider <- contentProviders) {
       val lines = try provider.getContent(path) catch {
         case t: Throwable =>
-          OpenComputers.log.warn("A content provider threw an error when queried.", t)
+          OpenComputersNeo.log.warn("A content provider threw an error when queried.", t)
           null
       }
       if (lines != null) return Some(lines)

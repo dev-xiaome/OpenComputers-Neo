@@ -11,7 +11,7 @@ import li.cil.oc.common.blockentity.traits.Computer
 import net.minecraft.client.Minecraft
 import net.minecraft.client.resources.sounds.SimpleSoundInstance
 import net.minecraft.world.item.ItemStack
-import net.minecraft.core.Direction
+import net.minecraft.core.{Direction, RegistryAccess}
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.sounds.SoundEvents
 
@@ -33,6 +33,15 @@ object PacketSender {
     val pb = new SimplePacketBuilder(PacketType.ComputerPower)
 
     pb.writeInt(robot.containerId)
+    pb.writeBoolean(power)
+
+    pb.sendToServer()
+  }
+
+  def sendTabletPower(tablet: menu.Tablet, power: Boolean): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.ComputerPower)
+
+    pb.writeInt(tablet.containerId)
     pb.writeBoolean(power)
 
     pb.sendToServer()
@@ -92,7 +101,7 @@ object PacketSender {
 
   def sendClipboard(address: String, value: String): Unit = {
     if (value != null && !value.isEmpty) {
-      if (value.length > 64 * 1024 || System.currentTimeMillis() < clipboardCooldown) {
+      if (value.length > Settings.get.maxClipboardTextLength || System.currentTimeMillis() < clipboardCooldown) {
         val handler = Minecraft.getInstance.getSoundManager
         handler.play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_HARP.value, 1, 1))
       }
@@ -110,10 +119,18 @@ object PacketSender {
     }
   }
 
-  def sendMachineItemStateRequest(stack: ItemStack): Unit = {
+  def sendMachineItemStateRequest(stack: ItemStack, registryAccess: RegistryAccess): Unit = {
     val pb = new SimplePacketBuilder(PacketType.MachineItemStateRequest)
 
-    pb.writeItemStack(stack)
+    pb.writeItemStack(stack, registryAccess)
+
+    pb.sendToServer()
+  }
+
+  def sendTabletCursorTick(id: String): Unit = {
+    val pb = new SimplePacketBuilder(PacketType.TabletCursorTick)
+
+    pb.writeUTF(id)
 
     pb.sendToServer()
   }
@@ -236,15 +253,6 @@ object PacketSender {
 
     pb.writeTileEntity(t)
     pb.writeUTF(t.label)
-
-    pb.sendToServer()
-  }
-
-  def sendHoloScreenResize(screen: HoloScreen, side: Direction): Unit = {
-    val pb = new SimplePacketBuilder(PacketType.HoloScreenResize)
-
-    pb.writeTileEntity(screen)
-    pb.writeDirection(Option(side))
 
     pb.sendToServer()
   }

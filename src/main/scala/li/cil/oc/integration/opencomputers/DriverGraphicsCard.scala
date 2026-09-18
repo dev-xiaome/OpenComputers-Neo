@@ -1,4 +1,4 @@
-package li.cil.oc.integration.opencomputers
+package li.cil.oc.integration.OpenComputersNeo
 
 import li.cil.oc.Constants
 import li.cil.oc.api
@@ -15,8 +15,7 @@ object DriverGraphicsCard extends Item with HostAware {
   override def worksWith(stack: ItemStack) = isOneOf(stack,
     api.Items.get(Constants.ItemName.GraphicsCardTier1),
     api.Items.get(Constants.ItemName.GraphicsCardTier2),
-    api.Items.get(Constants.ItemName.GraphicsCardTier3),
-    api.Items.get(Constants.ItemName.GraphicsCardTier4))
+    api.Items.get(Constants.ItemName.GraphicsCardTier3))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) =
     if (host.getEnvironmentLevel != null && host.getEnvironmentLevel.isClientSide) null
@@ -31,9 +30,7 @@ object DriverGraphicsCard extends Item with HostAware {
   override def slot(stack: ItemStack) = Slot.Card
 
   override def tier(stack: ItemStack) = {
-    if (isOneOf(stack, api.Items.get(Constants.ItemName.GraphicsCardTier4))) {
-      Tier.Four
-    } else if (isOneOf(stack, api.Items.get(Constants.ItemName.GraphicsCardTier3))) {
+    if (isOneOf(stack, api.Items.get(Constants.ItemName.GraphicsCardTier3))) {
       Tier.Three
     } else if (isOneOf(stack, api.Items.get(Constants.ItemName.GraphicsCardTier2))) {
       Tier.Two

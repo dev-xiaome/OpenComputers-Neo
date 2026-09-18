@@ -1,7 +1,6 @@
 package li.cil.oc.api.event;
 
 import net.neoforged.bus.api.ICancellableEvent;
-
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import li.cil.oc.api.driver.item.UpgradeRenderer;

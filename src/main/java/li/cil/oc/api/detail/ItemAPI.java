@@ -30,7 +30,7 @@ public interface ItemAPI {
      *
      * @param stack the stack to get the descriptor for.
      * @return the descriptor for the specified item stack, or {@code null}
-     * if the stack is not a valid OpenComputers item or block.
+     * if the stack is not a valid OpenComputersNeo item or block.
      */
     @Nullable
     ItemInfo get(ItemStack stack);
@@ -38,7 +38,7 @@ public interface ItemAPI {
     /**
      * Register a single loot floppy disk.
      * <br>
-     * The disk will be listed in the creative tab of OpenComputers.
+     * The disk will be listed in the creative tab of OpenComputersNeo.
      * <br>
      * The specified factory callable will be used to generate a new file
      * system when the loot disk is used as a component. The specified name
@@ -53,7 +53,8 @@ public interface ItemAPI {
      * <br>
      * Call this in the init phase or later, <em>not</em> in pre-init.
      *
-     * @param name    the label and identifier to use for the loot disk.
+     * @param display_name    the label to use for the loot disk.
+     * @param name    the identifier to use for the loot disk.
      * @param loc     the location where the disk's contents are stored.
      * @param color   the color of the disk, as a Minecraft color.
      * @param factory the callable to call for creating file system instances.
@@ -61,13 +62,13 @@ public interface ItemAPI {
      * @return an item stack representing the registered loot disk, to allow
      * adding a recipe for your loot disk, for example.
      */
-    ItemStack registerFloppy(String name, ResourceLocation loc, DyeColor color,
+    ItemStack registerFloppy(String display_name, String name, ResourceLocation loc, DyeColor color,
         Callable<li.cil.oc.api.fs.FileSystem> factory, boolean doRecipeCycling);
 
     /**
      * Register a single custom EEPROM.
      * <br>
-     * The EEPROM will be listed in the creative tab of OpenComputers.
+     * The EEPROM will be listed in the creative tab of OpenComputersNeo.
      * <br>
      * The EEPROM will be initialized with the specified code and data byte
      * arrays. For script code (e.g. a Lua script) use {@code String.getBytes("UTF-8")}.
@@ -83,4 +84,16 @@ public interface ItemAPI {
      * adding a recipe for your custom BIOS, for example.
      */
     ItemStack registerEEPROM(String name, byte[] code, byte[] data, boolean readonly);
+
+    /**
+     * The stack will be listed in the creative tab of OpenComputersNeo.
+     *
+     * Call this in the init phase or later, <em>not</em> in pre-init.
+     *
+     * @param stack     the stack to add in the creative tab.
+     * @param name      the label of the EEPROM.
+     * @param sectionId the section to put the stack in.
+     *
+     */
+    ItemStack registerStack(ItemStack stack, String name, String sectionId);
 }

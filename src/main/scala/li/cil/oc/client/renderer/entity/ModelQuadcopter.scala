@@ -8,15 +8,15 @@ import net.minecraft.client.renderer.LightTexture
 import net.minecraft.client.model.EntityModel
 import net.minecraft.client.model.geom.{ModelLayerLocation, ModelPart, PartPose}
 import net.minecraft.client.model.geom.builders.{CubeListBuilder, LayerDefinition, MeshDefinition}
-import net.minecraft.util.FastColor
 import net.minecraft.client.renderer.texture.OverlayTexture
 import net.minecraft.world.phys.Vec3
-import org.joml.{Quaternionf, Vector3f}
+import org.joml.Quaternionf
 import net.minecraft.resources.ResourceLocation
 
 object ModelQuadcopter {
-  val LAYER_LOCATION = new ModelLayerLocation(ResourceLocation.fromNamespaceAndPath("opencomputers", "drone"), "main")
-  
+  val LAYER_LOCATION = new ModelLayerLocation(
+    ResourceLocation.fromNamespaceAndPath("opencomputers_neo", "drone"), "main")
+
   def createLayer(): LayerDefinition = {
     val mesh = new MeshDefinition()
     val root = mesh.getRoot
@@ -44,8 +44,12 @@ object ModelQuadcopter {
 
 final class ModelQuadcopter(root: ModelPart) extends EntityModel[Drone] {
   private val body = root.getChild("body")
-  private val wings = Array(root.getChild("wing0"), root.getChild("wing1"), root.getChild("wing2"), root.getChild("wing3"))
-  private val lights = Array(root.getChild("light0"), root.getChild("light1"), root.getChild("light2"), root.getChild("light3"))
+  private val wings = Array(
+    root.getChild("wing0"), root.getChild("wing1"),
+    root.getChild("wing2"), root.getChild("wing3"))
+  private val lights = Array(
+    root.getChild("light0"), root.getChild("light1"),
+    root.getChild("light2"), root.getChild("light3"))
 
   private val up = new Vec3(0, 1, 0)
   private var cachedEntity: Drone = _
@@ -58,22 +62,27 @@ final class ModelQuadcopter(root: ModelPart) extends EntityModel[Drone] {
     cachedDt = dt
   }
 
-  // 1.21.1: Model.renderToBuffer 的 RGBA float 重载已被 (..., int color) 取代。
   override def renderToBuffer(stack: PoseStack, builder: VertexConsumer, light: Int, overlay: Int, color: Int): Unit = {
     if (cachedEntity != null) {
       doRender(cachedEntity, cachedDt, stack, builder, light, overlay, color)
     }
   }
 
-  private def doRender(drone: Drone, dt: Float, stack: PoseStack, builder: VertexConsumer, light: Int, overlay: Int, color: Int): Unit = {
-    val a = (color >>> 24) & 0xFF
+  private def doRender(drone: Drone, dt: Float, stack: PoseStack, builder: VertexConsumer,
+                       light: Int, overlay: Int, color: Int): Unit = {
+    val a = ((color >>> 24) & 0xFF) / 255f
     val r = ((color >>> 16) & 0xFF) / 255f
-    val g = ((color >>> 8) & 0xFF) / 255f
-    val b = (color & 0xFF) / 255f
+    val g = ((color >>>  8) & 0xFF) / 255f
+    val b = ((color >>>  0) & 0xFF) / 255f
+
     stack.pushPose()
+
     if (drone.isRunning) {
       val timeJitter = drone.hashCode() ^ 0xFF
-      stack.translate(0, (math.sin(timeJitter + (drone.getEnvironmentLevel.getGameTime + dt) / 20.0) * (1 / 16f)).toFloat, 0)
+      stack.translate(
+        0,
+        (math.sin(timeJitter + (drone.getEnvironmentLevel.getGameTime + dt) / 20.0) * (1 / 16f)).toFloat,
+        0)
     }
 
     val direction = drone.getDeltaMovement.normalize()
@@ -81,8 +90,11 @@ final class ModelQuadcopter(root: ModelPart) extends EntityModel[Drone] {
       val rotationAxis = direction.cross(up)
       val relativeSpeed = drone.getDeltaMovement.length().toFloat / drone.maxVelocity
       val degrees: Float = relativeSpeed * -20.0f
-      val rotation: Quaternionf = new Quaternionf().setAngleAxis(Math.toRadians(degrees).toFloat, rotationAxis.x(), rotationAxis.y(), rotationAxis.z())
-
+      val rotation = new Quaternionf().setAngleAxis(
+        Math.toRadians(degrees).toFloat,
+        rotationAxis.x().toFloat,
+        rotationAxis.y().toFloat,
+        rotationAxis.z().toFloat)
       stack.mulPose(rotation)
     }
 
@@ -97,18 +109,20 @@ final class ModelQuadcopter(root: ModelPart) extends EntityModel[Drone] {
 
     if (drone.isRunning) {
       val lightColor = drone.lightColor
-      val rr = r * ((lightColor >>> 16) & 0xFF) / 255f
-      val gg = g * ((lightColor >>> 8) & 0xFF) / 255f
-      val bb = b * ((lightColor >>> 0) & 0xFF) / 255f
+      val rr = (r * ((lightColor >>> 16) & 0xFF)).toInt & 0xFF
+      val gg = (g * ((lightColor >>>  8) & 0xFF)).toInt & 0xFF
+      val bb = (b * ((lightColor >>>  0) & 0xFF)).toInt & 0xFF
+      val aa = (a * 255).toInt & 0xFF
+      val lightPackedColor = (aa << 24) | (rr << 16) | (gg << 8) | bb
       val fullLight = LightTexture.pack(15, 15)
 
       for (i <- 0 to 3) {
         lights(i).xRot = drone.flapAngles(i)(0)
         lights(i).zRot = drone.flapAngles(i)(1)
-        val lightColorInt = FastColor.ARGB32.colorFromFloat(a / 255f, rr, gg, bb)
-        lights(i).render(stack, builder, fullLight, OverlayTexture.NO_OVERLAY, lightColorInt)
+        lights(i).render(stack, builder, fullLight, OverlayTexture.NO_OVERLAY, lightPackedColor)
       }
     }
+
     stack.popPose()
   }
 }

@@ -1,63 +1,53 @@
 package li.cil.oc.common.item.traits
 
-import li.cil.oc.util.ItemStackNBTExtensions._
+import li.cil.oc.Localization
+import li.cil.oc.client.gui
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.common.item.data.DriveData
+import li.cil.oc.util.{ItemUtils, Tooltip}
+import net.minecraft.client.Minecraft
+import net.minecraft.network.chat.Component
+import net.minecraft.world.{InteractionHand, InteractionResultHolder}
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.{ItemStack, TooltipFlag}
+import net.minecraft.world.item.Item.TooltipContext
+import net.minecraft.world.level.Level
+import net.neoforged.api.distmarker.{Dist, OnlyIn}
 
 import java.util
-
-import li.cil.oc.Localization
-import li.cil.oc.OpenComputers
-import li.cil.oc.Settings
-import li.cil.oc.client.gui
-import li.cil.oc.common.item.data.DriveData
-import li.cil.oc.util.Tooltip
-import net.minecraft.client.Minecraft
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import net.minecraft.world.level.Level
-import net.minecraft.world.item.ItemStack
-import net.minecraft.network.chat.Component
-import net.minecraft.world.item.TooltipFlag
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.InteractionResultHolder
-import net.minecraft.world.InteractionHand
-import net.minecraft.world.InteractionResult
 
 trait FileSystemLike extends SimpleItem {
   override protected def tooltipName = None
 
   def kiloBytes: Int
 
-  @OnlyIn(Dist.CLIENT)
-  // 1.21.1：Item#appendHoverText 的第二个参数从 `Level` 换成了 `Item.TooltipContext`。
-  override def appendHoverText(stack: ItemStack, context: net.minecraft.world.item.Item.TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
-    super.appendHoverText(stack, context, tooltip, flag)
-    if (stack.hasTag) {
-      val nbt = stack.getTag
-      if (nbt.contains(Settings.namespace + "data")) {
-        val data = nbt.getCompound(Settings.namespace + "data")
-        if (data.contains(Settings.namespace + "fs.label")) {
-          tooltip.add(Component.literal(data.getString(Settings.namespace + "fs.label")).setStyle(Tooltip.DefaultStyle))
-        }
-        if (flag.isAdvanced && data.contains("fs")) {
-          val fsNbt = data.getCompound("fs")
-          if (fsNbt.contains("capacity.used")) {
-            val used = fsNbt.getLong("capacity.used")
-            tooltip.add(Component.literal(Localization.Tooltip.DiskUsage(used, kiloBytes * 1024)).setStyle(Tooltip.DefaultStyle))
-          }
-        }
+  override def appendHoverText(stack: ItemStack, context: TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+    val label = stack.get(OCComponents.LABEL)
+    if (label != null) tooltip.add(Component.literal(label).setStyle(Tooltip.DefaultStyle))
+
+    if (flag.isAdvanced) {
+      val fsNbt = stack.get(OCComponents.FILESYSTEM_DATA)
+      if (fsNbt != null && fsNbt.contains("capacity.used")) {
+        val used = fsNbt.getLong("capacity.used")
+        tooltip.add(Component.literal(Localization.Tooltip.DiskUsage(used, kiloBytes * 1024)).setStyle(Tooltip.DefaultStyle))
       }
-      val data = new DriveData(stack)
-      tooltip.add(Component.literal(Localization.Tooltip.DiskMode(data.isUnmanaged)).setStyle(Tooltip.DefaultStyle))
-      tooltip.add(Component.literal(Localization.Tooltip.DiskLock(data.lockInfo)).setStyle(Tooltip.DefaultStyle))
     }
+
+    val data = new DriveData(stack)
+    tooltip.add(Component.literal(Localization.Tooltip.DiskMode(data.isUnmanaged)).setStyle(Tooltip.DefaultStyle))
+    if (data.isLocked) tooltip.add(Component.literal(Localization.Tooltip.DiskLock(data.lockInfo)).setStyle(Tooltip.DefaultStyle))
+
+    super.appendHoverText(stack, context, tooltip, flag)
   }
 
-  override def use(stack: ItemStack, level: Level, player: Player): InteractionResultHolder[ItemStack] = {
-    if (!player.isCrouching && (!stack.hasTag || !stack.getTag.contains(Settings.namespace + "lootFactory"))) {
+  override def use(level: Level, player: Player, hand: InteractionHand): InteractionResultHolder[ItemStack] = {
+    val stack = player.getItemInHand(hand)
+    val tag = ItemUtils.getTag(stack)
+    if (!player.isCrouching && (tag == null || !stack.has(OCComponents.LOOT_DISK))) {
       if (level.isClientSide) showGui(stack, player)
-      player.swing(InteractionHand.MAIN_HAND)
     }
-    new InteractionResultHolder(InteractionResult.sidedSuccess(level.isClientSide), stack)
+
+    InteractionResultHolder.sidedSuccess(stack, level.isClientSide)
   }
 
   @OnlyIn(Dist.CLIENT)

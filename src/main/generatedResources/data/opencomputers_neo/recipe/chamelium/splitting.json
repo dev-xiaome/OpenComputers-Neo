@@ -1,0 +1,13 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "opencomputers_neo:chameliumblock"
+    }
+  ],
+  "result": {
+    "count": 9,
+    "id": "opencomputers_neo:chamelium"
+  }
+}

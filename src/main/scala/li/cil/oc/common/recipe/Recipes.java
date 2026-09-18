@@ -1,19 +1,15 @@
 package li.cil.oc.common.recipe;
 
-import java.util.function.Supplier;
-
-import li.cil.oc.OpenComputers;
+import li.cil.oc.OpenComputersNeo;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.crafting.*;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredRegister;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.neoforged.neoforge.registries.DeferredHolder;
 
+import java.util.function.Supplier;
+
 public final class Recipes {
-    /// 1.21.1：`net.neoforged.neoforge.common.util.Lazy` 是类而不是函数式接口，
-    /// 不能再接收 `recipeType::get` 这样的方法引用，改用 [Supplier]。
     public static final class RecipeRegistration<R extends Recipe<?>> {
         private final Supplier<RecipeType<R>> recipeType;
         private final Supplier<RecipeSerializer<R>> serializer;
@@ -32,21 +28,16 @@ public final class Recipes {
         }
     }
 
-    public static final DeferredRegister<RecipeSerializer<?>> SERIALIZERS = DeferredRegister.create(BuiltInRegistries.RECIPE_SERIALIZER, OpenComputers.ID());
-    public static final DeferredRegister<RecipeType<?>> RECIPES = DeferredRegister.create(Registries.RECIPE_TYPE, OpenComputers.ID());
-
-    private static ResourceLocation id(final String name) {
-        return ResourceLocation.fromNamespaceAndPath(OpenComputers.ID(), name);
-    }
+    public static final DeferredRegister<RecipeSerializer<?>> SERIALIZERS = DeferredRegister.create(Registries.RECIPE_SERIALIZER, OpenComputersNeo.ID());
+    public static final DeferredRegister<RecipeType<?>> RECIPES = DeferredRegister.create(Registries.RECIPE_TYPE, OpenComputersNeo.ID());
 
     public static final RecipeRegistration<LootDiskCyclingRecipe> LOOTDISK_CYCLING = register(
             "crafting_lootdisk_cycling",
-            // 1.21.1：`SimpleCraftingRecipeSerializer.Factory` 只接收 `CraftingBookCategory`，
-            // 配方 id 由这里补上。
-            new SimpleCraftingRecipeSerializer<>(category -> new LootDiskCyclingRecipe(id("crafting_lootdisk_cycling"), category))
+            new SimpleCraftingRecipeSerializer<>(LootDiskCyclingRecipe::new)
     );
     public static final RecipeRegistration<ColorizeRecipe> COLORIZE = register("crafting_colorize", new ItemSpecialSerializer<>(ColorizeRecipe::new, ColorizeRecipe::targetItem));
     public static final RecipeRegistration<DecolorizeRecipe> DECOLORIZE = register("crafting_decolorize", new ItemSpecialSerializer<>(DecolorizeRecipe::new, DecolorizeRecipe::targetItem));
+    public static final RecipeRegistration<RobotFlagRecipe> ROBOT_FLAG = register("crafting_robot_flag", new RobotFlagRecipe.Serializer());
     public static final RecipeRegistration<ExtendedShapedRecipe> SHAPED_EXTENDED = register("crafting_shaped_extended", new ExtendedShapedRecipe.Serializer());
     public static final RecipeRegistration<ExtendedShapelessRecipe> SHAPELESS_EXTENDED = register("crafting_shapeless_extended", new ExtendedShapelessRecipe.Serializer());
 
@@ -61,7 +52,7 @@ public final class Recipes {
                 recipeSerializer::get
         );
     }
-
+    
     public static void init(IEventBus eventBus) {
         RECIPES.register(eventBus);
         SERIALIZERS.register(eventBus);

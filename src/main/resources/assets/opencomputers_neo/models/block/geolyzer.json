@@ -1,8 +1,0 @@
-{
-    "parent": "block/cube_bottom_top",
-    "textures": {
-        "top": "opencomputers_neo:block/geolyzer_top",
-        "bottom": "opencomputers_neo:block/generic_top",
-        "side": "opencomputers_neo:block/geolyzer_side"
-    }
-}

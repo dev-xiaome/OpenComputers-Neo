@@ -1,1 +1,0 @@
-#REDIRECT tabletcase1.md

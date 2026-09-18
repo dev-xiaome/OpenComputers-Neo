@@ -1,6 +1,8 @@
 package li.cil.oc.api.machine;
 
+import net.minecraft.core.component.DataComponentHolder;
 import net.minecraft.nbt.CompoundTag;
+import net.neoforged.neoforge.common.MutableDataComponentHolder;
 import net.minecraft.world.item.ItemStack;
 
 import java.lang.annotation.*;
@@ -10,7 +12,7 @@ import java.lang.annotation.*;
  * <br>
  * This allows the introduction of other languages, e.g. computers that run
  * assembly or some other language interpreter. The two architectures included
- * in OpenComputers are the native Lua architecture (using native LuaC) and the
+ * in OpenComputersNeo are the native Lua architecture (using native LuaC) and the
  * Java Lua architecture (using LuaJ).
  */
 public interface Architecture {
@@ -143,6 +145,18 @@ public interface Architecture {
     void loadData(CompoundTag nbt);
 
     /**
+     * Restores architecture state with access to the machine-wide component
+     * holder. Architectures that persist {@link Value} objects should override
+     * this overload and pass the holder to those values.
+     *
+     * @param holder the machine-wide data component holder.
+     * @param nbt the architecture-specific tag compound.
+     */
+    default void loadData(DataComponentHolder holder, CompoundTag nbt) {
+        loadData(nbt);
+    }
+
+    /**
      * Saves the architecture for later restoration, e.g. across games or chunk
      * unloads. Used to persist a machine's execution state. For native Lua this
      * uses the Eris library to persist the main coroutine, for example.
@@ -152,6 +166,18 @@ public interface Architecture {
      * @param nbt the tag compound to save to.
      */
     void saveData(CompoundTag nbt);
+
+    /**
+     * Saves architecture state with access to the machine-wide component
+     * holder. Architectures that persist {@link Value} objects should override
+     * this overload and pass the holder to those values.
+     *
+     * @param holder the machine-wide mutable data component holder.
+     * @param nbt the architecture-specific tag compound.
+     */
+    default void saveData(MutableDataComponentHolder holder, CompoundTag nbt) {
+        saveData(nbt);
+    }
 
     /**
      * Architectures can be annotated with this to provide a nice display name.

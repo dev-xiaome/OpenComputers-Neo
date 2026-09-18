@@ -9,25 +9,32 @@ import li.cil.oc.common.blockentity.traits.RedstoneChangedEventArgs
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.Color
 import li.cil.oc.util.ExtendedLevel._
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.client.renderer.block.ScreenModel
 import li.cil.oc.common.Tier
+import li.cil.oc.common.datacomponents.OCComponents
 import net.minecraft.client.Minecraft
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.component.DataComponentHolder
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
 import net.minecraft.world.level.block.state.BlockState
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
 import net.minecraft.world.phys.AABB
-import net.neoforged.neoforge.client.model.data.ModelData
 
 import scala.collection.mutable
 import scala.language.postfixOps
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.projectile.Arrow
 import net.minecraft.world.entity.player.Player
+import net.neoforged.neoforge.client.model.data.ModelData
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
-class Screen(pos: BlockPos, state: BlockState, var tier: Int) extends BlockEntity(BlockEntityTypes.SCREEN.get(), pos, state) with traits.TextBuffer with SidedEnvironment with traits.Rotatable with traits.RedstoneAware with traits.Colored with Analyzable with Ordered[Screen] {
+class Screen(pos: BlockPos, state: BlockState, var tier: Int) extends BlockEntity(BlockEntityTypes.SCREEN.get(), pos, state)
+  with traits.TextBuffer with SidedEnvironment with traits.Rotatable with traits.RedstoneAware with traits.Colored with Analyzable with Ordered[Screen]
+  with IBlockEntityExtension {
   def this(pos: BlockPos, state: BlockState) = this(pos, state, 0)
 
   // Enable redstone functionality.
@@ -58,13 +65,13 @@ class Screen(pos: BlockPos, state: BlockState, var tier: Int) extends BlockEntit
 
   var width, height = 1
 
+  var cachedBounds: Option[(Boolean, Int, Int, AABB)] = None
+
   var origin = this
 
   val screens = mutable.Set(this)
 
   var hadRedstoneInput = false
-
-  var cachedBounds: Option[AABB] = None
 
   var invertTouchMode = false
 
@@ -83,6 +90,19 @@ class Screen(pos: BlockPos, state: BlockState, var tier: Int) extends BlockEntit
   // ----------------------------------------------------------------------- //
 
   def isOrigin = origin == this
+
+  def getRenderBoundingBox: AABB = {
+    cachedBounds match {
+      case Some((o, w, h, b)) if o == isOrigin && w == width && h == height => b
+      case _ =>
+        val bb = if ((width == 1 && height == 1) || !isOrigin) new AABB(getBlockPos) else {
+          val size = unproject(width - 1, height - 1, 0)
+          new AABB(getBlockPos).expandTowards(size.x, size.y, size.z)
+        }
+        cachedBounds = Some((isOrigin, width, height, bb))
+        bb
+    }
+  }
 
   def localPosition = {
     val lpos = project(this)
@@ -107,7 +127,6 @@ class Screen(pos: BlockPos, state: BlockState, var tier: Int) extends BlockEntit
     origin = this
     screens.clear()
     screens += this
-    cachedBounds = None
     invertTouchMode = false
   }
 
@@ -302,60 +321,42 @@ class Screen(pos: BlockPos, state: BlockState, var tier: Int) extends BlockEntit
 
   // ----------------------------------------------------------------------- //
 
-  private final val TierTag = Settings.namespace + "tier"
-  private final val HadRedstoneInputTag = Settings.namespace + "hadRedstoneInput"
-  private final val InvertTouchModeTag = Settings.namespace + "invertTouchMode"
-
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    tier = nbt.getByte(TierTag) max 0 min Tier.Four
+  override def loadComponentsCommon(holder: DataComponentHolder): Unit = {
+    for(t <- holder.getComponent(OCComponents.TIER)) tier = t
     setColor(Color.byTier(tier))
-    super.loadForServer(nbt)
-    hadRedstoneInput = nbt.getBoolean(HadRedstoneInputTag)
-    invertTouchMode = nbt.getBoolean(InvertTouchModeTag)
+    super.loadComponentsCommon(holder)
+
+    invertTouchMode = holder.has(OCComponents.INVERT_TOUCH)
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    nbt.putByte(TierTag, tier.toByte)
-    super.saveForServer(nbt)
-    nbt.putBoolean(HadRedstoneInputTag, hadRedstoneInput)
-    nbt.putBoolean(InvertTouchModeTag, invertTouchMode)
+  override def saveComponentsCommon(holder: MutableDataComponentHolder): Unit = {
+    holder.setComponent(OCComponents.TIER, tier.toByte)
+    super.saveComponentsCommon(holder)
+    holder.setComponent(OCComponents.INVERT_TOUCH, invertTouchMode)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    tier = nbt.getByte(TierTag) max 0 min Tier.Four
-    super.loadForClient(nbt)
+  override def loadComponentsForServer(holder: DataComponentHolder): Unit = {
+    super.loadComponentsForServer(holder)
+    hadRedstoneInput = holder.getComponent(OCComponents.HAS_REDSTONE_INPUT) getOrElse false
+  }
+
+  override def saveComponentsForServer(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsForServer(holder)
+    holder.setComponent(OCComponents.HAS_REDSTONE_INPUT, hadRedstoneInput)
+  }
+
+  // Explicit entry point used by BaseBlockEntity.getUpdateTag. Scala trait
+  // dispatch can otherwise skip TextBuffer.saveForClient, leaving clients
+  // with an empty buffer (see OpenComputersNeo-CE PR #6 for the 1.20 port).
+  override def saveForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit =
+    saveForClientDirect(nbt, provider)
+
+  def saveForClientDirect(nbt: CompoundTag, provider: HolderLookup.Provider): Unit =
+    super.saveForClient(nbt, provider)
+
+  override def loadComponentsForClient(holder: DataComponentHolder): Unit = {
+    super.loadComponentsForClient(holder)
     requestModelDataUpdate()
-    invertTouchMode = nbt.getBoolean(InvertTouchModeTag)
-  }
-
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    nbt.putByte(TierTag, tier.toByte)
-    super.saveForClient(nbt)
-    nbt.putBoolean(InvertTouchModeTag, invertTouchMode)
-  }
-
-  // ----------------------------------------------------------------------- //
-
-  // 1.21.1：`getRenderBoundingBox` 已从方块实体挪到渲染器
-  // （`IBlockEntityRendererExtension#getRenderBoundingBox(BlockEntity)`），
-  // 方块实体上再没有可覆写的同名方法，因此这里降级为普通方法，由 `ScreenRenderer` 读取。
-  @OnlyIn(Dist.CLIENT)
-  def getRenderBoundingBox = {
-    if ((width == 1 && height == 1) || !isOrigin) new AABB(getBlockPos) // 等同 NeoForge 的默认实现
-    else cachedBounds match {
-      case Some(bounds) => bounds
-      case _ =>
-        val spos = unproject(width, height, 1)
-        val ox = x + (if (spos.x < 0) 1 else 0)
-        val oy = y + (if (spos.y < 0) 1 else 0)
-        val oz = z + (if (spos.z < 0) 1 else 0)
-        val btmp = new AABB(ox, oy, oz, ox + spos.x, oy + spos.y, oz + spos.z)
-        val b = new AABB(
-          math.min(btmp.minX, btmp.maxX), math.min(btmp.minY, btmp.maxY), math.min(btmp.minZ, btmp.maxZ),
-          math.max(btmp.minX, btmp.maxX), math.max(btmp.minY, btmp.maxY), math.max(btmp.minZ, btmp.maxZ))
-        cachedBounds = Some(b)
-        b
-    }
   }
 
   // ----------------------------------------------------------------------- //
@@ -413,7 +414,6 @@ class Screen(pos: BlockPos, state: BlockState, var tier: Int) extends BlockEntit
               screen.height = newHeight
               screen.origin = newOrigin
               screen.screens ++= newScreens // It's a set, so there won't be duplicates.
-              screen.cachedBounds = None
             }
             true
           }

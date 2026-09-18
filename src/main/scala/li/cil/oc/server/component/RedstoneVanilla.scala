@@ -58,19 +58,22 @@ trait RedstoneVanilla extends RedstoneSignaller with DeviceInfo {
 
   @Callback(doc = "function([side:number, ]value:number or table):number or table --  Set the redstone output (all sides, or optionally on the specified side). Returns previous values")
   def setOutput(context: Context, args: Arguments): Array[AnyRef] = {
-    var ret: AnyRef = null
+    var ret: Array[AnyRef] = null
     if (getAssignment(args) match {
       case (side: Direction, value: Int) =>
-        ret = new java.lang.Integer(redstone.getOutput(side))
+        ret = result(redstone.getOutput(side))
         redstone.setOutput(side, value)
       case (value: util.Map[_, _], _) =>
-        ret = valuesToMap(redstone.getOutput)
+        ret = result(valuesToMap(redstone.getOutput))
         redstone.setOutput(value)
+      case _ =>
+        ret = result(null)
+        false
     }) {
       if (Settings.get.redstoneDelay > 0)
         context.pause(Settings.get.redstoneDelay)
     }
-    result(ret)
+    ret
   }
 
   @Callback(direct = true, doc = "function(side:number):number -- Get the comparator input on the specified side.")

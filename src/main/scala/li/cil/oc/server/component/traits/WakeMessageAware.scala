@@ -5,8 +5,12 @@ import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.{EnvironmentHost, Packet}
+import li.cil.oc.common.datacomponents.{OCComponents, WakeMessage}
 import li.cil.oc.server.component._
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 trait WakeMessageAware extends traits.NetworkAware {
   private final val WakeMessageTag = "wakeMessage"
@@ -60,15 +64,18 @@ trait WakeMessageAware extends traits.NetworkAware {
     }
   }
 
-  def loadWakeMessage(nbt: CompoundTag): Unit = {
-    if (nbt.contains(WakeMessageTag)) {
-      wakeMessage = Option(nbt.getString(WakeMessageTag))
+  def loadWakeMessage(holder: DataComponentHolder): Unit = {
+    holder.getComponent(OCComponents.WAKE_MESSAGE) match {
+      case Some(wake) =>
+        wakeMessage = Some(wake.message)
+        wakeMessageFuzzy = wake.fuzzy
+      case None =>
+        wakeMessage = None
+        wakeMessageFuzzy = false
     }
-    wakeMessageFuzzy = nbt.getBoolean(WakeMessageFuzzyTag)
   }
 
-  def saveWakeMessage(nbt: CompoundTag): Unit = {
-    wakeMessage.foreach(nbt.putString(WakeMessageTag, _))
-    nbt.putBoolean(WakeMessageFuzzyTag, wakeMessageFuzzy)
+  def saveWakeMessage(holder: MutableDataComponentHolder): Unit = {
+    holder.setComponent(OCComponents.WAKE_MESSAGE, wakeMessage.map(WakeMessage(_, wakeMessageFuzzy)))
   }
 }

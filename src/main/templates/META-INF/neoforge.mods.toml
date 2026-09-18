@@ -1,34 +1,36 @@
-# NeoForge 1.21.1 的模组元数据模板。
-#
-# 注意与 OCCE(1.20.1 Forge) 的差异：OCCE 用 `modLoader="kotori_scala"`（依赖 ScalableCatsForce
-# 提供 Scala 运行时），我们用 `javafml`，因为 scala-library 已经用 jarJar 打进模组里了。
 modLoader="javafml"
 loaderVersion="${loader_version_range}"
-license="${mod_license}"
-issueTrackerURL="https://github.com/dev-xiaome/OpenComputers-Neo/issues"
+license="MIT and CC0; see META-INF/LICENSE and META-INF/licenses"
+issueTrackerURL="https://github.com/PC-Logix/OpenComputersNeo/issues"
 
 [[mods]]
-modId="${mod_id}"
+modId="opencomputers_neo"
+entryClass="li.cil.oc.OpenComputersNeo"
 version="${mod_version}"
-displayName="${mod_name}"
-displayURL="http://oc.cil.li/"
+displayName="OpenComputers Neo"
+displayURL="https://github.com/PC-Logix/OpenComputersNeo"
 logoFile="pack.png"
-credits="Inspired by a couple of other mods, most notably ComputerCraft."
-authors="Sangar, Vexatos, payonel, magik6k, Lord Joda, Github Contributors and modern port"
-description='''
-This mod adds modular computers and robots that can be programmed in Lua.
-'''
+credits="OpenComputersNeo Neo — 1.21.1 NeoForge 移植"
+authors="Sangar, Vexatos, payonel, magik6k, Lord Joda, Github Contributors; 1.20.1 port by akki697222; 1.21.1+ port by OpenComputersNeo: Rebooted Team"
+description="This mod adds modular computers and robots that can be programmed in Lua."
+enumExtensions="META-INF/enumextensions.json"
 
-[[dependencies.${mod_id}]]
+[[mixins]]
+config="opencomputers.mixins.json"
+
+[[mixins]]
+config="opencomputers.core.mixins.json"
+
+[[dependencies.OpenComputersNeo]]
     modId="minecraft"
-    type="required"
+    mandatory=true
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
 
-[[dependencies.${mod_id}]]
-    modId="neoforge"
-    type="required"
-    versionRange="[${neo_version},)"
-    ordering="NONE"
+[[dependencies.OpenComputersNeo]]
+    modId="sable"
+    type="optional"
+    versionRange="${sable_version_range}"
+    ordering="AFTER"
     side="BOTH"

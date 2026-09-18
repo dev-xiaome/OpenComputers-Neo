@@ -59,9 +59,6 @@ class Inventory(player: Player, val agent: internal.Agent) extends PlayerInvento
 
   override def getArmor(slot: Int): ItemStack = ItemStack.EMPTY
 
-  // 1.21.1 移除了 Inventory#hurtArmor，该方法已上移到 Player（只有 DamageSource, float
-  // 两个参数），Inventory 不再是它的覆写点，因此这里不再提供该方法。
-
   override def dropAll(): Unit = {}
 
   override def contains(stack: ItemStack): Boolean = (0 until getContainerSize).map(getItem).filter(!_.isEmpty).exists(containerStack => ItemStack.isSameItem(stack, containerStack))

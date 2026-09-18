@@ -5,18 +5,20 @@ import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.Settings
-import li.cil.oc.api.Driver
+import li.cil.oc.api.{Driver, Persistable, internal}
 import li.cil.oc.api.driver.DeviceInfo
-import li.cil.oc.api.internal
 import li.cil.oc.api.network.Connector
 import li.cil.oc.common
 import li.cil.oc.common.InventorySlots
 import li.cil.oc.common.Slot
 import li.cil.oc.common.Tier
 import li.cil.oc.common.block.property.PropertyRunning
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.common.menu
 import li.cil.oc.common.menu.MenuTypes
 import li.cil.oc.util.Color
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.entity.player.Inventory
 import net.minecraft.world.MenuProvider
@@ -24,20 +26,27 @@ import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.entity.BlockEntityType
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.world.level.block.state.BlockState
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
-import scala.collection.convert.ImplicitConversionsToJava._
+import scala.jdk.CollectionConverters._
 
 class Case(pos: BlockPos, state: BlockState, var tier: Int)
-  extends BlockEntity(BlockEntityTypes.CASE.get(), pos, state) with traits.PowerAcceptor with traits.Computer with traits.Colored with internal.Case with DeviceInfo with MenuProvider {
+  extends BlockEntity(BlockEntityTypes.CASE.get(), pos, state) with traits.PowerAcceptor with traits.Computer
+    with traits.Colored with internal.Case with DeviceInfo with MenuProvider with IBlockEntityExtension {
   def this(pos: BlockPos, state: BlockState) = {
-    this(pos, state, 0)
-    // If no tier was defined when constructing this case, then we don't yet know the inventory size
-    // this is set back to true when the nbt data is loaded
-    isSizeInventoryReady = false
+    // BlockEntityType factories only receive position/state. The block itself
+    // is the authoritative tier source and must be used before the lazy
+    // inventory is ever forced; otherwise every reloaded case starts with the
+    // tier-one 7-slot backing array even if components later restore tier five.
+    this(pos, state, state.getBlock match {
+      case computerCase: common.block.Case => computerCase.tier
+      case _ => Tier.One
+    })
   }
 
   // Used on client side to check whether to render disk activity/network indicators.
@@ -54,7 +63,7 @@ class Case(pos: BlockPos, state: BlockState, var tier: Int)
     DeviceAttribute.Capacity -> getContainerSize.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -69,7 +78,7 @@ class Case(pos: BlockPos, state: BlockState, var tier: Int)
 
   // ----------------------------------------------------------------------- //
 
-  override def componentSlot(address: String) = componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+  override def componentSlot(address: String) = componentSlots.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   // ----------------------------------------------------------------------- //
 
@@ -101,16 +110,17 @@ class Case(pos: BlockPos, state: BlockState, var tier: Int)
 
   private final val TierTag = Settings.namespace + "tier"
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    tier = nbt.getByte(TierTag) max 0 min Tier.Five
-    setColor(Color.byTier(tier))
-    super.loadForServer(nbt)
+  override def loadComponentsForServer(holder: DataComponentHolder): Unit = {
+    for(t <- holder.getComponent(OCComponents.TIER)) {
+      tier = t
+    }
+    super.loadComponentsForServer(holder)
     isSizeInventoryReady = true
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    nbt.putByte(TierTag, tier.toByte)
-    super.saveForServer(nbt)
+  override def saveComponentsForServer(holder: MutableDataComponentHolder): Unit = {
+    holder.setComponent(OCComponents.TIER, tier.toByte)
+    super.saveComponentsForServer(holder)
   }
 
   // ----------------------------------------------------------------------- //

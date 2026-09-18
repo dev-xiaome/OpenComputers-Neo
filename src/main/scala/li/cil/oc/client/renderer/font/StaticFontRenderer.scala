@@ -3,7 +3,7 @@ package li.cil.oc.client.renderer.font
 import com.google.common.base.Charsets
 import com.mojang.blaze3d.vertex.VertexConsumer
 import org.joml.Matrix4f
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.client.Textures
 import li.cil.oc.client.renderer.RenderTypes
@@ -31,7 +31,7 @@ class StaticFontRenderer extends TextureFontRenderer {
     }
   } catch {
     case t: Throwable =>
-      OpenComputers.log.warn("Failed reading font metadata, using defaults.", t)
+      OpenComputersNeo.log.warn("Failed reading font metadata, using defaults.", t)
       (basicChars, 10, 18)
   }
 

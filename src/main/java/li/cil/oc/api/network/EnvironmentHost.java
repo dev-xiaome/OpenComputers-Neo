@@ -10,7 +10,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
  * It is generally used to represent the components' location in the world.
  * <br>
  * You will only need to implement this if you intend to host components, e.g.
- * by providing a custom computer case or such. In OpenComputers this interface
+ * by providing a custom computer case or such. In OpenComputersNeo this interface
  * is usually implemented directly by the tile entities acting as the host, so
  * in most cases you should be able to cast this to {@link BlockEntity} for
  * more options, if necessary.

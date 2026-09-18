@@ -1,17 +1,18 @@
 package li.cil.oc.client.gui
 
-import com.mojang.blaze3d.vertex.PoseStack
 import li.cil.oc.api
 import li.cil.oc.client.renderer.TextBufferRenderCache
 import li.cil.oc.client.renderer.gui.BufferRenderer
-import net.minecraft.client.gui.{GuiGraphics, screens}
+import net.minecraft.client.gui.{screens, GuiGraphics}
 import net.minecraft.client.KeyMapping
-import org.lwjgl.glfw.GLFW
 import net.minecraft.client.gui.components.events.ContainerEventHandler
 import net.minecraft.network.chat.Component
+import org.lwjgl.glfw.GLFW
 
-class Screen(val buffer: api.internal.TextBuffer, val hasMouse: Boolean, val hasKeyboardCallback: () => Boolean, val hasPower: () => Boolean)
+class Screen(initialBuffer: api.internal.TextBuffer, val hasMouse: Boolean, val hasKeyboardCallback: () => Boolean, val hasPower: () => Boolean)
   extends screens.Screen(Component.empty()) with traits.InputBuffer with ContainerEventHandler {
+
+  override def buffer: api.internal.TextBuffer = initialBuffer
 
   override protected def hasKeyboard = hasKeyboardCallback()
 
@@ -29,12 +30,13 @@ class Screen(val buffer: api.internal.TextBuffer, val hasMouse: Boolean, val has
 
   private var mx, my = -1
 
-  // 1.21.1: mouseScrolled 增加 scrollX 参数（4 参签名）。
+  protected def topPadding: Int = 0
+
   override def mouseScrolled(mouseX: Double, mouseY: Double, scrollX: Double, scrollY: Double): Boolean = {
     if (hasMouse) {
       toBufferCoordinates(mouseX, mouseY) match {
         case Some((bx, by)) =>
-          buffer.mouseScroll(bx, by, math.signum(scrollY).toInt, null)
+          buffer.mouseScroll(bx, by, math.signum(scrollY.toInt), null)
           return true
         case _ => // Ignore when out of bounds.
       }
@@ -86,7 +88,7 @@ class Screen(val buffer: api.internal.TextBuffer, val hasMouse: Boolean, val has
         else buffer.mouseDown(bx, by, button, null)
         didClick = true
         mx = bx.toInt
-        my = (by*2).toInt 
+        my = (by*2).toInt
       case _ =>
     }
   }
@@ -108,14 +110,15 @@ class Screen(val buffer: api.internal.TextBuffer, val hasMouse: Boolean, val has
 
   override def render(graphics: GuiGraphics, mouseX: Int, mouseY: Int, dt: Float): Unit = {
     super.render(graphics, mouseX, mouseY, dt)
-    drawBufferLayer(graphics.pose)
+    drawBufferLayer(graphics)
   }
 
-  override def drawBuffer(stack: PoseStack) = {
-    stack.translate(x, y, 0)
+  override def drawBuffer(graphics: GuiGraphics) = {
+    val stack = graphics.pose()
+    stack.translate(x.toFloat, y.toFloat, 0f)
     BufferRenderer.drawBackground(stack, innerWidth, innerHeight)
     if (hasPower()) {
-      stack.translate(bufferMargin, bufferMargin, 0)
+      stack.translate(bufferMargin.toFloat, bufferMargin.toFloat, 0f)
       stack.scale(scale.toFloat, scale.toFloat, 1)
       BufferRenderer.drawText(stack, buffer)
     }
@@ -125,12 +128,13 @@ class Screen(val buffer: api.internal.TextBuffer, val hasMouse: Boolean, val has
     val bw = buffer.renderWidth
     val bh = buffer.renderHeight
     val scaleX = math.min(width / (bw + bufferMargin * 2.0), 1)
-    val scaleY = math.min(height / (bh + bufferMargin * 2.0), 1)
+    val availableHeight = height - topPadding
+    val scaleY = math.min(availableHeight / (bh + bufferMargin * 2.0), 1)
     val scale = math.min(scaleX, scaleY)
     innerWidth = (bw * scale).toInt
     innerHeight = (bh * scale).toInt
     x = (width - (innerWidth + bufferMargin * 2)) / 2
-    y = (height - (innerHeight + bufferMargin * 2)) / 2
+    y = topPadding + (availableHeight - (innerHeight + bufferMargin * 2)) / 2
     scale
   }
 }

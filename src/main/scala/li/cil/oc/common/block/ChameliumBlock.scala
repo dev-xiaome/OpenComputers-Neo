@@ -1,40 +1,39 @@
 package li.cil.oc.common.block
 
-import net.minecraft.world.level.block.Block
-import net.minecraft.world.level.block.state.BlockState
-import net.minecraft.world.level.block.state.BlockBehaviour.Properties
-import net.minecraft.world.item.context.{BlockPlaceContext => BlockItemUseContext}
-import net.minecraft.world.item.DyeColor
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.level.block.state.properties.EnumProperty
-import net.minecraft.world.level.block.state.{StateDefinition => StateContainer}
+import com.mojang.serialization.MapCodec
+import li.cil.oc.common.block.ChameliumBlock.{CODEC, DEFAULT_COLOR}
+import li.cil.oc.common.datacomponents.OCComponents
 import net.minecraft.core.BlockPos
-import net.minecraft.world.level.{BlockGetter => IBlockReader}
+import net.minecraft.world.item.context.{BlockPlaceContext => BlockItemUseContext}
+import net.minecraft.world.item.{DyeColor, ItemStack}
 import net.minecraft.world.level.LevelReader
-
-object ChameliumBlock {
-  final val Color = EnumProperty.create("color", classOf[DyeColor])
-}
+import net.minecraft.world.level.block.Block
+import net.minecraft.world.level.block.state.BlockBehaviour.{Properties, simpleCodec}
+import net.minecraft.world.level.block.state.properties.EnumProperty
+import net.minecraft.world.level.block.state.{BlockState, StateDefinition => StateContainer}
 
 class ChameliumBlock(props: Properties) extends SimpleBlock(props) {
+  override def codec(): MapCodec[ChameliumBlock] = CODEC
+
   protected override def createBlockStateDefinition(builder: StateContainer.Builder[Block, BlockState]): Unit = {
     builder.add(ChameliumBlock.Color)
   }
-  registerDefaultState(stateDefinition.any.setValue(ChameliumBlock.Color, DyeColor.BLACK))
 
-  override def createItemStack(amount: Int = 1): ItemStack = {
-    val stack = new ItemStack(this, amount)
-    stack.setDamageValue(defaultBlockState.getValue(ChameliumBlock.Color).getId)
-    stack
-  }
+  registerDefaultState(stateDefinition.any.setValue(ChameliumBlock.Color, DEFAULT_COLOR))
 
-  // 1.21.1：签名是 `(LevelReader, BlockPos, BlockState)`；原来写的 `BlockGetter` 会覆写不匹配。
+  @Deprecated
   override def getCloneItemStack(world: LevelReader, pos: BlockPos, state: BlockState): ItemStack = {
     val stack = new ItemStack(this)
-    stack.setDamageValue(state.getValue(ChameliumBlock.Color).getId)
+    stack.set(OCComponents.CHAMELIUM_COLOR.get(), state.getValue(ChameliumBlock.Color))
     stack
   }
 
   override def getStateForPlacement(ctx: BlockItemUseContext): BlockState =
-    defaultBlockState.setValue(ChameliumBlock.Color, DyeColor.byId(ctx.getItemInHand.getDamageValue))
+    defaultBlockState.setValue(ChameliumBlock.Color, ctx.getItemInHand.getOrDefault(OCComponents.CHAMELIUM_COLOR.get(), DEFAULT_COLOR))
+}
+
+object ChameliumBlock {
+  final val CODEC = simpleCodec(new ChameliumBlock(_))
+  final val Color = EnumProperty.create("color", classOf[DyeColor])
+  final val DEFAULT_COLOR = DyeColor.BLACK
 }

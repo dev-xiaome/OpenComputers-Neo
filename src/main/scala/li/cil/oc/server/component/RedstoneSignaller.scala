@@ -1,17 +1,18 @@
 package li.cil.oc.server.component
 
 import li.cil.oc.api.Network
-import li.cil.oc.api.machine.Arguments
-import li.cil.oc.api.machine.Callback
-import li.cil.oc.api.machine.Context
+import li.cil.oc.api.machine.{Arguments, Callback, Context}
 import li.cil.oc.api.network.Visibility
-import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.common.blockentity.traits.RedstoneChangedEventArgs
+import li.cil.oc.common.datacomponents.OCComponents
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 import scala.collection.mutable.ArrayBuffer
-import net.minecraft.nbt.CompoundTag
 
 trait RedstoneSignaller extends AbstractManagedEnvironment {
   override val node = Network.newNode(this, Visibility.Network).
@@ -54,13 +55,13 @@ trait RedstoneSignaller extends AbstractManagedEnvironment {
 
   private final val WakeThresholdNbt = "wakeThreshold"
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
-    wakeThreshold = nbt.getInt(WakeThresholdNbt)
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
+    wakeThreshold = holder.getComponent(OCComponents.WAKE_THRESHOLD) getOrElse 0
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
-    nbt.putInt(WakeThresholdNbt, wakeThreshold)
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super.saveData(holder)
+    holder.setComponent(OCComponents.WAKE_THRESHOLD, Option.when(wakeThreshold > 0) { wakeThreshold })
   }
 }

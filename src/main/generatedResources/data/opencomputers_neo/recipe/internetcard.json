@@ -1,0 +1,29 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers_neo:card"
+    },
+    "C": {
+      "item": "opencomputers_neo:chip2"
+    },
+    "I": {
+      "item": "opencomputers_neo:interweb"
+    },
+    "o": {
+      "tag": "c:obsidians/normal"
+    },
+    "r": {
+      "item": "minecraft:redstone_torch"
+    }
+  },
+  "pattern": [
+    "ICr",
+    " Bo"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:internetcard"
+  }
+}

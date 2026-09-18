@@ -47,8 +47,8 @@ class ChargerRenderer extends BlockEntityRenderer[Charger] {
         val icon = Textures.getSprite(Textures.Block.ChargerFrontOn)
         vBuffer.addVertex(matrix, 0, 1, 0.005f).setUv(icon.getU0, icon.getV1)
         vBuffer.addVertex(matrix, 1, 1, 0.005f).setUv(icon.getU1, icon.getV1)
-        vBuffer.addVertex(matrix, 1, inverse, 0.005f).setUv(icon.getU1, icon.getV(inverse * 16))
-        vBuffer.addVertex(matrix, 0, inverse, 0.005f).setUv(icon.getU0, icon.getV(inverse * 16))
+        vBuffer.addVertex(matrix, 1, inverse, 0.005f).setUv(icon.getU1, icon.getV(inverse))
+        vBuffer.addVertex(matrix, 0, inverse, 0.005f).setUv(icon.getU0, icon.getV(inverse))
       }
 
       if (charger.hasPower) {

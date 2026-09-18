@@ -2,7 +2,7 @@
   "computer_running": {
     "category": "block",
     "sounds": [
-      {"name": "opencomputers_neo:computer_running", "stream": true, "attenuation_distance": 16}
+      {"name": "opencomputers_neo:computer_running", "stream": false, "preload": true}
     ]
   },
   "floppy_access": {
@@ -40,9 +40,10 @@
       {"name": "opencomputers_neo:hdd_access7", "preload": true}
     ]
   },
-  "dummy": {
+  "ssd_access": {
+    "category": "block",
     "sounds": [
-      {"name": "opencomputers_neo:dummy", "stream": true}
+      {"name": "opencomputers_neo:ssd_access", "preload": true}
     ]
   }
 }

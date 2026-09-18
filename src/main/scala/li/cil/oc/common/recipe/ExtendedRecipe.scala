@@ -1,30 +1,32 @@
 package li.cil.oc.common.recipe
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
 import java.util.UUID
 import li.cil.oc.Constants
-import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.api
+import li.cil.oc.api.ImmutableItemStack
 import li.cil.oc.api.detail.ItemInfo
+import li.cil.oc.common.Loot
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.common.item.data.DroneData
 import li.cil.oc.common.item.data.MicrocontrollerData
 import li.cil.oc.common.item.data.PrintData
 import li.cil.oc.common.item.data.RobotData
 import li.cil.oc.common.item.data.TabletData
-import li.cil.oc.util.ExtendedNBT._
-import li.cil.oc.util.SideTracker
+import li.cil.oc.server.machine.luac.LuaStateFactory
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import li.cil.oc.util.{ItemUtils, SideTracker}
+import net.minecraft.core.component.DataComponents
+import net.minecraft.core.HolderLookup
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.item.DyeColor
 import net.minecraft.world.item.Items
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.nbt.StringTag
+import net.minecraft.nbt.{CompoundTag, StringTag}
+import net.minecraft.world.item.component.CustomData
 import net.minecraft.resources.ResourceLocation
-import net.minecraft.tags.ItemTags
-import net.minecraft.world.item.crafting.CraftingInput
-import net.minecraft.world.item.crafting.Recipe
+import net.minecraft.tags.{BlockTags, ItemTags}
+import net.minecraft.world.item.crafting.{CraftingInput, Recipe}
 
 import scala.collection.convert.ImplicitConversionsToScala._
 import scala.util.control.Breaks._
@@ -32,12 +34,11 @@ import scala.util.control.Breaks._
 object ExtendedRecipe {
   private lazy val drone = api.Items.get(Constants.ItemName.Drone)
   private lazy val eeprom = api.Items.get(Constants.ItemName.EEPROM)
-  private lazy val luaBios = api.Items.get(Constants.ItemName.LuaBios)
   private lazy val mcu = api.Items.get(Constants.BlockName.Microcontroller)
   private lazy val navigationUpgrade = api.Items.get(Constants.ItemName.NavigationUpgrade)
   private lazy val linkedCard = api.Items.get(Constants.ItemName.LinkedCard)
   private lazy val floppy = api.Items.get(Constants.ItemName.Floppy)
-  private lazy val hdds = Array(
+  private lazy val drives = Array(
     api.Items.get(Constants.ItemName.HDDTier1),
     api.Items.get(Constants.ItemName.HDDTier2),
     api.Items.get(Constants.ItemName.HDDTier3)
@@ -49,100 +50,104 @@ object ExtendedRecipe {
     api.Items.get(Constants.ItemName.APUTier1),
     api.Items.get(Constants.ItemName.APUTier2)
   )
-  // 说明：`cpus` 原用于给 CPU / APU 打默认 Lua 架构标记，原生 Lua 移出编译集后不再需要。
   private lazy val robot = api.Items.get(Constants.BlockName.Robot)
   private lazy val tablet = api.Items.get(Constants.ItemName.Tablet)
   private lazy val print = api.Items.get(Constants.BlockName.Print)
-  private val beaconBlocks = ItemTags.create(ResourceLocation.fromNamespaceAndPath("forge", "beacon_base_blocks"))
-  
-  def patchRecipe[R <: Recipe[_]](recipe: R): R = {
-    val resultStack = recipe.getResultItem(null)
-    val resultItemName = api.Items.get(resultStack)
+  val beaconBlocks = ItemTags.create(ResourceLocation.fromNamespaceAndPath("c", "beacon_base_blocks"))
 
-    // EEPROM initialization.
+  def initializeStaticResultData(recipe: Recipe[_], resultStack: ItemStack): Unit = {
+    val resultItemName = api.Items.get(resultStack)
+    val tag = ItemUtils.getTag(resultStack)
+
+    // EEPROM recipe JSON stores script paths in custom data. Resolve them
+    // only when the recipe is assembled, not while datapacks are being decoded.
     if (resultItemName == eeprom &&
-      resultStack.getCount == 1 && resultStack.hasTag &&
+      resultStack.getCount == 1 && tag != null &&
       recipe.getIngredients.size == 2) {
-      val nbt = resultStack.getTag.getCompound(Settings.namespace + "data")
-      // Load EEPROM code (if it's a string)
+      val nbt = tag.getCompound(Settings.namespace + "data")
+
+      val labelNbt = nbt.get(Settings.namespace + "label")
+      if (labelNbt != null && labelNbt.getType == StringTag.TYPE) {
+        resultStack.set(OCComponents.LABEL, labelNbt.asInstanceOf[StringTag].getAsString)
+      }
+      if (nbt.contains(Settings.namespace + "readonly")) {
+        resultStack.set(OCComponents.READONLY, nbt.getBoolean(Settings.namespace + "readonly"))
+      }
+
       val codeNbt = nbt.get(Settings.namespace + "eeprom")
       if (codeNbt != null && codeNbt.getType == StringTag.TYPE) {
         val codePath = codeNbt.asInstanceOf[StringTag].getAsString
-        val code = new Array[Byte](Settings.get.eepromSize)
-        val count = OpenComputers.getClass.getResourceAsStream(Settings.scriptPath + codePath).read(code)
-        nbt.putByteArray(Settings.namespace + "eeprom", code.take(count))
+        val defaultEEPROM = if (codePath == "bios.lua") Loot.defaultEEPROM else ItemStack.EMPTY
+        if (!defaultEEPROM.isEmpty && defaultEEPROM.has(OCComponents.EEPROM_CODE.get())) {
+          resultStack.set(OCComponents.EEPROM_CODE, defaultEEPROM.get(OCComponents.EEPROM_CODE.get()))
+        }
       }
-      // Load EEPROM data (if it's a string)
+
       val dataNbt = nbt.get(Settings.namespace + "userdata")
       if (dataNbt != null && dataNbt.getType == StringTag.TYPE) {
         val dataPath = dataNbt.asInstanceOf[StringTag].getAsString
-        val data = new Array[Byte](Settings.get.eepromDataSize)
-        val count = OpenComputers.getClass.getResourceAsStream(Settings.scriptPath + dataPath).read(data)
-        nbt.putByteArray(Settings.namespace + "userdata", data.take(count))
+        val defaultEEPROM = if (dataPath == "bios.lua") Loot.defaultEEPROM else ItemStack.EMPTY
+        if (!defaultEEPROM.isEmpty && defaultEEPROM.has(OCComponents.EEPROM_DATA.get())) {
+          resultStack.set(OCComponents.EEPROM_DATA, defaultEEPROM.get(OCComponents.EEPROM_DATA.get()))
+        }
       }
-    }
 
-    recipe
+      // The custom data above is recipe-only initialization metadata. Keeping
+      // it would make JEI treat this result as a different EEPROM subtype from
+      // the registered Lua BIOS stack, whose state is stored in components.
+      resultStack.remove(DataComponents.CUSTOM_DATA)
+    }
   }
 
-  def addNBTToResult(recipe: Recipe[_], craftedStack: ItemStack, inventory: CraftingInput): ItemStack = {
+  def addNBTToResult(recipe: Recipe[_], craftedStack: ItemStack, inventory: CraftingInput, provider: HolderLookup.Provider): ItemStack = {
+    initializeStaticResultData(recipe, craftedStack)
     val craftedItemName = api.Items.get(craftedStack)
 
     if (craftedItemName == navigationUpgrade) {
-      Option(api.Driver.driverFor(craftedStack)).foreach(driver =>
-        for (stack <- getItems(inventory)) {
-          if (stack.getItem == Items.FILLED_MAP) {
-            // Store information of the map used for crafting in the result.
-            // 1.21.1：`ItemStack#save` 改成 `save(HolderLookup.Provider, Tag): Tag`，
-            // 必须接收返回值（写进传入的 `CompoundTag` 再返回它）。
-            val nbt = driver.dataTag(craftedStack)
-            val provider = li.cil.oc.util.RegistryAccessHelper.getOrEmpty()
-            nbt.setNewCompoundTag(Settings.namespace + "map", (tag: CompoundTag) => stack.save(provider, tag))
-          }
-        })
+      for (stack <- getItems(inventory)) {
+        if (stack.getItem == Items.FILLED_MAP) {
+          // Store information of the map used for crafting in the result.
+          craftedStack.setComponent(OCComponents.SOURCE_MAP_ITEM, ImmutableItemStack.copyOf(stack))
+        }
+      }
     }
 
     if (craftedItemName == linkedCard) {
       if (SideTracker.isServer) {
-        Option(api.Driver.driverFor(craftedStack)).foreach(driver => {
-          val nbt = driver.dataTag(craftedStack)
-          nbt.putString(Settings.namespace + "tunnel", UUID.randomUUID().toString)
-        })
+        craftedStack.setComponent(OCComponents.TUNNEL, UUID.randomUUID().toString)
       }
     }
 
-    // 1.21.1 移除：原实现在这里调用 `LuaStateFactory.setDefaultArch(craftedStack)`，
-    // 给 CPU 堆叠打上「默认架构」标记。原生 Lua 架构已移出编译集，只剩 LuaJ 一种，
-    // 因此这个标记没有意义，`cpus` 列表也就成了死代码，一并删除。
+    if (cpus.contains(craftedItemName)) {
+      LuaStateFactory.setDefaultArch(craftedStack)
+    }
 
-    if (craftedItemName == floppy || hdds.contains(craftedItemName)) {
-      val nbt = craftedStack.getOrCreateTag
-      if (recipe.canCraftInDimensions(1, 1)) {
-        // Formatting / loot to normal disk conversion, only keep coloring.
-        val colorKey = Settings.namespace + "color"
-        for (stack <- getItems(inventory)) {
-          if (api.Items.get(stack) != null && (api.Items.get(stack) == floppy || api.Items.get(stack).name == "lootDisk") && stack.hasTag) {
-            val oldData = stack.getTag
-            if (oldData.contains(colorKey) && oldData.getInt(colorKey) != DyeColor.LIGHT_GRAY.getId) {
-              nbt.put(colorKey, oldData.get(colorKey).copy())
+    if (craftedItemName == floppy || drives.contains(craftedItemName)) {
+      CustomData.update(DataComponents.CUSTOM_DATA, craftedStack, nbt => {
+        if (recipe.canCraftInDimensions(1, 1)) {
+          // Formatting / loot to normal disk conversion, only keep coloring.
+          val colorKey = Settings.namespace + "color"
+          for (stack <- getItems(inventory)) {
+            val oldData = ItemUtils.getTag(stack)
+            if (api.Items.get(stack) != null && (api.Items.get(stack) == floppy || api.Items.get(stack).name == "lootDisk") && oldData != null) {
+              if (oldData.contains(colorKey) && oldData.getInt(colorKey) != DyeColor.LIGHT_GRAY.getId) {
+                nbt.put(colorKey, oldData.get(colorKey).copy())
+              }
             }
           }
         }
-        if (nbt.isEmpty) {
-          craftedStack.setTag(null)
-        }
-      }
-      else if (getItems(inventory).forall(api.Items.get(_) == floppy)) {
-        // Copy operation.
-        for (stack <- getItems(inventory)) {
-          if (api.Items.get(stack) == floppy && stack.hasTag) {
-            val oldData = stack.getTag
-            for (oldTagName <- oldData.getAllKeys.map(_.asInstanceOf[String]) if !nbt.contains(oldTagName)) {
-              nbt.put(oldTagName, oldData.get(oldTagName).copy())
+        else if (getItems(inventory).forall(api.Items.get(_) == floppy)) {
+          // Copy operation.
+          for (stack <- getItems(inventory)) {
+            val oldData = ItemUtils.getTag(stack)
+            if (api.Items.get(stack) == floppy && oldData != null) {
+              for (oldTagName <- oldData.getAllKeys.map(_.asInstanceOf[String]) if !nbt.contains(oldTagName)) {
+                nbt.put(oldTagName, oldData.get(oldTagName).copy())
+              }
             }
           }
         }
-      }
+      })
     }
 
     if (craftedItemName == print &&
@@ -192,28 +197,28 @@ object ExtendedRecipe {
       craftedStack.getCount == 2 &&
       recipe.getIngredients.size == 2) breakable {
       for (stack <- getItems(inventory)) {
-        if (api.Items.get(stack) == eeprom && stack.hasTag) {
-          val copy = stack.getTag.copy.asInstanceOf[CompoundTag]
+        val copy = ItemUtils.getTag(stack)
+        if (api.Items.get(stack) == eeprom && copy != null) {
           // Erase node address, just in case.
           copy.getCompound(Settings.namespace + "data").getCompound("node").remove("address")
-          craftedStack.setTag(copy)
+          CustomData.set(DataComponents.CUSTOM_DATA, craftedStack, copy)
           break()
         }
       }
     }
 
     // Swapping EEPROM in devices.
-    recraft(craftedStack, inventory, mcu, stack => new MCUDataWrapper(stack))
-    recraft(craftedStack, inventory, drone, stack => new DroneDataWrapper(stack))
-    recraft(craftedStack, inventory, robot, stack => new RobotDataWrapper(stack))
-    recraft(craftedStack, inventory, tablet, stack => new TabletDataWrapper(stack))
+    recraft(provider, craftedStack, inventory, mcu, stack => new MCUDataWrapper(stack))
+    recraft(provider, craftedStack, inventory, drone, stack => new DroneDataWrapper(stack))
+    recraft(provider, craftedStack, inventory, robot, stack => new RobotDataWrapper(stack))
+    recraft(provider, craftedStack, inventory, tablet, stack => new TabletDataWrapper(stack))
 
     craftedStack
   }
 
-  private def getItems(inventory: CraftingInput) = (0 until inventory.size()).map(inventory.getItem).filter(!_.isEmpty)
+  private def getItems(inventory: CraftingInput) = (0 until inventory.size).map(inventory.getItem).filter(!_.isEmpty)
 
-  private def recraft(craftedStack: ItemStack, inventory: CraftingInput, descriptor: ItemInfo, dataFactory: (ItemStack) => ItemDataWrapper): Unit = {
+  private def recraft(provider: HolderLookup.Provider, craftedStack: ItemStack, inventory: CraftingInput, descriptor: ItemInfo, dataFactory: (ItemStack) => ItemDataWrapper): Unit = {
     if (api.Items.get(craftedStack) == descriptor) {
       // Find old Microcontroller.
       getItems(inventory).find(api.Items.get(_) == descriptor) match {
@@ -231,7 +236,7 @@ object ExtendedRecipe {
             }
           }
 
-          data.save(craftedStack)
+          data.save(craftedStack, provider)
         case _ =>
       }
     }
@@ -242,7 +247,7 @@ object ExtendedRecipe {
 
     def components_=(value: Array[ItemStack]): Unit
 
-    def save(stack: ItemStack): Unit
+    def save(stack: ItemStack, provider: HolderLookup.Provider): Unit
   }
 
   private class MCUDataWrapper(val stack: ItemStack) extends ItemDataWrapper {
@@ -252,7 +257,7 @@ object ExtendedRecipe {
 
     override def components_=(value: Array[ItemStack]): Unit = data.components = value
 
-    override def save(stack: ItemStack): Unit = data.saveData(stack)
+    override def save(stack: ItemStack, provider: HolderLookup.Provider): Unit = data.saveData(stack)
   }
 
   private class DroneDataWrapper(val stack: ItemStack) extends ItemDataWrapper {
@@ -262,7 +267,7 @@ object ExtendedRecipe {
 
     override def components_=(value: Array[ItemStack]): Unit = data.components = value
 
-    override def save(stack: ItemStack): Unit = data.saveData(stack)
+    override def save(stack: ItemStack, provider: HolderLookup.Provider): Unit = data.saveData(stack)
   }
 
   private class RobotDataWrapper(val stack: ItemStack) extends ItemDataWrapper {
@@ -272,7 +277,7 @@ object ExtendedRecipe {
 
     override def components_=(value: Array[ItemStack]): Unit = data.components = value
 
-    override def save(stack: ItemStack): Unit = data.saveData(stack)
+    override def save(stack: ItemStack, provider: HolderLookup.Provider): Unit = data.saveData(stack)
   }
 
   private class TabletDataWrapper(val stack: ItemStack) extends ItemDataWrapper {
@@ -284,10 +289,9 @@ object ExtendedRecipe {
 
     override def components_=(value: Array[ItemStack]): Unit = {
       _components = value
-      save(stack)
     }
 
-    override def save(stack: ItemStack): Unit = {
+    override def save(stack: ItemStack, provider: HolderLookup.Provider): Unit = {
       data.items = _components.clone()
       data.saveData(stack)
     }

@@ -84,7 +84,7 @@ import li.cil.repack.com.naef.jnlua.JavaReflector.Metamethod;
  * </tr>
  * </table>
  */
-@SuppressWarnings("WeakerAccess")
+@SuppressWarnings({"WeakerAccess", "removal"})
 public class LuaState {
 	// -- Static
 	/**
@@ -300,7 +300,7 @@ public class LuaState {
 		// Create a finalize guardian
 		finalizeGuardian = new Object() {
 			@Override
-			public void finalize() {
+            protected void finalize() {
 				synchronized (LuaState.this) {
 					closeInternal();
 				}
@@ -1135,6 +1135,7 @@ public class LuaState {
 	 * @return whether the values are equal
 	 * @deprecated instead use {@link #compare(int, int, RelOperator)}
 	 */
+	@Deprecated
 	public synchronized boolean equal(int index1, int index2) {
 		return compare(index1, index2, RelOperator.EQ);
 	}
@@ -1148,6 +1149,7 @@ public class LuaState {
 	 * @return the length
 	 * @deprecated instead use {@link #rawLen(int)}
 	 */
+	@Deprecated
 	public synchronized int length(int index) {
 		return rawLen(index);
 	}
@@ -1164,6 +1166,7 @@ public class LuaState {
 	 *         the second index
 	 * @deprecated instead use {@link #compare(int, int, RelOperator)}
 	 */
+	@Deprecated
 	public synchronized boolean lessThan(int index1, int index2)
 			throws LuaMemoryAllocationException, LuaRuntimeException {
 		return compare(index1, index2, RelOperator.LT);
@@ -3109,7 +3112,7 @@ public class LuaState {
 			if (ownDebug) {
 				finalizeGuardian = new Object() {
 					@Override
-					public void finalize() {
+					protected void finalize() {
 						synchronized (LuaDebug.this) {
 							lua_debugfree();
 						}

@@ -1,16 +1,10 @@
 package li.cil.oc.client.gui
 
-import com.mojang.blaze3d.systems.RenderSystem
-import com.mojang.blaze3d.vertex.DefaultVertexFormat
-import com.mojang.blaze3d.vertex.Tesselator
-import com.mojang.blaze3d.vertex.VertexFormat
 import li.cil.oc.Localization
 import li.cil.oc.client.{Textures, PacketSender => ClientPacketSender}
 import li.cil.oc.common.menu
-import li.cil.oc.util.RenderState
 import net.minecraft.client.gui.GuiGraphics
-import net.minecraft.client.gui.components.Button
-import net.minecraft.client.renderer.GameRenderer
+import net.minecraft.client.gui.components.{Button, Tooltip}
 import net.minecraft.core.Direction
 import net.minecraft.network.chat.Component
 import net.minecraft.world.entity.player.Inventory
@@ -111,9 +105,10 @@ class Rack(state: menu.Rack, playerInventory: Inventory, name: Component)
     relayButton = new ImageButton(
       leftPos + 101, topPos + 96, 65, 18,
       (_: Button) => ClientPacketSender.sendRackRelayState(inventoryContainer, !inventoryContainer.isRelayEnabled),
-      Textures.GUI.ButtonRelay,
+      Textures.GUISprites.ButtonRelay,
       Component.literal(Localization.Rack.RelayDisabled),
       textIndent = 18)
+    relayButton.setTooltip(Tooltip.create(Component.literal(Localization.Rack.RelayModeTooltip)))
     addRenderableWidget(relayButton)
 
     val (mw, mh) = hoverMasterSize
@@ -144,11 +139,6 @@ class Rack(state: menu.Rack, playerInventory: Inventory, name: Component)
 
   override def drawSecondaryForegroundLayer(graphics: GuiGraphics, mouseX: Int, mouseY: Int): Unit = {
     super.drawSecondaryForegroundLayer(graphics, mouseX, mouseY)
-    RenderState.pushAttrib()
-
-    RenderSystem.setShaderColor(1, 1, 1, 1)
-    RenderState.makeItBlend()
-    RenderSystem.setShaderTexture(0, Textures.GUI.Rack)
 
     if (inventoryContainer.isRelayEnabled) {
       val (left, top, w, h) = relayModeUVs
@@ -226,21 +216,12 @@ class Rack(state: menu.Rack, playerInventory: Inventory, name: Component)
       tooltip.addAll(Localization.Rack.OrientationTooltip.linesIterator.map(Component.literal).toList.asJava)
       graphics.renderComponentTooltip(font, tooltip, mouseX - leftPos, mouseY - topPos)
     }
-
-    if (relayButton.isMouseOver(mouseX, mouseY)) {
-      val tooltip = new java.util.ArrayList[Component]
-      tooltip.addAll(Localization.Rack.RelayModeTooltip.linesIterator.map(Component.literal).toList.asJava)
-      graphics.renderComponentTooltip(font, tooltip, mouseX - leftPos, mouseY - topPos)
-    }
-
-    RenderState.popAttrib()
   }
 
   override def drawSecondaryBackgroundLayer(graphics: GuiGraphics): Unit = {
-    RenderSystem.setShaderColor(1, 1, 1, 1)
     graphics.blit(Textures.GUI.Rack, leftPos, topPos, 0, 0, imageWidth, imageHeight)
   }
 
   private def drawRect(graphics: GuiGraphics, x: Int, y: Int, w: Int, h: Int, u: Int, v: Int): Unit =
-    graphics.blit(Textures.GUI.Rack, x, y, u, v, w, h, 256, 256)
+    graphics.blit(Textures.GUI.Rack, x, y, u.toFloat, v.toFloat, w, h, 256, 256)
 }

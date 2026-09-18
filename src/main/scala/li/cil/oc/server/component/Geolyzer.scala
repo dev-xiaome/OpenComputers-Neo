@@ -1,7 +1,6 @@
 package li.cil.oc.server.component
 
 import java.util
-
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
@@ -19,18 +18,18 @@ import li.cil.oc.api.network.Message
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
-import li.cil.oc.common.blockentity.{Robot => EntityRobot, Microcontroller}
+import li.cil.oc.common.blockentity.{Microcontroller, Robot => EntityRobot}
 import li.cil.oc.common.entity.{Drone => EntityDrone}
 import li.cil.oc.common.item.TabletWrapper
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.DatabaseAccess
+import li.cil.oc.util.SableCompat
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.ExtendedLevel._
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.core.Direction
-import net.neoforged.neoforge.common.NeoForge
 
 import scala.collection.JavaConverters.mapAsJavaMap
 import scala.collection.convert.ImplicitConversionsToJava._
@@ -41,6 +40,7 @@ import net.minecraft.world.entity.player.Player
 import net.minecraft.world.level.biome.Biome.Precipitation
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Block
+import net.neoforged.neoforge.common.NeoForge
 
 class Geolyzer(val host: EnvironmentHost) extends AbstractManagedEnvironment with traits.LevelControl with DeviceInfo {
   override val node = api.Network.newNode(this, Visibility.Network).
@@ -82,7 +82,9 @@ class Geolyzer(val host: EnvironmentHost) extends AbstractManagedEnvironment wit
 
   private def canSeeSky: Boolean = {
     val blockPos = position.offset(Direction.UP)
-    host.getEnvironmentLevel.dimension != Level.NETHER && host.getEnvironmentLevel.canSeeSky(blockPos.toBlockPos)
+    val physical = SableCompat.physicalPosition(host.getEnvironmentLevel, blockPos.toVec3)
+    val physicalBlockPos = net.minecraft.core.BlockPos.containing(physical)
+    host.getEnvironmentLevel.dimension != Level.NETHER && host.getEnvironmentLevel.canSeeSkyFromBelowWater(physicalBlockPos)
   }
 
   @Callback(doc = """function():boolean -- Returns whether there is a clear line of sight to the sky directly above.""")
@@ -93,10 +95,12 @@ class Geolyzer(val host: EnvironmentHost) extends AbstractManagedEnvironment wit
   @Callback(doc = """function():boolean -- Return whether the sun is currently visible directly above.""")
   def isSunVisible(computer: Context, args: Arguments): Array[AnyRef] = {
     val blockPos = BlockPosition(host).offset(Direction.UP)
+    val physical = SableCompat.physicalPosition(host.getEnvironmentLevel, blockPos.toVec3)
+    val physicalBlockPos = net.minecraft.core.BlockPos.containing(physical)
     result(
       host.getEnvironmentLevel.isDay &&
       canSeeSky &&
-        (host.getEnvironmentLevel.getBiome(blockPos.toBlockPos).value.getPrecipitationAt(blockPos.toBlockPos) == Precipitation.NONE || (!host.getEnvironmentLevel.isRaining && !host.getEnvironmentLevel.isThundering)))
+        (host.getEnvironmentLevel.getBiome(physicalBlockPos).value.getPrecipitationAt(physicalBlockPos) == Precipitation.NONE || (!host.getEnvironmentLevel.isRaining && !host.getEnvironmentLevel.isThundering)))
   }
 
   @Callback(doc = """function(x:number, z:number[, y:number, w:number, d:number, h:number][, ignoreReplaceable:boolean|options:table]):table -- Analyzes the density of the column at the specified relative coordinates.""")

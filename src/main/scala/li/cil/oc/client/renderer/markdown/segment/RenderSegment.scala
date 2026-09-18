@@ -48,11 +48,10 @@ private[markdown] class RenderSegment(val parent: Segment, val title: String, va
     val stack = graphics.pose
 
     stack.pushPose()
-    stack.translate(x + xOffset, y + yOffset, 0)
+    stack.translate((x + xOffset).toFloat, (y + yOffset).toFloat, 0f)
     stack.scale(s, s, s)
 
     RenderSystem.enableBlend()
-    //RenderSystem.enableAlphaTest()
     // Disabled by text rendering above it (default state is disabled).
     RenderSystem.enableDepthTest()
 
@@ -69,8 +68,6 @@ private[markdown] class RenderSegment(val parent: Segment, val title: String, va
     imageRenderer.render(graphics, mouseX - x, mouseY - y)
 
     RenderSystem.disableBlend()
-    //RenderSystem.disableAlphaTest()
-    //RenderSystem.disableLighting()
 
     stack.popPose()
 
@@ -79,6 +76,6 @@ private[markdown] class RenderSegment(val parent: Segment, val title: String, va
 
   override def toString(format: MarkupFormat.Value): String = format match {
     case MarkupFormat.Markdown => s"![$title]($imageRenderer)"
-    case MarkupFormat.IGWMod => "(Sorry, images only work in the OpenComputers manual for now.)" // TODO
+    case MarkupFormat.IGWMod => "(Sorry, images only work in the OpenComputersNeo manual for now.)" // TODO
   }
 }

@@ -2,41 +2,39 @@ package li.cil.oc.common.item
 
 import li.cil.oc.api
 import li.cil.oc.common.block.SimpleBlock
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.BlockPos
+import net.minecraft.world.{InteractionHand, InteractionResult}
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.{Item, ItemStack}
-import net.minecraft.world.level.block.Rotation
-import net.minecraft.world.level.{BlockGetter, Level, LevelReader}
-import net.minecraft.world.{InteractionHand, InteractionResult}
-
-import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent
 import net.minecraft.world.item.Item.Properties
-import net.minecraft.world.level.block.Blocks
+import net.minecraft.world.item.context.UseOnContext
+import net.minecraft.world.level.{Level, LevelReader}
+import net.minecraft.world.level.block.{Block, Rotation}
+import net.neoforged.neoforge.common.extensions.IItemExtension
 
-class Wrench(props: Properties) extends Item(props) with traits.SimpleItem with api.internal.Wrench {
+class Wrench(props: Properties) extends Item(props) with traits.SimpleItem with api.internal.Wrench with IItemExtension {
   override def doesSneakBypassUse(stack: ItemStack, world: LevelReader, pos: BlockPos, player: Player): Boolean = true
 
-  override def onItemUseFirst(stack: ItemStack, player: Player, world: Level, pos: BlockPos, side: Direction, hitX: Float, hitY: Float, hitZ: Float, hand: InteractionHand): InteractionResult = {
-    if (world.isLoaded(pos) && world.mayInteract(player, pos)) {
+  override def onItemUseFirst(stack: ItemStack, ctx: UseOnContext): InteractionResult = {
+    val world = ctx.getLevel
+    val pos = ctx.getClickedPos
+    val player = ctx.getPlayer
+    if (player != null && world.isLoaded(pos) && world.mayInteract(player, pos)) {
       val state = world.getBlockState(pos)
       state.getBlock match {
-        case block: SimpleBlock if block.rotateBlock(world, pos, side) =>
-          // 1.21.1：Forge 的 `BlockState#neighborChanged` 扩展方法已移除，
-          // 改用原版 public 的 `BlockState#handleNeighborChanged`。
-          state.handleNeighborChanged(world, pos, Blocks.AIR, pos, false)
-          player.swing(hand)
-          if (!world.isClientSide) InteractionResult.sidedSuccess(world.isClientSide) else InteractionResult.PASS
+        case block: SimpleBlock if block.rotateBlock(world, pos, ctx.getClickedFace) =>
+          state.onNeighborChange(world, pos, pos)
+          InteractionResult.sidedSuccess(world.isClientSide)
         case _ =>
           val updated = state.rotate(world, pos, Rotation.CLOCKWISE_90)
           if (updated != state) {
-            world.setBlock(pos, updated, 3)
-            player.swing(hand)
-            if (!world.isClientSide) InteractionResult.sidedSuccess(world.isClientSide) else InteractionResult.PASS
+            world.setBlock(pos, updated, Block.UPDATE_ALL)
+            InteractionResult.sidedSuccess(world.isClientSide)
           }
-          else super.onItemUseFirst(stack, player, world, pos, side, hitX, hitY, hitZ, hand)
+          else super.onItemUseFirst(stack, ctx)
       }
     }
-    else super.onItemUseFirst(stack, player, world, pos, side, hitX, hitY, hitZ, hand)
+    else super.onItemUseFirst(stack, ctx)
   }
 
   def useWrenchOnBlock(player: Player, world: Level, pos: BlockPos, simulate: Boolean): Boolean = {

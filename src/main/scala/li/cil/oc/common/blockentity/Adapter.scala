@@ -25,18 +25,20 @@ import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.entity.BlockEntityType
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.sounds.SoundSource
 import net.minecraft.sounds.SoundEvents
 import net.minecraft.nbt.Tag
 import net.minecraft.world.level.block.state.BlockState
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
-import scala.collection.convert.ImplicitConversionsToJava._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 class Adapter(pos: BlockPos, state: BlockState)
   extends BlockEntity(BlockEntityTypes.ADAPTER.get(), pos, state) with traits.Environment with traits.ComponentInventory
-  with traits.Tickable with traits.OpenSides with Analyzable with internal.Adapter with DeviceInfo with MenuProvider {
+  with traits.Tickable with traits.OpenSides with Analyzable with internal.Adapter with DeviceInfo with MenuProvider
+  with IBlockEntityExtension {
 
   val node: Node = api.Network.newNode(this, Visibility.Network).create()
 
@@ -53,7 +55,7 @@ class Adapter(pos: BlockPos, state: BlockState)
     DeviceAttribute.Product -> "Multiplug Ext.1"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -77,7 +79,7 @@ class Adapter(pos: BlockPos, state: BlockState)
     (blocks collect {
       case Some((environment, _)) => environment.node
     }) ++
-    (componentEnvironments collect {
+    (componentSlots collect {
       case Some(environment) => environment.node
     })
   }
@@ -138,7 +140,7 @@ class Adapter(pos: BlockPos, state: BlockState)
                   }
                   blocksData(d.ordinal()) match {
                     case Some(data) if data.name == environment.getClass.getName =>
-                      environment.loadData(data.data)
+                      environment.loadData(data.data, getLevel.registryAccess())
                     case _ =>
                   }
                   blocksData(d.ordinal()) = Some(new BlockData(environment.getClass.getName, new CompoundTag()))
@@ -149,7 +151,7 @@ class Adapter(pos: BlockPos, state: BlockState)
               case Some((environment, driver)) =>
                 // We had something there, but it's gone now...
                 node.disconnect(environment.node)
-                environment.saveData(blocksData(d.ordinal()).get.data)
+                environment.saveData(blocksData(d.ordinal()).get.data, getLevel.registryAccess())
                 Option(environment.node).foreach(_.remove())
                 blocks(d.ordinal()) = None
                 updatingBlocks -= environment
@@ -204,8 +206,8 @@ class Adapter(pos: BlockPos, state: BlockState)
   private final val BlockNameTag = "name"
   private final val BlockDataTag = "data"
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
+  override def loadForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForServer(nbt, provider)
 
     val blocksNbt = nbt.getList(BlocksTag, Tag.TAG_COMPOUND)
     (0 until (blocksNbt.size min blocksData.length)).
@@ -219,8 +221,8 @@ class Adapter(pos: BlockPos, state: BlockState)
       }
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForServer(nbt, provider)
 
     val blocksNbt = new ListTag()
     for (i <- blocks.indices) {
@@ -228,7 +230,7 @@ class Adapter(pos: BlockPos, state: BlockState)
       blocksData(i) match {
         case Some(data) =>
           blocks(i) match {
-            case Some((environment, _)) => environment.saveData(data.data)
+            case Some((environment, _)) => environment.saveData(data.data, provider)
             case _ =>
           }
           blockNbt.putString(BlockNameTag, data.name)

@@ -1,40 +1,29 @@
 package li.cil.oc.common.item.data
 
 import li.cil.oc.Constants
-import li.cil.oc.Settings
-import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.api.ImmutableItemStack
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.nbt.Tag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 class RaidData extends ItemData(Constants.BlockName.Raid) {
-  def this(stack: ItemStack) = {
+  def this(stack: DataComponentHolder) = {
     this()
     loadData(stack)
   }
 
   var disks = Array.empty[ItemStack]
-
-  var filesystem = new CompoundTag()
-
   var label: Option[String] = None
 
-  private final val DisksTag = Settings.namespace + "disks"
-  private final val FileSystemTag = Settings.namespace + "filesystem"
-  private final val LabelTag = Settings.namespace + "label"
-
-  override def loadData(nbt: CompoundTag): Unit = {
-    disks = nbt.getList(DisksTag, Tag.TAG_COMPOUND).
-      toTagArray[CompoundTag].map(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), _))
-    filesystem = nbt.getCompound(FileSystemTag)
-    if (nbt.contains(LabelTag)) {
-      label = Option(nbt.getString(LabelTag))
-    }
+  override def loadData(holder: DataComponentHolder): Unit = {
+    disks = holder.getComponent(OCComponents.COMPONENTS).map(a => a.toArray.map(_.mutableCopy())).getOrElse(Array.empty)
+    label = holder.getComponent(OCComponents.LABEL)
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    nbt.setNewTagList(DisksTag, disks.toIterable)
-    nbt.put(FileSystemTag, filesystem)
-    label.foreach(nbt.putString(LabelTag, _))
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    holder.setComponent(OCComponents.CONTENTS, disks.map(ImmutableItemStack.copyOf).toList)
+    holder.setComponent(OCComponents.LABEL, label)
   }
 }

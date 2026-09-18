@@ -11,10 +11,9 @@ import net.minecraft.client.Minecraft
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.level.block.state.StateDefinition
 import net.minecraft.world.InteractionResult
+import net.minecraft.core.Direction
 import net.minecraft.world.InteractionHand
-import net.minecraft.world.ItemInteractionResult
-import net.minecraft.world.item.ItemStack
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.BlockPos
 import net.minecraft.world.level.block.entity.{BlockEntity, BlockEntityType}
 import net.minecraft.world.phys.BlockHitResult
 import net.minecraft.world.level.Level
@@ -30,16 +29,15 @@ class Waypoint(props: Properties) extends RedstoneAware(props) with traits.Ticka
 
   // ----------------------------------------------------------------------- //
 
-  // 1.21.1：`Block#use(...)` 已拆成 `useItemOn(ItemStack, BlockState, ...)` / `useWithoutItem(...)`。
-  override def useItemOn(stack: ItemStack, state: BlockState, world: Level, pos: BlockPos, player: Player, hand: InteractionHand, trace: BlockHitResult): ItemInteractionResult = {
+  override def useWithoutItem(state: BlockState, world: Level, pos: BlockPos, player: Player, hitResult: BlockHitResult): InteractionResult = {
     if (!player.isCrouching) {
       if (world.isClientSide) world.getBlockEntity(pos) match {
         case t: blockentity.Waypoint => showGui(t)
         case _ =>
       }
-      ItemInteractionResult.sidedSuccess(world.isClientSide)
+      InteractionResult.sidedSuccess(world.isClientSide)
     }
-    else super.useItemOn(stack, state, world, pos, player, hand, trace)
+    else super.useWithoutItem(state, world, pos, player, hitResult)
   }
 
   @OnlyIn(Dist.CLIENT)

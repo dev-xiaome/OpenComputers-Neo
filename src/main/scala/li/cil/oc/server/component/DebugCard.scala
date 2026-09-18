@@ -1,11 +1,11 @@
 package li.cil.oc.server.component
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
 import java.util.UUID
 import java.util.function.Supplier
 import com.google.common.base.Strings
-import li.cil.oc.OpenComputers
+import com.mojang.serialization.Codec
+import com.mojang.serialization.codecs.RecordCodecBuilder
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api.Network
 import li.cil.oc.api.machine.Arguments
@@ -21,6 +21,7 @@ import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.api.prefab.AbstractValue
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.server.PacketSender
 import li.cil.oc.server.network.DebugNetwork
 import li.cil.oc.server.network.DebugNetwork.DebugNode
@@ -30,12 +31,13 @@ import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.ExtendedBlock._
 import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.ExtendedLevel._
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.util.InventoryUtils
-import li.cil.oc.util.RegistryAccessHelper
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.LiquidBlock
 import net.minecraft.commands.CommandSource
 import net.minecraft.commands.CommandSourceStack
+import net.minecraft.core.component.{DataComponentHolder, DataComponents}
 import net.minecraft.world.entity.vehicle.AbstractMinecart
 import net.minecraft.world.entity.{Entity, LivingEntity}
 import net.minecraft.server.level.ServerPlayer
@@ -43,38 +45,35 @@ import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt._
 import net.minecraft.world.scores.criteria.ObjectiveCriteria
-import net.minecraft.world.scores.{ScoreHolder, Scoreboard}
+import net.minecraft.world.scores.Scoreboard
 import net.minecraft.server.MinecraftServer
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.core.Direction
+import net.minecraft.core.{BlockPos, Direction, HolderLookup, Registry}
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.resources.ResourceKey
 import net.minecraft.sounds.SoundSource
-import net.minecraft.core.BlockPos
 import net.minecraft.world.phys.shapes.CollisionContext
 import net.minecraft.world.phys.Vec2
 import net.minecraft.world.phys.Vec3
-import net.minecraft.core.Registry
 import net.minecraft.core.registries.{BuiltInRegistries, Registries}
-import net.minecraft.network.chat.Component
+import net.minecraft.network.chat.{Component, Style}
 import net.minecraft.world.level.{GameType, Level, LevelSettings}
 import net.minecraft.server.level.ServerLevel
 import net.minecraft.world.level.storage.ServerLevelData
-import net.neoforged.neoforge.common.NeoForge
-import net.neoforged.neoforge.common.util.FakePlayer
-import net.neoforged.neoforge.common.util.FakePlayerFactory
+import net.neoforged.neoforge.common.{MutableDataComponentHolder, NeoForge}
+import net.neoforged.neoforge.common.util.{FakePlayer, FakePlayerFactory}
 import net.neoforged.neoforge.fluids.FluidStack
 import net.neoforged.neoforge.fluids.capability.IFluidHandler
 import net.neoforged.fml.ModList
 import net.neoforged.neoforge.server.ServerLifecycleHooks
-import net.minecraft.core.registries.BuiltInRegistries
-import net.minecraft.core.Registry
 
 import scala.collection.JavaConverters.{collectionAsScalaIterable, mapAsScalaMap}
 import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.network.chat.numbers.StyledFormat
 import net.minecraft.world.entity.vehicle.Minecart
+import net.minecraft.world.item.component.CustomData
 import net.neoforged.neoforge.event.level.BlockEvent
 
 class DebugCard(host: EnvironmentHost) extends AbstractManagedEnvironment with DebugNode {
@@ -160,8 +159,7 @@ class DebugCard(host: EnvironmentHost) extends AbstractManagedEnvironment with D
         case 1 => server.getLevel(Level.END)
         case _ => null
       }
-      if (world == null) result(null, "unknown dimension")
-      else result(new DebugCard.WorldValue(world))
+      result(new DebugCard.WorldValue(world))
     }
     else result(new DebugCard.WorldValue(host.getEnvironmentLevel))
   }
@@ -204,7 +202,7 @@ class DebugCard(host: EnvironmentHost) extends AbstractManagedEnvironment with D
       case 0 => server.overworld
       case -1 => server.getLevel(Level.NETHER)
       case 1 => server.getLevel(Level.END)
-      case _ => return result(null, "unknown dimension")
+      case _ => null
     } else host.getEnvironmentLevel
 
     val position: BlockPosition = new BlockPosition(x, y, z, Option(world))
@@ -221,8 +219,7 @@ class DebugCard(host: EnvironmentHost) extends AbstractManagedEnvironment with D
         if (state.isAir()) {
           result(false, "air", block)
         }
-        // NeoForge 1.21.1 移除了 IFluidBlock 接口，改用流体状态判断是否为流体方块。
-        else if (block.isInstanceOf[LiquidBlock] || !state.getFluidState.isEmpty) {
+        else if (block.isInstanceOf[LiquidBlock] || world.isFluidAtPosition(position.toBlockPos, !_.isEmpty)) {
           val event = new BlockEvent.BreakEvent(world, position.toBlockPos, state, fakePlayer)
           NeoForge.EVENT_BUS.post(event)
           result(event.isCanceled, "liquid", block)
@@ -259,10 +256,8 @@ class DebugCard(host: EnvironmentHost) extends AbstractManagedEnvironment with D
     CommandMessages.synchronized {
       CommandMessages = None
       var value = 0
-      // 1.21.1 的 Commands#performPrefixedCommand 返回 void，改用 brigadier 拿到命令返回值。
-      val dispatcher = ServerLifecycleHooks.getCurrentServer.getCommands.getDispatcher
       for (command <- commands) {
-        value = dispatcher.execute(command.toString.stripPrefix("/"), source)
+        value = ServerLifecycleHooks.getCurrentServer.getCommands.getDispatcher.execute(command.toString, source)
       }
       result(value, CommandMessages.orNull)
     }
@@ -370,25 +365,20 @@ class DebugCard(host: EnvironmentHost) extends AbstractManagedEnvironment with D
 
   // ----------------------------------------------------------------------- //
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
-    access = AccessContext.loadData(nbt)
-    if (nbt.contains(Settings.namespace + "remoteX")) {
-      val x = nbt.getInt(Settings.namespace + "remoteX")
-      val y = nbt.getInt(Settings.namespace + "remoteY")
-      val z = nbt.getInt(Settings.namespace + "remoteZ")
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
+    access = AccessContext.loadData(holder)
+
+    for (BlockPosition(x, y, z) <- holder.getComponent(OCComponents.DEBUG_CARD_REMOTE_NODE_POSITION)) {
       remoteNodePosition = Some((x, y, z))
     }
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
-    access.foreach(_.saveData(nbt))
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super.saveData(holder)
+    access.foreach(_.saveData(holder))
     remoteNodePosition.foreach {
-      case (x, y, z) =>
-        nbt.putInt(Settings.namespace + "remoteX", x)
-        nbt.putInt(Settings.namespace + "remoteY", y)
-        nbt.putInt(Settings.namespace + "remoteZ", z)
+      case (x, y, z) => holder.set(OCComponents.DEBUG_CARD_REMOTE_NODE_POSITION, new BlockPos(x, y, z))
     }
   }
 }
@@ -399,26 +389,23 @@ object DebugCard {
       throw new Exception(msg)
 
   object AccessContext {
-    def remove(nbt: CompoundTag): Unit = {
-      nbt.remove(Settings.namespace + "player")
-      nbt.remove(Settings.namespace + "accessNonce")
+    def remove(holder: MutableDataComponentHolder): Unit = {
+      holder.remove(OCComponents.DEBUG_CARD_ACCESS_CONTEXT)
     }
 
-    def loadData(nbt: CompoundTag): Option[AccessContext] = {
-      if (nbt.contains(Settings.namespace + "player"))
-        Some(AccessContext(
-          nbt.getString(Settings.namespace + "player"),
-          nbt.getString(Settings.namespace + "accessNonce")
-        ))
-      else
-        None
+    def loadData(holder: DataComponentHolder): Option[AccessContext] = {
+      holder.getComponent(OCComponents.DEBUG_CARD_ACCESS_CONTEXT)
     }
+
+    val CODEC = RecordCodecBuilder.create[AccessContext](inst => inst.group(
+      Codec.STRING.fieldOf("player").forGetter(_.player),
+      Codec.STRING.fieldOf("nonce").forGetter(_.nonce)
+    ).apply(inst, AccessContext.apply _))
   }
 
   case class AccessContext(player: String, nonce: String) {
-    def saveData(nbt: CompoundTag): Unit = {
-      nbt.putString(Settings.namespace + "player", player)
-      nbt.putString(Settings.namespace + "accessNonce", nonce)
+    def saveData(holder: MutableDataComponentHolder): Unit = {
+      holder.set(OCComponents.DEBUG_CARD_ACCESS_CONTEXT, this)
     }
   }
 
@@ -518,9 +505,9 @@ object DebugCard {
         val amount = args.checkInteger(1)
         args.checkInteger(2) // meta
         val tagJson = args.checkString(3)
-        val tag = if (Strings.isNullOrEmpty(tagJson)) null else TagParser.parseTag(tagJson)
+        val tag = if (Strings.isNullOrEmpty(tagJson)) new CompoundTag() else TagParser.parseTag(tagJson)
         val stack = new ItemStack(item, amount)
-        stack.setTag(tag)
+        CustomData.set(DataComponents.CUSTOM_DATA, stack, tag)
         result(InventoryUtils.addToPlayerInventory(stack, player))
       })
 
@@ -528,15 +515,14 @@ object DebugCard {
 
     private final val NameTag = "name"
 
-    override def loadData(nbt: CompoundTag): Unit = {
-      super.loadData(nbt)
-      ctx = AccessContext.loadData(nbt)
+    override def loadData(holder: DataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+      super.loadData(holder, nbt, provider)
+      ctx = AccessContext.loadData(holder)
       name = nbt.getString(NameTag)
     }
 
-    override def saveData(nbt: CompoundTag): Unit = {
-      super.saveData(nbt)
-      ctx.foreach(_.saveData(nbt))
+    override def saveData(holder: MutableDataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+      super.saveData(holder, nbt, provider)
       nbt.putString(NameTag, name)
     }
   }
@@ -599,7 +585,7 @@ object DebugCard {
       val criteria = ObjectiveCriteria.byName(objType).orElseThrow(new Supplier[IllegalArgumentException] {
         override def get = new IllegalArgumentException("invalid criterion")
       })
-      scoreboard.addObjective(objName, criteria, Component.literal(objName), ObjectiveCriteria.RenderType.INTEGER, false, null)
+      scoreboard.addObjective(objName, criteria, Component.literal(objName), ObjectiveCriteria.RenderType.INTEGER, false, new StyledFormat(Style.EMPTY))
       null
     }
 
@@ -618,8 +604,7 @@ object DebugCard {
       val name = args.checkString(0)
       val objective = scoreboard.getObjective(args.checkString(1))
       val scoreVal = args.checkInteger(2)
-      val score = scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(name), objective)
-      // 1.21.1 的 ScoreAccess 用 set(int) 取代了 setScore(int)。
+      val score = scoreboard.getOrCreatePlayerScore(() => name, objective)
       score.set(scoreVal)
       null
     }
@@ -629,7 +614,7 @@ object DebugCard {
       checkAccess()
       val name = args.checkString(0)
       val objective = scoreboard.getObjective(args.checkString(1))
-      val score = scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(name), objective)
+      val score = scoreboard.getOrCreatePlayerScore(() => name, objective)
       result(score.get)
     }
 
@@ -639,7 +624,7 @@ object DebugCard {
       val name = args.checkString(0)
       val objective = scoreboard.getObjective(args.checkString(1))
       val scoreVal = args.checkInteger(2)
-      val score = scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(name), objective)
+      val score = scoreboard.getOrCreatePlayerScore(() => name, objective)
       score.add(scoreVal)
       null
     }
@@ -650,7 +635,7 @@ object DebugCard {
       val name = args.checkString(0)
       val objective = scoreboard.getObjective(args.checkString(1))
       val scoreVal = args.checkInteger(2)
-      val score = scoreboard.getOrCreatePlayerScore(ScoreHolder.forNameOnly(name), objective)
+      val score = scoreboard.getOrCreatePlayerScore(() => name, objective)
       score.add(-scoreVal)
       null
     }
@@ -660,25 +645,19 @@ object DebugCard {
 
     private final val DimensionTag = "dimension"
 
-    override def loadData(nbt: CompoundTag): Unit = {
-      super.loadData(nbt)
-      ctx = AccessContext.loadData(nbt)
-      val parsedDim = ResourceLocation.tryParse(nbt.getString(DimensionTag))
-      if (parsedDim != null) {
-        dimension = parsedDim
-        val dimKey = ResourceKey.create(Registries.DIMENSION, dimension)
-        val level = ServerLifecycleHooks.getCurrentServer.getLevel(dimKey)
-        if (level != null) scoreboard = level.getScoreboard
-      }
+    override def loadData(holder: DataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+      super.loadData(holder, nbt, provider)
+      ctx = AccessContext.loadData(holder)
+      dimension = ResourceLocation.tryParse(nbt.getString(DimensionTag))
+      val dimKey = ResourceKey.create(Registries.DIMENSION, dimension)
+      scoreboard = ServerLifecycleHooks.getCurrentServer.getLevel(dimKey).getScoreboard
     }
 
-    override def saveData(nbt: CompoundTag): Unit = {
-      super.saveData(nbt)
-      ctx.foreach(_.saveData(nbt))
-      if (dimension != null) nbt.putString(DimensionTag, dimension.toString)
+    override def saveData(holder: MutableDataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+      super.saveData(holder, nbt, provider)
+      nbt.putString(DimensionTag, dimension.toString)
     }
   }
-
 
   class WorldValue(var world: Level)(implicit var ctx: Option[AccessContext]) extends prefab.AbstractValue {
     def this() = this(null)(None) // For loading.
@@ -686,14 +665,14 @@ object DebugCard {
     // ----------------------------------------------------------------------- //
 
     @Deprecated
-    @Callback(doc = """function():number -- Gets the numeric id of the current dimension. Returns 0/−1/1 for vanilla dimensions; for modded dimensions returns a hash of the resource location. Use getDimension() for a stable string identifier.""")
+    @Callback(doc = """function():number -- Gets the numeric id of the current dimension.""")
     def getDimensionId(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
       world.dimension match {
         case Level.OVERWORLD => result(Int.box(0))
         case Level.NETHER => result(Int.box(-1))
         case Level.END => result(Int.box(1))
-        case dim => result(Int.box(dim.location().hashCode()))
+        case _ => throw new Error("deprecated")
       }
     }
 
@@ -758,9 +737,8 @@ object DebugCard {
     @Callback(doc = """function():number, number, number -- Get the current spawn point coordinates.""")
     def getSpawnPoint(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      // 1.21.1 用 LevelData#getSpawnPos 取代了 getXSpawn/getYSpawn/getZSpawn。
-      val spawn = world.getLevelData.getSpawnPos
-      result(spawn.getX, spawn.getY, spawn.getZ)
+      val pos = world.getLevelData.getSpawnPos
+      result(pos.getX, pos.getY, pos.getZ)
     }
 
     @Callback(doc = """function(x:number, y:number, z:number) -- Set the spawn point coordinates.""")
@@ -770,8 +748,7 @@ object DebugCard {
       val y = args.checkInteger(1)
       val z = args.checkInteger(2)
       val info = world.getLevelData.asInstanceOf[ServerLevelData]
-      // 1.21.1 用 setSpawn(BlockPos, angle) 取代了 setXSpawn/setYSpawn/setZSpawn。
-      info.setSpawn(new BlockPos(x, y, z), world.getLevelData.getSpawnAngle)
+      info.setSpawn(new BlockPos(x, y, z), 0)
       null
     }
 
@@ -829,12 +806,17 @@ object DebugCard {
       result(state.hasBlockEntity)
     }
 
+    // OC1 compatibility alias for the pre-1.17 Minecraft terminology.
+    @Callback(doc = """function(x:number, y:number, z:number):number -- Alias for hasBlockEntity.""")
+    def hasTileEntity(context: Context, args: Arguments): Array[AnyRef] =
+      hasBlockEntity(context, args)
+
     @Callback(doc = """function(x:number, y:number, z:number):table -- Get the NBT of the block at the specified coordinates.""")
     def getTileNBT(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
       val blockPos = new BlockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
       world.getBlockEntity(blockPos) match {
-        case tileEntity: BlockEntity => result(tileEntity.saveWithFullMetadata(RegistryAccessHelper.getOrEmpty()).toTypedMap)
+        case tileEntity: BlockEntity => result(toNbt(nbt => tileEntity.saveWithFullMetadata(world.registryAccess())).toTypedMap)
         case _ => null
       }
     }
@@ -848,12 +830,11 @@ object DebugCard {
         case tileEntity: BlockEntity =>
           typedMapToNbt(mapAsScalaMap(args.checkTable(3)).toMap) match {
             case nbt: CompoundTag =>
-              // 1.21.1 用 loadWithComponents(tag, provider) 取代了 BlockEntity#load。
-              tileEntity.loadWithComponents(nbt, RegistryAccessHelper.getOrEmpty())
+              tileEntity.loadWithComponents(nbt, world.registryAccess())
               tileEntity.setChanged()
               world.notifyBlockUpdate(blockPos)
               result(true)
-            case nbt => result((), s"nbt tag COMPOUND expected, got '${nbt.getType.getName}'")
+            case nbt => result((), s"nbt tag COMPOUND expected, got 'nbt.getType.getName'")
           }
         case _ => result((), "no tile entity")
       }
@@ -876,7 +857,7 @@ object DebugCard {
     @Callback(doc = """function(x:number, y:number, z:number):number -- Get whether the block at the specified coordinates is directly under the sky.""")
     def canSeeSky(context: Context, args: Arguments): Array[AnyRef] = {
       checkAccess()
-      result(world.canSeeSky(new BlockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))))
+      result(world.canSeeSkyFromBelowWater(new BlockPos(args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))))
     }
 
     @Deprecated
@@ -900,7 +881,7 @@ object DebugCard {
       checkAccess()
       val (xMin, yMin, zMin) = (args.checkInteger(0), args.checkInteger(1), args.checkInteger(2))
       val (xMax, yMax, zMax) = (args.checkInteger(3), args.checkInteger(4), args.checkInteger(5))
-      val block = BuiltInRegistries.BLOCK.get(ResourceLocation.tryParse(args.checkString(6)))
+      val block = BuiltInRegistries.BLOCK.get(ResourceLocation.tryParse(args.checkString(3)))
       val metadata = args.checkInteger(7)
       for (x <- math.min(xMin, xMax) to math.max(xMin, xMax)) {
         for (y <- math.min(yMin, yMax) to math.max(yMin, yMax)) {
@@ -925,13 +906,13 @@ object DebugCard {
       val count = args.checkInteger(1)
       val damage = args.checkInteger(2)
       val tagJson = args.optString(3, "")
-      val tag = if (Strings.isNullOrEmpty(tagJson)) null else TagParser.parseTag(tagJson)
+      val tag = if (Strings.isNullOrEmpty(tagJson)) new CompoundTag() else TagParser.parseTag(tagJson)
       val position = BlockPosition(args.checkDouble(4), args.checkDouble(5), args.checkDouble(6), world)
       val side = args.checkSideAny(7)
       InventoryUtils.inventoryAt(position, side) match {
         case Some(inventory) =>
           val stack = new ItemStack(item, count)
-          stack.setTag(tag)
+          CustomData.set(DataComponents.CUSTOM_DATA, stack, tag)
           stack.setDamageValue(damage)
           result(InventoryUtils.insertIntoInventory(stack, inventory))
         case _ => result((), "no inventory")
@@ -986,20 +967,16 @@ object DebugCard {
 
     private final val DimensionTag = "dimension"
 
-    override def loadData(nbt: CompoundTag): Unit = {
-      super.loadData(nbt)
-      ctx = AccessContext.loadData(nbt)
-      val dimensionLoc = ResourceLocation.tryParse(nbt.getString(DimensionTag))
-      if (dimensionLoc != null) {
-        val dimKey = ResourceKey.create(Registries.DIMENSION, dimensionLoc)
-        val level = ServerLifecycleHooks.getCurrentServer.getLevel(dimKey)
-        if (level != null) world = level
-      }
+    override def loadData(holder: DataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+      super.loadData(holder, nbt, provider)
+      ctx = AccessContext.loadData(holder)
+      val dimension = ResourceLocation.tryParse(nbt.getString(DimensionTag))
+      val dimKey = ResourceKey.create(Registries.DIMENSION, dimension)
+      world = ServerLifecycleHooks.getCurrentServer.getLevel(dimKey)
     }
 
-    override def saveData(nbt: CompoundTag): Unit = {
-      super.saveData(nbt)
-      ctx.foreach(_.saveData(nbt))
+    override def saveData(holder: MutableDataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+      super.saveData(holder, nbt, provider)
       nbt.putString(DimensionTag, world.dimension.location.toString)
     }
   }
@@ -1008,36 +985,35 @@ object DebugCard {
     var value = "hello"
 
     override def apply(context: Context, arguments: Arguments): AnyRef = {
-      OpenComputers.log.info("TestValue.apply(" + arguments.toArray.mkString(", ") + ")")
+      OpenComputersNeo.log.info("TestValue.apply(" + arguments.toArray.mkString(", ") + ")")
       value
     }
 
     override def unapply(context: Context, arguments: Arguments): Unit = {
-      OpenComputers.log.info("TestValue.unapply(" + arguments.toArray.mkString(", ") + ")")
+      OpenComputersNeo.log.info("TestValue.unapply(" + arguments.toArray.mkString(", ") + ")")
       value = arguments.checkString(1)
     }
 
     override def call(context: Context, arguments: Arguments): Array[AnyRef] = {
-      OpenComputers.log.info("TestValue.call(" + arguments.toArray.mkString(", ") + ")")
+      OpenComputersNeo.log.info("TestValue.call(" + arguments.toArray.mkString(", ") + ")")
       result(arguments.toArray: _*)
     }
 
     override def dispose(context: Context): Unit = {
       super.dispose(context)
-      OpenComputers.log.info("TestValue.dispose()")
+      OpenComputersNeo.log.info("TestValue.dispose()")
     }
 
     private final val ValueTag = "value"
 
-    override def loadData(nbt: CompoundTag): Unit = {
-      super.loadData(nbt)
+    override def loadData(holder: DataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+      super.loadData(holder, nbt, provider)
       value = nbt.getString(ValueTag)
     }
 
-    override def saveData(nbt: CompoundTag): Unit = {
-      super.saveData(nbt)
+    override def saveData(holder: MutableDataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+      super.saveData(holder, nbt, provider)
       nbt.putString(ValueTag, value)
     }
   }
-
 }

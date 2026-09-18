@@ -1,4 +1,4 @@
-package li.cil.oc.integration.opencomputers
+package li.cil.oc.integration.OpenComputersNeo
 
 import li.cil.oc.Constants
 import li.cil.oc.api
@@ -14,7 +14,6 @@ object DriverAPU extends DriverCPU with HostAware {
   override def worksWith(stack: ItemStack) = isOneOf(stack,
     api.Items.get(Constants.ItemName.APUTier1),
     api.Items.get(Constants.ItemName.APUTier2),
-    api.Items.get(Constants.ItemName.APUTier3),
     api.Items.get(Constants.ItemName.APUCreative))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) =

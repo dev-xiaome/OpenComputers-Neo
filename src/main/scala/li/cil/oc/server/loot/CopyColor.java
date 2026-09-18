@@ -2,8 +2,6 @@ package li.cil.oc.server.loot;
 
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
-
-import java.util.List;
 import li.cil.oc.api.internal.Colored;
 import li.cil.oc.util.ItemColorizer;
 import net.minecraft.world.item.ItemStack;
@@ -13,11 +11,14 @@ import net.minecraft.world.level.storage.loot.functions.LootItemConditionalFunct
 import net.minecraft.world.level.storage.loot.functions.LootItemFunctionType;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.level.storage.loot.predicates.LootItemCondition;
+import org.jetbrains.annotations.NotNull;
 
-/// 见 [SetColor]：1.21.1 的 loot function 改用 codec 序列化。
+import java.util.List;
+
 public final class CopyColor extends LootItemConditionalFunction {
-    public static final MapCodec<CopyColor> CODEC = RecordCodecBuilder.mapCodec(inst ->
-            commonFields(inst).apply(inst, CopyColor::new));
+    public static final MapCodec<CopyColor> CODEC = RecordCodecBuilder.mapCodec(
+            instance -> commonFields(instance).apply(instance, CopyColor::new)
+    );
 
     private CopyColor(List<LootItemCondition> conditions) {
         super(conditions);
@@ -33,13 +34,18 @@ public final class CopyColor extends LootItemConditionalFunction {
     }
 
     @Override
-    protected ItemStack run(ItemStack stack, LootContext ctx) {
+    public @NotNull ItemStack run(ItemStack stack, @NotNull LootContext ctx) {
         if (stack.isEmpty()) return stack;
 
         BlockEntity be = ctx.getParamOrNull(LootContextParams.BLOCK_ENTITY);
 
         if (be instanceof Colored colored) {
-            ItemColorizer.setColor(stack, colored.getColor());
+            int color = colored.getColor();
+            if (color == 0xABABAB) {
+                ItemColorizer.removeColor(stack);
+            } else {
+                ItemColorizer.setColor(stack, color);
+            }
         } else {
             ItemColorizer.removeColor(stack);
         }

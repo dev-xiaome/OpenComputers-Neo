@@ -77,7 +77,7 @@ public interface Arguments extends Iterable<Object> {
      * @return the long value at the specified index.
      * @throws IllegalArgumentException if there is no argument at that index,
      *                                  or if the argument is not a number.
-     * @since OpenComputers 1.8.0
+     * @since OpenComputersNeo 1.8.0
      */
     long checkLong(int index);
 
@@ -210,7 +210,7 @@ public interface Arguments extends Iterable<Object> {
      * @param index the index from which to get the argument.
      * @return the long value at the specified index.
      * @throws IllegalArgumentException if the argument exists but is not a number.
-     * @since OpenComputers 1.8.0
+     * @since OpenComputersNeo 1.8.0
      */
     long optLong(int index, long def);
 

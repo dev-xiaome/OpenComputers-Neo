@@ -1,13 +1,12 @@
 package li.cil.oc.api.event;
 
-import net.neoforged.bus.api.ICancellableEvent;
-
 import li.cil.oc.api.internal.Agent;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
+import net.neoforged.bus.api.ICancellableEvent;
 
-public abstract class RobotPlaceBlockEvent extends RobotEvent implements ICancellableEvent {
+public abstract class RobotPlaceBlockEvent extends RobotEvent {
     /**
      * The item that is used to place the block.
      */
@@ -35,7 +34,7 @@ public abstract class RobotPlaceBlockEvent extends RobotEvent implements ICancel
      * <br>
      * Canceling this event will prevent the block from being placed.
      */
-    public static class Pre extends RobotPlaceBlockEvent {
+    public static class Pre extends RobotPlaceBlockEvent implements ICancellableEvent {
         public Pre(Agent agent, ItemStack stack, Level world, BlockPos pos) {
             super(agent, stack, world, pos);
         }

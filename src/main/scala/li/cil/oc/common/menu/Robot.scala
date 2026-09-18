@@ -5,8 +5,8 @@ import li.cil.oc.client.Textures
 import li.cil.oc.common
 import li.cil.oc.common.ComponentTracker
 import li.cil.oc.common.blockentity
-import li.cil.oc.integration.opencomputers.DriverKeyboard
-import li.cil.oc.integration.opencomputers.DriverScreen
+import li.cil.oc.integration.OpenComputersNeo.DriverKeyboard
+import li.cil.oc.integration.OpenComputersNeo.DriverScreen
 import li.cil.oc.util.SideTracker
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
@@ -19,7 +19,7 @@ import net.minecraft.world.inventory.DataSlot
 import net.minecraft.resources.ResourceLocation
 
 object RobotInfo {
-  def getScreenBuffer(robot: blockentity.Robot): Option[String] = robot.componentEnvironments.collectFirst {
+  def getScreenBuffer(robot: blockentity.Robot): Option[String] = robot.componentSlots.collectFirst {
     case Some(buffer: api.internal.TextBuffer) if buffer.node != null => buffer.node.address
   }
 

@@ -3,7 +3,7 @@ package li.cil.oc.common.component.traits
 import li.cil.oc.util
 import li.cil.oc.api
 import li.cil.oc.api.internal.TextBuffer
-import li.cil.oc.util.{ExtendedUnicodeHelper, PackedColor}
+import li.cil.oc.util.{FontUtils, PackedColor}
 
 trait TextBufferProxy extends api.internal.TextBuffer {
   def data: util.TextBuffer
@@ -81,27 +81,52 @@ trait TextBufferProxy extends api.internal.TextBuffer {
 
   def onBufferSet(col: Int, row: Int, s: String, vertical: Boolean): Unit = {}
 
-  private def truncate(s: String, sLength: Int, leftOffset: Int, maxWidth: Int): String = {
-    val subFrom = s.offsetByCodePoints(0, leftOffset)
-    val width = math.min(sLength, maxWidth)
-    if (width <= 0) ""
-    else if ((sLength - leftOffset) <= width) s
-    else s.substring(subFrom, s.offsetByCodePoints(subFrom, width))
+  private def truncate(s: String, leftOffset: Int, maxWidth: Int, vertical: Boolean): String = {
+    if (maxWidth <= 0) return ""
+
+    def cellWidth(codePoint: Int): Int = {
+      val unicodeWidth = FontUtils.wcwidth(codePoint)
+      if (unicodeWidth == 0) 0
+      else if (vertical) 1
+      else unicodeWidth
+    }
+
+    var start = 0
+    var skipped = 0
+    while (start < s.length && skipped < leftOffset) {
+      skipped += cellWidth(s.codePointAt(start))
+      start = s.offsetByCodePoints(start, 1)
+    }
+
+    var end = start
+    var width = 0
+    var done = false
+    while (end < s.length && !done) {
+      val codePoint = s.codePointAt(end)
+      val charWidth = cellWidth(codePoint)
+      if (charWidth > 0 && width + charWidth > maxWidth) {
+        done = true
+      }
+      else {
+        width += charWidth
+        end = s.offsetByCodePoints(end, 1)
+      }
+    }
+    s.substring(start, end)
   }
 
   def set(col: Int, row: Int, s: String, vertical: Boolean): Unit = {
-    val sLength = ExtendedUnicodeHelper.length(s)
-    if (col < data.width && (col >= 0 || -col < sLength)) {
+    if (col < data.width) {
       // Make sure the string isn't longer than it needs to be, in particular to
       // avoid sending too much data to our clients.
       val (x, y, truncated) =
       if (vertical) {
-        if (row < 0) (col, 0, truncate(s, sLength, -row, data.height))
-        else (col, row, truncate(s, sLength, 0, data.height - row))
+        if (row < 0) (col, 0, truncate(s, -row, data.height, vertical = true))
+        else (col, row, truncate(s, 0, data.height - row, vertical = true))
       }
       else {
-        if (col < 0) (0, row, truncate(s, sLength, -col, data.width))
-        else (col, row, truncate(s, sLength, 0, data.width - col))
+        if (col < 0) (0, row, truncate(s, -col, data.width, vertical = false))
+        else (col, row, truncate(s, 0, data.width - col, vertical = false))
       }
       if (data.set(x, y, truncated, vertical))
         onBufferSet(x, row, truncated, vertical)
@@ -148,8 +173,6 @@ trait TextBufferProxy extends api.internal.TextBuffer {
     }
   }
 
-  // 1.21.1：`util.TextBuffer` 的颜色表是公开的 `var color: Array[Array[Int]]`
-  // （OCCE 的 Java 版把它藏在 `setColor(int)` 后面），读写都直接走 `data.color`。
   override def rawSetForeground(col: Int, row: Int, color: Array[Array[Int]]): Unit = {
     for (y <- row until ((row + color.length) min data.height)) {
       val line = color(y - row)
@@ -178,4 +201,3 @@ trait TextBufferProxy extends api.internal.TextBuffer {
     else data.color(row)(column)
   }
 }
-

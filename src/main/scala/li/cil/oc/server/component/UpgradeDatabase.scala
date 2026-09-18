@@ -20,6 +20,7 @@ import li.cil.oc.util.ItemUtils
 import li.cil.oc.util.StackOption
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.Container
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 
 import scala.collection.convert.ImplicitConversionsToJava._
 
@@ -53,7 +54,7 @@ class UpgradeDatabase(val data: Container) extends AbstractManagedEnvironment wi
   def computeHash(context: Context, args: Arguments): Array[AnyRef] = {
     data.getItem(args.checkSlot(data, 0)) match {
       case stack: ItemStack =>
-        val hash = Hashing.sha256().hashBytes(ItemUtils.saveStack(stack))
+        val hash = Hashing.sha256().hashBytes(ItemUtils.saveStack(stack, ServerLifecycleHooks.getCurrentServer.registryAccess()))
         result(hash.toString)
       case _ => null
     }
@@ -99,7 +100,7 @@ class UpgradeDatabase(val data: Container) extends AbstractManagedEnvironment wi
   private def indexOf(needle: String, offset: Int = 0): Int = {
     for (slot <- 0 until data.getContainerSize) data.getItem(slot) match {
       case stack: ItemStack =>
-        val hash = Hashing.sha256().hashBytes(ItemUtils.saveStack(stack))
+        val hash = Hashing.sha256().hashBytes(ItemUtils.saveStack(stack, ServerLifecycleHooks.getCurrentServer.registryAccess()))
         if (hash.toString == needle) return slot + offset
       case _ =>
     }

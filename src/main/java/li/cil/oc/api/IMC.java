@@ -1,11 +1,17 @@
 package li.cil.oc.api;
 
+import net.minecraft.core.HolderLookup;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.fml.InterModComms;
 import org.apache.commons.lang3.tuple.Pair;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.Objects;
 
 /**
  * This is a pure utility class to more comfortably register things that can
@@ -15,7 +21,7 @@ import org.apache.commons.lang3.tuple.Pair;
  * safely use the API without class not found exceptions and such, and don't
  * want to put together the IMC messages manually.
  * <br>
- * This also servers to document of all IMC messages OpenComputers handles.
+ * This also servers to document of all IMC messages OpenComputersNeo handles.
  * <br>
  * Feel free to copy these functions into your own code, just please don't
  * copy this class while keeping the package name, to avoid conflicts if this
@@ -290,7 +296,7 @@ public final class IMC {
      * This is used by the charger to determine whether items can be charged
      * by it ({@code canCharge}) and to actually charge them ({@code charge}).
      * <br>
-     * Note that OpenComputers comes with a few built-in handlers for third-
+     * Note that OpenComputersNeo comes with a few built-in handlers for third-
      * party charged items, such as Redstone Flux and IndustrialCraft 2.
      * <br>
      * Signature of callbacks must be:
@@ -317,7 +323,7 @@ public final class IMC {
     /**
      * Register a provider for ink usable in the 3D printer.
      * <br>
-     * Default providers in OpenComputers are one for the ink cartridges as
+     * Default providers in OpenComputersNeo are one for the ink cartridges as
      * well as one for arbitrary dyes (via the OreDictionary).
      * <br>
      * Use this to make other items usable as ink in the 3D printer. Return a
@@ -339,7 +345,7 @@ public final class IMC {
     }
 
     /**
-     * Blacklist a ComputerCraft peripheral from being wrapped by OpenComputers'
+     * Blacklist a ComputerCraft peripheral from being wrapped by OpenComputersNeo'
      * built-in driver for ComputerCraft peripherals.
      * <br>
      * Use this if you provide a driver for something that is a peripheral and
@@ -366,12 +372,14 @@ public final class IMC {
      * @param host  the class of the host to blacklist the component for.
      * @param stack the item stack representing the blacklisted component.
      */
-    public static void blacklistHost(final String name, final Class host, final ItemStack stack) {
+    public static void blacklistHost(final String name, final Class<?> host, final ItemStack stack) {
         final CompoundTag nbt = new CompoundTag();
         nbt.putString("name", name);
         nbt.putString("host", host.getName());
         final CompoundTag stackNbt = new CompoundTag();
-        stack.save(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), stackNbt);
+        stackNbt.putString("id", Objects.requireNonNull(stack.getItemHolder().getKey()).location().toString());
+        stackNbt.putByte("count", (byte) stack.getCount());
+        stackNbt.put("components", DataComponentPatch.CODEC.encode(stack.getComponentsPatch(), NbtOps.INSTANCE, new CompoundTag()).getOrThrow());
         nbt.put("item", stackNbt);
         InterModComms.sendTo(MOD_ID, BLACKLIST_HOST, () -> nbt);
     }

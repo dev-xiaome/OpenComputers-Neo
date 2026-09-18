@@ -1,9 +1,0 @@
-{
-    "parent": "block/orientable",
-    "textures": {
-        "top": "opencomputers_neo:block/microcontroller_top",
-        "bottom": "opencomputers_neo:block/microcontroller_top",
-        "side": "opencomputers_neo:block/microcontroller_side",
-        "front": "opencomputers_neo:block/microcontroller_front"
-    }
-}

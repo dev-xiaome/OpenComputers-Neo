@@ -1,71 +1,52 @@
 package li.cil.oc.common
 
-import li.cil.oc.api.audio.AudioReceiver
+import li.cil.oc.common.datacomponents.OCComponents
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.level.Level
-import net.minecraft.world.level.chunk.{ChunkAccess, LevelChunk}
+import net.minecraft.world.level.chunk.LevelChunk
 import net.minecraft.world.phys.AABB
+import net.neoforged.bus.api.SubscribeEvent
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent
+import net.neoforged.neoforge.client.event.{ClientPlayerNetworkEvent, ClientTickEvent}
+import net.neoforged.neoforge.common.util.FakePlayer
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent
-import net.neoforged.neoforge.event.level.{BlockEvent, ChunkEvent, LevelEvent}
+import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent
+import net.neoforged.neoforge.event.entity.player.PlayerEvent._
+import net.neoforged.neoforge.event.level.{BlockEvent, ChunkEvent, ChunkWatchEvent, LevelEvent}
+import net.neoforged.neoforge.event.tick.ServerTickEvent
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 
 import java.util.Calendar
 
-//import appeng.api.networking.IGridBlock
-//import appeng.api.util.AEPartLocation
 import li.cil.oc._
 import li.cil.oc.api.Network
 import li.cil.oc.api.detail.ItemInfo
-import li.cil.oc.api.internal.Colored
-import li.cil.oc.api.internal.Rack
-import li.cil.oc.api.internal.Server
+import li.cil.oc.api.internal.{Rack, Server}
 import li.cil.oc.api.machine.MachineHost
-import li.cil.oc.api.network.Environment
-import li.cil.oc.api.network.SidedComponent
-import li.cil.oc.api.network.SidedEnvironment
 import li.cil.oc.client.renderer.PetRenderer
-import li.cil.oc.common.capabilities._
-import li.cil.oc.common.component.TerminalServer
-import li.cil.oc.common.item.data.MicrocontrollerData
-import li.cil.oc.common.item.data.RobotData
-import li.cil.oc.common.item.data.TabletData
-import li.cil.oc.common.item.traits
 import li.cil.oc.common.blockentity.Robot
-import li.cil.oc.common.blockentity.traits.power
-import li.cil.oc.integration.Mods
+import li.cil.oc.common.component.TerminalServer
+import li.cil.oc.common.item.data.{MicrocontrollerData, RobotData, TabletData}
 import li.cil.oc.integration.util
 import li.cil.oc.server.component.Keyboard
-import li.cil.oc.server.machine.Callbacks
-import li.cil.oc.server.machine.Machine
+import li.cil.oc.server.machine.luac.LuaStateFactory
+import li.cil.oc.server.machine.{Callbacks, Machine}
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.ExtendedLevel._
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.util.StackOption._
 import li.cil.oc.util._
-import net.minecraft.sounds.SoundEvents
+import net.minecraft.server.level.{ChunkHolder, ServerLevel, ServerPlayer}
+import net.minecraft.sounds.{SoundEvents, SoundSource}
+import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.ItemStack
-import net.minecraft.Util
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent
-import net.neoforged.neoforge.client.event.ScreenEvent
-import net.minecraft.client.Minecraft
-import net.neoforged.neoforge.common.util.FakePlayer
-import net.neoforged.neoforge.client.event.ClientTickEvent
-import net.neoforged.neoforge.event.tick.ServerTickEvent
-import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent
-import net.neoforged.neoforge.event.entity.player.PlayerEvent._
-import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.neoforge.server.ServerLifecycleHooks
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.neoforged.api.distmarker.{Dist, OnlyIn}
 
-import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.server.level.ServerPlayer
-import net.minecraft.world.entity.player.Player
-import net.minecraft.sounds.SoundSource
-import net.minecraft.server.level.ServerLevel
-import net.minecraft.server.level.ChunkHolder
+import scala.jdk.CollectionConverters._
 
 object EventHandler {
   private var serverTicks = 0L
@@ -115,14 +96,6 @@ object EventHandler {
     }
   }
 
-  //object AE2 {
-  //  def scheduleAE2Add(tileEntity: power.AppliedEnergistics2): Unit = {
-  //    if (SideTracker.isServer) pendingServer.synchronized {
-  //      pendingServer += (() => tileEntity.updateGridNodeState())
-  //    }
-  //  }
-  //}
-
   def scheduleWirelessRedstone(rs: server.component.RedstoneWireless): Unit = {
     if (SideTracker.isServer) pendingServer.synchronized {
       pendingServer += (() => if (rs.node.network != null) {
@@ -132,30 +105,23 @@ object EventHandler {
     }
   }
 
-  // 1.21.1 移除：原 `onAttachCapabilitiesItemStack` / `onAttachCapabilities`
-  // （`AttachCapabilitiesEvent[ItemStack]` / `AttachCapabilitiesEvent[BlockEntity]`）。
-  //
-  // NeoForge 1.21 把 Forge 1.20 的 `AttachCapabilitiesEvent` 整套删掉了：能力不再由
-  // 事件逐实例挂载，而是在 `RegisterCapabilitiesEvent` 里按「类型 + 谓词」注册提供者。
-  // 因此这两个监听器在本版已无对应事件，能力注册改由
-  // [[li.cil.oc.common.capabilities.Capabilities.onRegisterCapabilities]] 承担
-  // （主类里 `modBus.register(Capabilities)`）。
+  def onRegisterCapabilities(event: RegisterCapabilitiesEvent): Unit = {
+    // FUCK YOU SCALA
+    // ITS FUCKING SHITTY LANGUAGE EVER
+    EventHandlerHelper.registerCapabilities(event)
 
-  /**
-   * 服务端 tick 前半段（对应 1.20 Forge 的 `TickEvent.Phase.START`）。
-   *
-   * NeoForge 1.21 把 `TickEvent` 拆成了 `ServerTickEvent.Pre` / `ServerTickEvent.Post`，
-   * 不再有 `phase` 字段，所以原先的单个 `onServerTick` 必须拆成两个方法。
-   */
+    integration.neoforge.EventHandlerNeoForge.onRegisterCapabilities(event)
+  }
+
   @SubscribeEvent
-  def onServerTickPre(e: ServerTickEvent.Pre): Unit = {
+  def onServerTickPre(e: ServerTickEvent.Pre): Any = {
     pendingServer.synchronized {
       val adds = pendingServer.toArray
       pendingServer.clear()
       adds
     } foreach (callback => {
       try callback() catch {
-        case t: Throwable => OpenComputers.log.warn("Error in scheduled tick action.", t)
+        case t: Throwable => OpenComputersNeo.log.warn("Error in scheduled tick action.", t)
       }
     })
 
@@ -163,7 +129,7 @@ object EventHandler {
     while (pendingServerTimed.nonEmpty && pendingServerTimed.head._1 < serverTicks) {
       val (_, callback) = pendingServerTimed.dequeue()
       try callback() catch {
-        case t: Throwable => OpenComputers.log.warn("Error in scheduled tick action.", t)
+        case t: Throwable => OpenComputersNeo.log.warn("Error in scheduled tick action.", t)
       }
     }
 
@@ -175,7 +141,6 @@ object EventHandler {
     runningRobots --= invalid
   }
 
-  /** 服务端 tick 后半段（对应 1.20 Forge 的 `TickEvent.Phase.END`）。 */
   @SubscribeEvent
   def onServerTickPost(e: ServerTickEvent.Post): Unit = {
     // Clean up machines *after* a tick, to allow stuff to be saved, first.
@@ -190,35 +155,6 @@ object EventHandler {
   }
 
   @SubscribeEvent
-  @OnlyIn(Dist.CLIENT)
-  def onScreenOpening(e: ScreenEvent.Opening): Unit = {
-    if (e.getScreen.isPauseScreen) {
-      setSinglePlayerPause(true)
-    }
-  }
-
-  @SubscribeEvent
-  @OnlyIn(Dist.CLIENT)
-  def onScreenClosing(e: ScreenEvent.Closing): Unit = {
-    if (e.getScreen.isPauseScreen) {
-      setSinglePlayerPause(false)
-      pendingClient.synchronized {
-        pendingClient += { () =>
-          if (!Minecraft.getInstance.isPaused) {
-            setSinglePlayerPause(false)
-          }
-        }
-      }
-    }
-  }
-
-  private def setSinglePlayerPause(paused: Boolean): Unit = {
-    if (paused != SinglePlayerPause.isPaused) {
-      SinglePlayerPause.isPaused = paused
-    }
-  }
-
-  @SubscribeEvent
   def onClientTick(e: ClientTickEvent.Pre): Unit = {
     pendingClient.synchronized {
       val adds = pendingClient.toArray
@@ -226,29 +162,28 @@ object EventHandler {
       adds
     } foreach (callback => {
       try callback() catch {
-        case t: Throwable => OpenComputers.log.warn("Error in scheduled tick action.", t)
+        case t: Throwable => OpenComputersNeo.log.warn("Error in scheduled tick action.", t)
       }
     })
   }
 
   @SubscribeEvent
-  def playerLoggedIn(e: PlayerLoggedInEvent): Unit = {
+  def onPlayerLoggedIn(e: PlayerLoggedInEvent): Unit = {
     if (SideTracker.isServer) e.getEntity match {
       case _: FakePlayer => // Nope
       case player: ServerPlayer =>
-        // 1.21.1 移除：原实现会在原生 Lua 不可用时提示「已回退到 LuaJ」。
-        // 原生 Lua（`server/machine/luac`）已整体移出编译集（见 `src/main/scala-pending`），
-        // 本版只有 LuaJ 一种架构，因此这条告警不再有意义。
-        // Gaaah, MC 1.8 y u do this to me? Sending the packets here directly can lead to them
-        // arriving on the client before it has a world and player instance, which causes all
-        // sorts of trouble. It worked perfectly fine in MC 1.7.10... oSWDEG'PIl;dg'poinEG\a'pi=
+        if (!LuaStateFactory.isAvailable && !LuaStateFactory.luajRequested) {
+          player.sendSystemMessage(Localization.Chat.WarningLuaFallback)
+        }
+        // Defer these packets until the client has a world and player instance.
         EventHandler.scheduleServer(() => {
           ServerPacketSender.sendPetVisibility(None, Some(player))
           ServerPacketSender.sendLootDisks(player)
+          ServerPacketSender.sendLootEEPROMs(player)
         })
         // Do update check in local games and for OPs.
         val server = ServerLifecycleHooks.getCurrentServer
-        if (!server.isDedicatedServer || server.getPlayerList.isOp(player.getGameProfile)) {
+        if (server.getPlayerList.isOp(player.getGameProfile)) {
           Future {
             UpdateCheck.info foreach {
               case Some(release) => player.sendSystemMessage(Localization.Chat.InfoNewVersion(release.tag_name))
@@ -263,13 +198,22 @@ object EventHandler {
   @SubscribeEvent
   @OnlyIn(Dist.CLIENT)
   def clientLoggedIn(e: ClientPlayerNetworkEvent.LoggingIn): Unit = {
+    li.cil.oc.client.PacketHandler.stopAllAudio()
     PetRenderer.isInitialized = false
     PetRenderer.hidden.clear()
-    Loot.disksForClient.clear()
+    Loot.resetDisksForClient()
     Loot.disksForCyclingClient.clear()
+    Loot.disksForCyclingClient ++= Loot.disksForCyclingServer.map(_.copy())
+    Loot.eepromsForClient.clear()
 
-    client.Sound.startLoop(null, "computer_running", 0f)
-    scheduleServer(() => client.Sound.stopLoop(null))
+    client.Sound.stopAll()
+  }
+
+  @SubscribeEvent
+  @OnlyIn(Dist.CLIENT)
+  def clientLoggedOut(e: ClientPlayerNetworkEvent.LoggingOut): Unit = {
+    li.cil.oc.client.PacketHandler.stopAllAudio()
+    client.Sound.stopAll()
   }
 
   @SubscribeEvent
@@ -310,7 +254,7 @@ object EventHandler {
         val persistedData = PlayerUtils.persistedData(player)
         if (!persistedData.getBoolean(Settings.namespace + "receivedManual")) {
           persistedData.putBoolean(Settings.namespace + "receivedManual", true)
-          player.getInventory.add(api.Items.get(Constants.ItemName.Manual).createItemStack(1))
+          player.inventory.add(api.Items.get(Constants.ItemName.Manual).createItemStack(1))
         }
       case _ =>
     }
@@ -329,8 +273,8 @@ object EventHandler {
 
     didRecraft = recraft(e, navigationUpgrade, stack => {
       // Restore the map currently used in the upgrade.
-      Option(api.Driver.driverFor(e.getCrafting)) match {
-        case Some(driver) => StackOption(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), driver.dataTag(stack).getCompound(Settings.namespace + "map")))
+      stack.getComponent(OCComponents.SOURCE_MAP_ITEM) match {
+        case Some(map) => StackOption(map.mutableCopy())
         case _ => EmptyStack
       }
     }) || didRecraft
@@ -345,10 +289,17 @@ object EventHandler {
       new MicrocontrollerData(stack).components.find(api.Items.get(_) == eeprom).asStackOption
     }) || didRecraft
 
-    didRecraft = recraft(e, robot, stack => {
-      // Restore EEPROM currently used in robot.
-      new RobotData(stack).components.find(api.Items.get(_) == eeprom).asStackOption
-    }) || didRecraft
+    // The robot recrafting recipe swaps an EEPROM and returns the old one.
+    // Do not treat unrelated robot-to-robot recipes (such as cosmetics) as
+    // EEPROM swaps merely because their input and output items match.
+    val swapsRobotEeprom = (0 until e.getInventory.getContainerSize).exists(slot =>
+      api.Items.get(e.getInventory.getItem(slot)) == eeprom)
+    if (swapsRobotEeprom) {
+      didRecraft = recraft(e, robot, stack => {
+        // Restore EEPROM currently used in robot.
+        new RobotData(stack).components.find(api.Items.get(_) == eeprom).asStackOption
+      }) || didRecraft
+    }
 
     didRecraft = recraft(e, tablet, stack => {
       // Restore EEPROM currently used in tablet.
@@ -370,25 +321,17 @@ object EventHandler {
       case _ => // Nope.
     }
 
-    Achievement.onCraft(e.getCrafting, e.getEntity)
+    Advancement.onCraft(e.getCrafting, e.getEntity)
   }
 
-  /**
-   * 玩家捡起物品。
-   *
-   * 1.21.1 迁移：Forge 1.20 的 `ItemPickupEvent` 已被 NeoForge 移除，对应事件是
-   * [[net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent]]，且只有
-   * `Pre` / `Post` 两个子类。这里关心的是「捡起之后」，所以监听 `Post`：
-   *  - `getOriginalEntity` → `getItemEntity`（物品实体）
-   *  - `getEntity` → `getPlayer`
-   *  - 被捡起的堆叠直接从 `getOriginalStack` 取，不必再绕物品实体。
-   */
   @SubscribeEvent
-  def onPickup(e: ItemEntityPickupEvent.Post): Unit = {
-    val stack = e.getOriginalStack
-    if (stack != null && !stack.isEmpty) {
-      Achievement.onAssemble(stack, e.getPlayer)
-      Achievement.onCraft(stack, e.getPlayer)
+  def onItemEntityPickup(e: ItemEntityPickupEvent.Post): Unit = {
+    val entity = e.getItemEntity
+    Option(entity).flatMap(e => Option(e.getItem)) match {
+      case Some(stack) =>
+        Advancement.onAssemble(stack, e.getPlayer)
+        Advancement.onCraft(stack, e.getPlayer)
+      case _ => // Huh.
     }
   }
 
@@ -426,7 +369,6 @@ object EventHandler {
     else false
   }
 
-  // `ChunkMap#getChunks()` 在 NeoForge 1.21.1 里由访问转换器（AT）放开为 public，可直接调用。
   private def getChunks(world: ServerLevel): Iterable[ChunkHolder] = {
     world.getChunkSource.chunkMap.getChunks.asScala
   }
@@ -439,28 +381,31 @@ object EventHandler {
   def onWorldUnload(e: LevelEvent.Unload): Unit = this.synchronized {
     val level = e.getLevel
 
-    if (!level.isClientSide) {
-      val serverLevel = level.asInstanceOf[ServerLevel]
+    if (level.isClientSide) {
+      li.cil.oc.client.PacketHandler.stopAllAudio()
+      TerminalServer.loaded.clear()
+      return
+    }
 
-      getChunks(serverLevel).foreach { holder =>
-        val chunk = holder.getTickingChunk
-        if (chunk != null) {
-          chunk.getBlockEntities.values().asScala.foreach {
-            case te: blockentity.traits.BaseBlockEntity => te.dispose()
-            case _ =>
-          }
+    val serverLevel = level.asInstanceOf[ServerLevel]
+
+    val chunkMap = serverLevel.getChunkSource.chunkMap
+    chunkMap.getChunks.asScala.foreach { holder =>
+      val chunk = holder.getTickingChunk
+      if (chunk != null) {
+        chunk.getBlockEntities.values().asScala.foreach {
+          case te: blockentity.traits.BaseBlockEntity => te.dispose()
+          case _ =>
         }
       }
-
-      serverLevel.getAllEntities.asScala.foreach {
-        case host: MachineHost => host.machine.stop()
-        case _ =>
-      }
-
-      Callbacks.clear()
-    } else {
-      TerminalServer.loaded.clear()
     }
+
+    serverLevel.getAllEntities.asScala.foreach {
+      case host: MachineHost => host.machine.stop()
+      case _ =>
+    }
+
+    Callbacks.clear()
   }
 
   @SubscribeEvent

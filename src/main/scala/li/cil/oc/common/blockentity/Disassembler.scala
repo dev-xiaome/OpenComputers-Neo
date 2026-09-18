@@ -1,45 +1,35 @@
 package li.cil.oc.common.blockentity
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
-import java.util
-import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
-import li.cil.oc.Settings
-import li.cil.oc.api
+import li.cil.oc.{Constants, Settings, api}
 import li.cil.oc.api.driver.DeviceInfo
-import li.cil.oc.api.network.Connector
-import li.cil.oc.api.network.Visibility
+import li.cil.oc.api.driver.DeviceInfo.{DeviceAttribute, DeviceClass}
+import li.cil.oc.api.network.{Connector, Visibility}
 import li.cil.oc.api.util.StateAware
 import li.cil.oc.common.menu
-import li.cil.oc.common.menu.MenuTypes
 import li.cil.oc.common.template.DisassemblerTemplates
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
-import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedNBT._
-import li.cil.oc.util.InventoryUtils
-import li.cil.oc.util.ItemUtils
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.entity.player.Inventory
+import li.cil.oc.util.{BlockPosition, InventoryUtils, ItemUtils}
+import net.minecraft.core.component.DataComponents
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
+import net.minecraft.nbt.{CompoundTag, Tag}
 import net.minecraft.world.MenuProvider
+import net.minecraft.world.entity.player.{Inventory, Player}
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.world.level.block.entity.BlockEntityType
-import net.minecraft.core.{BlockPos, Direction}
-import net.minecraft.nbt.Tag
 import net.minecraft.world.level.block.state.BlockState
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
+import net.neoforged.api.distmarker.{Dist, OnlyIn}
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
-import scala.collection.convert.ImplicitConversionsToJava._
+import java.util
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
 class Disassembler(pos: BlockPos, state: BlockState) 
   extends BlockEntity(BlockEntityTypes.DISASSEMBLER.get(), pos, state) with traits.Environment with traits.PowerAcceptor
-  with traits.Inventory with traits.StateAware with traits.PlayerInputAware with traits.Tickable with DeviceInfo with MenuProvider {
+  with traits.Inventory with traits.StateAware with traits.PlayerInputAware with traits.Tickable with DeviceInfo with MenuProvider
+    with IBlockEntityExtension {
 
   val node: Connector = api.Network.newNode(this, Visibility.None).
     withConnector(Settings.get.bufferConverter).
@@ -72,7 +62,7 @@ class Disassembler(pos: BlockPos, state: BlockState)
     DeviceAttribute.Product -> "Break.3R-100"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -97,6 +87,7 @@ class Disassembler(pos: BlockPos, state: BlockState)
       if (queue.isEmpty) {
         val instant = disassembleNextInstantly // Is reset via removeItem
         disassemble(removeItem(0, 1), instant)
+        disassembleNextInstantly = instant && queue.nonEmpty
         setActive(queue.nonEmpty)
       }
       else {
@@ -115,8 +106,8 @@ class Disassembler(pos: BlockPos, state: BlockState)
             drop(stack)
           }
         }
+        if (queue.isEmpty) disassembleNextInstantly = false
       }
-      disassembleNextInstantly = queue.nonEmpty // If we have nothing left to do, stop being creative.
     }
   }
 
@@ -127,8 +118,15 @@ class Disassembler(pos: BlockPos, state: BlockState)
       DisassemblerTemplates.select(stack) match {
         case Some(template) =>
           val (stacks, drops) = template.disassemble(stack, ingredients)
-          stacks.foreach(queue ++= _)
-          drops.foreach(_.foreach(drop))
+          stacks match {
+            case Some(output) =>
+              queue ++= output
+              drops.foreach(_.foreach(drop))
+            case None =>
+              // The input was already removed from the inventory. Preserve
+              // it if a callback failed or returned an unsupported result.
+              drop(stack)
+          }
         case _ => queue ++= ingredients
       }
       totalRequiredEnergy = queue.size * Settings.get.disassemblerItemCost
@@ -159,30 +157,30 @@ class Disassembler(pos: BlockPos, state: BlockState)
   private final val TotalTag = Settings.namespace + "total"
   private final val IsActiveTag = Settings.namespace + "isActive"
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
+  override def loadForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForServer(nbt, provider)
     queue.clear()
     queue ++= nbt.getList(QueueTag, Tag.TAG_COMPOUND).
-      map((tag: CompoundTag) => ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), tag))
+      map((tag: CompoundTag) => ItemStack.parseOptional(provider, tag))
     buffer = nbt.getDouble(BufferTag)
     totalRequiredEnergy = nbt.getDouble(TotalTag)
     isActive = queue.nonEmpty
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForServer(nbt, provider)
     nbt.setNewTagList(QueueTag, queue)
     nbt.putDouble(BufferTag, buffer)
     nbt.putDouble(TotalTag, totalRequiredEnergy)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
+  override def loadForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForClient(nbt, provider)
     isActive = nbt.getBoolean(IsActiveTag)
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
+  override def saveForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForClient(nbt, provider)
     nbt.putBoolean(IsActiveTag, isActive)
   }
 
@@ -195,7 +193,7 @@ class Disassembler(pos: BlockPos, state: BlockState)
       (((Settings.get.disassembleAllTheThings || api.Items.get(stack) != null) && ItemUtils.getIngredients(getLevel.getRecipeManager, stack).nonEmpty) ||
         DisassemblerTemplates.select(stack).isDefined)
 
-  private def allowDisassembling(stack: ItemStack) = !stack.isEmpty && (!stack.hasTag || !stack.getTag.getBoolean(Settings.namespace + "undisassemblable"))
+  private def allowDisassembling(stack: ItemStack) = !stack.isEmpty && (!stack.has(DataComponents.CUSTOM_DATA) || !stack.get(DataComponents.CUSTOM_DATA).getUnsafe.getBoolean(Settings.namespace + "undisassemblable"))
 
   override def setItem(slot: Int, stack: ItemStack): Unit = {
     super.setItem(slot, stack)

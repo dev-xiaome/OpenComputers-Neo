@@ -1,16 +1,15 @@
 package li.cil.oc.api.event;
 
-import net.neoforged.bus.api.ICancellableEvent;
-
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import com.mojang.blaze3d.vertex.PoseStack;
 import li.cil.oc.api.component.RackMountable;
 import li.cil.oc.api.internal.Rack;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.component.DataComponentHolder;
 import net.minecraft.core.Direction;
 import net.neoforged.bus.api.Event;
+import net.neoforged.bus.api.ICancellableEvent;
 
 /**
  * Fired to allow rendering a custom overlay for {@link RackMountable}s.
@@ -20,7 +19,7 @@ import net.neoforged.bus.api.Event;
  * event handler's responsibility to not render outside the are of the
  * mountable (unless that's explicitly what they're going for, of course).
  */
-public abstract class RackMountableRenderEvent extends Event implements ICancellableEvent {
+public abstract class RackMountableRenderEvent extends Event {
     /**
      * The rack that house the mountable this event is fired for.
      */
@@ -34,11 +33,11 @@ public abstract class RackMountableRenderEvent extends Event implements ICancell
     /**
      * Some additional data made available by the mountable. May be {@code null}.
      *
-     * @see RackMountable#getData()
+     * @see RackMountable#describeForClient
      */
-    public final CompoundTag data;
+    public final DataComponentHolder data;
 
-    public RackMountableRenderEvent(Rack rack, int mountable, CompoundTag data) {
+    public RackMountableRenderEvent(Rack rack, int mountable, DataComponentHolder data) {
         this.rack = rack;
         this.mountable = mountable;
         this.data = data;
@@ -53,7 +52,7 @@ public abstract class RackMountableRenderEvent extends Event implements ICancell
      * <br>
      * The bounds will be set up before this call, so you may adjust those, if you wish.
      */
-    public static class Block extends RackMountableRenderEvent {
+    public static class Block extends RackMountableRenderEvent implements ICancellableEvent {
         /**
          * The front-facing side, i.e. where the mountable is visible on the rack.
          */
@@ -64,7 +63,7 @@ public abstract class RackMountableRenderEvent extends Event implements ICancell
          */
         private TextureAtlasSprite frontTextureOverride;
 
-        public Block(final Rack rack, final int mountable, final CompoundTag data, final Direction side) {
+        public Block(final Rack rack, final int mountable, final DataComponentHolder data, final Direction side) {
             super(rack, mountable, data);
             this.side = side;
         }
@@ -118,7 +117,7 @@ public abstract class RackMountableRenderEvent extends Event implements ICancell
          */
         public final float v0, v1;
 
-        public BlockEntity(final Rack rack, final int mountable, final CompoundTag data, final PoseStack stack, final MultiBufferSource typeBuffer, final int light, final int overlay, final float v0, final float v1) {
+        public BlockEntity(final Rack rack, final int mountable, final DataComponentHolder data, final PoseStack stack, final MultiBufferSource typeBuffer, final int light, final int overlay, final float v0, final float v1) {
             super(rack, mountable, data);
             this.stack = stack;
             this.typeBuffer = typeBuffer;

@@ -2,13 +2,13 @@ package li.cil.oc.server.agent
 
 import net.minecraft.core.Direction
 import net.minecraft.core.BlockPos
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.api.network.Node
 import net.minecraft.network.protocol.game.ServerboundPlayerActionPacket
+import net.neoforged.bus.api.{EventPriority, SubscribeEvent}
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.entity.player.PlayerEvent
-import net.neoforged.neoforge.event.level.BlockEvent
-import net.neoforged.bus.api.{EventPriority, SubscribeEvent}
+import net.neoforged.neoforge.event.level.{BlockDropsEvent, BlockEvent}
 
 import scala.collection.convert.ImplicitConversionsToScala._
 
@@ -40,7 +40,10 @@ object PlayerInteractionManagerHelper {
       return -1
     }
 
+    //PlayerEvent.BreakSpeed
     class BreakHandler(val player: Player) {
+      var expToDrop: Int = 0
+
       val hasExperienceUpgrade: Boolean = {
         val machineNode = player.agent.machine.node
         machineNode.reachableNodes.exists {
@@ -56,31 +59,26 @@ object PlayerInteractionManagerHelper {
         if (player == breakSpeedEvent.getEntity)
           breakSpeedEvent.setNewSpeed(scala.Float.MaxValue)
       }
-    }
 
-    // NeoForge 1.21.1 从 BlockEvent.BreakEvent 上移除了经验掉落字段，
-    // 改用 IBlockStateExtension#getExpDrop 查询方块自身的经验值，这里在破坏前先取出来。
-    val infBreaker = new BreakHandler(player)
-    val expToDrop: Int =
-      if (infBreaker.hasExperienceUpgrade) {
-        try {
-          val state = player.level.getBlockState(pos)
-          val blockEntity = if (state.hasBlockEntity) player.level.getBlockEntity(pos) else null
-          state.getExpDrop(player.level, pos, blockEntity, player, player.getMainHandItem)
-        } catch {
-          case _: Exception => 0
+      @SubscribeEvent(priority = EventPriority.LOWEST)
+      def onExperienceBreakEvent(blockDropsEvent: BlockDropsEvent): Unit = {
+        if (player == blockDropsEvent.getBreaker) {
+          if (hasExperienceUpgrade) {
+            expToDrop += blockDropsEvent.getDroppedExperience
+            blockDropsEvent.setDroppedExperience(0)
+          }
         }
       }
-      else 0
-
+    }
+    val infBreaker = new BreakHandler(player)
     NeoForge.EVENT_BUS.register(infBreaker)
     val buildLimit = player.level.getMaxBuildHeight;
     try {
       player.gameMode.handleBlockBreakAction(pos, ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, null, buildLimit, 0)
-      expToDrop
+      infBreaker.expToDrop
     } catch {
       case e: Exception => {
-        OpenComputers.log.info(s"an exception was thrown while trying to call handleBlockBreakAction: ${e.getMessage}")
+        OpenComputersNeo.log.info(s"an exception was thrown while trying to call handleBlockBreakAction: ${e.getMessage}")
         player.gameMode.handleBlockBreakAction(pos, ServerboundPlayerActionPacket.Action.ABORT_DESTROY_BLOCK, null, buildLimit, 0)
         -1
       }

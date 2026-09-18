@@ -1,30 +1,31 @@
 package li.cil.oc.server.component
 
 import java.util
-
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.Settings
-import li.cil.oc.api.Network
+import li.cil.oc.api.{ImmutableItemStack, Network, internal}
 import li.cil.oc.api.driver.DeviceInfo
-import li.cil.oc.api.internal
 import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network._
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.util.StackOption
 import li.cil.oc.util.StackOption._
-import li.cil.oc.util.RegistryAccessHelper
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import net.minecraft.world.item.ItemStack
 import net.minecraft.world.entity.item.ItemEntity
-import net.minecraft.world.item.crafting.RecipeType
 import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
@@ -53,8 +54,7 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends Ab
     val count = args.optInteger(0, 64)
     val stack = host.mainInventory.getItem(host.selectedSlot)
     if (stack.isEmpty) return result((), "selected slot is empty")
-    // NeoForge 1.21.1 把 ForgeHooks.getBurnTime 挪到了 ItemStack 的扩展方法上。
-    if (stack.getBurnTime(RecipeType.SMELTING) <= 0) {
+    if (stack.getBurnTime(null) <= 0) {
       return result((), "selected slot does not contain fuel")
     }
     val container: ItemStack = stack.getCraftingRemainingItem
@@ -168,7 +168,7 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends Ab
     super.update()
     if (remainingTicks <= 0 && inventory.isDefined) {
       val stack = inventory.get
-      remainingTicks = stack.getBurnTime(RecipeType.SMELTING)
+      remainingTicks = stack.getBurnTime(null)
       if (remainingTicks > 0) {
         updateClient()
         stack.shrink(1)
@@ -211,30 +211,17 @@ class UpgradeGenerator(val host: EnvironmentHost with internal.Agent) extends Ab
     }
   }
 
-  private final val InventoryTag = "inventory"
-  private final val RemainingTicksTag = "remainingTicks"
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
-    if (nbt.contains(InventoryTag)) {
-      inventory = StackOption(ItemStack.parseOptional(RegistryAccessHelper.getOrEmpty(), nbt.getCompound(InventoryTag)))
-    }
-    remainingTicks = nbt.getInt(RemainingTicksTag)
+    inventory = StackOption(holder.getComponent(OCComponents.FUEL_INVENTORY).map(_.mutableCopy()))
+    remainingTicks = holder.getComponent(OCComponents.FUEL_TICKS_REMAINING) getOrElse 0
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
-    inventory match {
-      case SomeStack(stack) =>
-        // ItemStack#save 在 1.21.1 是返回编码结果，且需要 HolderLookup.Provider。
-        stack.save(RegistryAccessHelper.getOrEmpty()) match {
-          case tag: CompoundTag => nbt.put(InventoryTag, tag)
-          case _ =>
-        }
-      case _ =>
-    }
-    if (remainingTicks > 0) {
-      nbt.putInt(RemainingTicksTag, remainingTicks)
-    }
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super.saveData(holder)
+
+    holder.setComponent(OCComponents.FUEL_INVENTORY, inventory.toOption.map(ImmutableItemStack.copyOf))
+    holder.setComponent(OCComponents.FUEL_TICKS_REMAINING, Option.when(remainingTicks > 0) { remainingTicks })
   }
 }

@@ -8,7 +8,7 @@ import li.cil.oc.api
 import li.cil.oc.api.driver.item.{UpgradeRenderer => DriverUpgradeRenderer}
 import li.cil.oc.api.event.RobotRenderEvent.MountPoint
 import li.cil.oc.client.renderer.RenderTypes
-import li.cil.oc.integration.opencomputers.Item
+import li.cil.oc.integration.OpenComputersNeo.Item
 import li.cil.oc.util.RenderState
 import net.minecraft.client.renderer.MultiBufferSource
 import net.minecraft.world.item.ItemStack
@@ -55,6 +55,9 @@ object ItemUpgradeRenderer {
   private val (minX, minY, minZ) = (-0.1f, -0.1f, -0.1f)
   private val (maxX, maxY, maxZ) = ( 0.1f,  0.1f,  0.1f)
 
+  @inline private def lu(light: Int): Int = light & 0xFFFF
+  @inline private def lv(light: Int): Int = (light >> 16) & 0xFFFF
+
   private def drawSimpleBlock(stack: PoseStack, r: VertexConsumer, light: Int, mountPoint: MountPoint, frontOffset: Float = 0): Unit = {
     stack.mulPose(new Quaternionf().rotationAxis(
       mountPoint.rotation.w * (Math.PI.toFloat / 180f),
@@ -65,33 +68,33 @@ object ItemUpgradeRenderer {
     stack.translate(mountPoint.offset.x, mountPoint.offset.y, mountPoint.offset.z)
 
     // Front.
-    r.addVertex(stack.last.pose, minX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(frontOffset,        0.5f).setLight(light).setNormal(stack.last, 0, 0, 1)
-    r.addVertex(stack.last.pose, maxX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(frontOffset + 0.5f, 0.5f).setLight(light).setNormal(stack.last, 0, 0, 1)
-    r.addVertex(stack.last.pose, maxX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(frontOffset + 0.5f, 0   ).setLight(light).setNormal(stack.last, 0, 0, 1)
-    r.addVertex(stack.last.pose, minX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(frontOffset,        0   ).setLight(light).setNormal(stack.last, 0, 0, 1)
+    r.addVertex(stack.last.pose(), minX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(frontOffset,        0.5f).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, 0, 1)
+    r.addVertex(stack.last.pose(), maxX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(frontOffset + 0.5f, 0.5f).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, 0, 1)
+    r.addVertex(stack.last.pose(), maxX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(frontOffset + 0.5f, 0   ).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, 0, 1)
+    r.addVertex(stack.last.pose(), minX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(frontOffset,        0   ).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, 0, 1)
 
     // Top.
-    r.addVertex(stack.last.pose, maxX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(1,    0.5f).setLight(light).setNormal(stack.last, 0, 1, 0)
-    r.addVertex(stack.last.pose, maxX, maxY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(1,    1   ).setLight(light).setNormal(stack.last, 0, 1, 0)
-    r.addVertex(stack.last.pose, minX, maxY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 1   ).setLight(light).setNormal(stack.last, 0, 1, 0)
-    r.addVertex(stack.last.pose, minX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 0.5f).setLight(light).setNormal(stack.last, 0, 1, 0)
+    r.addVertex(stack.last.pose(), maxX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(1,    0.5f).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, 1, 0)
+    r.addVertex(stack.last.pose(), maxX, maxY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(1,    1   ).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, 1, 0)
+    r.addVertex(stack.last.pose(), minX, maxY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 1   ).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, 1, 0)
+    r.addVertex(stack.last.pose(), minX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 0.5f).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, 1, 0)
 
     // Bottom.
-    r.addVertex(stack.last.pose, minX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 0.5f).setLight(light).setNormal(stack.last, 0, -1, 0)
-    r.addVertex(stack.last.pose, minX, minY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 1   ).setLight(light).setNormal(stack.last, 0, -1, 0)
-    r.addVertex(stack.last.pose, maxX, minY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(1,    1   ).setLight(light).setNormal(stack.last, 0, -1, 0)
-    r.addVertex(stack.last.pose, maxX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(1,    0.5f).setLight(light).setNormal(stack.last, 0, -1, 0)
+    r.addVertex(stack.last.pose(), minX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 0.5f).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, -1, 0)
+    r.addVertex(stack.last.pose(), minX, minY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 1   ).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, -1, 0)
+    r.addVertex(stack.last.pose(), maxX, minY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(1,    1   ).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, -1, 0)
+    r.addVertex(stack.last.pose(), maxX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(1,    0.5f).setUv2(lu(light), lv(light)).setNormal(stack.last, 0, -1, 0)
 
     // Left.
-    r.addVertex(stack.last.pose, maxX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0,    0.5f).setLight(light).setNormal(stack.last, 1, 0, 0)
-    r.addVertex(stack.last.pose, maxX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0,    1   ).setLight(light).setNormal(stack.last, 1, 0, 0)
-    r.addVertex(stack.last.pose, maxX, minY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 1   ).setLight(light).setNormal(stack.last, 1, 0, 0)
-    r.addVertex(stack.last.pose, maxX, maxY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 0.5f).setLight(light).setNormal(stack.last, 1, 0, 0)
+    r.addVertex(stack.last.pose(), maxX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0,    0.5f).setUv2(lu(light), lv(light)).setNormal(stack.last, 1, 0, 0)
+    r.addVertex(stack.last.pose(), maxX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0,    1   ).setUv2(lu(light), lv(light)).setNormal(stack.last, 1, 0, 0)
+    r.addVertex(stack.last.pose(), maxX, minY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 1   ).setUv2(lu(light), lv(light)).setNormal(stack.last, 1, 0, 0)
+    r.addVertex(stack.last.pose(), maxX, maxY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 0.5f).setUv2(lu(light), lv(light)).setNormal(stack.last, 1, 0, 0)
 
     // Right.
-    r.addVertex(stack.last.pose, minX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0,    1   ).setLight(light).setNormal(stack.last, -1, 0, 0)
-    r.addVertex(stack.last.pose, minX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0,    0.5f).setLight(light).setNormal(stack.last, -1, 0, 0)
-    r.addVertex(stack.last.pose, minX, maxY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 0.5f).setLight(light).setNormal(stack.last, -1, 0, 0)
-    r.addVertex(stack.last.pose, minX, minY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 1   ).setLight(light).setNormal(stack.last, -1, 0, 0)
+    r.addVertex(stack.last.pose(), minX, minY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0,    1   ).setUv2(lu(light), lv(light)).setNormal(stack.last, -1, 0, 0)
+    r.addVertex(stack.last.pose(), minX, maxY, maxZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0,    0.5f).setUv2(lu(light), lv(light)).setNormal(stack.last, -1, 0, 0)
+    r.addVertex(stack.last.pose(), minX, maxY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 0.5f).setUv2(lu(light), lv(light)).setNormal(stack.last, -1, 0, 0)
+    r.addVertex(stack.last.pose(), minX, minY, minZ).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(0.5f, 1   ).setUv2(lu(light), lv(light)).setNormal(stack.last, -1, 0, 0)
   }
 }

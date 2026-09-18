@@ -4,6 +4,7 @@ import com.google.common.base.Charsets
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt._
 import net.minecraft.core.Direction
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 
 import scala.collection.JavaConverters.mapAsScalaMap
 import scala.collection.convert.ImplicitConversionsToScala._
@@ -38,11 +39,11 @@ object ExtendedNBT {
   implicit def toNbt(value: String): StringTag = StringTag.valueOf(value)
 
   implicit def toNbt(value: ItemStack): CompoundTag = {
-    // 1.21.1 的 ItemStack#save 是「返回编码结果」，不再就地写入传入的 tag；
-    // 空堆叠会抛异常，因此这里用 saveOptional（空堆叠返回空 CompoundTag）。
-    // 注册表访问器必须给真实实例，给 RegistryAccess.EMPTY 会把物品静默写成空标签。
-    if (value == null) new CompoundTag()
-    else value.saveOptional(RegistryAccessHelper.getOrEmpty).asInstanceOf[CompoundTag]
+    val nbt = new CompoundTag()
+    if (value != null) {
+      value.save(ServerLifecycleHooks.getCurrentServer.registryAccess(), nbt)
+    }
+    nbt
   }
 
   implicit def toNbt(value: CompoundTag => Unit): CompoundTag = {
@@ -214,7 +215,7 @@ object ExtendedNBT {
   }
 
   class ExtendedCompoundTag(val nbt: CompoundTag) {
-    def setNewCompoundTag(name: String, f: (CompoundTag) => Any) = {
+    def setNewCompoundTag(name: String, f: CompoundTag => Unit) = {
       val t = new CompoundTag()
       f(t)
       nbt.put(name, t)
@@ -224,23 +225,6 @@ object ExtendedNBT {
     def setNewTagList(name: String, values: Iterable[Tag]) = {
       val t = new ListTag()
       t.append(values)
-      nbt.put(name, t)
-      nbt
-    }
-
-    /**
-     * 写入一个物品堆叠的子标签。
-     *
-     * 1.21.1：`ItemStack#save` 变成 `save(HolderLookup.Provider, Tag): Tag` —— 既需要注册表
-     * 上下文，又必须使用它的返回值（写进传入的 `CompoundTag` 再返回它）。因此 1.20 时代直接传
-     * `stack.save` 当函数用的写法不再成立，统一走这个辅助方法。
-     *
-     * 注册表上下文用 [[RegistryAccessHelper.getOrEmpty]]：**绝不能**用 `RegistryAccess.EMPTY`，
-     * 否则每个物品都会被静默写成空标签。详见该类注释。
-     */
-    def setNewItemStackTag(name: String, stack: ItemStack) = {
-      val t = new CompoundTag()
-      stack.save(RegistryAccessHelper.getOrEmpty(), t)
       nbt.put(name, t)
       nbt
     }

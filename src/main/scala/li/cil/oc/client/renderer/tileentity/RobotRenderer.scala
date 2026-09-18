@@ -1,13 +1,14 @@
 package li.cil.oc.client.renderer.tileentity
 
 import com.google.common.base.Strings
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api.driver.item.UpgradeRenderer
 import li.cil.oc.api.driver.item.UpgradeRenderer.MountPointName
 import li.cil.oc.api.event.RobotRenderEvent
 import li.cil.oc.client.renderer.RenderTypes
 import li.cil.oc.common.EventHandler
+import li.cil.oc.common.RobotFlags
 import li.cil.oc.common.blockentity
 import li.cil.oc.util.RenderState
 import li.cil.oc.util.StackOption
@@ -21,33 +22,40 @@ import net.minecraft.client.renderer.blockentity.{BlockEntityRenderer => TileEnt
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider
 import net.minecraft.world.item.{BlockItem, ItemDisplayContext, ItemStack, Items}
 import net.minecraft.core.{Direction, Vec3i}
-import net.minecraft.world.phys.Vec3
+import net.minecraft.world.phys.AABB
 import net.minecraft.ChatFormatting
 import net.minecraft.client.gui.Font
-import net.neoforged.neoforge.client.ClientHooks
+import net.minecraft.resources.ResourceLocation
 import net.neoforged.neoforge.common.NeoForge
-import org.joml.Matrix3f
 
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
-import scala.language.implicitConversions
 
 object RobotRenderer extends BlockEntityRendererProvider[blockentity.RobotProxy] {
+  val RainbowFlag = ResourceLocation.fromNamespaceAndPath(OpenComputersNeo.ID, "rainbow_flag")
+  val TransFlag = ResourceLocation.fromNamespaceAndPath(OpenComputersNeo.ID, "trans_flag")
+
   override def create(ctx: BlockEntityRendererProvider.Context): RobotRenderer =
     new RobotRenderer()
 
   private val instance = new RobotRenderer()
 
   def renderChassis(
-                     stack: PoseStack,
-                     buffer: MultiBufferSource,
-                     light: Int,
-                     offset: Double = 0,
-                     isRunningOverride: Boolean = false
-                   ): Unit = instance.renderChassis(stack, buffer, light, null, offset, isRunningOverride)
+                      stack: PoseStack,
+                      buffer: MultiBufferSource,
+                      light: Int,
+                      offset: Double = 0,
+                      isRunningOverride: Boolean = false,
+                      flag: Option[ResourceLocation] = None
+                    ): Unit = instance.renderChassis(stack, buffer, light, null, offset, isRunningOverride, flag)
 }
 
 class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
+  // Robot rendering extends outside the proxy block's normal one-block bounds
+  // while hovering and moving, so use an expanded culling box.
+  override def getRenderBoundingBox(entity: blockentity.RobotProxy): AABB =
+    new AABB(entity.getBlockPos).inflate(0.5)
+
   private val mountPoints = new Array[RobotRenderEvent.MountPoint](7)
 
   private val slotNameMapping = Map(
@@ -71,21 +79,51 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
   private val gt   = 0.5f + gap
   private val gb   = 0.5f - gap
 
-  // 1.18.2: IVertexBuilder → VertexConsumer
-  private implicit def extendWorldRenderer(self: VertexConsumer): ExtendedWorldRenderer =
-    new ExtendedWorldRenderer(self)
-
-  private class ExtendedWorldRenderer(val buffer: VertexConsumer) {
-    // 1.21.1: VertexConsumer 只剩 setNormal(float,float,float) 与 setNormal(Pose,...)；
-    // 这里保留用 Matrix3f 手动变换法线的语义。
-    def normal(matrix: Matrix3f, normal: Vec3): VertexConsumer = {
-      val normalized = normal.normalize()
-      val v = matrix.transform(new org.joml.Vector3f(normalized.x.toFloat, normalized.y.toFloat, normalized.z.toFloat))
-      buffer.setNormal(v.x, v.y, v.z)
+  private def drawFlag(
+                        stack: PoseStack,
+                        buffer: MultiBufferSource,
+                        light: Int,
+                        flag: ResourceLocation
+                      ): Unit = {
+    val definition = RobotFlags.byId(flag) match {
+      case Some(value) => value
+      case _ => return
     }
+    val renderType = RenderTypes.robotFlag(definition.id)
+    val flagHeight = definition.height
+
+    val r = buffer.getBuffer(renderType)
+    val x = 2f / 16f
+    val flagBottom = 13.5f / 16f
+    val flagTop = (13.5f + flagHeight / 2f) / 16f
+    val flagFront = 10.5f / 16f
+    val flagBack = 15.5f / 16f
+    val poleBottom = 10.5f / 16f
+    val poleTop = 13.5f / 16f
+    val poleBack = 11f / 16f
+
+    @inline def lu(value: Float) = value / 16f
+    @inline def lv(value: Float) = value / 16f
+
+    def quad(y0: Float, y1: Float, z0: Float, z1: Float,
+             u0: Float, v0: Float, u1: Float, v1: Float): Unit = {
+      r.addVertex(stack.last.pose(), x, y0, z0).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(lu(u0), lv(v1)).setLight(light).setNormal(stack.last, 1, 0, 0)
+      r.addVertex(stack.last.pose(), x, y1, z0).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(lu(u0), lv(v0)).setLight(light).setNormal(stack.last, 1, 0, 0)
+      r.addVertex(stack.last.pose(), x, y1, z1).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(lu(u1), lv(v0)).setLight(light).setNormal(stack.last, 1, 0, 0)
+      r.addVertex(stack.last.pose(), x, y0, z1).setColor(0xFF, 0xFF, 0xFF, 0xFF).setUv(lu(u1), lv(v1)).setLight(light).setNormal(stack.last, 1, 0, 0)
+    }
+
+    stack.pushPose()
+    stack.translate(x, 11f / 16f, 10.75f / 16f)
+    stack.mulPose(Axis.XP.rotationDegrees(22.5f))
+    stack.translate(-x, -11f / 16f, -10.75f / 16f)
+
+    quad(flagBottom, flagTop, flagFront, flagBack, 0, 0, 7, flagHeight)
+    quad(poleBottom, poleTop, flagFront, poleBack, 13, 0, 14, 6)
+
+    stack.popPose()
   }
 
-  // 1.18.2: IRenderTypeBuffer → MultiBufferSource
   private def drawTop(
                        stack: PoseStack,
                        buffer: MultiBufferSource,
@@ -94,30 +132,29 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
                      ): Unit = {
     val r = buffer.getBuffer(RenderTypes.ROBOT_CHASSIS)
 
-    // 1.18.2: new Vector3d(...) → new Vec3(...)
-    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last, 0, 0.2f, 1)
-    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last, 0, 0.2f, 1)
-    r.addVertex(stack.last.pose, h, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, 0.2f, 1)
+    r.addVertex(stack.last.pose(), 0.5f, 1, 0.5f)    .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last(), 0.0f, 0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), l, gt, h)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last(), 0.0f, 0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), h, gt, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last(), 0.0f, 0.196116135f, 0.980580676f)
 
-    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last, 0, 0.2f, 1)
-    r.addVertex(stack.last.pose, h, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, 0.2f, 1)
-    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last, 1, 0.2f, 0)
+    r.addVertex(stack.last.pose(), 0.5f, 1, 0.5f)    .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last(), 0.0f, 0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), h, gt, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last(), 0.0f, 0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), h, gt, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last(), 0.980580676f, 0.196116135f, 0.0f)
 
-    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last, 0, 0.2f, 1)
-    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last, 1, 0.2f, 0)
-    r.addVertex(stack.last.pose, l, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0, 0)       .setLight(light).setNormal(stack.last, 0, 0.2f, -1)
+    r.addVertex(stack.last.pose(), 0.5f, 1, 0.5f)    .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last(), 0.0f, 0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), h, gt, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last(), 0.980580676f, 0.196116135f, 0.0f)
+    r.addVertex(stack.last.pose(), l, gt, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0)       .setLight(light).setNormal(stack.last(), 0.0f, 0.196116135f, -0.980580676f)
 
-    r.addVertex(stack.last.pose, 0.5f, 1, 0.5f)   .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last, 0, 0.2f, 1)
-    r.addVertex(stack.last.pose, l, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0, 0)       .setLight(light).setNormal(stack.last, 0, 0.2f, -1)
-    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last, -1, 0.2f, 0)
+    r.addVertex(stack.last.pose(), 0.5f, 1, 0.5f)    .setColor(red, green, blue, 0xFF).setUv(0.25f, 0.25f).setLight(light).setNormal(stack.last(), 0.0f, 0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), l, gt, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0)       .setLight(light).setNormal(stack.last(), 0.0f, 0.196116135f, -0.980580676f)
+    r.addVertex(stack.last.pose(), l, gt, h)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last(), -0.980580676f, 0.196116135f, 0.0f)
 
-    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last, 0, -1, 0)
-    r.addVertex(stack.last.pose, l, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last, 0, -1, 0)
-    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, -1, 0)
+    r.addVertex(stack.last.pose(), l, gt, h)           .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last(), 0.0f, -1.0f, 0.0f)
+    r.addVertex(stack.last.pose(), l, gt, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last(), 0.0f, -1.0f, 0.0f)
+    r.addVertex(stack.last.pose(), h, gt, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last(), 0.0f, -1.0f, 0.0f)
 
-    r.addVertex(stack.last.pose, l, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last, 0, -1, 0)
-    r.addVertex(stack.last.pose, h, gt, l)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, -1, 0)
-    r.addVertex(stack.last.pose, h, gt, h)          .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last, 0, -1, 0)
+    r.addVertex(stack.last.pose(), l, gt, h)           .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last(), 0.0f, -1.0f, 0.0f)
+    r.addVertex(stack.last.pose(), h, gt, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last(), 0.0f, -1.0f, 0.0f)
+    r.addVertex(stack.last.pose(), h, gt, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last(), 0.0f, -1.0f, 0.0f)
   }
 
   private def drawBottom(
@@ -128,70 +165,58 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
                         ): Unit = {
     val r = buffer.getBuffer(RenderTypes.ROBOT_CHASSIS)
 
-    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last, 0, -0.2f, 1)
-    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last, 0, -0.2f, 1)
-    r.addVertex(stack.last.pose, h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(1, 0)       .setLight(light).setNormal(stack.last, 0, -0.2f, 1)
+    r.addVertex(stack.last.pose(), 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last(), 0.0f, -0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last(), 0.0f, -0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(1, 0)       .setLight(light).setNormal(stack.last(), 0.0f, -0.196116135f, 0.980580676f)
 
-    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last, 0, -0.2f, 1)
-    r.addVertex(stack.last.pose, h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(1, 0)       .setLight(light).setNormal(stack.last, 0, -0.2f, 1)
-    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(1, 0.5f)    .setLight(light).setNormal(stack.last, 1, -0.2f, 0)
+    r.addVertex(stack.last.pose(), 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last(), 0.0f, -0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(1, 0)       .setLight(light).setNormal(stack.last(), 0.0f, -0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(1, 0.5f)    .setLight(light).setNormal(stack.last(), 0.980580676f, -0.196116135f, 0.0f)
 
-    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last, 0, -0.2f, 1)
-    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(1, 0.5f)    .setLight(light).setNormal(stack.last, 1, -0.2f, 0)
-    r.addVertex(stack.last.pose, l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, -0.2f, -1)
+    r.addVertex(stack.last.pose(), 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last(), 0.0f, -0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(1, 0.5f)    .setLight(light).setNormal(stack.last(), 0.980580676f, -0.196116135f, 0.0f)
+    r.addVertex(stack.last.pose(), l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last(), 0.0f, -0.196116135f, -0.980580676f)
 
-    r.addVertex(stack.last.pose, 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last, 0, -0.2f, 1)
-    r.addVertex(stack.last.pose, l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, -0.2f, -1)
-    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last, -1, -0.2f, 0)
+    r.addVertex(stack.last.pose(), 0.5f, 0.03f, 0.5f).setColor(red, green, blue, 0xFF).setUv(0.75f, 0.25f).setLight(light).setNormal(stack.last(), 0.0f, -0.196116135f, 0.980580676f)
+    r.addVertex(stack.last.pose(), l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last(), 0.0f, -0.196116135f, -0.980580676f)
+    r.addVertex(stack.last.pose(), l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0)    .setLight(light).setNormal(stack.last(), -0.980580676f, -0.196116135f, 0.0f)
 
-    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last, 0, 1, 0)
-    r.addVertex(stack.last.pose, l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last, 0, 1, 0)
-    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last, 0, 1, 0)
+    r.addVertex(stack.last.pose(), l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last(), 0.0f, 1.0f, 0.0f)
+    r.addVertex(stack.last.pose(), l, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0, 1)       .setLight(light).setNormal(stack.last(), 0.0f, 1.0f, 0.0f)
+    r.addVertex(stack.last.pose(), h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last(), 0.0f, 1.0f, 0.0f)
 
-    r.addVertex(stack.last.pose, l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last, 0, 1, 0)
-    r.addVertex(stack.last.pose, h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last, 0, 1, 0)
-    r.addVertex(stack.last.pose, h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last, 0, 1, 0)
+    r.addVertex(stack.last.pose(), l, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0, 0.5f)    .setLight(light).setNormal(stack.last(), 0.0f, 1.0f, 0.0f)
+    r.addVertex(stack.last.pose(), h, gb, h)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 1)    .setLight(light).setNormal(stack.last(), 0.0f, 1.0f, 0.0f)
+    r.addVertex(stack.last.pose(), h, gb, l)           .setColor(red, green, blue, 0xFF).setUv(0.5f, 0.5f) .setLight(light).setNormal(stack.last(), 0.0f, 1.0f, 0.0f)
   }
 
   def resetMountPoints(running: Boolean): Unit = {
     val offset = if (running) 0 else -0.06f
 
-    // Left top.
     mountPoints(0).offset.set(0, 0.2f, 0.24f)
     mountPoints(0).rotation.set(0, 1, 0, 90)
-
-    // Right top.
     mountPoints(1).offset.set(0, 0.2f, 0.24f)
     mountPoints(1).rotation.set(0, 1, 0, -90)
-
-    // Back top.
     mountPoints(2).offset.set(0, 0.2f, 0.24f)
     mountPoints(2).rotation.set(0, 1, 0, 180)
-
-    // Left bottom.
     mountPoints(3).offset.set(0, -0.2f - offset, 0.24f)
     mountPoints(3).rotation.set(0, 1, 0, 90)
-
-    // Right bottom.
     mountPoints(4).offset.set(0, -0.2f - offset, 0.24f)
     mountPoints(4).rotation.set(0, 1, 0, -90)
-
-    // Back bottom.
     mountPoints(5).offset.set(0, -0.2f - offset, 0.24f)
     mountPoints(5).rotation.set(0, 1, 0, 180)
-
-    // Front bottom.
     mountPoints(6).offset.set(0, -0.2f - offset, 0.24f)
     mountPoints(6).rotation.set(0, 1, 0, 0)
   }
 
   def renderChassis(
                      stack: PoseStack,
-                     buffer: MultiBufferSource, // 1.18.2: IRenderTypeBuffer → MultiBufferSource
+                     buffer: MultiBufferSource,
                      light: Int,
                      robot: blockentity.Robot = null,
                      offset: Double = 0,
-                     isRunningOverride: Boolean = false
+                     isRunningOverride: Boolean = false,
+                     flag: Option[ResourceLocation] = None
                    ): Unit = {
     val isRunning = if (robot == null) isRunningOverride else robot.isRunning
 
@@ -219,6 +244,8 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
       if (!isRunning) stack.translate(0, -2 * gap, 0)
       drawTop(stack, buffer, light, cr, cg, cb)
 
+      (if (robot != null) robot.info.flag else flag).foreach(drawFlag(stack, buffer, light, _))
+
       if (isRunning) {
         val lightColor = if (event.lightColor < 0) {
           if (robot != null && robot.info != null) robot.info.lightColor else 0xF23030
@@ -228,25 +255,25 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
         val blue  = (lightColor >>> 0)  & 0xFF
 
         val r = buffer.getBuffer(RenderTypes.ROBOT_LIGHT)
-        r.addVertex(stack.last.pose, l, gt, l).setColor(red, green, blue, 0xFF).setUv(u0, v0)
-        r.addVertex(stack.last.pose, l, gb, l).setColor(red, green, blue, 0xFF).setUv(u0, v1)
-        r.addVertex(stack.last.pose, l, gb, h).setColor(red, green, blue, 0xFF).setUv(u1, v1)
-        r.addVertex(stack.last.pose, l, gt, h).setColor(red, green, blue, 0xFF).setUv(u1, v0)
+        r.addVertex(stack.last.pose(), l, gt, l).setColor(red, green, blue, 0xFF).setUv(u0, v0)
+        r.addVertex(stack.last.pose(), l, gb, l).setColor(red, green, blue, 0xFF).setUv(u0, v1)
+        r.addVertex(stack.last.pose(), l, gb, h).setColor(red, green, blue, 0xFF).setUv(u1, v1)
+        r.addVertex(stack.last.pose(), l, gt, h).setColor(red, green, blue, 0xFF).setUv(u1, v0)
 
-        r.addVertex(stack.last.pose, l, gt, h).setColor(red, green, blue, 0xFF).setUv(u0, v0)
-        r.addVertex(stack.last.pose, l, gb, h).setColor(red, green, blue, 0xFF).setUv(u0, v1)
-        r.addVertex(stack.last.pose, h, gb, h).setColor(red, green, blue, 0xFF).setUv(u1, v1)
-        r.addVertex(stack.last.pose, h, gt, h).setColor(red, green, blue, 0xFF).setUv(u1, v0)
+        r.addVertex(stack.last.pose(), l, gt, h).setColor(red, green, blue, 0xFF).setUv(u0, v0)
+        r.addVertex(stack.last.pose(), l, gb, h).setColor(red, green, blue, 0xFF).setUv(u0, v1)
+        r.addVertex(stack.last.pose(), h, gb, h).setColor(red, green, blue, 0xFF).setUv(u1, v1)
+        r.addVertex(stack.last.pose(), h, gt, h).setColor(red, green, blue, 0xFF).setUv(u1, v0)
 
-        r.addVertex(stack.last.pose, h, gt, h).setColor(red, green, blue, 0xFF).setUv(u0, v0)
-        r.addVertex(stack.last.pose, h, gb, h).setColor(red, green, blue, 0xFF).setUv(u0, v1)
-        r.addVertex(stack.last.pose, h, gb, l).setColor(red, green, blue, 0xFF).setUv(u1, v1)
-        r.addVertex(stack.last.pose, h, gt, l).setColor(red, green, blue, 0xFF).setUv(u1, v0)
+        r.addVertex(stack.last.pose(), h, gt, h).setColor(red, green, blue, 0xFF).setUv(u0, v0)
+        r.addVertex(stack.last.pose(), h, gb, h).setColor(red, green, blue, 0xFF).setUv(u0, v1)
+        r.addVertex(stack.last.pose(), h, gb, l).setColor(red, green, blue, 0xFF).setUv(u1, v1)
+        r.addVertex(stack.last.pose(), h, gt, l).setColor(red, green, blue, 0xFF).setUv(u1, v0)
 
-        r.addVertex(stack.last.pose, h, gt, l).setColor(red, green, blue, 0xFF).setUv(u0, v0)
-        r.addVertex(stack.last.pose, h, gb, l).setColor(red, green, blue, 0xFF).setUv(u0, v1)
-        r.addVertex(stack.last.pose, l, gb, l).setColor(red, green, blue, 0xFF).setUv(u1, v1)
-        r.addVertex(stack.last.pose, l, gt, l).setColor(red, green, blue, 0xFF).setUv(u1, v0)
+        r.addVertex(stack.last.pose(), h, gt, l).setColor(red, green, blue, 0xFF).setUv(u0, v0)
+        r.addVertex(stack.last.pose(), h, gb, l).setColor(red, green, blue, 0xFF).setUv(u0, v1)
+        r.addVertex(stack.last.pose(), l, gb, l).setColor(red, green, blue, 0xFF).setUv(u1, v1)
+        r.addVertex(stack.last.pose(), l, gt, l).setColor(red, green, blue, 0xFF).setUv(u1, v0)
       }
     }
   }
@@ -254,8 +281,8 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
   override def render(
                        proxy: blockentity.RobotProxy,
                        f: Float,
-                       matrix: PoseStack, // 1.18.2: MatrixStack → PoseStack
-                       buffer: MultiBufferSource, // 1.18.2: IRenderTypeBuffer → MultiBufferSource
+                       matrix: PoseStack,
+                       buffer: MultiBufferSource,
                        light: Int,
                        overlay: Int
                      ): Unit = {
@@ -268,7 +295,7 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
     matrix.translate(0.5, 0.5, 0.5)
 
     if (robot.proxy != proxy) {
-      matrix.translate(robot.proxy.x - proxy.x, robot.proxy.y - proxy.y, robot.proxy.z - proxy.z)
+      matrix.translate((robot.proxy.x - proxy.x).toDouble, (robot.proxy.y - proxy.y).toDouble, (robot.proxy.z - proxy.z).toDouble)
     }
 
     if (robot.isAnimatingMove) {
@@ -295,7 +322,7 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
       case Direction.WEST  => matrix.mulPose(Axis.YP.rotationDegrees(-90))
       case Direction.NORTH => matrix.mulPose(Axis.YP.rotationDegrees(180))
       case Direction.EAST  => matrix.mulPose(Axis.YP.rotationDegrees(90))
-      case _               => // No yaw.
+      case _               =>
     }
 
     matrix.translate(-0.5f, -0.5f, -0.5f)
@@ -354,7 +381,7 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
             )
           } catch {
             case e: Throwable =>
-              OpenComputers.log.warn("Failed rendering equipped item.", e)
+              OpenComputersNeo.log.warn("Failed rendering equipped item.", e)
               robot.renderingErrored = true
           }
           matrix.popPose()
@@ -365,7 +392,7 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
       lazy val wildcardRenderers = mutable.Buffer.empty[(ItemStack, UpgradeRenderer)]
       lazy val slotMapping       = Array.fill(mountPoints.length)(null: (ItemStack, UpgradeRenderer))
 
-      val renderers = (robot.componentSlots ++ robot.containerSlots).map(robot.getItem).collect {
+      val renderers = (robot.componentSlotRange ++ robot.containerSlots).map(robot.getItem).collect {
         case stack if !stack.isEmpty && stack.getItem.isInstanceOf[UpgradeRenderer] =>
           (stack, stack.getItem.asInstanceOf[UpgradeRenderer])
       }
@@ -385,7 +412,7 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
         firstEmpty = slotMapping.indexOf(null)
       }
 
-      for ((info, mountPoint) <- (slotMapping, mountPoints).zipped if info != null) try {
+      for ((info, mountPoint) <- slotMapping.lazyZip(mountPoints) if info != null) try {
         val (stack, renderer) = info
         matrix.pushPose()
         matrix.translate(0.5f, 0.5f, 0.5f)
@@ -393,7 +420,7 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
         matrix.popPose()
       } catch {
         case e: Throwable =>
-          OpenComputers.log.warn("Failed rendering equipped upgrade.", e)
+          OpenComputersNeo.log.warn("Failed rendering equipped upgrade.", e)
           robot.renderingErrored = true
       }
     }
@@ -403,11 +430,11 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
     if (
       Settings.get.robotLabels &&
         !Strings.isNullOrEmpty(name) &&
-        net.neoforged.neoforge.client.ClientHooks.isNameplateInRenderDistance(null, dist)
+        dist < 64 * 64
     ) {
-      val f         = Minecraft.getInstance.font
+      val font      = Minecraft.getInstance.font
       val scale     = 1.6f / 60f
-      val width     = f.width(name)
+      val width     = font.width(name)
       val halfWidth = width / 2
       val bgColor   = (255f * Minecraft.getInstance.options.getBackgroundOpacity(0.25F)).asInstanceOf[Int] << 24
 
@@ -415,14 +442,14 @@ class RobotRenderer extends TileEntityRenderer[blockentity.RobotProxy] {
       matrix.mulPose(Minecraft.getInstance.getEntityRenderDispatcher.cameraOrientation)
       RenderState.mirrorScale(matrix, -scale, -scale, scale)
 
-      f.drawInBatch(
+      font.drawInBatch(
         (if (EventHandler.isItTime) ChatFormatting.OBFUSCATED.toString else "") + name,
-        -halfWidth, 0f,
+        -halfWidth.toFloat, 0f,
         -1,
         false,
-        matrix.last.pose,
+        matrix.last.pose(),
         buffer,
-        Font.DisplayMode.NORMAL, // 影なし指定
+        Font.DisplayMode.NORMAL,
         bgColor,
         light
       )

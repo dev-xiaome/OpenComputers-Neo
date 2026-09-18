@@ -2,9 +2,8 @@ package li.cil.oc.common.blockentity.traits
 
 import li.cil.oc.Settings
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
+import net.minecraft.core.HolderLookup
 import net.minecraft.nbt.CompoundTag
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 
 trait PowerInformation extends BaseBlockEntity {
   private var lastSentRatio = -1.0
@@ -43,14 +42,14 @@ trait PowerInformation extends BaseBlockEntity {
   private final val GlobalBufferTag = Settings.namespace + "globalBuffer"
   private final val GlobalBufferSizeTag = Settings.namespace + "globalBufferSize"
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
+  override def loadForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForClient(nbt, provider)
     globalBuffer = nbt.getDouble(GlobalBufferTag)
     globalBufferSize = nbt.getDouble(GlobalBufferSizeTag)
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
+  override def saveForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForClient(nbt, provider)
     lastSentRatio = if (globalBufferSize > 0) globalBuffer / globalBufferSize else 0
     nbt.putDouble(GlobalBufferTag, globalBuffer)
     nbt.putDouble(GlobalBufferSizeTag, globalBufferSize)

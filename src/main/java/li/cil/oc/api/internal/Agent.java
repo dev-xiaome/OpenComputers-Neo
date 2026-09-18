@@ -63,7 +63,7 @@ public interface Agent extends MachineHost, Rotatable {
      * agent's current position and rotation in the world. Use this to trigger
      * events involving the agent that require a player entity.
      * <br>
-     * Note that this <em>may</em> be the common OpenComputers fake player.
+     * Note that this <em>may</em> be the common OpenComputersNeo fake player.
      *
      * @return the fake player for the agent.
      */

@@ -7,7 +7,7 @@ import java.util.concurrent.ThreadFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.common.SaveHandler
 import li.cil.oc.server.fs.Buffered
@@ -37,27 +37,27 @@ object ThreadPoolFactory {
 
     if (Settings.get.internetAccessConfigured()) {
       if (Settings.get.internetFilteringRulesInvalid()) {
-        OpenComputers.log.warn("####################################################")
-        OpenComputers.log.warn("#                                                  #")
-        OpenComputers.log.warn("#  Could not parse Internet Card filtering rules!  #")
-        OpenComputers.log.warn("#  Review the server log and adjust the filtering  #")
-        OpenComputers.log.warn("#  list to ensure it is appropriately configured.  #")
-        OpenComputers.log.warn("#   (config/OpenComputers.cfg => filteringRules)   #")
-        OpenComputers.log.warn("# Internet access has been automatically disabled. #")
-        OpenComputers.log.warn("#                                                  #")
-        OpenComputers.log.warn("####################################################")
+        OpenComputersNeo.log.warn("####################################################")
+        OpenComputersNeo.log.warn("#                                                  #")
+        OpenComputersNeo.log.warn("#  Could not parse Internet Card filtering rules!  #")
+        OpenComputersNeo.log.warn("#  Review the server log and adjust the filtering  #")
+        OpenComputersNeo.log.warn("#  list to ensure it is appropriately configured.  #")
+        OpenComputersNeo.log.warn("#   (config/OpenComputersNeo.cfg => filteringRules)   #")
+        OpenComputersNeo.log.warn("# Internet access has been automatically disabled. #")
+        OpenComputersNeo.log.warn("#                                                  #")
+        OpenComputersNeo.log.warn("####################################################")
       } else if (!Settings.get.internetFilteringRulesObserved && e.getServer.isDedicatedServer) {
-        OpenComputers.log.warn("####################################################")
-        OpenComputers.log.warn("#                                                  #")
-        OpenComputers.log.warn("#    It appears that you're running a dedicated    #")
-        OpenComputers.log.warn("#  server with OpenComputers installed! Make sure  #")
-        OpenComputers.log.warn("#  to review the Internet Card address filtering   #")
-        OpenComputers.log.warn("#  list to ensure it is appropriately configured.  #")
-        OpenComputers.log.warn("#   (config/OpenComputers.cfg => filteringRules)   #")
-        OpenComputers.log.warn("#                                                  #")
-        OpenComputers.log.warn("####################################################")
+        OpenComputersNeo.log.warn("####################################################")
+        OpenComputersNeo.log.warn("#                                                  #")
+        OpenComputersNeo.log.warn("#    It appears that you're running a dedicated    #")
+        OpenComputersNeo.log.warn("#  server with OpenComputersNeo installed! Make sure  #")
+        OpenComputersNeo.log.warn("#  to review the Internet Card address filtering   #")
+        OpenComputersNeo.log.warn("#  list to ensure it is appropriately configured.  #")
+        OpenComputersNeo.log.warn("#   (config/OpenComputersNeo.cfg => filteringRules)   #")
+        OpenComputersNeo.log.warn("#                                                  #")
+        OpenComputersNeo.log.warn("####################################################")
       } else {
-        OpenComputers.log.info(f"Successfully applied ${Settings.get.internetFilteringRules.length} Internet Card filtering rules.")
+        OpenComputersNeo.log.info(f"Successfully applied ${Settings.get.internetFilteringRules.length} Internet Card filtering rules.")
       }
     }
   }
@@ -69,7 +69,7 @@ object ThreadPoolFactory {
 
   def create(name: String, threads: Int) = Executors.newScheduledThreadPool(threads,
     new ThreadFactory() {
-      private val baseName = "OpenComputers-" + name + "-"
+      private val baseName = "OpenComputersNeo-" + name + "-"
 
       private val threadNumber = new AtomicInteger(1)
 
@@ -104,17 +104,17 @@ class SafeThreadPool(val name: String, val threads: Int) {
 
   def withPool(f: ScheduledExecutorService => Future[_], requiresPool: Boolean = true): Option[Future[_]] = {
     if (_threadPool == null) {
-      OpenComputers.log.warn("Error handling file saving: Did the server never start?")
+      OpenComputersNeo.log.warn("Error handling file saving: Did the server never start?")
       if (requiresPool) {
-        OpenComputers.log.warn("Creating new thread pool.")
+        OpenComputersNeo.log.warn("Creating new thread pool.")
         newThreadPool()
       } else {
         return None
       }
     } else if (_threadPool.isShutdown || _threadPool.isTerminated) {
-      OpenComputers.log.warn("Error handling file saving: Thread pool shut down!")
+      OpenComputersNeo.log.warn("Error handling file saving: Thread pool shut down!")
       if (requiresPool) {
-        OpenComputers.log.warn("Creating new thread pool.")
+        OpenComputersNeo.log.warn("Creating new thread pool.")
         newThreadPool()
       } else {
         return None
@@ -135,10 +135,10 @@ class SafeThreadPool(val name: String, val threads: Int) {
       threadPool.shutdown()
       var terminated = threadPool.awaitTermination(15, TimeUnit.SECONDS)
       if (!terminated) {
-        OpenComputers.log.warn("Warning: Completing all tasks has already taken 15 seconds!")
+        OpenComputersNeo.log.warn("Warning: Completing all tasks has already taken 15 seconds!")
         terminated = threadPool.awaitTermination(105, TimeUnit.SECONDS)
         if (!terminated) {
-          OpenComputers.log.error("Warning: Completing all tasks has already taken two minutes! Aborting")
+          OpenComputersNeo.log.error("Warning: Completing all tasks has already taken two minutes! Aborting")
           threadPool.shutdownNow()
         }
       }

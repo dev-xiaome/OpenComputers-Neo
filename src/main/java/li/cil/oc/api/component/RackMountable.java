@@ -4,11 +4,13 @@ import li.cil.oc.api.network.Analyzable;
 import li.cil.oc.api.network.ComponentHost;
 import li.cil.oc.api.network.ManagedEnvironment;
 import li.cil.oc.api.util.StateAware;
+import net.minecraft.core.component.DataComponentMap;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.nbt.CompoundTag;
+import net.neoforged.neoforge.common.MutableDataComponentHolder;
 
 /**
  * Use this interface on environments provided by drivers for items that can
@@ -41,7 +43,23 @@ public interface RackMountable extends ManagedEnvironment, StateAware {
      *
      * @return the data to synchronize to the clients.
      */
-    CompoundTag getData();
+    @Deprecated(since = "1.9; NeoForge 1.21.1+", forRemoval = true)
+    default CompoundTag getSynchronizedData() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns some data describing the state of the mountable.
+     * <br>
+     * This is called on the server side to synchronize data to the client after
+     * the rack's {@link li.cil.oc.api.internal.Rack#markChanged(int)}
+     * method has been called for the slot this mountable is in. It will there
+     * be passed on with the render event to allow state specific rendering of
+     * the mountable in the rack.
+     */
+    default void describeForClient(MutableDataComponentHolder holder) {
+        saveData(holder);
+    }
 
     /**
      * The number of connectables exposed by the environment.

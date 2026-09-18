@@ -9,12 +9,10 @@ import li.cil.oc.util.InventoryUtils
 import li.cil.oc.util.ResultWrapper.result
 import li.cil.oc.util.StackOption._
 import net.minecraft.world.item.BlockItem
+import net.minecraft.core.component.DataComponents
+import net.minecraft.world.item.component.BlockItemStateProperties
 import net.minecraft.world.item.ItemStack
-import net.minecraft.core.{BlockPos, Direction}
-import net.minecraft.world.InteractionHand
-import net.minecraft.world.item.context.BlockPlaceContext
-import net.minecraft.world.level.block.state.BlockState
-import net.minecraft.world.phys.{BlockHitResult, Vec3}
+import net.minecraft.core.Direction
 import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.event.entity.item.ItemTossEvent
 
@@ -32,21 +30,19 @@ trait ContainerLevelControl extends ContainerAware with LevelAware with SideRest
           val state = world.getBlockState(blockPos)
           val idMatches = item.getBlock == state.getBlock
           val fuzzy = args.optBoolean(1, false)
-          val subTypeMatches = fuzzy || blockStateMatchesStack(item, stack, state, blockPos, side)
-          return result(idMatches && subTypeMatches)
+          if (fuzzy) return result(idMatches)
+
+          // In 1.12 the non-fuzzy comparison also compared the item's metadata to
+          // the placed block metadata. Modern Minecraft represents item-carried block
+          // state using the BLOCK_STATE data component, so apply that to the block's
+          // default state and compare it to the world state.
+          val itemState = stack.getOrDefault(DataComponents.BLOCK_STATE, BlockItemStateProperties.EMPTY).apply(item.getBlock.defaultBlockState)
+          return result(idMatches && itemState == state)
         case _ =>
       }
       case _ =>
     }
     result(false)
-  }
-
-  private def blockStateMatchesStack(item: BlockItem, stack: ItemStack, state: BlockState, blockPos: BlockPos, side: Direction): Boolean = {
-    if (item.getBlock.getStateDefinition.getProperties.isEmpty) return true
-    val context = new BlockPlaceContext(
-      world, fakePlayer, InteractionHand.MAIN_HAND, stack,
-      new BlockHitResult(Vec3.atCenterOf(blockPos), side.getOpposite, blockPos, false))
-    Option(item.getBlock.getStateForPlacement(context)).forall(_ == state)
   }
 
   @Callback(doc = "function(side:number[, count:number=64]):boolean -- Drops items from the selected slot towards the specified side.")
@@ -75,9 +71,9 @@ trait ContainerLevelControl extends ContainerAware with LevelAware with SideRest
           val dropped = inventory.removeItem(selectedSlot, count)
           val validator = (item: ItemEntity) => {
             val event = new ItemTossEvent(item, fakePlayer)
-            // NeoForge 的 post 返回事件本身；ItemTossEvent 只支持取消，没有 Result 状态。
             NeoForge.EVENT_BUS.post(event)
-            !event.isCanceled
+            val cancelled = event.isCanceled
+            !cancelled
           }
           if (!dropped.isEmpty) {
             if (InventoryUtils.spawnStackInWorld(position, dropped, Some(facing), Some(validator)) == null)

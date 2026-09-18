@@ -81,9 +81,9 @@ class RaidRenderer extends TileEntityRenderer[Raid] {
   private def renderSlot(stack: PoseStack, r: VertexConsumer, slot: Int, icon: TextureAtlasSprite): Unit = {
     val l = u1 + slot * fs
     val h = u1 + (slot + 1) * fs
-    r.addVertex(stack.last.pose, l, 1, 0).setUv(icon.getU(l * 16), icon.getV1)
-    r.addVertex(stack.last.pose, h, 1, 0).setUv(icon.getU(h * 16), icon.getV1)
-    r.addVertex(stack.last.pose, h, 0, 0).setUv(icon.getU(h * 16), icon.getV0)
-    r.addVertex(stack.last.pose, l, 0, 0).setUv(icon.getU(l * 16), icon.getV0)
+    r.addVertex(stack.last.pose, l, 1, 0).setUv(icon.getU(l), icon.getV1)
+    r.addVertex(stack.last.pose, h, 1, 0).setUv(icon.getU(h), icon.getV1)
+    r.addVertex(stack.last.pose, h, 0, 0).setUv(icon.getU(h), icon.getV0)
+    r.addVertex(stack.last.pose, l, 0, 0).setUv(icon.getU(l), icon.getV0)
   }
 }

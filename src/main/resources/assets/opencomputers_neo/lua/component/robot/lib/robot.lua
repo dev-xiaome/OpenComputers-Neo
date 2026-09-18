@@ -26,6 +26,19 @@ function robot.setLightColor(value)
   return component.robot.setLightColor(value)
 end
 
+function robot.getFlag()
+  return component.robot.getFlag()
+end
+
+function robot.setFlag(value)
+  checkArg(1, value, "string")
+  return component.robot.setFlag(value)
+end
+
+function robot.clearFlag()
+  return component.robot.clearFlag()
+end
+
 -------------------------------------------------------------------------------
 -- World
 

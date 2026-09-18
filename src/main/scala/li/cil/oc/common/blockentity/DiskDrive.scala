@@ -18,7 +18,6 @@ import li.cil.oc.api.network.Visibility
 import li.cil.oc.common.Slot
 import li.cil.oc.common.Sound
 import li.cil.oc.common.menu
-import li.cil.oc.common.menu.MenuTypes
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.ExtendedNBT._
 import li.cil.oc.util.InventoryUtils
@@ -28,22 +27,21 @@ import net.minecraft.world.MenuProvider
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.world.level.block.entity.BlockEntityType
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.world.level.block.state.BlockState
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
-import scala.collection.convert.ImplicitConversionsToJava._
+import scala.jdk.CollectionConverters._
 
 class DiskDrive(pos: BlockPos, state: BlockState) 
   extends BlockEntity(BlockEntityTypes.DISK_DRIVE.get(), pos, state) with traits.Environment
-  with traits.ComponentInventory with traits.Rotatable with Analyzable with DeviceInfo with MenuProvider {
+  with traits.ComponentInventory with traits.Rotatable with Analyzable with DeviceInfo with MenuProvider
+    with IBlockEntityExtension{
 
   // Used on client side to check whether to render disk activity indicators.
   var lastAccess = 0L
 
-  def filesystemNode: Option[Node] = componentEnvironments(0) match {
+  def filesystemNode: Option[Node] = componentSlots(0) match {
     case Some(environment) => Option(environment.node)
     case _ => None
   }
@@ -55,7 +53,7 @@ class DiskDrive(pos: BlockPos, state: BlockState)
     DeviceAttribute.Product -> "Spinner 520p1"
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
   // Environment
@@ -120,7 +118,7 @@ class DiskDrive(pos: BlockPos, state: BlockState)
 
   override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     super.onItemAdded(slot, stack)
-    componentEnvironments(slot) match {
+    componentSlots(slot) match {
       case Some(environment) => environment.node match {
         case component: Component => component.setVisibility(Visibility.Network)
       }
@@ -138,22 +136,5 @@ class DiskDrive(pos: BlockPos, state: BlockState)
       ServerPacketSender.sendFloppyChange(this)
       Sound.playDiskEject(this)
     }
-  }
-
-  // ----------------------------------------------------------------------- //
-  // TileEntity
-
-  private final val DiskTag = Settings.namespace + "disk"
-
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
-    if (nbt.contains(DiskTag)) {
-      setItem(0, ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(DiskTag)))
-    }
-  }
-
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
-    if (!items(0).isEmpty) nbt.setNewItemStackTag(DiskTag, items(0))
   }
 }

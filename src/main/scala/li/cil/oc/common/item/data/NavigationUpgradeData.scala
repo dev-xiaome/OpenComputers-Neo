@@ -1,23 +1,22 @@
 package li.cil.oc.common.item.data
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
 import li.cil.oc.Constants
-import li.cil.oc.Settings
-import li.cil.oc.util.ExtendedNBT._
-import net.minecraft.world.item.ItemStack
+import li.cil.oc.api.ImmutableItemStack
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.component.DataComponentHolder
+import net.minecraft.world.item.{Items, ItemStack, MapItem}
 import net.minecraft.world.level.Level
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.world.item.MapItem
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 class NavigationUpgradeData extends ItemData(Constants.ItemName.NavigationUpgrade) {
-  def this(stack: ItemStack) = {
+  def this(stack: DataComponentHolder) = {
     this()
     loadData(stack)
   }
 
-  var map = new ItemStack(net.minecraft.world.item.Items.FILLED_MAP)
+  var map = new ItemStack(Items.FILLED_MAP)
 
   def mapData(level: Level): MapItemSavedData = {
     val data = MapItem.getSavedData(map, level)
@@ -32,28 +31,13 @@ class NavigationUpgradeData extends ItemData(Constants.ItemName.NavigationUpgrad
     128 * (1 << info.scale)
   }
 
-  private final val DataTag = Settings.namespace + "data"
-  private final val MapTag = Settings.namespace + "map"
-
-  override def loadData(stack: ItemStack): Unit = {
-    if (stack.hasTag) {
-      loadData(stack.getTag.getCompound(DataTag))
-    }
+  override def loadData(holder: DataComponentHolder): Unit = {
+    map = holder.getComponent(OCComponents.SOURCE_MAP_ITEM).map(_.mutableCopy()).orNull
   }
 
-  override def saveData(stack: ItemStack): Unit = {
-    saveData(stack.getOrCreateTagElement(DataTag))
-  }
-
-  override def loadData(nbt: CompoundTag): Unit = {
-    if (nbt.contains(MapTag)) {
-      map = ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(MapTag))
-    }
-  }
-
-  override def saveData(nbt: CompoundTag): Unit = {
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
     if (map != null) {
-      nbt.setNewItemStackTag(MapTag, map)
+      holder.setComponent(OCComponents.SOURCE_MAP_ITEM, ImmutableItemStack.copyOf(map))
     }
   }
 }

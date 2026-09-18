@@ -1,5 +1,5 @@
 /**
- * This API provides interfaces and factory methods for the OpenComputers mod.
+ * This API provides interfaces and factory methods for the OpenComputersNeo mod.
  * <br>
  * There are several parts to this API:
  * <dl>

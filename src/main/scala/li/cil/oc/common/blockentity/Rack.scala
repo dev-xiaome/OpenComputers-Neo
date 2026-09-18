@@ -1,57 +1,50 @@
 package li.cil.oc.common.blockentity
 
-import java.util
-import li.cil.oc.Settings
-import li.cil.oc.api
-import li.cil.oc.api.Driver
+import li.cil.oc.{OpenComputersNeo, Settings, api}
 import li.cil.oc.api.component.RackMountable
-import li.cil.oc.api.internal
-import li.cil.oc.api.network.Analyzable
-import li.cil.oc.api.network.Connector
-import li.cil.oc.api.network.EnvironmentHost
-import li.cil.oc.api.network.Message
-import li.cil.oc.api.network.Node
-import li.cil.oc.api.network.Packet
-import li.cil.oc.api.network.Visibility
+import li.cil.oc.api.{Driver, internal}
+import li.cil.oc.api.network._
 import li.cil.oc.api.util.StateAware
-import li.cil.oc.common.Slot
-import li.cil.oc.common.menu
-import li.cil.oc.common.menu.MenuTypes
+import li.cil.oc.client.renderer.block.ServerRackModel
 import li.cil.oc.common.blockentity.traits.RedstoneChangedEventArgs
-import li.cil.oc.integration.opencomputers.DriverRedstoneCard
+import li.cil.oc.common.component.TerminalServer
+import li.cil.oc.common.datacomponents.{CompoundStorage, OCComponents}
+import li.cil.oc.common.{Slot, menu}
+import li.cil.oc.integration.OpenComputersNeo.DriverRedstoneCard
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.ExtendedInventory._
 import li.cil.oc.util.ExtendedNBT._
-import li.cil.oc.util.RotationHelper
-import li.cil.oc.client.renderer.block.ServerRackModel
-import net.minecraft.world.item.ItemStack
-import net.minecraft.core.Direction
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import net.minecraft.world.level.block.entity.BlockEntityType
-import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.core.BlockPos
-import net.minecraft.world.level.block.state.BlockState
-import net.minecraft.world.{Container, MenuProvider}
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.component.{DataComponentHolder, DataComponentMap, DataComponentPatch}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.nbt.{CompoundTag, IntArrayTag, Tag}
 import net.minecraft.world.entity.player.{Inventory, Player}
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.{Container, MenuProvider}
+import net.neoforged.api.distmarker.{Dist, OnlyIn}
 import net.neoforged.neoforge.client.model.data.ModelData
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
+import java.util
 import scala.collection.immutable.ArraySeq
 
 class Rack(pos: BlockPos, state: BlockState)
   extends BlockEntity(BlockEntityTypes.RACK.get(), pos, state) with traits.PowerAcceptor with traits.Hub with traits.PowerBalancer
-  with traits.ComponentInventory with traits.Rotatable with traits.BundledRedstoneAware with Analyzable with internal.Rack with traits.StateAware with MenuProvider {
+    with traits.ComponentInventory with traits.Rotatable with traits.BundledRedstoneAware with Analyzable with internal.Rack with traits.StateAware with MenuProvider
+    with IBlockEntityExtension {
 
   var isRelayEnabled = false
-  val lastData = new Array[CompoundTag](getContainerSize)
+  val lastData: Array[Option[CompoundStorage]] = Array.fill[Option[CompoundStorage]](getContainerSize) { None }
   val hasChanged: Array[Boolean] = Array.fill(getContainerSize)(true)
 
   @OnlyIn(Dist.CLIENT)
   override def getModelData: ModelData =
     ModelData.builder()
-  .`with`(ServerRackModel.RACK_PROPERTY, this)
-    .build()
+      .`with`(ServerRackModel.RACK_PROPERTY, this)
+      .build()
 
   // Map node connections for each installed mountable. Each mountable may
   // have up to four outgoing connections, with the first one always being
@@ -272,7 +265,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   override def onAnalyze(player: Player, side: Direction, hitX: Float, hitY: Float, hitZ: Float): Array[Node] = {
     slotAt(side, hitX, hitY, hitZ) match {
-      case Some(slot) => componentEnvironments(slot) match {
+      case Some(slot) => componentSlots(slot) match {
         case Some(analyzable: Analyzable) => analyzable.onAnalyze(player, side, hitX, hitY, hitZ)
         case _ => null
       }
@@ -283,14 +276,14 @@ class Rack(pos: BlockPos, state: BlockState)
   // ----------------------------------------------------------------------- //
   // internal.Rack
 
-  override def indexOfMountable(mountable: RackMountable): Int = componentEnvironments.indexWhere(_.contains(mountable))
+  override def indexOfMountable(mountable: RackMountable): Int = componentSlots.indexWhere(_.contains(mountable))
 
-  override def getMountable(slot: Int): RackMountable = componentEnvironments(slot) match {
+  override def getMountable(slot: Int): RackMountable = componentSlots(slot) match {
     case Some(mountable: RackMountable) => mountable
     case _ => null
   }
 
-  override def getMountableData(slot: Int): CompoundTag = lastData(slot)
+  override def getMountableData(slot: Int): DataComponentHolder = lastData(slot) getOrElse CompoundStorage.EMPTY
 
   override def markChanged(slot: Int): Unit = {
     hasChanged.synchronized(hasChanged(slot) = true)
@@ -302,7 +295,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   override def getCurrentState: util.EnumSet[StateAware.State] = {
     val result = util.EnumSet.noneOf(classOf[api.util.StateAware.State])
-    componentEnvironments.collect {
+    componentSlots.collect {
       case Some(mountable: RackMountable) => result.addAll(mountable.getCurrentState)
     }
     result
@@ -321,7 +314,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   override protected def onRedstoneInputChanged(args: RedstoneChangedEventArgs): Unit = {
     super.onRedstoneInputChanged(args)
-    componentEnvironments.collect {
+    componentSlots.collect {
       case Some(mountable: RackMountable) if mountable.node != null =>
         val toLocalArgs = RedstoneChangedEventArgs(toLocal(args.side), args.oldValue, args.newValue, args.color)
         mountable.node.sendToNeighbors("redstone.changed", toLocalArgs)
@@ -365,7 +358,7 @@ class Rack(pos: BlockPos, state: BlockState)
       for (connectable <- 0 until 4) {
         nodeMapping(slot)(connectable) = None
       }
-      lastData(slot) = null
+      lastData(slot) = None
       hasChanged(slot) = true
     }
     super.onItemAdded(slot, stack)
@@ -376,7 +369,7 @@ class Rack(pos: BlockPos, state: BlockState)
       for (connectable <- 0 until 4) {
         nodeMapping(slot)(connectable) = None
       }
-      lastData(slot) = null
+      lastData(slot) = None
     }
     super.onItemRemoved(slot, stack)
   }
@@ -396,11 +389,15 @@ class Rack(pos: BlockPos, state: BlockState)
       lazy val connectors = ArraySeq.unsafeWrapArray(Direction.values()).map(sidedNode).collect {
         case connector: Connector => connector
       }
-      componentEnvironments.zipWithIndex.collect {
+      componentSlots.zipWithIndex.collect {
         case (Some(mountable: RackMountable), slot) =>
           if (hasChanged(slot)) {
             hasChanged(slot) = false
-            lastData(slot) = mountable.getData
+
+            val data = lastData(slot) getOrElse new CompoundStorage()
+            mountable.describeForClient(data)
+            lastData(slot) = Some(data)
+
             ServerPacketSender.sendRackMountableData(this, slot)
             getLevel.updateNeighborsAt(getBlockPos, getBlockState.getBlock)
             // These are working state dependent, so recompute them.
@@ -423,54 +420,77 @@ class Rack(pos: BlockPos, state: BlockState)
 
       updateComponents()
     }
+    else {
+      // A terminal's input packets are routed directly by its virtual screen
+      // address, but its display changes are flushed from TerminalServer.update.
+      // Keep that one mountable ticking while the rack's outer network is not
+      // connected; otherwise input continues to work while display updates
+      // accumulate until the next full snapshot. On the client this also keeps
+      // initialization retries alive during world loading.
+      componentSlots.foreach {
+        case Some(terminal: TerminalServer) => terminal.update()
+        case _ =>
+      }
+    }
   }
 
   // ----------------------------------------------------------------------- //
 
-  private final val IsRelayEnabledTag = Settings.namespace + "isRelayEnabled"
-  private final val NodeMappingTag = Settings.namespace + "nodeMapping"
-  private final val LastDataTag = Settings.namespace + "lastData"
-  private final val RackDataTag = Settings.namespace + "rackData"
+  override def loadComponentsForServer(holder: DataComponentHolder): Unit = {
+    super.loadComponentsForServer(holder)
+    isRelayEnabled = holder.has(OCComponents.RELAY_ENABLED)
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
-
-    isRelayEnabled = nbt.getBoolean(IsRelayEnabledTag)
-    nbt.getList(NodeMappingTag, Tag.TAG_INT_ARRAY).map((buses: IntArrayTag) =>
-      buses.getAsIntArray.map(id => if (id < 0 || id == Direction.SOUTH.ordinal()) None else Option(Direction.from3DDataValue(id)))).
-      copyToArray(nodeMapping)
-
-    // Kickstart initialization.
-    _isOutputEnabled = hasRedstoneCard
+    for(nodeMap <- holder.getComponent(OCComponents.RACK_NODE_MAPPING)) {
+      nodeMap.map(_.map {
+        case Direction.SOUTH => None
+        case other => Some(other)
+      }.toArray).toArray copyToArray nodeMapping
+    }
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
-
-    nbt.putBoolean(IsRelayEnabledTag, isRelayEnabled)
-    nbt.setNewTagList(NodeMappingTag, nodeMapping.map(buses =>
-      toNbt(buses.map(side => side.fold(-1)(_.ordinal())))))
+  override def saveComponentsForServer(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsForServer(holder)
+    holder.setComponent(OCComponents.RELAY_ENABLED, isRelayEnabled)
+    holder.setComponent(OCComponents.RACK_NODE_MAPPING, nodeMapping.map(_.map {
+      case None => Direction.SOUTH
+      case Some(Direction.SOUTH) =>
+        OpenComputersNeo.log.warn(s"Weird direction value in rack at $pos! SOUTH should not be possible?")
+        Direction.SOUTH
+      case Some(other) => other
+    }.toList).toList)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    // Inventory.saveForServer writes mountable ItemStacks to chunk NBT before
+    // saveComponentsForServer normally flushes their live environments. Only
+    // the terminal server needs its nested virtual screen/keyboard snapshot at
+    // this earlier point. Do not flush rack-mounted Servers here: doing so can
+    // disturb their machine lifecycle and saved running state.
+    componentSlots.zip(items).foreach {
+      case (Some(terminal: TerminalServer), stack) if !stack.isEmpty => terminal.saveData(stack)
+      case _ =>
+    }
+    super.saveForServer(nbt, provider)
+  }
+
+  override def loadComponentsForClient(holder: DataComponentHolder): Unit = {
+    super.loadComponentsForClient(holder)
     requestModelDataUpdate()
 
-    val data = nbt.getList(LastDataTag, Tag.TAG_COMPOUND).
-      toTagArray[CompoundTag]
-    data.copyToArray(lastData)
-    loadData(nbt.getCompound(RackDataTag))
+    for(data <- holder.getComponent(OCComponents.RACK_DATA)) {
+      data.toArray.copyToArray(lastData)
+    }
+
+    loadData(holder)
     connectComponents()
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
+  override def saveComponentsForClient(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsForClient(holder)
+    holder.setComponent(OCComponents.RACK_DATA, lastData.toList)
 
-    val data = lastData.map(tag => if (tag == null) new CompoundTag() else tag)
-    nbt.setNewTagList(LastDataTag, data)
-    nbt.setNewCompoundTag(RackDataTag, saveData)
+    saveData(holder)
   }
-
   // ----------------------------------------------------------------------- //
 
   def slotAt(side: Direction, hitX: Float, hitY: Float, hitZ: Float): Option[Int] = {
@@ -486,7 +506,7 @@ class Rack(pos: BlockPos, state: BlockState)
 
   def isWorking(mountable: RackMountable): Boolean = mountable.getCurrentState.contains(api.util.StateAware.State.IsWorking)
 
-  def hasRedstoneCard: Boolean = componentEnvironments.exists {
+  def hasRedstoneCard: Boolean = componentSlots.exists {
     case Some(mountable: EnvironmentHost with RackMountable with Container) if isWorking(mountable) =>
       mountable.exists(stack => DriverRedstoneCard.worksWith(stack, mountable.getClass))
     case _ => false

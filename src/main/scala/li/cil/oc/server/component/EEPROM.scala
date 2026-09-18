@@ -1,7 +1,6 @@
 package li.cil.oc.server.component
 
 import java.util
-
 import com.google.common.hash.Hashing
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
@@ -13,10 +12,15 @@ import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
-import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
+import java.nio.ByteBuffer
 import scala.collection.convert.ImplicitConversionsToJava._
 
 class EEPROM extends AbstractManagedEnvironment with DeviceInfo {
@@ -116,26 +120,27 @@ class EEPROM extends AbstractManagedEnvironment with DeviceInfo {
 
   // ----------------------------------------------------------------------- //
 
-  private final val EEPROMTag = Settings.namespace + "eeprom"
-  private final val LabelTag = Settings.namespace + "label"
-  private final val ReadonlyTag = Settings.namespace + "readonly"
-  private final val UserdataTag = Settings.namespace + "userdata"
-
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
-    codeData = nbt.getByteArray(EEPROMTag)
-    if (nbt.contains(LabelTag)) {
-      label = nbt.getString(LabelTag)
-    }
-    readonly = nbt.getBoolean(ReadonlyTag)
-    volatileData = nbt.getByteArray(UserdataTag)
+  private def asArray(buffer: ByteBuffer): Array[Byte] = if(buffer.hasArray) {
+    buffer.array
+  } else {
+    val array = Array.fill[Byte](buffer.remaining()) { 0 }
+    buffer.get(array)
+    array
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
-    nbt.putByteArray(EEPROMTag, codeData)
-    nbt.putString(LabelTag, label)
-    nbt.putBoolean(ReadonlyTag, readonly)
-    nbt.putByteArray(UserdataTag, volatileData)
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
+    for(code <- holder.getComponent(OCComponents.EEPROM_CODE)) codeData = asArray(code)
+    for(data <- holder.getComponent(OCComponents.EEPROM_DATA)) volatileData = asArray(data)
+    for(label <- holder.getComponent(OCComponents.LABEL)) this.label = label
+    this.readonly = holder.getComponent(OCComponents.READONLY) getOrElse false
+  }
+
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super.saveData(holder)
+    holder.setComponent(OCComponents.EEPROM_CODE, ByteBuffer.wrap(codeData))
+    holder.setComponent(OCComponents.EEPROM_DATA, ByteBuffer.wrap(volatileData))
+    holder.setComponent(OCComponents.LABEL, label)
+    holder.setComponent(OCComponents.READONLY, Option.when(readonly) { true })
   }
 }

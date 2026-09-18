@@ -8,11 +8,11 @@ import li.cil.oc.common.Slot
 import li.cil.oc.common.Tier
 import li.cil.oc.common.item.data.RobotData
 import li.cil.oc.util.ItemUtils
+import net.minecraft.network.chat.Component
 import net.minecraft.world.Container
 import net.minecraft.world.item.ItemStack
 
-import scala.collection.JavaConverters.asJavaIterable
-import scala.collection.convert.ImplicitConversionsToJava._
+import scala.jdk.CollectionConverters.IterableHasAsJava
 
 object RobotTemplate extends Template {
   override protected def hostClass = classOf[internal.Robot]
@@ -31,7 +31,7 @@ object RobotTemplate extends Template {
     val items = (1 until inventory.getContainerSize).map(inventory.getItem)
     val data = new RobotData()
     data.tier = caseTier(inventory)
-    data.name = RobotData.randomName
+    data.name = Component.literal(RobotData.randomName)
     data.robotEnergy = Settings.get.bufferRobot.toInt
     data.totalEnergy = data.robotEnergy
     data.containers = items.take(3).filter(!_.isEmpty).toArray
@@ -69,7 +69,7 @@ object RobotTemplate extends Template {
         Tier.One,
         Tier.One
       ),
-      asJavaIterable(Iterable(
+      Iterable(
         (Slot.Card, Tier.One),
         null,
         null,
@@ -78,7 +78,7 @@ object RobotTemplate extends Template {
         (Slot.Memory, Tier.One),
         (Slot.EEPROM, Tier.Any),
         (Slot.HDD, Tier.One)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
     // Tier 2
     api.IMC.registerAssemblerTemplate(
@@ -100,7 +100,7 @@ object RobotTemplate extends Template {
         Tier.One,
         Tier.One
       ),
-      asJavaIterable(Iterable(
+      Iterable(
         (Slot.Card, Tier.Two),
         (Slot.Card, Tier.One),
         null,
@@ -109,7 +109,7 @@ object RobotTemplate extends Template {
         (Slot.Memory, Tier.Two),
         (Slot.EEPROM, Tier.Any),
         (Slot.HDD, Tier.Two)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
     // Tier 3
     api.IMC.registerAssemblerTemplate(
@@ -134,7 +134,7 @@ object RobotTemplate extends Template {
         Tier.One,
         Tier.One
       ),
-      asJavaIterable(Iterable(
+      Iterable(
         (Slot.Card, Tier.Three),
         (Slot.Card, Tier.Two),
         (Slot.Card, Tier.Two),
@@ -144,7 +144,7 @@ object RobotTemplate extends Template {
         (Slot.EEPROM, Tier.Any),
         (Slot.HDD, Tier.Three),
         (Slot.HDD, Tier.Two)
-      ).map(toPair)))
+      ).map(toPair).asJava)
 
     // Creative
     api.IMC.registerAssemblerTemplate(
@@ -154,32 +154,32 @@ object RobotTemplate extends Template {
       "li.cil.oc.common.template.RobotTemplate.assemble",
       hostClass,
       Array(
-        Tier.Three,
-        Tier.Three,
-        Tier.Three
+        Tier.Four,
+        Tier.Four,
+        Tier.Four
       ),
       Array(
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three,
-        Tier.Three
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four,
+        Tier.Four
       ),
-      asJavaIterable(Iterable(
-        (Slot.Card, Tier.Three),
-        (Slot.Card, Tier.Three),
-        (Slot.Card, Tier.Three),
-        (Slot.CPU, Tier.Three),
-        (Slot.Memory, Tier.Three),
-        (Slot.Memory, Tier.Three),
+      Iterable(
+        (Slot.Card, Tier.Four),
+        (Slot.Card, Tier.Four),
+        (Slot.Card, Tier.Four),
+        (Slot.CPU, Tier.Four),
+        (Slot.Memory, Tier.Four),
+        (Slot.Memory, Tier.Four),
         (Slot.EEPROM, Tier.Any),
-        (Slot.HDD, Tier.Three),
-        (Slot.HDD, Tier.Three)
-      ).map(toPair)))
+        (Slot.HDD, Tier.Four),
+        (Slot.HDD, Tier.Four)
+      ).map(toPair).asJava)
 
     // Disassembler
     api.IMC.registerDisassemblerTemplate(

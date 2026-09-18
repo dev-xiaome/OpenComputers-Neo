@@ -35,7 +35,7 @@ object Document {
    * Parses a plain text document into a list of segments.
    */
   def parse(document: Iterable[String]): Segment = {
-    var segments: Iterable[Segment] = document.map(line => new segment.TextSegment(null, Option(line).fold("")(_.reverse.dropWhile(_.isWhitespace).reverse)))
+    var segments: Iterable[Segment] = parseBlocks(document)
     for ((pattern, factory) <- segmentTypes) {
       segments = segments.flatMap(_.refine(pattern, factory))
     }
@@ -43,6 +43,36 @@ object Document {
       window.head.next = window.last
     }
     segments.head
+  }
+
+  private def parseBlocks(document: Iterable[String]): Iterable[Segment] = {
+    val result = scala.collection.mutable.Buffer.empty[Segment]
+    val lines = document.iterator
+    val fence = "^\\s*```(?:.*)?\\s*$".r
+    var pending = scala.collection.mutable.Buffer.empty[String]
+
+    def addText(): Unit = {
+      result ++= pending.map(line => new segment.TextSegment(null, Option(line).fold("")(_.reverse.dropWhile(_.isWhitespace).reverse)))
+      pending.clear()
+    }
+
+    while (lines.hasNext) {
+      val line = lines.next()
+      if (fence.matches(line)) {
+        addText()
+        val code = scala.collection.mutable.Buffer.empty[String]
+        var closed = false
+        while (lines.hasNext && !closed) {
+          val codeLine = lines.next()
+          if (fence.matches(codeLine)) closed = true
+          else code += codeLine
+        }
+        result += new segment.CodeBlockSegment(null, code.toSeq)
+      }
+      else pending += line
+    }
+    addText()
+    result
   }
 
   /**
@@ -72,17 +102,14 @@ object Document {
   def render(graphics: GuiGraphics, document: Segment, x: Int, y: Int, maxWidth: Int, maxHeight: Int, yOffset: Int, renderer: Font, mouseX: Int, mouseY: Int): Option[InteractiveSegment] = {
     val window = Minecraft.getInstance.getWindow
     val stack = graphics.pose
-
-    RenderState.pushAttrib()
-
     RenderSystem.setShaderColor(1, 1, 1, 1)
     // Clip using the scissor test to not interfere with RenderType-maintained depth testing.
     GL11.glEnable(GL11.GL_SCISSOR_TEST)
     val (x0, y0, x1, y1) = {
       val scale = window.getGuiScale
-      val bottomLeft = new Vector4f(x, y + maxHeight, 0, 1)
+      val bottomLeft = new Vector4f(x.toFloat, (y + maxHeight).toFloat, 0f, 1f)
       bottomLeft.mul(stack.last.pose)
-      val topRight = new Vector4f(x + maxWidth, y, 0, 1)
+      val topRight = new Vector4f((x + maxWidth).toFloat, y.toFloat, 0f, 1f)
       topRight.mul(stack.last.pose)
       ((bottomLeft.x * scale).floor.asInstanceOf[Int],
         (window.getHeight - bottomLeft.y * scale).floor.asInstanceOf[Int],

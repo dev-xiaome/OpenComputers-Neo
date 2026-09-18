@@ -1,49 +1,37 @@
 package li.cil.oc.server.component
 
-import java.util
-import li.cil.oc.{Constants, OpenComputers, api}
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
-import li.cil.oc.api.Driver
-import li.cil.oc.api.component.RackBusConnectable
-import li.cil.oc.api.component.RackMountable
+import li.cil.oc.api.component.{RackBusConnectable, RackMountable}
 import li.cil.oc.api.driver.DeviceInfo
-import li.cil.oc.api.machine.Arguments
-import li.cil.oc.api.machine.Callback
-import li.cil.oc.api.machine.Context
-import li.cil.oc.api.network.Analyzable
-import li.cil.oc.api.network.Component
-import li.cil.oc.api.network.EnvironmentHost
-import li.cil.oc.api.network.Node
-import li.cil.oc.api.network.Visibility
-import li.cil.oc.api.prefab
+import li.cil.oc.api.driver.DeviceInfo.{DeviceAttribute, DeviceClass}
+import li.cil.oc.api.machine.{Arguments, Callback, Context}
+import li.cil.oc.api.network._
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
-import li.cil.oc.common.{Slot, Sound}
-import li.cil.oc.common.menu.MenuTypes
+import li.cil.oc.api.{Driver, ImmutableItemStack}
+import li.cil.oc.common.container.{ComponentInventory, ItemStackInventory}
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.common.menu.{DiskDrive => DiskDriveContainer}
-import li.cil.oc.common.container.ComponentInventory
-import li.cil.oc.common.container.ItemStackInventory
-import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.ExtendedNBT._
-import li.cil.oc.util.InventoryUtils
-import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
+import li.cil.oc.common.{Slot, Sound}
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import li.cil.oc.util.{BlockPosition, InventoryUtils}
+import li.cil.oc.{Constants, api}
 import net.minecraft.core.Direction
-import net.minecraft.world.MenuProvider
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.network.chat
-
-import scala.collection.convert.ImplicitConversionsToJava._
-import net.minecraft.world.entity.player.Player
 import net.minecraft.server.level.ServerPlayer
-import net.minecraft.world.InteractionHand
-import net.minecraft.world.entity.player.Inventory
+import net.minecraft.world.{InteractionHand, MenuProvider}
+import net.minecraft.world.entity.player.{Inventory, Player}
+import net.minecraft.world.item.ItemStack
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+
+import java.util
+import scala.collection.convert.ImplicitConversionsToJava._
 
 class DiskDriveMountable(val rack: api.internal.Rack, val slot: Int) 
   extends AbstractManagedEnvironment with ItemStackInventory with ComponentInventory with RackMountable with Analyzable with DeviceInfo with MenuProvider {
   // Stored for filling data packet when queried.
   var lastAccess = 0L
 
-  def filesystemNode: Option[Node] = componentEnvironments(0) match {
+  def filesystemNode: Option[Node] = componentSlots(0) match {
     case Some(environment) => Option(environment.node)
     case _ => None
   }
@@ -126,7 +114,7 @@ class DiskDriveMountable(val rack: api.internal.Rack, val slot: Int)
 
   override protected def onItemAdded(slot: Int, stack: ItemStack): Unit = {
     super.onItemAdded(slot, stack)
-    componentEnvironments(slot) match {
+    componentSlots(slot) match {
       case Some(environment) => environment.node match {
         case component: Component => component.setVisibility(Visibility.Network)
       }
@@ -154,25 +142,25 @@ class DiskDriveMountable(val rack: api.internal.Rack, val slot: Int)
   // ----------------------------------------------------------------------- //
   // Persistable
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super[AbstractManagedEnvironment].loadData(nbt)
-    super[ComponentInventory].loadData(nbt)
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super[AbstractManagedEnvironment].loadData(holder)
+    super[ComponentInventory].loadData(holder)
     connectComponents()
+
+    this.lastAccess = holder.getComponent(OCComponents.Network.LAST_ACCESS) getOrElse 0
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super[AbstractManagedEnvironment].saveData(nbt)
-    super[ComponentInventory].saveData(nbt)
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super[AbstractManagedEnvironment].saveData(holder)
+    super[ComponentInventory].saveData(holder)
   }
 
   // ----------------------------------------------------------------------- //
   // RackMountable
 
-  override def getData: CompoundTag = {
-    val nbt = new CompoundTag()
-    nbt.putLong("lastAccess", lastAccess)
-    nbt.put("disk", toNbt(getItem(0)))
-    nbt
+  override def describeForClient(holder: MutableDataComponentHolder): Unit = {
+    holder.setComponent(OCComponents.Network.LAST_ACCESS, lastAccess)
+    holder.setComponent(OCComponents.Network.DISK_ITEM, ImmutableItemStack.copyOf(getItem(0)))
   }
 
   override def getConnectableCount: Int = 0

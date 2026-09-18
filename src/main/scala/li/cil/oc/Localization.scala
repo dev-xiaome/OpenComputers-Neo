@@ -33,11 +33,11 @@ object Localization {
 
     def AddressCopied: Component = localizeLater("gui.Analyzer.AddressCopied")
 
-    def ChargerSpeed(value: Double): Component = localizeLater("gui.Analyzer.ChargerSpeed", (value * 100).toInt + "%")
+    def ChargerSpeed(value: Double): Component = localizeLater("gui.Analyzer.ChargerSpeed", s"${(value * 100).toInt}%")
 
     def ComponentName(value: String): Component = localizeLater("gui.Analyzer.ComponentName", value)
 
-    def Components(count: Int, maxCount: Int): Component = localizeLater("gui.Analyzer.Components", count + "/" + maxCount)
+    def Components(count: Int, maxCount: Int): Component = localizeLater("gui.Analyzer.Components", s"$count/$maxCount")
 
     def LastError(value: String): Component = localizeLater("gui.Analyzer.LastError", localizeLater(value))
 

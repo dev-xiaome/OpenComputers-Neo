@@ -1,6 +1,6 @@
 package li.cil.oc.common.template
 
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api
 import net.minecraft.world.item.ItemStack
@@ -15,7 +15,7 @@ object TemplateBlacklist {
     def parseDescriptor(id: String, meta: Int) = {
       val item = BuiltInRegistries.ITEM.get(ResourceLocation.tryParse(id))
       if (item == null) {
-        OpenComputers.log.warn(s"Bad assembler blacklist entry '$id', unknown item id.")
+        OpenComputersNeo.log.warn(s"Bad assembler blacklist entry '$id', unknown item id.")
         None
       }
       else {
@@ -28,11 +28,11 @@ object TemplateBlacklist {
       case pattern(id, null) => parseDescriptor(id, 0)
       case pattern(id, meta) => try parseDescriptor(id, meta.toInt) catch {
         case _: NumberFormatException =>
-          OpenComputers.log.warn(s"Bad assembler blacklist entry '$id@$meta', invalid damage value.")
+          OpenComputersNeo.log.warn(s"Bad assembler blacklist entry '$id@$meta', invalid damage value.")
           None
       }
       case badFormat =>
-        OpenComputers.log.warn(s"Bad assembler blacklist entry '$badFormat', invalid format (should be 'id' or 'id@damage').")
+        OpenComputersNeo.log.warn(s"Bad assembler blacklist entry '$badFormat', invalid format (should be 'id' or 'id@damage').")
         None
     }.collect {
       case Some(stack) => stack

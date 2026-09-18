@@ -3,14 +3,13 @@ package li.cil.oc.common.menu
 import li.cil.oc.client.Textures
 import li.cil.oc.common
 import li.cil.oc.common.entity
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import net.minecraft.world.entity.player.Inventory
+import net.minecraft.nbt.{CompoundTag, NbtOps}
+import net.minecraft.network.chat.{Component, ComponentSerialization}
 import net.minecraft.world.Container
+import net.minecraft.world.entity.player.Inventory
 import net.minecraft.world.inventory.DataSlot
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.world.inventory.MenuType
 import net.minecraft.world.item.ItemStack
+import net.neoforged.api.distmarker.{Dist, OnlyIn}
 
 class Drone(id: Int, playerInventory: Inventory, droneInv: Container, val mainInvSize: Int)
   extends AbstractMenu(MenuTypes.DRONE.get(), id, playerInventory, droneInv) {
@@ -85,11 +84,13 @@ class Drone(id: Int, playerInventory: Inventory, droneInv: Container, val mainIn
   }
   def selectedSlot = selectedSlotData.get
 
-  def statusText = synchronizedData.getString("statusText")
+  def statusText: Component = ComponentSerialization.FLAT_CODEC.parse(NbtOps.INSTANCE, synchronizedData.get("statusText")).result().orElse(Component.empty)
 
   override protected def detectCustomDataChanges(nbt: CompoundTag): Unit = {
     droneInv match {
-      case droneInv: entity.DroneInventory => synchronizedData.putString("statusText", droneInv.drone.statusText)
+      case droneInv: entity.DroneInventory => synchronizedData.put("statusText", {
+        ComponentSerialization.FLAT_CODEC.encode(droneInv.drone.statusText, NbtOps.INSTANCE, new CompoundTag()).getOrThrow()
+      })
       case _ =>
     }
     super.detectCustomDataChanges(nbt)

@@ -1,0 +1,21 @@
+{
+  "type": "opencomputers_neo:crafting_robot_flag",
+  "category": "redstone",
+  "ingredients": [
+    { "tag": "c:dyes/red" },
+    { "tag": "c:dyes/orange" },
+    { "tag": "c:dyes/yellow" },
+    { "tag": "c:dyes/green" },
+    { "tag": "c:dyes/blue" },
+    { "tag": "c:dyes/purple" },
+    { "item": "minecraft:stick" },
+    { "item": "opencomputers_neo:robot" }
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:robot",
+    "components": {
+      "opencomputers_neo:robot_flag": "opencomputers_neo:rainbow_flag"
+    }
+  }
+}

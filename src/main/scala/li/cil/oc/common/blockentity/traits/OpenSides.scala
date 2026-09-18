@@ -3,9 +3,7 @@ package li.cil.oc.common.blockentity.traits
 import li.cil.oc.Settings
 import li.cil.oc.util.RotationHelper
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.core.Direction
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
+import net.minecraft.core.{Direction, HolderLookup}
 
 /**
   * @author Vexatos
@@ -27,24 +25,24 @@ trait OpenSides extends BaseBlockEntity {
     openSides(side.ordinal()) = value
   }
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
+  override def loadForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForServer(nbt, provider)
     if (nbt.contains(Settings.namespace + "openSides"))
       openSides = uncompressSides(nbt.getByte(Settings.namespace + "openSides"))
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForServer(nbt, provider)
     nbt.putByte(Settings.namespace + "openSides", compressSides)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
+  override def loadForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForClient(nbt, provider)
     openSides = uncompressSides(nbt.getByte(Settings.namespace + "openSides"))
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
+  override def saveForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForClient(nbt, provider)
     nbt.putByte(Settings.namespace + "openSides", compressSides)
   }
 }

@@ -1,9 +1,11 @@
 package li.cil.oc.common.item.data
 
-import li.cil.oc.Settings
 import li.cil.oc.api.network.Visibility
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 // Generic one for items that are used as components; gets the items node info.
 class NodeData extends ItemData(null) {
@@ -16,39 +18,23 @@ class NodeData extends ItemData(null) {
   var buffer: Option[Double] = None
   var visibility: Option[Visibility] = None
 
-  private final val DataTag = Settings.namespace + "data"
+  override def loadData(holder: DataComponentHolder): Unit = {
+    for(addr <- holder.getComponent(OCComponents.ADDRESS)) {
+      address = Some(addr)
+    }
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    val nodeNbt = nbt.getCompound(DataTag).getCompound(NodeData.NodeTag)
-    if (nodeNbt.contains(NodeData.AddressTag)) {
-      address = Option(nodeNbt.getString(NodeData.AddressTag))
+    for(vis <- holder.getComponent(OCComponents.VISIBILITY)) {
+      visibility = Some(vis)
     }
-    if (nodeNbt.contains(NodeData.BufferTag)) {
-      buffer = Option(nodeNbt.getDouble(NodeData.BufferTag))
-    }
-    if (nodeNbt.contains(NodeData.VisibilityTag)) {
-      visibility = Option(Visibility.values()(nodeNbt.getInt(NodeData.VisibilityTag)))
+
+    for(charge <- holder.getComponent(OCComponents.CHARGE)) {
+      buffer = Some(charge)
     }
   }
-
-  override def saveData(nbt: CompoundTag): Unit = {
-    if (!nbt.contains(DataTag)) {
-      nbt.put(DataTag, new CompoundTag())
-    }
-    val dataNbt = nbt.getCompound(DataTag)
-    if (!dataNbt.contains(NodeData.NodeTag)) {
-      dataNbt.put(NodeData.NodeTag, new CompoundTag())
-    }
-    val nodeNbt = dataNbt.getCompound(NodeData.NodeTag)
-    address.foreach(nodeNbt.putString(NodeData.AddressTag, _))
-    buffer.foreach(nodeNbt.putDouble(NodeData.BufferTag, _))
-    visibility.map(_.ordinal()).foreach(nodeNbt.putInt(NodeData.VisibilityTag, _))
+  
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    holder.setComponent(OCComponents.ADDRESS, address)
+    holder.setComponent(OCComponents.VISIBILITY, visibility)
+    holder.setComponent(OCComponents.CHARGE, buffer)
   }
-}
-
-object NodeData {
-  final val NodeTag = "node"
-  final val AddressTag = "address"
-  final val BufferTag = "buffer"
-  final val VisibilityTag = "visibility"
 }

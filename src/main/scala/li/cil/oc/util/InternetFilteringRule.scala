@@ -1,7 +1,7 @@
 package li.cil.oc.util
 
 import com.google.common.net.InetAddresses
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 
 import java.net.{Inet4Address, Inet6Address, InetAddress}
 import scala.collection.mutable
@@ -61,9 +61,6 @@ class InternetFilteringRule(val ruleString: String) {
                   val ipAddress = InetAddresses.forString(ipStringParts(0))
                   predicates += ((inetAddress: InetAddress, _: String) => ipAddress.equals(inetAddress))
                 }
-                predicates += ((inetAddress: InetAddress, _: String) => {
-                  inetAddress.isAnyLocalAddress || inetAddress.isLoopbackAddress || inetAddress.isLinkLocalAddress || inetAddress.isSiteLocalAddress
-                })
               case "all" =>
             }
           })
@@ -79,7 +76,7 @@ class InternetFilteringRule(val ruleString: String) {
       }
     } catch {
       case t: Throwable =>
-        OpenComputers.log.error("Invalid Internet filteringRules rule in configuration: \"" + ruleString + "\".", t)
+        OpenComputersNeo.log.error("Invalid Internet filteringRules rule in configuration: \"" + ruleString + "\".", t)
         _invalid = true
         (_: InetAddress, _: String) => Some(false)
     }
@@ -114,6 +111,7 @@ object InternetFilteringRule {
     "::1/128",
     "::ffff:0:0/96",
     "::/96",
+    "64:ff9b::/96", // NAT64 well-known prefix (RFC 6052)
     "100::/64",
     "2001:10::/28",
     "2001:db8::/32",

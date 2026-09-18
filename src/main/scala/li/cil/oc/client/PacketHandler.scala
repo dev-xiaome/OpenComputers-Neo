@@ -1,46 +1,66 @@
 package li.cil.oc.client
 
-import java.io.EOFException
-import java.io.InputStream
 import com.mojang.blaze3d.pipeline.RenderCall
 import com.mojang.blaze3d.systems.RenderSystem
-import li.cil.oc.Localization
-import li.cil.oc.OpenComputers
-import li.cil.oc.Settings
-import li.cil.oc.api
-import li.cil.oc.api.event.FileSystemAccessEvent
-import li.cil.oc.api.event.NetworkActivityEvent
-import li.cil.oc.client.audio.AudioPacketHandler
+import io.netty.buffer.{ByteBuf, Unpooled}
+import li.cil.oc.{Localization, OpenComputersNeo, Settings, api}
+import li.cil.oc.api.event.{FileSystemAccessEvent, NetworkActivityEvent}
+import li.cil.oc.client.audio.AudioSession
 import li.cil.oc.client.renderer.PetRenderer
-import li.cil.oc.common.Loot
-import li.cil.oc.common.PacketType
-import li.cil.oc.common.component
-import li.cil.oc.common.menu
-import li.cil.oc.common.item.{Tablet, TabletWrapper}
-import li.cil.oc.common.nanomachines.ControllerImpl
 import li.cil.oc.common.blockentity._
 import li.cil.oc.common.blockentity.traits._
-import li.cil.oc.common.{PacketHandler => CommonPacketHandler}
+import li.cil.oc.common.datacomponents.{CompoundStorage, OCComponents, ScalaStreamCodec}
+import li.cil.oc.common.item.Tablet
+import li.cil.oc.common.nanomachines.ControllerImpl
+import li.cil.oc.common.{Loot, PacketType, RobotFlags, component, menu, PacketHandler => CommonPacketHandler}
 import li.cil.oc.integration.Mods
-//import li.cil.oc.integration.jei.ModJEI
-import li.cil.oc.util.Audio
+
+import java.io.{EOFException, InputStream}
+import li.cil.oc.util.{Audio, ClientAccessHelper}
 import li.cil.oc.util.ExtendedLevel._
 import net.minecraft.client.Minecraft
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.level.Level
-import net.minecraft.world.item.ItemStack
-import net.minecraft.core.Direction
-import net.minecraft.Util
+import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.component.DataComponentMap
+import net.minecraft.core.registries.Registries
 import net.minecraft.core.particles.ParticleOptions
-import net.minecraft.nbt.NbtIo
-import net.minecraft.network.chat.ChatType
+import net.minecraft.nbt.{NbtIo, NbtOps}
+import net.minecraft.network.RegistryFriendlyByteBuf
 import net.minecraft.resources.ResourceLocation
 import net.minecraft.sounds.{SoundEvent, SoundSource}
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.level.Level
 import net.minecraft.world.phys.Vec3
 import net.neoforged.neoforge.common.NeoForge
-import net.minecraft.core.registries.BuiltInRegistries
+import net.neoforged.neoforge.network.connection.ConnectionType
+import net.neoforged.neoforge.registries.NeoForgeRegistries
+
+import scala.collection.mutable
 
 object PacketHandler extends CommonPacketHandler {
+  private val audioSessions = scala.collection.mutable.Map[Int, AudioSession]()
+
+  def update(): Unit = {
+    audioSessions.synchronized {
+      audioSessions.values.foreach(_.update())
+      val finished = audioSessions.filter { case (_, s) => s.checkFinished && !s.loop }
+      finished.foreach { case (handle, s) =>
+        s.cleanup()
+        audioSessions.remove(handle)
+      }
+    }
+  }
+
+  /** Stop and release every client-side OpenAL stream during a world/session transition. */
+  def stopAllAudio(): Unit = audioSessions.synchronized {
+    val sessions = audioSessions.values.toSeq
+    audioSessions.clear()
+    sessions.foreach { session =>
+      session.stop()
+      session.cleanup()
+    }
+  }
+
   protected override def world(player: Player, dimension: ResourceLocation): Option[Level] = {
     val world = player.level
     if (world.dimension.location.equals(dimension)) Some(world)
@@ -51,7 +71,15 @@ object PacketHandler extends CommonPacketHandler {
     p.packetType match {
       case PacketType.AdapterState => onAdapterState(p)
       case PacketType.Analyze => onAnalyze(p)
-      case PacketType.SoundCardData => onSoundCardData(p)
+      case PacketType.AudioStart  => onAudioStart(p)
+      case PacketType.AudioChunk  => onAudioChunk(p)
+      case PacketType.AudioPlay   => onAudioPlay(p)
+      case PacketType.AudioPause  => onAudioPause(p)
+      case PacketType.AudioResume => onAudioResume(p)
+      case PacketType.AudioStop   => onAudioStop(p)
+      case PacketType.AudioClose  => onAudioClose(p)
+      case PacketType.AudioSetLoop => onAudioSetLoop(p)
+      case PacketType.TapeAudioStart => onTapeAudioStart(p)
       case PacketType.ChargerState => onChargerState(p)
       case PacketType.ClientLog => onClientLog(p)
       case PacketType.Clipboard => onClipboard(p)
@@ -72,8 +100,11 @@ object PacketHandler extends CommonPacketHandler {
       case PacketType.HologramScale => onHologramScale(p)
       case PacketType.HologramTranslation => onHologramPositionOffsetY(p)
       case PacketType.HologramValues => onHologramValues(p)
+      case PacketType.LootDisksReset => onLootDisksReset(p)
       case PacketType.LootDisk => onLootDisk(p)
       case PacketType.CyclingDisk => onCyclingDisk(p)
+      case PacketType.LootEEPROMsReset => onLootEEPROMsReset(p)
+      case PacketType.LootEEPROM => onLootEEPROM(p)
       case PacketType.NanomachinesConfiguration => onNanomachinesConfiguration(p)
       case PacketType.NanomachinesInputs => onNanomachinesInputs(p)
       case PacketType.NanomachinesPower => onNanomachinesPower(p)
@@ -92,6 +123,7 @@ object PacketHandler extends CommonPacketHandler {
       case PacketType.RobotAssemblingState => onRobotAssemblingState(p)
       case PacketType.RobotInventoryChange => onRobotInventoryChange(p)
       case PacketType.RobotLightChange => onRobotLightChange(p)
+      case PacketType.RobotFlagChange => onRobotFlagChange(p)
       case PacketType.RobotMove => onRobotMove(p)
       case PacketType.RobotNameChange => onRobotNameChange(p)
       case PacketType.RobotSelectedSlotChange => onRobotSelectedSlotChange(p)
@@ -104,9 +136,110 @@ object PacketHandler extends CommonPacketHandler {
       case PacketType.SoundEffect => onSoundEffect(p)
       case PacketType.Sound => onSound(p)
       case PacketType.SoundPattern => onSoundPattern(p)
+      case PacketType.ComputronicsTone => onComputronicsTone(p)
       case PacketType.TransposerActivity => onTransposerActivity(p)
       case PacketType.WaypointLabel => onWaypointLabel(p)
       case _ => // Invalid packet.
+    }
+  }
+
+  def onAudioStart(p: PacketParser): Unit = {
+    val handle = p.readInt()
+    val channel = p.readInt()
+    val sampleRate = p.readInt()
+    val channels = p.readInt()
+    val format = p.readInt()
+    val loop = p.readBoolean()
+    val pos = new Vec3(p.readDouble(), p.readDouble(), p.readDouble())
+
+    OpenComputersNeo.log.info(s"Audio stream start: handle=$handle, sampleRate=$sampleRate, channels=$channels, format=$format, loop=$loop")
+
+    val s = new AudioSession(handle, channel, sampleRate, channels, format, pos)
+    s.loop = loop
+    audioSessions.synchronized {
+      audioSessions(handle) = s
+    }
+  }
+
+  def onTapeAudioStart(p: PacketParser): Unit = {
+    val handle = p.readInt()
+    val sampleRate = p.readInt()
+    val volume = p.readFloat()
+    val pos = new Vec3(p.readDouble(), p.readDouble(), p.readDouble())
+
+    OpenComputersNeo.log.info(s"Tape audio stream start: handle=$handle, sampleRate=$sampleRate, volume=$volume")
+
+    val session = new AudioSession(handle, 0, sampleRate, 1, org.lwjgl.openal.AL10.AL_FORMAT_MONO8,
+      pos, encodedDfpwm = true, streamGain = volume)
+    audioSessions.synchronized {
+      audioSessions.remove(handle).foreach(_.cleanup())
+      audioSessions(handle) = session
+    }
+  }
+
+  def onComputronicsTone(p: PacketParser): Unit = {
+    {
+      val x = p.readDouble(); val y = p.readDouble(); val z = p.readDouble()
+      val mode = p.readUnsignedByte(); val frequency = p.readShort()
+      val duration = p.readUnsignedShort(); val delay = p.readUnsignedShort(); val volume = p.readFloat()
+      val fmFrequency = p.readUnsignedShort(); val fmIntensity = p.readFloat(); val amFrequency = p.readUnsignedShort()
+      val attack = p.readUnsignedShort(); val decay = p.readUnsignedShort(); val sustain = p.readFloat(); val release = p.readUnsignedShort()
+      Audio.playWave(x.toFloat, y.toFloat, z.toFloat, mode, frequency, duration, delay, volume,
+        fmFrequency, fmIntensity, amFrequency, attack, decay, sustain, release)
+    }
+  }
+
+  def onAudioChunk(p: PacketParser): Unit = {
+    val handle = p.readInt()
+    val data = p.readByteArray()
+    audioSessions.synchronized {
+      audioSessions.get(handle).foreach(_.append(data))
+    }
+  }
+
+  def onAudioPlay(p: PacketParser): Unit = {
+    val handle = p.readInt()
+    audioSessions.synchronized {
+      audioSessions.get(handle).foreach(_.play())
+    }
+  }
+
+  def onAudioPause(p: PacketParser): Unit = {
+    val handle = p.readInt()
+    audioSessions.synchronized {
+      audioSessions.get(handle).foreach(_.pause())
+    }
+  }
+
+  def onAudioResume(p: PacketParser): Unit = {
+    val handle = p.readInt()
+    audioSessions.synchronized {
+      audioSessions.get(handle).foreach(_.resume())
+    }
+  }
+
+  def onAudioStop(p: PacketParser): Unit = {
+    val handle = p.readInt()
+    audioSessions.synchronized {
+      audioSessions.remove(handle).foreach { session =>
+        session.stop()
+        session.cleanup()
+      }
+    }
+  }
+
+  def onAudioClose(p: PacketParser): Unit = {
+    val handle = p.readInt()
+    audioSessions.synchronized {
+      audioSessions.remove(handle).foreach(_.cleanup())
+    }
+  }
+
+  def onAudioSetLoop(p: PacketParser): Unit = {
+    val handle = p.readInt()
+    val loop = p.readBoolean()
+    audioSessions.synchronized {
+      audioSessions.get(handle).foreach(_.setLoopMode(loop))
     }
   }
 
@@ -131,8 +264,6 @@ object PacketHandler extends CommonPacketHandler {
     }
   }
 
-  def onSoundCardData(p: PacketParser): Unit = AudioPacketHandler.onSoundCardData(p)
-
   def onChargerState(p: PacketParser): Unit =
     p.readBlockEntity[Charger]() match {
       case Some(t) =>
@@ -143,7 +274,7 @@ object PacketHandler extends CommonPacketHandler {
     }
 
   def onClientLog(p: PacketParser): Unit = {
-    OpenComputers.log.info(p.readUTF())
+    OpenComputersNeo.log.info(p.readUTF())
   }
 
   def onClipboard(p: PacketParser): Unit = {
@@ -205,49 +336,35 @@ object PacketHandler extends CommonPacketHandler {
   def onFileSystemActivity(p: PacketParser): Unit = {
     val sound = p.readUTF()
     val data = NbtIo.read(p)
-    // 1.21.1: 显式加花括号 + 局部 val，避免 `if (c) a match {...} else b match {...}`
-    // 在 NeoForge 的泛型 post[T <: Event] 下触发的类型推断异常。
-    if (p.readBoolean()) {
-      p.readBlockEntity[net.minecraft.world.level.block.entity.BlockEntity]() match {
-        case Some(t) =>
-          val event = new FileSystemAccessEvent.Client(sound, t, data)
-          NeoForge.EVENT_BUS.post(event)
-        case _ => // Invalid packet.
-      }
+    if (p.readBoolean()) p.readBlockEntity[net.minecraft.world.level.block.entity.BlockEntity]() match {
+      case Some(t) =>
+        NeoForge.EVENT_BUS.post(new FileSystemAccessEvent.Client(sound, t, data))
+      case _ => // Invalid packet.
     }
-    else {
-      world(p.player, ResourceLocation.tryParse(p.readUTF())) match {
-        case Some(world) =>
-          val x = p.readDouble()
-          val y = p.readDouble()
-          val z = p.readDouble()
-          val event = new FileSystemAccessEvent.Client(sound, world, x, y, z, data)
-          NeoForge.EVENT_BUS.post(event)
-        case _ => // Invalid packet.
-      }
+    else world(p.player, ResourceLocation.tryParse(p.readUTF())) match {
+      case Some(world) =>
+        val x = p.readDouble()
+        val y = p.readDouble()
+        val z = p.readDouble()
+        NeoForge.EVENT_BUS.post(new FileSystemAccessEvent.Client(sound, world, x, y, z, data))
+      case _ => // Invalid packet.
     }
   }
 
   def onNetworkActivity(p: PacketParser): Unit = {
     val data = NbtIo.read(p)
-    if (p.readBoolean()) {
-      p.readBlockEntity[net.minecraft.world.level.block.entity.BlockEntity]() match {
-        case Some(t) =>
-          val event = new NetworkActivityEvent.Client(t, data)
-          NeoForge.EVENT_BUS.post(event)
-        case _ => // Invalid packet.
-      }
+    if (p.readBoolean()) p.readBlockEntity[net.minecraft.world.level.block.entity.BlockEntity]() match {
+      case Some(t) =>
+        NeoForge.EVENT_BUS.post(new NetworkActivityEvent.Client(t, data))
+      case _ => // Invalid packet.
     }
-    else {
-      world(p.player, ResourceLocation.tryParse(p.readUTF())) match {
-        case Some(world) =>
-          val x = p.readDouble()
-          val y = p.readDouble()
-          val z = p.readDouble()
-          val event = new NetworkActivityEvent.Client(world, x, y, z, data)
-          NeoForge.EVENT_BUS.post(event)
-        case _ => // Invalid packet.
-      }
+    else world(p.player, ResourceLocation.tryParse(p.readUTF())) match {
+      case Some(world) =>
+        val x = p.readDouble()
+        val y = p.readDouble()
+        val z = p.readDouble()
+        NeoForge.EVENT_BUS.post(new NetworkActivityEvent.Client(world, x, y, z, data))
+      case _ => // Invalid packet.
     }
   }
 
@@ -352,17 +469,34 @@ object PacketHandler extends CommonPacketHandler {
 
   def onLootDisk(p: PacketParser): Unit = {
     val stack = p.readItemStack()
-    if (!stack.isEmpty) {
+    if (!stack.isEmpty && !Loot.disksForClient.exists(ItemStack.isSameItemSameComponents(_, stack))) {
       Loot.disksForClient += stack
+      if (Mods.JustEnoughItems.isModAvailable) {
+        li.cil.oc.integration.jei.ModJEI.addDiskAtRuntime(stack)
+      }
     }
-    if(Mods.JustEnoughItems.isModAvailable) {
-      //ModJEI.addDiskAtRuntime(stack)
+  }
+
+  def onLootDisksReset(p: PacketParser): Unit = {
+    Loot.resetDisksForClient()
+    Loot.disksForCyclingClient.clear()
+  }
+
+  def onLootEEPROMsReset(p: PacketParser): Unit = Loot.eepromsForClient.clear()
+
+  def onLootEEPROM(p: PacketParser): Unit = {
+    val stack = p.readItemStack()
+    if (!stack.isEmpty && !Loot.eepromsForClient.exists(ItemStack.isSameItemSameComponents(_, stack))) {
+      Loot.eepromsForClient += stack
+      if (Mods.JustEnoughItems.isModAvailable) {
+        li.cil.oc.integration.jei.ModJEI.addItemAtRuntime(stack)
+      }
     }
   }
 
   def onCyclingDisk(p: PacketParser): Any = {
     val stack = p.readItemStack()
-    if (!stack.isEmpty) {
+    if (!stack.isEmpty && !Loot.disksForCyclingClient.exists(ItemStack.isSameItemSameComponents(_, stack))) {
       Loot.disksForCyclingClient += stack
     }
   }
@@ -429,10 +563,12 @@ object PacketHandler extends CommonPacketHandler {
         val z = p.readInt()
         val velocity = p.readDouble()
         val direction = p.readDirection()
-        val particleType = p.readRegistryEntry(BuiltInRegistries.PARTICLE_TYPE)
-        val count = p.readUnsignedByte() / (1 << Minecraft.getInstance.options.particles.get.getId)
+        val particleRegistry = p.player.level().registryAccess().registryOrThrow(Registries.PARTICLE_TYPE)
+        val particleType = p.readRegistryEntry(particleRegistry)
         particleType match {
           case particle: ParticleOptions =>
+            val count = p.readUnsignedByte() / (1 << Minecraft.getInstance.options.particles.get.getId)
+
             for (i <- 0 until count) {
               def rv(f: Direction => Int) = direction match {
                 case Some(d) => world.random.nextFloat - 0.5 + f(d) * 0.5
@@ -455,7 +591,6 @@ object PacketHandler extends CommonPacketHandler {
               }
             }
           case _ =>
-            OpenComputers.log.warn(s"Ignoring particle effect with unsupported type: $particleType")
         }
       case _ => // Invalid packet.
     }
@@ -504,7 +639,27 @@ object PacketHandler extends CommonPacketHandler {
         val count = p.readInt()
         for (_ <- 0 until count) {
           val slot = p.readInt()
-          t.setItem(slot, p.readItemStack())
+          val incoming = p.readItemStack()
+          val current = t.getItem(slot)
+          val currentAddress = if (current.isEmpty) null else current.get(OCComponents.ADDRESS.get())
+          val incomingAddress = if (incoming.isEmpty) null else incoming.get(OCComponents.ADDRESS.get())
+
+          // Saving a terminal server or rack KVM updates the framebuffer data
+          // embedded in its ItemStack. A later inventory synchronization must
+          // not interpret that persistence-only change as removing and
+          // reinstalling the mountable: an open Remote Terminal GUI would keep
+          // the disposed buffer while packets go to the replacement, appearing
+          // frozen until the GUI is reopened. The stable controller address
+          // distinguishes an update of the same mountable from a real swap.
+          val preserveRemoteEnvironment =
+            slot >= 0 && slot < t.getContainerSize &&
+              !current.isEmpty && !incoming.isEmpty &&
+              ItemStack.isSameItem(current, incoming) &&
+              currentAddress != null && currentAddress == incomingAddress &&
+              t.getMountable(slot).isInstanceOf[component.RemoteTerminalHost]
+
+          if (preserveRemoteEnvironment) t.updateItems(slot, incoming)
+          else t.setItem(slot, incoming)
         }
       case _ => // Invalid packet.
     }
@@ -513,7 +668,7 @@ object PacketHandler extends CommonPacketHandler {
     p.readBlockEntity[Rack]() match {
       case Some(t) =>
         val mountableIndex = p.readInt()
-        t.lastData(mountableIndex) = p.readNBT()
+        t.lastData(mountableIndex) = CompoundStorage.OPTION_STREAM_CODEC.decode(new RegistryFriendlyByteBuf(Unpooled.wrappedBuffer(p.readAllBytes()), ClientAccessHelper.getClientRegistryAccess, ConnectionType.NEOFORGE))
         t.getLevel.notifyBlockUpdate(t.getBlockPos)
       case _ => // Invalid packet.
     }
@@ -576,6 +731,14 @@ object PacketHandler extends CommonPacketHandler {
       case _ => // Invalid packet.
     }
 
+  def onRobotFlagChange(p: PacketParser): Unit =
+    p.readBlockEntity[RobotProxy]() match {
+      case Some(t) =>
+        val id = ResourceLocation.tryParse(p.readUTF())
+        t.robot.info.flag = RobotFlags.byId(id).map(_.id)
+      case _ => // Invalid packet.
+    }
+
   def onRobotNameChange(p: PacketParser) = {
     p.readBlockEntity[RobotProxy]() match {
       case Some(t) => {
@@ -635,18 +798,13 @@ object PacketHandler extends CommonPacketHandler {
   def onTextBufferInit(p: PacketParser): Unit = {
     ComponentTracker.get(p.player.level, p.readUTF()) match {
       case Some(buffer: li.cil.oc.common.component.TextBuffer) =>
-        val nbt = p.readNBT()
-        if (nbt.contains("maxWidth")) {
-          val maxWidth = nbt.getInt("maxWidth")
-          val maxHeight = nbt.getInt("maxHeight")
-          buffer.setMaximumResolution(maxWidth, maxHeight)
-        }
+        val nbt = CompoundStorage.CODEC.parse(NbtOps.INSTANCE, p.readNBT()).getOrThrow()
+        buffer.setMaximumResolution(p.readInt(), p.readInt())
+        val depthValues = api.internal.TextBuffer.ColorDepth.values
+        val depth = p.readInt() min (depthValues.length - 1) max 0
+        buffer.setMaximumColorDepth(depthValues(depth))
         buffer.data.loadData(nbt)
-        if (nbt.contains("viewportWidth")) {
-          val viewportWidth = nbt.getInt("viewportWidth")
-          val viewportHeight = nbt.getInt("viewportHeight")
-          buffer.setViewport(viewportWidth, viewportHeight)
-        }
+        buffer.setViewport(p.readInt(), p.readInt())
         buffer.proxy.setChanged()
         buffer.markInitialized()
       case _ => // Invalid packet.
@@ -655,6 +813,11 @@ object PacketHandler extends CommonPacketHandler {
 
   def onTextBufferMulti(p: PacketParser): Unit =
     if (p.player != null) ComponentTracker.get(p.player.level, p.readUTF()) match {
+      case Some(buffer: li.cil.oc.common.component.TextBuffer) if !buffer.isInitialized =>
+        // The client registers a buffer before its authoritative init snapshot
+        // arrives. Incremental updates generated in that window are already
+        // represented by the snapshot and may require a color depth the
+        // default client buffer does not support yet.
       case Some(buffer: api.internal.TextBuffer) =>
         try while (true) {
           p.readPacketType() match {
@@ -753,9 +916,9 @@ object PacketHandler extends CommonPacketHandler {
   def onTextBufferRamInit(p: PacketParser, buffer: api.internal.TextBuffer): Unit = {
     val owner = p.readUTF()
     val id = p.readInt()
-    val nbt = p.readNBT()
+    val holder = new CompoundStorage(DataComponentMap.CODEC.parse(NbtOps.INSTANCE, p.readNBT()).getOrThrow())
 
-    component.ClientGpuTextBufferHandler.loadBuffer(buffer, owner, id, nbt)
+    component.ClientGpuTextBufferHandler.loadBuffer(buffer, owner, id, holder)
   }
 
   def onTextBufferBitBlt(p: PacketParser, buffer: api.internal.TextBuffer): Unit = {

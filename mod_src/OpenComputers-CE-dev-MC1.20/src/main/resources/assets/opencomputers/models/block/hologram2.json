@@ -1,6 +1,0 @@
-{
-    "parent": "opencomputers:block/hologram",
-    "textures": {
-        "top": "opencomputers:block/hologram2_top"
-    }
-}

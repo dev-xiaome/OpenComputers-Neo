@@ -2,7 +2,7 @@ package li.cil.oc.server.machine
 
 import java.util
 import java.util.concurrent.TimeUnit
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api.Driver
 import li.cil.oc.api.Network
@@ -26,15 +26,18 @@ import li.cil.oc.api.network.Node
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.client.ClientUtil
 import li.cil.oc.common.EventHandler
 import li.cil.oc.common.SaveHandler
-import li.cil.oc.common.SinglePlayerPause
 import li.cil.oc.common.Slot
 import li.cil.oc.common.blockentity
+import li.cil.oc.common.datacomponents.MachineData.{Signal => DataSignal}
+import li.cil.oc.common.datacomponents.{MachineData, OCComponents}
 import li.cil.oc.server.PacketSender
 import li.cil.oc.server.driver.Registry
 import li.cil.oc.server.fs.FileSystem
 import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.util.ResultWrapper
 import li.cil.oc.util.ResultWrapper.result
 import li.cil.oc.util.ThreadPoolFactory
@@ -56,6 +59,15 @@ import net.minecraft.nbt.LongTag
 import net.minecraft.nbt.DoubleTag
 import net.minecraft.nbt.ByteArrayTag
 import net.minecraft.nbt.ListTag
+import net.minecraft.client.server.IntegratedServer
+import net.minecraft.core.{BlockPos, HolderLookup}
+import net.minecraft.core.component.DataComponentHolder
+import net.minecraft.world.level.ChunkPos
+import net.neoforged.api.distmarker.Dist
+import net.neoforged.fml.loading.FMLEnvironment
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+
+import java.nio.ByteBuffer
 
 class Machine(val host: MachineHost) extends AbstractManagedEnvironment with machine.Machine with Runnable with DeviceInfo {
   override val node: ComponentConnector = Network.newNode(this, Visibility.Network).
@@ -75,6 +87,12 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
   private val _components = mutable.Map.empty[String, String]
 
   private val addedComponents = mutable.Set.empty[Component]
+
+  // A Create contraption places its captured block entities one at a time.
+  // Keep already-known components alive while those tiny temporary networks
+  // split and merge, then reconcile them against the finished structure.
+  private var componentRestoreGrace = 0
+  private val deferredRemovedComponents = mutable.Map.empty[String, String]
 
   private val _users = mutable.Set.empty[String]
 
@@ -138,7 +156,7 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
                 newArchitecture = clazz.getConstructor(classOf[machine.Machine]).newInstance(this)
               }
               catch {
-                case t: Throwable => OpenComputers.log.warn("Failed instantiating a CPU architecture.", t)
+                case t: Throwable => OpenComputersNeo.log.warn("Failed instantiating a CPU architecture.", t)
               }
               else {
                 newArchitecture = architecture
@@ -199,6 +217,7 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
 
   override def canInteract(player: String): Boolean = !Settings.get.canComputersBeOwned ||
     _users.synchronized(_users.isEmpty || _users.contains(player)) ||
+    ServerLifecycleHooks.getCurrentServer == null ||
     ServerLifecycleHooks.getCurrentServer.isSingleplayer || {
     val config = ServerLifecycleHooks.getCurrentServer.getPlayerList
     val entity = config.getPlayerByName(player)
@@ -330,9 +349,9 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
       case arg: java.lang.String => arg
       case arg: Array[Byte] => arg
       case arg: CompoundTag => arg
-      //case arg: java.util.HashMap[AnyRef, AnyRef] => arg.asScala
+      case arg: java.util.HashMap[_, _] => arg.asScala
       case arg =>
-        OpenComputers.log.warn("Trying to push signal with an unsupported argument of type " + arg.getClass.getName)
+        OpenComputersNeo.log.warn("Trying to push signal with an unsupported argument of type " + arg.getClass.getName)
         null
     }
   }
@@ -381,6 +400,11 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
   })
 
   override def invoke(address: String, method: String, args: Array[AnyRef]): Array[AnyRef] = {
+    if (method == "setForeground" || method == "setBackground") {
+      if (args.nonEmpty && args(0).isInstanceOf[Array[Byte]]) {
+        OpenComputersNeo.log.warn(s"[Debug] Bad argument passed to $method! Array[Byte] detected.")
+      }
+    }
     if (node != null && node.network != null) {
       Option(node.network.node(address)) match {
         case Some(component: li.cil.oc.server.network.Component) if component.canBeSeenFrom(node) || component == node =>
@@ -511,6 +535,7 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
     // but that wouldn't trigger a connect message anymore due to the higher
     // reachability).
     processAddedComponents()
+    tickComponentRestoreGrace()
 
     // Component overflow check, crash if too many components are connected, to
     // avoid confusion on the user's side due to components not showing up.
@@ -617,7 +642,7 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
           case e: java.lang.Error if e.getMessage == "not enough memory" =>
             crash("gui.Error.OutOfMemory")
           case e: Throwable =>
-            OpenComputers.log.warn("Faulty architecture implementation for synchronized calls.", e)
+            OpenComputersNeo.log.warn("Faulty architecture implementation for synchronized calls.", e)
             crash("gui.Error.InternalError")
         }
         finally {
@@ -685,6 +710,7 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
   // ----------------------------------------------------------------------- //
 
   def addComponent(component: Component): Unit = {
+    deferredRemovedComponents -= component.address
     if (!_components.contains(component.address)) {
       addedComponents += component
     }
@@ -692,10 +718,47 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
 
   def removeComponent(component: Component): Unit = {
     if (_components.contains(component.address)) {
-      _components.synchronized(_components -= component.address)
-      signal("component_removed", component.address, component.name)
+      if (componentRestoreGrace > 0) {
+        deferredRemovedComponents(component.address) = component.name
+      }
+      else {
+        _components.synchronized(_components -= component.address)
+        signal("component_removed", component.address, component.name)
+      }
     }
     addedComponents -= component
+  }
+
+  /** Suppress transient component removal events while Create restores blocks. */
+  def beginComponentRestoreGrace(ticks: Int): Unit = {
+    if (isRunning) {
+      componentRestoreGrace = math.max(componentRestoreGrace, ticks)
+      pause(componentRestoreGrace / 20.0)
+    }
+  }
+
+  private def tickComponentRestoreGrace(): Unit = if (componentRestoreGrace > 0) {
+    componentRestoreGrace -= 1
+    if (componentRestoreGrace == 0) {
+      val network = node.network
+      for ((address, name) <- deferredRemovedComponents) {
+        val restored = network != null && (network.node(address) match {
+          case component: Component => component.name == name
+          case _ => false
+        })
+        if (!restored && _components.contains(address)) {
+          _components.synchronized(_components -= address)
+          signal("component_removed", address, name)
+        }
+      }
+      deferredRemovedComponents.clear()
+      // Create restores a moving contraption's actors one at a time. Once its
+      // grace period has elapsed, do the same final component check that a
+      // normal power-on does. Without this, a resumed computer can retain the
+      // saved addresses of the pre-reload screen/keyboard graph until the
+      // player manually power-cycles it.
+      verifyComponents()
+    }
   }
 
   private def processAddedComponents(): Unit = {
@@ -715,16 +778,18 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
   }
 
   private def verifyComponents(): Unit = {
+    if (componentRestoreGrace > 0) return
+
     val invalid = mutable.Set.empty[String]
     for ((address, name) <- _components) {
       node.network.node(address) match {
         case component: Component if component.name == name => // All is well.
         case _ =>
           if (name == "filesystem") {
-            OpenComputers.log.trace(s"A component of type '$name' disappeared ($address)! This usually means that it didn't save its node.")
-            OpenComputers.log.trace("If this was a file system provided by a ComputerCraft peripheral, this is normal.")
+            OpenComputersNeo.log.trace(s"A component of type '$name' disappeared ($address)! This usually means that it didn't save its node.")
+            OpenComputersNeo.log.trace("If this was a file system provided by a ComputerCraft peripheral, this is normal.")
           }
-          else OpenComputers.log.warn(s"A component of type '$name' disappeared ($address)! This usually means that it didn't save its node.")
+          else OpenComputersNeo.log.warn(s"A component of type '$name' disappeared ($address)! This usually means that it didn't save its node.")
           signal("component_removed", address, name)
           invalid += address
       }
@@ -737,165 +802,178 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
   // ----------------------------------------------------------------------- //
 
   private def tmpPath = node.address + "_tmp"
-  private final val StateTag = "state"
-  private final val UsersTag = "users"
-  private final val MessageTag = "message"
-  private final val ComponentsTag = "components"
-  private final val AddressTag = "address"
-  private final val NameTag = "name"
-  private final val TmpTag = "tmp"
-  private final val SignalsTag = "signals"
-  private final val ArgsTag = "args"
-  private final val LengthTag = "length"
-  private final val ArgPrefixTag = "arg"
-  private final val UptimeTag = "uptime"
-  private final val CPUTimeTag = "cpuTime"
-  private final val RemainingPauseTag = "remainingPause"
 
-  override def loadData(nbt: CompoundTag): Unit = Machine.this.synchronized(state.synchronized {
+  override def loadData(holder: DataComponentHolder): Unit = Machine.this.synchronized(state.synchronized {
     assert(state.top == Machine.State.Stopped || state.top == Machine.State.Paused)
     close()
     state.clear()
 
-    super.loadData(nbt)
-
-    state.pushAll(nbt.getIntArray(StateTag).reverseMap(Machine.State(_)))
-    nbt.getList(UsersTag, Tag.TAG_STRING).foreach((tag: StringTag) => _users += tag.getAsString)
-    if (nbt.contains(MessageTag)) {
-      message = Some(nbt.getString(MessageTag))
+    val machineData = holder.getComponent(OCComponents.MACHINE)
+    machineData.flatMap(_.nodeAddress) match {
+      case Some(address) => node.asInstanceOf[li.cil.oc.server.network.Node].loadAddress(address)
+      // Data written before machine nodes had their own nested address used
+      // the shared holder address. Retain that as a migration fallback.
+      case _ => super.loadData(holder)
     }
 
-    _components ++= nbt.getList(ComponentsTag, Tag.TAG_COMPOUND).map((tag: CompoundTag) =>
-      tag.getString(AddressTag) -> tag.getString(NameTag))
+    for(data <- machineData) {
+      // Stack iteration/save order is top-to-bottom, while pushAll places each
+      // following value on top. Reverse the serialized order, as the 1.12
+      // implementation did, so the active machine state remains on top.
+      state.pushAll(data.state.reverse)
+      _users ++= data.users
 
-    tmp.foreach(fs => {
-      if (nbt.contains(TmpTag)) fs.loadData(nbt.getCompound(TmpTag))
-      else fs.loadData(SaveHandler.loadNBT(nbt, tmpPath))
-    })
+      for(msg <- data.message) {
+        message = Some(msg)
+      }
 
-    if (state.nonEmpty && isRunning && init()) try {
-      architecture.loadData(nbt)
+      _components ++= data.components.map(c => c.address -> c.name)
 
-      signals ++= nbt.getList(SignalsTag, Tag.TAG_COMPOUND).map((signalNbt: CompoundTag) => {
-        val argsNbt = signalNbt.getCompound(ArgsTag)
-        val argsLength = argsNbt.getInt(LengthTag)
-        new Machine.Signal(signalNbt.getString(NameTag),
-          (0 until argsLength).map(ArgPrefixTag + _).map(argsNbt.get).map {
-            case tag: ByteTag if tag.getAsByte == -1 => null
-            case tag: ByteTag => Boolean.box(tag.getAsByte == 1)
-            case tag: LongTag => Long.box(tag.getAsLong)
-            case tag: DoubleTag => Double.box(tag.getAsDouble)
-            case tag: StringTag => tag.getAsString
-            case tag: ByteArrayTag => tag.getAsByteArray
-            case tag: ListTag =>
-              val data = mutable.Map.empty[String, String]
-              for (i <- 0 until tag.size by 2) {
-                data += tag.getString(i) -> tag.getString(i + 1)
-              }
-              data
-            case tag: CompoundTag => tag
-            case _ => null
-          }.toArray[AnyRef])
-      })
+      for (fs <- tmp) {
+        val lvl = host.getEnvironmentLevel
+        val cpos = new ChunkPos(new BlockPos(host.xPosition.toInt, host.yPosition.toInt, host.zPosition.toInt))
+        fs.loadData(SaveHandler.loadNBT(lvl.dimension.location, cpos, tmpPath), lvl.registryAccess())
+      }
 
-      uptime = nbt.getLong(UptimeTag)
-      cpuTotal = nbt.getLong(CPUTimeTag)
-      remainingPause = nbt.getInt(RemainingPauseTag)
+      if (state.nonEmpty && isRunning && init()) {
+        try {
+          architecture.loadData(holder, data.architectureData)
+        } catch {
+          case t: Throwable =>
+            OpenComputersNeo.log.error(
+              s"""Unexpected error loading a state of computer at ${host.machinePosition()}. """ +
+                s"""State: ${state.headOption.fold("no state")(_.toString)}. Unless you're upgrading/downgrading across a major version, please report this! Thank you.""", t)
+            close()
+            // Preserve usability when a native VM snapshot is corrupt or
+            // incompatible: restart through the BIOS with the persisted
+            // components and disks instead of leaving the machine dead.
+            start()
+        }
 
-      // Delay execution for a second to allow the world around us to settle.
-      if (state.top != Machine.State.Restarting) {
-        pause(Settings.get.startupDelay)
+        signals ++= data.signals.map(v => Machine.Signal(v.name, v.args.map {
+          case DataSignal.Null => null
+          case DataSignal.Boolean(v) => Boolean.box(v)
+          case DataSignal.Long(v) => Long.box(v)
+          case DataSignal.Double(v) => Double.box(v)
+          case DataSignal.StringValue(v) => v
+          case DataSignal.ByteArray(v) => if (v.hasArray) {
+            v.array
+          } else {
+            val array: Array[Byte] = Array.fill(v.remaining()) {
+              0
+            }
+            v.get(array)
+            array
+          }
+          case DataSignal.StringMap(v) => mutable.Map.from(v)
+          case DataSignal.Compound(v) => v
+        }.toArray))
+
+        uptime = data.uptime
+        cpuTotal = data.cpuTotal
+        remainingPause = data.remainingPause
+
+        // Delay execution for a second to allow the world around us to settle.
+        if (state.top != Machine.State.Restarting) {
+          pause(Settings.get.startupDelay)
+        }
+      } else {
+        // Clean up in case we got a weird state stack.
+        onHostChanged()
+        close()
       }
     }
-    catch {
-      case t: Throwable =>
-        OpenComputers.log.error(
-          s"""Unexpected error loading a state of computer at ${host.machinePosition()}. """ +
-            s"""State: ${state.headOption.fold("no state")(_.toString)}. Unless you're upgrading/downgrading across a major version, please report this! Thank you.""", t)
-        close()
-    }
-    else {
-      // Clean up in case we got a weird state stack.
-      onHostChanged()
-      close()
-    }
+
+    // A newly assembled machine has other item data but no persisted machine
+    // component yet. Keep the state stack valid after the unconditional clear
+    // above so its first save cannot try to pause an empty stack.
+    if (state.isEmpty) state.push(Machine.State.Stopped)
   })
 
-  override def saveData(nbt: CompoundTag): Unit = Machine.this.synchronized(state.synchronized {
+  override def saveData(holder: MutableDataComponentHolder): Unit = Machine.this.synchronized(state.synchronized {
     // The lock on 'this' should guarantee that this never happens regularly.
     // If something other than regular saving tries to save while we are executing code,
     // e.g. SpongeForge saving during robot.move due to block changes being captured,
     // just don't save this at all. What could possibly go wrong?
     if(isExecuting) return
 
-    if (SaveHandler.savingForClients) {
+    if(SaveHandler.savingForClients) {
       return
     }
 
     // Make sure we don't continue running until everything has saved.
     pause(0.05)
 
-    super.saveData(nbt)
-
     // Make sure the component list is up-to-date.
     processAddedComponents()
 
-    nbt.putIntArray(StateTag, state.map(_.id).toArray)
-    nbt.setNewTagList(UsersTag, _users)
-    message.foreach(nbt.putString(MessageTag, _))
-
-    val componentsNbt = new ListTag()
-    for ((address, name) <- _components) {
-      val componentNbt = new CompoundTag()
-      componentNbt.putString(AddressTag, address)
-      componentNbt.putString(NameTag, name)
-      componentsNbt.add(componentNbt)
-    }
-    nbt.put(ComponentsTag, componentsNbt)
-
-    tmp.foreach(fs => SaveHandler.scheduleSave(host, nbt, tmpPath, fs.saveData _))
-
-    if (state.top != Machine.State.Stopped) try {
-      architecture.saveData(nbt)
-
-      val signalsNbt = new ListTag()
-      for (s <- signals.iterator) {
-        val signalNbt = new CompoundTag()
-        signalNbt.putString(NameTag, s.name)
-        signalNbt.setNewCompoundTag(ArgsTag, args => {
-          args.putInt(LengthTag, s.args.length)
-          s.args.zipWithIndex.foreach {
-            case (null, i) => args.putByte(ArgPrefixTag + i, -1)
-            case (arg: java.lang.Boolean, i) => args.putByte(ArgPrefixTag + i, if (arg) 1 else 0)
-            case (arg: java.lang.Long, i) => args.putLong(ArgPrefixTag + i, arg)
-            case (arg: java.lang.Double, i) => args.putDouble(ArgPrefixTag + i, arg)
-            case (arg: String, i) => args.putString(ArgPrefixTag + i, arg)
-            case (arg: Array[Byte], i) => args.putByteArray(ArgPrefixTag + i, arg)
-            case (arg: Map[_, _], i) =>
-              val list = new ListTag()
-              for ((key, value) <- arg) {
-                list.append(key.toString)
-                list.append(value.toString)
-              }
-              args.put(ArgPrefixTag + i, list)
-            case (arg: CompoundTag, i) => args.put(ArgPrefixTag + i, arg)
-            case (_, i) => args.putByte(ArgPrefixTag + i, -1)
+    // Do not persist stale component bookkeeping. During modern BlockEntity
+    // reconstruction transient component environments may briefly exist while
+    // inventories/networks are being rebuilt. If one of those addresses made
+    // it into _components, carrying it across saves produces phantom
+    // component_removed events (most visibly for robot screens) on every load.
+    if (node.network != null) {
+      _components.synchronized {
+        _components.filterInPlace { case (address, name) =>
+          node.network.node(address) match {
+            case component: Component => component.name == name
+            case _ => false
           }
-        })
-        signalsNbt.add(signalNbt)
+        }
       }
-      nbt.put(SignalsTag, signalsNbt)
+    }
 
-      nbt.putLong(UptimeTag, uptime)
-      nbt.putLong(CPUTimeTag, cpuTotal)
-      nbt.putInt(RemainingPauseTag, remainingPause)
+    for(fs <- tmp) {
+      val lvl = host.getEnvironmentLevel
+      val cpos = new ChunkPos(new BlockPos(host.xPosition.toInt, host.yPosition.toInt, host.zPosition.toInt))
+      SaveHandler.scheduleSave(lvl.dimension.location, cpos, tmpPath, (nbt: CompoundTag) => fs.saveData(nbt, lvl.registryAccess()))
     }
-    catch {
-      case t: Throwable =>
-        OpenComputers.log.error(
-          s"""Unexpected error saving a state of computer at ${host.machinePosition()}. """ +
-            s"""State: ${state.headOption.fold("no state")(_.toString)}. Unless you're upgrading/downgrading across a major version, please report this! Thank you.""", t)
-    }
+
+    holder.setComponent(OCComponents.MACHINE, MachineData(
+      state = state.toList,
+      users = _users.toSet,
+      message = message,
+      components = _components.map { case (k, v) => MachineData.Component(k, v) }.toList,
+      nodeAddress = Option(node.address),
+      architectureData = {
+        val nbt = new CompoundTag()
+
+        if(architecture != null) {
+          try {
+            architecture.saveData(holder, nbt)
+          } catch {
+            case t: Throwable =>
+              OpenComputersNeo.log.error(
+                s"""Unexpected error saving a state of computer at ${host.machinePosition()}. """ +
+                  s"""State: ${state.headOption.fold("no state")(_.toString)}. Unless you're upgrading/downgrading across a major version, please report this! Thank you.""", t)
+          }
+        }
+
+        nbt
+      },
+      signals = if(state.top != Machine.State.Stopped) {
+        signals.map {
+          case Machine.Signal(name, args) =>
+            MachineData.Signal(
+              name,
+              args.map {
+                case null => DataSignal.Null
+                case arg: java.lang.Boolean => DataSignal.Boolean(arg)
+                case arg: java.lang.Long => DataSignal.Long(arg)
+                case arg: java.lang.Double => DataSignal.Double(arg)
+                case arg: String => DataSignal.StringValue(arg)
+                case arg: Array[Byte] => DataSignal.ByteArray(ByteBuffer.wrap(arg))
+                case arg: Map[_, _] => DataSignal.StringMap(Map.from(arg.iterator.map { case a -> b => a.toString -> b.toString }))
+                case arg: CompoundTag => DataSignal.Compound(arg)
+                case _ => DataSignal.Null
+              }.toList
+            )
+        }.toList
+      } else List.empty,
+      uptime = uptime,
+      cpuTotal = cpuTotal,
+      remainingPause = remainingPause
+    ))
   })
 
   // ----------------------------------------------------------------------- //
@@ -921,7 +999,7 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
     }
     catch {
       case ex: Throwable =>
-        OpenComputers.log.warn("Failed initializing computer.", ex)
+        OpenComputersNeo.log.warn("Failed initializing computer.", ex)
         close()
     }
     false
@@ -946,6 +1024,8 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
       this.synchronized(state.synchronized {
         state.clear()
         state.push(Machine.State.Stopped)
+        componentRestoreGrace = 0
+        deferredRemovedComponents.clear()
         Option(architecture).foreach(_.close())
         signals.clear()
         uptime = 0
@@ -979,7 +1059,10 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
 
   private def isGamePaused: Boolean = {
     val server = ServerLifecycleHooks.getCurrentServer
-    server != null && !server.isDedicatedServer && SinglePlayerPause.isPaused
+
+    server != null &&
+      !server.isDedicatedServer &&
+      (FMLEnvironment.dist.isClient && (() => { ClientUtil.isPaused })())
   }
 
   // This is a really high level lock that we only use for saving and loading.
@@ -1063,7 +1146,7 @@ class Machine(val host: MachineHost) extends AbstractManagedEnvironment with mac
     }
     catch {
       case e: Throwable =>
-        OpenComputers.log.warn("Architecture's runThreaded threw an error. This should never happen!", e)
+        OpenComputersNeo.log.warn("Architecture's runThreaded threw an error. This should never happen!", e)
         crash("gui.Error.InternalError")
     }
 
@@ -1099,7 +1182,7 @@ object Machine extends MachineAPI {
   override def create(host: MachineHost) = new Machine(host)
 
   /** Possible states of the computer, and in particular its executor. */
-  private[machine] object State extends Enumeration {
+  object State extends Enumeration {
     /** The computer is not running right now and there is no Lua state. */
     val Stopped = Value("Stopped")
 
@@ -1132,7 +1215,7 @@ object Machine extends MachineAPI {
   }
 
   /** Signals are messages sent to the Lua state from Java asynchronously. */
-  private[machine] class Signal(val name: String, val args: Array[AnyRef]) extends machine.Signal {
+  private[machine] case class Signal(val name: String, val args: Array[AnyRef]) extends machine.Signal {
     def convert() = new Signal(name, Registry.convert(args))
   }
 

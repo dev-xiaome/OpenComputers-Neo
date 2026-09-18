@@ -1,44 +1,29 @@
 package li.cil.oc.common.item
 
-import li.cil.oc.OpenComputers
-import li.cil.oc.api
+import li.cil.oc.{api, OpenComputersNeo}
 import li.cil.oc.api.network._
-import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.ExtendedLevel._
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.Item.Properties
-import net.minecraft.world.item.ItemStack
-import net.minecraft.core.Direction
+import net.minecraft.world.InteractionResult
+import net.minecraft.world.item.context.UseOnContext
+import net.neoforged.neoforge.common.extensions.IItemExtension
 import net.neoforged.neoforge.common.util.FakePlayer
 
-import net.minecraft.world.entity.player.Player
-import net.minecraft.server.level.ServerPlayer
+class Debugger(props: Properties) extends Item(props) with traits.SimpleItem with IItemExtension {
+  override def useOn(ctx: UseOnContext): InteractionResult = {
+    val world = ctx.getLevel
+    if (ctx.getPlayer == null || ctx.getPlayer.isInstanceOf[FakePlayer]) return InteractionResult.FAIL
 
-class Debugger(props: Properties) extends Item(props) with traits.SimpleItem {
-  override def onItemUse(stack: ItemStack, player: Player, position: BlockPosition, side: Direction, hitX: Float, hitY: Float, hitZ: Float) = {
-    val world = position.world.get
-    player match {
-      case _: FakePlayer => false // Nope
-      case realPlayer: ServerPlayer =>
-        world.getBlockEntity(position) match {
-          case host: SidedEnvironment =>
-            if (!world.isClientSide) {
-              Debugger.reconnect(Array(host.sidedNode(side)))
-            }
-            true
-          case host: Environment =>
-            if (!world.isClientSide) {
-              Debugger.reconnect(Array(host.node))
-            }
-            true
-          case _ =>
-            if (!world.isClientSide) {
-              Debugger.node.remove()
-            }
-            true
-        }
-      case _ => false
+    world.getBlockEntity(ctx.getClickedPos) match {
+      case host: SidedEnvironment =>
+        if (!world.isClientSide) Debugger.reconnect(Array(host.sidedNode(ctx.getClickedFace)))
+      case host: Environment =>
+        if (!world.isClientSide) Debugger.reconnect(Array(host.node))
+      case _ =>
+        if (!world.isClientSide) Debugger.node.remove()
     }
+
+    InteractionResult.sidedSuccess(world.isClientSide)
   }
 }
 
@@ -46,15 +31,15 @@ object Debugger extends Environment {
   var node = api.Network.newNode(this, Visibility.Network).create()
 
   override def onConnect(node: Node): Unit = {
-    OpenComputers.log.info(s"[NETWORK DEBUGGER] New node in network: ${nodeInfo(node)}")
+    OpenComputersNeo.log.info(s"[NETWORK DEBUGGER] New node in network: ${nodeInfo(node)}")
   }
 
   override def onDisconnect(node: Node): Unit = {
-    OpenComputers.log.info(s"[NETWORK DEBUGGER] Node removed from network: ${nodeInfo(node)}")
+    OpenComputersNeo.log.info(s"[NETWORK DEBUGGER] Node removed from network: ${nodeInfo(node)}")
   }
 
   override def onMessage(message: Message): Unit = {
-    OpenComputers.log.info(s"[NETWORK DEBUGGER] Received message: ${messageInfo(message)}.")
+    OpenComputersNeo.log.info(s"[NETWORK DEBUGGER] Received message: ${messageInfo(message)}.")
   }
 
   def reconnect(nodes: Array[Node]): Unit = {

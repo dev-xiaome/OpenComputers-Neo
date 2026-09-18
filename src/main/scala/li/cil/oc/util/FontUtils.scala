@@ -2,18 +2,36 @@ package li.cil.oc.util
 
 import java.io.{BufferedReader, InputStreamReader}
 import java.nio.charset.StandardCharsets
-import scala.collection.mutable.BitSet
-import li.cil.oc.OpenComputers
-import li.cil.oc.Settings
+import li.cil.oc.OpenComputersNeo
 
 import scala.collection.mutable
 
 object FontUtils {
   private val defined_double_wide: mutable.BitSet = mutable.BitSet()
+  private val defined_zero_width: mutable.BitSet = mutable.BitSet()
 
   // theoretical Unicode maximum
   val codepoint_limit: Int = 0x110000
-  def wcwidth(charCode: Int): Int = if (defined_double_wide(charCode)) 2 else 1
+  def wcwidth(charCode: Int): Int = {
+    if (defined_zero_width(charCode)) 0
+    else if (defined_double_wide(charCode)) 2
+    else 1
+  }
+
+  def wtrunc(value: String, count: Long): String = {
+    if (count <= 0) return ""
+
+    var width = 0
+    var end = 0
+    while (end < value.length) {
+      val next = value.offsetByCodePoints(end, 1)
+      val nextWidth = width + wcwidth(value.codePointAt(end))
+      if (nextWidth >= count) return value.substring(0, end)
+      width = nextWidth
+      end = next
+    }
+    value
+  }
 
   {
     /**
@@ -223,18 +241,21 @@ object FontUtils {
     /* musl wcwidth implementation ends here. */
 
     {
-      OpenComputers.log.info("Initializing font glyph width cache...")
+      OpenComputersNeo.log.info("Initializing font glyph width cache...")
       val time = System.currentTimeMillis()
       for (i <- 0 until codepoint_limit) {
-        if (c_wcwidth(i) == 2)
-          defined_double_wide += i
+        c_wcwidth(i) match {
+          case 0 => defined_zero_width += i
+          case 2 => defined_double_wide += i
+          case _ =>
+        }
       }
-      OpenComputers.log.info("Initialized font glyph width cache in " + (System.currentTimeMillis() - time) + " milliseconds.")
+      OpenComputersNeo.log.info("Initialized font glyph width cache in " + (System.currentTimeMillis() - time) + " milliseconds.")
     }
     try {
-      OpenComputers.log.info("Initializing font glyph width overrides...")
+      OpenComputersNeo.log.info("Initializing font glyph width overrides...")
       val time = System.currentTimeMillis()
-      val font = FontUtils.getClass.getResourceAsStream(s"/assets/${Settings.resourceDomain}/font.hex")
+      val font = FontUtils.getClass.getResourceAsStream("/assets/OpenComputersNeo/font.hex")
       try {
         var line: String = null
         val input = new BufferedReader(new InputStreamReader(font, StandardCharsets.UTF_8))
@@ -246,25 +267,25 @@ object FontUtils {
             line.length - info.length - 1 match {
               case 64 => defined_double_wide += charCode
               case 32 => defined_double_wide -= charCode
-              case n => OpenComputers.log.warn(s"Invalid glyph size detected in font.hex. Expected 64 or 32, got: $n")
+              case n => OpenComputersNeo.log.warn(s"Invalid glyph size detected in font.hex. Expected 64 or 32, got: $n")
             }
           } else {
             out_of_range_glyph += 1
           }
         }
         if (out_of_range_glyph >= 1) {
-          OpenComputers.log.info(f"${out_of_range_glyph} total out-of-bounds glyph char codes detected in font.hex")
+          OpenComputersNeo.log.info(f"${out_of_range_glyph} total out-of-bounds glyph char codes detected in font.hex")
         }
       } finally {
         try {
           font.close()
         } catch {
-          case ex: Throwable => OpenComputers.log.error(s"Error closing font.hex: $ex")
+          case ex: Throwable => OpenComputersNeo.log.error(s"Error closing font.hex: $ex")
         }
       }
-      OpenComputers.log.info("Initialized font glyph width overrides in " + (System.currentTimeMillis() - time) + " milliseconds.")
+      OpenComputersNeo.log.info("Initialized font glyph width overrides in " + (System.currentTimeMillis() - time) + " milliseconds.")
     } catch {
-      case ex: Throwable => OpenComputers.log.error(s"Error parsing glyphs to determine widths: $ex")
+      case ex: Throwable => OpenComputersNeo.log.error(s"Error parsing glyphs to determine widths: $ex")
     }
   }
 }

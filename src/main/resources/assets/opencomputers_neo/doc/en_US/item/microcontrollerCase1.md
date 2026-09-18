@@ -23,7 +23,15 @@ The tier 2 microcontroller case can accept the following components:
 - 1x Expansion card (tier 1)
 - 1x Upgrade (tier 3)
 
-The tier 1 microcontroller case can accept the following components:
+The tier 3 microcontroller case can accept the following components:
+- 1x tier 1 [CPU](cpu1.md)
+- 1x tier 2 [RAM](ram3.md)
+- 1x tier 1 [RAM](ram1.md)
+- 1x [EEPROM](eeprom.md)
+- 2x Expansion cards (tier 2)
+- 1x Upgrades (tier 4)
+
+The Creative microcontroller case can accept the following components:
 - 1x tier 3 [CPU](cpu3.md)
 - 2x tier 3 [RAM](ram5.md)
 - 1x [EEPROM](eeprom.md)

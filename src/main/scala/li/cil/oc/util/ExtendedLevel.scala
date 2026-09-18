@@ -33,6 +33,7 @@ object ExtendedLevel {
     def getBlockEntity(host: EnvironmentHost): BlockEntity = getBlockEntity(BlockPosition(host))
 
     def isAirBlock(position: BlockPosition) = {
+      // issue #4: may cause NPE in world.get
       position.world.get.isEmptyBlock(position.toBlockPos)
     }
   }
@@ -44,8 +45,15 @@ object ExtendedLevel {
 
     def destroyBlockInWorldPartially(entityId: Int, position: BlockPosition, progress: Int) = level.destroyBlockProgress(entityId, position.toBlockPos, progress)
 
-    def extinguishFire(player: Player, position: BlockPosition, side: Direction): Boolean =
-      VanillaLevel.extinguishFire(level, player, position.toBlockPos, side)
+    def extinguishFire(player: Player, position: BlockPosition, side: Direction) = {
+      val pos = position.toBlockPos
+      val state = level.getBlockState(pos)
+      if (state.is(BlockTags.FIRE)) {
+        level.setBlock(pos, Blocks.AIR.defaultBlockState, 3)
+        true
+      }
+      else false
+    }
 
     def getBlockHardness(position: BlockPosition) = level.getBlockState(position.toBlockPos).getDestroySpeed(level, position.toBlockPos)
 

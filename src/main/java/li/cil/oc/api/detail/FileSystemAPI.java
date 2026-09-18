@@ -32,7 +32,7 @@ public interface FileSystemAPI {
      * This will create a folder, if necessary, and create a writable virtual
      * file system based in that folder. The actual path is based in a sub-
      * folder of the save folder. The actual path is built like this:
-     * <pre>"saves/" + WORLD_NAME + "/opencomputers/" + root</pre>
+     * <pre>"saves/" + WORLD_NAME + "/OpenComputersNeo/" + root</pre>
      * The first part may differ, in particular for servers.
      * <br>
      * Usually the name will be the address of the node used to represent the
@@ -107,7 +107,7 @@ public interface FileSystemAPI {
      * @param accessSound the name of the sound effect to play when the file
      *                    system is accessed. This has to be the fully
      *                    qualified resource name, e.g.
-     *                    {@code opencomputers:floppy_access}.
+     *                    {@code opencomputers_neo:floppy_access}.
      * @param speed       the speed multiplier for this file system.
      * @return the network node wrapping the file system.
      */
@@ -126,7 +126,7 @@ public interface FileSystemAPI {
      * @param accessSound the name of the sound effect to play when the file
      *                    system is accessed. This has to be the fully
      *                    qualified resource name, e.g.
-     *                    {@code opencomputers:floppy_access}.
+     *                    {@code opencomputers_neo:floppy_access}.
      * @param speed       the speed multiplier for this file system.
      * @return the network node wrapping the file system.
      */

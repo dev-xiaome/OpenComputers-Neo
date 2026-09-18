@@ -11,7 +11,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 
 /**
- * This API allows interfacing with the in-game manual of OpenComputers.
+ * This API allows interfacing with the in-game manual of OpenComputersNeo.
  * <br>
  * It allows opening the manual at a desired specific page, as well as
  * registering custom tabs and content callback handlers.

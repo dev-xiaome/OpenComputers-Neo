@@ -7,7 +7,7 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 
 import com.google.common.cache.CacheBuilder
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.server.fs.ZipFileInputStreamFileSystem.ArchiveDirectory
 import li.cil.oc.server.fs.ZipFileInputStreamFileSystem.ArchiveFile
 
@@ -144,7 +144,7 @@ object ZipFileInputStreamFileSystem {
     }
     catch {
       case e: Throwable =>
-        OpenComputers.log.warn("Failed creating ZIP file system.", e)
+        OpenComputersNeo.log.warn("Failed creating ZIP file system.", e)
         null
     }
   }

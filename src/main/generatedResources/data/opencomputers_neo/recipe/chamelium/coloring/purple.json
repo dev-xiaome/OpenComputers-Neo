@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "opencomputers_neo:chameliumblock"
+    },
+    {
+      "tag": "c:dyes/purple"
+    }
+  ],
+  "result": {
+    "components": {
+      "opencomputers_neo:chamelium_color": "purple"
+    },
+    "count": 1,
+    "id": "opencomputers_neo:chameliumblock"
+  }
+}

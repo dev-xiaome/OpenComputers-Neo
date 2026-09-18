@@ -17,6 +17,7 @@ import li.cil.oc.common.entity
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.InventoryUtils
 import net.minecraft.core.Direction
+import net.minecraft.network.chat.Component
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.convert.ImplicitConversionsToScala._
@@ -59,13 +60,13 @@ class Drone(val agent: entity.Drone) extends AbstractManagedEnvironment with Age
   // ----------------------------------------------------------------------- //
 
   @Callback(doc = "function():string -- Get the status text currently being displayed in the GUI.")
-  def getStatusText(context: Context, args: Arguments): Array[AnyRef] = result(agent.statusText)
+  def getStatusText(context: Context, args: Arguments): Array[AnyRef] = result(agent.statusText.getString)
 
   @Callback(doc = "function(value:string):string -- Set the status text to display in the GUI, returns new value.")
   def setStatusText(context: Context, args: Arguments): Array[AnyRef] = {
-    agent.statusText = args.checkString(0)
+    agent.statusText = Component.literal(args.checkString(0))
     context.pause(0.1)
-    result(agent.statusText)
+    result(agent.statusText.getString)
   }
 
   @Callback(doc = "function():number -- Get the current color of the flap lights as an integer encoded RGB value (0xRRGGBB).")
@@ -102,9 +103,14 @@ class Drone(val agent: entity.Drone) extends AbstractManagedEnvironment with Age
     result(agent.getDeltaMovement.length * 20) // per second
 
   @Callback(doc = "function():number -- Get the maximum velocity, in m/s.")
-  def getV1elocity(context: Context, args: Arguments): Array[AnyRef] = {
+  def getMaxVelocity(context: Context, args: Arguments): Array[AnyRef] = {
     result(agent.maxVelocity * 20) // per second
   }
+
+  // Compatibility alias for builds that accidentally exposed the typo'd callback name.
+  @Callback(doc = "function():number -- Alias for getMaxVelocity().")
+  def getV1elocity(context: Context, args: Arguments): Array[AnyRef] =
+    getMaxVelocity(context, args)
 
   @Callback(doc = "function():number -- Get the currently set acceleration.")
   def getAcceleration(context: Context, args: Arguments): Array[AnyRef] = {

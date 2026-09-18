@@ -7,9 +7,7 @@ import li.cil.oc.integration.util.BundledRedstone
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.BlockPosHelper
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.core.Direction
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
+import net.minecraft.core.{Direction, HolderLookup}
 
 case class RedstoneChangedEventArgs (side: Direction, oldValue: Int, newValue: Int, color: Int = -1)
 
@@ -132,12 +130,18 @@ trait RedstoneAware extends RotationAware {
     }
   }
 
-  def updateRedstoneInput(side: Direction): Unit = setInput(side, BundledRedstone.computeInput(position, side))
+  def updateRedstoneInput(side: Direction): Unit = {
+    val inputPosition = if (isMoving) {
+      li.cil.oc.util.BlockPosition(movingBlockPos, getLevel)
+    } else position
+    val inputSide = if (isMoving) movingDirection(side) else side
+    setInput(side, BundledRedstone.computeInput(inputPosition, inputSide))
+  }
 
   // ----------------------------------------------------------------------- //
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
+  override def loadForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForServer(nbt, provider)
 
     val input = nbt.getIntArray(Settings.namespace + "rs.input")
     input.copyToArray(_input, 0, input.length min _input.length)
@@ -145,21 +149,21 @@ trait RedstoneAware extends RotationAware {
     output.copyToArray(_output, 0, output.length min _output.length)
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForServer(nbt, provider)
 
     nbt.putIntArray(Settings.namespace + "rs.input", _input)
     nbt.putIntArray(Settings.namespace + "rs.output", _output)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
+  override def loadForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForClient(nbt, provider)
     _isOutputEnabled = nbt.getBoolean("isOutputEnabled")
     nbt.getIntArray("output").copyToArray(_output)
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
+  override def saveForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForClient(nbt, provider)
     nbt.putBoolean("isOutputEnabled", _isOutputEnabled)
     nbt.putIntArray("output", _output)
   }
@@ -170,16 +174,21 @@ trait RedstoneAware extends RotationAware {
 
   protected def onRedstoneOutputEnabledChanged(): Unit = {
     if (getLevel != null) {
-      getLevel.updateNeighborsAt(getBlockPos, getBlockState.getBlock)
+      val blockPos = if (isMoving) movingBlockPos else getBlockPos
+      val block = if (isMoving) movingBlockState.getBlock else getBlockState.getBlock
+      getLevel.updateNeighborsAt(blockPos, block)
       if (isServer) ServerPacketSender.sendRedstoneState(this)
       else getLevel.sendBlockUpdated(getBlockPos, getLevel.getBlockState(getBlockPos), getLevel.getBlockState(getBlockPos), 3)
     }
   }
 
   protected def onRedstoneOutputChanged(side: Direction): Unit = {
-    val blockPos = BlockPosHelper.relative(getBlockPos, side)
-    getLevel.neighborChanged(blockPos, getBlockState.getBlock, blockPos)
-    getLevel.updateNeighborsAtExceptFromFacing(blockPos, getLevel.getBlockState(blockPos).getBlock, side.getOpposite)
+    val sourcePos = if (isMoving) movingBlockPos else getBlockPos
+    val sourceBlock = if (isMoving) movingBlockState.getBlock else getBlockState.getBlock
+    val outputSide = if (isMoving) movingDirection(side) else side
+    val blockPos = if (isMoving) movingNeighbor(side) else BlockPosHelper.relative(sourcePos, side)
+    getLevel.neighborChanged(blockPos, sourceBlock, sourcePos)
+    getLevel.updateNeighborsAtExceptFromFacing(blockPos, getLevel.getBlockState(blockPos).getBlock, outputSide.getOpposite)
 
     if (isServer) ServerPacketSender.sendRedstoneState(this)
     else getLevel.sendBlockUpdated(getBlockPos, getLevel.getBlockState(getBlockPos), getLevel.getBlockState(getBlockPos), 3)

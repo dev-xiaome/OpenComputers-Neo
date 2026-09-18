@@ -1,7 +1,6 @@
 package li.cil.oc.server.component
 
 import java.util
-
 import li.cil.oc.Constants
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
@@ -16,10 +15,11 @@ import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.util.{UpgradeExperience => ExperienceUtil}
+import net.minecraft.core.HolderLookup
 import net.minecraft.nbt.CompoundTag
 
 import scala.collection.convert.ImplicitConversionsToJava._
-import scala.jdk.CollectionConverters._
+import scala.collection.convert.ImplicitConversionsToScala._
 import net.minecraft.world.entity.ExperienceOrb
 import net.minecraft.world.item.enchantment.EnchantmentHelper
 import net.minecraft.world.item.Items
@@ -93,11 +93,11 @@ class UpgradeExperience(val host: EnvironmentHost with internal.Agent) extends A
       xp += 3 + host.getEnvironmentLevel.random.nextInt(5) + host.getEnvironmentLevel.random.nextInt(5)
     }
     else {
-      // 1.21.1 的附魔改为数据组件，通过 ItemStack#getEnchantments 迭代 Holder[Enchantment]。
-      for (entry <- stack.getEnchantments.entrySet().asScala) {
-        val enchantment = entry.getKey
+      for (entry <- EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet()) {
+        val enchantment = entry.getKey.value()
+        val level = entry.getIntValue
         if (enchantment != null) {
-          xp += enchantment.value().getMinCost(entry.getIntValue)
+          xp += enchantment.getMinCost(level)
         }
       }
       if (xp <= 0) {
@@ -117,13 +117,13 @@ class UpgradeExperience(val host: EnvironmentHost with internal.Agent) extends A
     case _ =>
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
+  override def saveData(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveData(nbt, provider)
     ExperienceUtil.setExperience(nbt, experience)
   }
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
+  override def loadData(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadData(nbt, provider)
     experience = ExperienceUtil.getExperience(nbt)
     updateXpInfo()
   }

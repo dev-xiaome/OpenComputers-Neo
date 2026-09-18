@@ -1,9 +1,9 @@
 package li.cil.oc.util
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
-import net.minecraft.world.item.ItemStack
+import net.minecraft.core.component.DataComponents
 import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.component.CustomData
 
 /**
   * @author asie, Vexatos
@@ -12,13 +12,16 @@ object ItemColorizer {
   /**
     * Return whether the specified armor ItemStack has a color.
     */
-  def hasColor(stack: ItemStack): Boolean = stack.hasTag && stack.getTag.contains("display") && stack.getTag.getCompound("display").contains("color")
+  def hasColor(stack: ItemStack): Boolean = {
+    val tag = ItemUtils.getTag(stack)
+    tag != null && tag.contains("display") && tag.getCompound("display").contains("color")
+  }
 
   /**
     * Return the color for the specified armor ItemStack.
     */
   def getColor(stack: ItemStack): Int = {
-    val tag = stack.getTag
+    val tag = ItemUtils.getTag(stack)
     if (tag != null) {
       if (tag.contains("display")) {
         val displayTag = tag.getCompound("display")
@@ -30,16 +33,23 @@ object ItemColorizer {
   }
 
   def removeColor(stack: ItemStack): Unit = {
-    val tag = stack.getTag
+    val tag = ItemUtils.getTag(stack)
     if (tag != null) {
       val displayTag = tag.getCompound("display")
       if (displayTag.contains("color")) displayTag.remove("color")
       if (displayTag.isEmpty) tag.remove("display")
-      if (tag.isEmpty) stack.setTag(null)
+      CustomData.set(DataComponents.CUSTOM_DATA, stack, if(tag.isEmpty) new CompoundTag() else tag)
     }
   }
 
   def setColor(stack: ItemStack, color: Int): Unit = {
-    stack.getOrCreateTagElement("display").putInt("color", color)
+    CustomData.update(DataComponents.CUSTOM_DATA, stack, data => {
+      if (!data.contains("display")) {
+        data.put("display", new CompoundTag())
+      }
+
+      val display = data.getCompound("display")
+      display.putInt("color", color)
+    })
   }
 }

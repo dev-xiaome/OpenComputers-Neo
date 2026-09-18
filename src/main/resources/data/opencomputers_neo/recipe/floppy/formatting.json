@@ -1,0 +1,11 @@
+{
+  "type": "opencomputers_neo:crafting_shapeless_extended",
+  "ingredients": [
+    {
+      "item": "opencomputers_neo:floppy"
+    }
+  ],
+  "result": {
+    "id": "opencomputers_neo:floppy"
+  }
+}

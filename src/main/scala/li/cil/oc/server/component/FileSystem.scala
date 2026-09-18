@@ -1,39 +1,31 @@
 package li.cil.oc.server.component
 
-import java.io.FileNotFoundException
-import java.io.IOException
-import java.util
-
-import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
-import li.cil.oc.Settings
+import li.cil.oc.{Constants, Settings}
 import li.cil.oc.api.Network
 import li.cil.oc.api.driver.DeviceInfo
-import li.cil.oc.api.fs.Label
-import li.cil.oc.api.fs.Mode
-import li.cil.oc.api.fs.{FileSystem => IFileSystem}
-import li.cil.oc.api.machine.Arguments
-import li.cil.oc.api.machine.Callback
-import li.cil.oc.api.machine.Context
-import li.cil.oc.api.network.EnvironmentHost
+import li.cil.oc.api.driver.DeviceInfo.{DeviceAttribute, DeviceClass}
+import li.cil.oc.api.fs.{Label, Mode, FileSystem => IFileSystem}
+import li.cil.oc.api.machine.{Arguments, Callback, Context}
 import li.cil.oc.api.network._
-import li.cil.oc.api.prefab
-import li.cil.oc.api.prefab.AbstractManagedEnvironment
-import li.cil.oc.api.prefab.AbstractValue
+import li.cil.oc.api.prefab.{AbstractManagedEnvironment, AbstractValue}
 import li.cil.oc.common.SaveHandler
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.ExtendedNBT._
-import net.minecraft.nbt.CompoundTag
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
+import net.minecraft.nbt.{CompoundTag, IntArrayTag, ListTag, Tag}
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 
+import java.io.{FileNotFoundException, IOException}
+import java.util
 import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.mutable
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.nbt.Tag
-import net.minecraft.nbt.ListTag
-import net.minecraft.nbt.IntArrayTag
 
-class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option[EnvironmentHost], val sound: Option[String], val speed: Int) extends AbstractManagedEnvironment with DeviceInfo {
+class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option[EnvironmentHost], val sound: Option[String], val speed: Int,
+                 val readEnergyCost: Double, val writeEnergyCost: Double) extends AbstractManagedEnvironment with DeviceInfo {
   override val node = Network.newNode(this, Visibility.Network).
     withComponent("filesystem", Visibility.Neighbors).
     withConnector().
@@ -63,7 +55,7 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
 
   @Callback(direct = true, doc = """function():string -- Get the current label of the drive.""")
   def getLabel(context: Context, args: Arguments): Array[AnyRef] = fileSystem.synchronized {
-    if (label != null) result(label.getLabel) else null
+    if (label != null) result(label.getLabel(ServerLifecycleHooks.getCurrentServer.registryAccess())) else null
   }
 
   @Callback(doc = """function(value:string):string -- Sets the label of the drive. Returns the new value, which may be truncated.""")
@@ -71,7 +63,7 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
     if (label == null) throw new Exception("drive does not support labeling")
     if (args.checkAny(0) == null) label.setLabel(null)
     else label.setLabel(args.checkString(0))
-    result(label.getLabel)
+    result(label.getLabel(ServerLifecycleHooks.getCurrentServer.registryAccess()))
   }
 
   @Callback(direct = true, doc = """function():boolean -- Returns whether the file system is read-only.""")
@@ -156,7 +148,7 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
     null
   }
 
-  @Callback(direct = true, limit = 4, doc = """function(path:string[, mode:string='r']):userdata -- Opens a new file descriptor and returns its handle.""")
+  @Callback(direct = true, limit = 4, doc = """function(path:string[, mode:string='r']):userdata -- Opens a new file descriptor in r, w, a, r+, w+, or a+ mode and returns its handle. A mode may include b.""")
   def open(context: Context, args: Arguments): Array[AnyRef] = fileSystem.synchronized {
     if (owners.get(context.node.address).fold(false)(_.size >= Settings.get.maxHandles)) {
       throw new IOException("too many open handles")
@@ -191,7 +183,7 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
               Array.copy(buffer, 0, bytes, 0, read)
               bytes
             }
-          if (!node.tryChangeBuffer(-Settings.get.hddReadCost * bytes.length)) {
+          if (!node.tryChangeBuffer(-readEnergyCost * bytes.length)) {
             throw new IOException("not enough energy")
           }
           diskActivity()
@@ -229,7 +221,7 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
     context.consumeCallBudget(writeCosts(speed))
     val handle = checkHandle(args, 0)
     val value = args.checkByteArray(1)
-    if (!node.tryChangeBuffer(-Settings.get.hddWriteCost * value.length)) {
+    if (!node.tryChangeBuffer(-writeEnergyCost * value.length)) {
       throw new IOException("not enough energy")
     }
     checkOwner(context.node.address, handle)
@@ -304,40 +296,32 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
 
   // ----------------------------------------------------------------------- //
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
 
-    nbt.getList("owners", Tag.TAG_COMPOUND).foreach((ownerNbt: CompoundTag) => {
-      val address = ownerNbt.getString("address")
-      if (address != "") {
-        owners += address -> ownerNbt.getIntArray("handles").to(mutable.Set)
-      }
-    })
+    for(handles <- holder.getComponent(OCComponents.HANDLES)) {
+      owners ++= handles.map { case k -> v => k -> v.to(mutable.Set) }
+    }
 
     if (label != null) {
-      label.loadData(nbt)
+      label.loadData(holder)
     }
-    fileSystem.loadData(nbt.getCompound("fs"))
+
+    for(nbt <- holder.getComponent(OCComponents.FILESYSTEM_DATA)) {
+      fileSystem.loadData(nbt)
+    }
   }
 
-  override def saveData(nbt: CompoundTag): Unit = fileSystem.synchronized {
-    super.saveData(nbt)
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super.saveData(holder)
 
-    if (label != null) {
-      label.saveData(nbt)
+    if(label != null) {
+      label.saveData(holder)
     }
 
-    if (!SaveHandler.savingForClients) {
-      val ownersNbt = new ListTag()
-      for ((address, handles) <- owners) {
-        val ownerNbt = new CompoundTag()
-        ownerNbt.putString("address", address)
-        ownerNbt.put("handles", new IntArrayTag(handles.toArray))
-        ownersNbt.add(ownerNbt)
-      }
-      nbt.put("owners", ownersNbt)
-
-      nbt.setNewCompoundTag("fs", fileSystem.saveData)
+    if(!SaveHandler.savingForClients) {
+      holder.setComponent(OCComponents.HANDLES, Map.from(owners.map { case k -> v => k -> v.toSet }))
+      holder.updateComponent(OCComponents.FILESYSTEM_DATA, new CompoundTag(), fileSystem.saveData)
     }
   }
 
@@ -354,6 +338,9 @@ class FileSystem(val fileSystem: IFileSystem, var label: Label, val host: Option
     if (("r" == value) || ("rb" == value)) return Mode.Read
     if (("w" == value) || ("wb" == value)) return Mode.Write
     if (("a" == value) || ("ab" == value)) return Mode.Append
+    if (("r+" == value) || ("r+b" == value) || ("rb+" == value)) return Mode.ReadWrite
+    if (("w+" == value) || ("w+b" == value) || ("wb+" == value)) return Mode.ReadWriteTruncate
+    if (("a+" == value) || ("a+b" == value) || ("ab+" == value)) return Mode.ReadAppend
     throw new IllegalArgumentException("unsupported mode")
   }
 
@@ -396,14 +383,14 @@ final class HandleValue extends AbstractValue {
   private val OwnerTag = "owner"
   private val HandleTag = "handle"
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
+  override def loadData(holder: DataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadData(holder, nbt, provider)
     owner = nbt.getString(OwnerTag)
     handle = nbt.getInt(HandleTag)
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
+  override def saveData(holder: MutableDataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveData(holder, nbt, provider)
     nbt.putString(OwnerTag, owner)
     nbt.putInt(HandleTag, handle)
   }

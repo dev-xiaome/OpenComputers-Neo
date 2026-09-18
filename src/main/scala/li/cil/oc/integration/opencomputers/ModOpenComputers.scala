@@ -1,7 +1,8 @@
-package li.cil.oc.integration.opencomputers
+package li.cil.oc.integration.OpenComputersNeo
 
+import li.cil.oc.common.openprinter.OpenPrinter
 import li.cil.oc.Constants
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.detail.ItemInfo
@@ -9,13 +10,11 @@ import li.cil.oc.api.driver.item.Chargeable
 import li.cil.oc.api.internal
 import li.cil.oc.api.internal.Wrench
 import li.cil.oc.api.manual.PathProvider
-import li.cil.oc.api.prefab.ItemStackTabIconRenderer
-import li.cil.oc.api.prefab.ResourceContentProvider
-import li.cil.oc.api.prefab.TextureTabIconRenderer
+import li.cil.oc.api.prefab.{ItemStackTabIconRenderer, ResourceContentProvider, SpriteTabIconRenderer, TextureTabIconRenderer}
 import li.cil.oc.client.Textures
 import li.cil.oc.client.renderer.markdown.segment.render.BlockImageProvider
 import li.cil.oc.client.renderer.markdown.segment.render.ItemImageProvider
-import li.cil.oc.client.renderer.markdown.segment.render.OreDictImageProvider
+import li.cil.oc.client.renderer.markdown.segment.render.TagImageProvider
 import li.cil.oc.client.renderer.markdown.segment.render.TextureImageProvider
 import li.cil.oc.common.EventHandler
 import li.cil.oc.common.Loot
@@ -25,6 +24,7 @@ import li.cil.oc.common.event._
 import li.cil.oc.common.item.Analyzer
 import li.cil.oc.common.item.RedstoneCard
 import li.cil.oc.common.item.Tablet
+import li.cil.oc.common.item.data.ItemData
 import li.cil.oc.common.nanomachines.provider.DisintegrationProvider
 import li.cil.oc.common.nanomachines.provider.HungryProvider
 import li.cil.oc.common.nanomachines.provider.MagnetProvider
@@ -34,21 +34,24 @@ import li.cil.oc.common.template._
 import li.cil.oc.integration.ModProxy
 import li.cil.oc.integration.Mods
 import li.cil.oc.integration.util.BundledRedstone
+import li.cil.oc.server.machine.luac.LuaStateFactory
+import li.cil.oc.server.machine.luac.NativeLua53Architecture
 import li.cil.oc.server.network.Waypoints
 import li.cil.oc.server.network.WirelessNetwork
 import li.cil.oc.util.Color
-import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.{BlockItem, ItemStack}
 import net.minecraft.core.BlockPos
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.level.Level
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
-import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.fml.loading.FMLEnvironment
+import net.neoforged.neoforge.common.NeoForge
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 
 object ModOpenComputers extends ModProxy {
-  override def getMod = Mods.OpenComputers
+  override def getMod = Mods.OpenComputersNeo
 
   override def initialize(): Unit = {
     DroneTemplate.register()
@@ -59,15 +62,15 @@ object ModOpenComputers extends ModProxy {
     TabletTemplate.register()
     TemplateBlacklist.register()
 
-    api.IMC.registerWrenchTool("li.cil.oc.integration.opencomputers.ModOpenComputers.useWrench")
-    api.IMC.registerWrenchToolCheck("li.cil.oc.integration.opencomputers.ModOpenComputers.isWrench")
+    api.IMC.registerWrenchTool("li.cil.oc.integration.OpenComputersNeo.ModOpenComputers.useWrench")
+    api.IMC.registerWrenchToolCheck("li.cil.oc.integration.OpenComputersNeo.ModOpenComputers.isWrench")
     api.IMC.registerItemCharge(
-      "OpenComputers",
-      "li.cil.oc.integration.opencomputers.ModOpenComputers.canCharge",
-      "li.cil.oc.integration.opencomputers.ModOpenComputers.charge")
+      "OpenComputers Neo",
+      "li.cil.oc.integration.OpenComputersNeo.ModOpenComputers.canCharge",
+      "li.cil.oc.integration.OpenComputersNeo.ModOpenComputers.charge")
 
-    api.IMC.registerInkProvider("li.cil.oc.integration.opencomputers.ModOpenComputers.inkCartridgeInkProvider")
-    api.IMC.registerInkProvider("li.cil.oc.integration.opencomputers.ModOpenComputers.dyeInkProvider")
+    api.IMC.registerInkProvider("li.cil.oc.integration.OpenComputersNeo.ModOpenComputers.inkCartridgeInkProvider")
+    api.IMC.registerInkProvider("li.cil.oc.integration.OpenComputersNeo.ModOpenComputers.dyeInkProvider")
 
     api.IMC.registerProgramDiskLabel("build", "builder", "Lua 5.2", "Lua 5.3", "LuaJ")
     api.IMC.registerProgramDiskLabel("dig", "dig", "Lua 5.2", "Lua 5.3", "LuaJ")
@@ -87,9 +90,8 @@ object ModOpenComputers extends ModProxy {
     api.IMC.registerProgramDiskLabel("opl-flash", "openloader", "Lua 5.2", "Lua 5.3", "LuaJ")
     api.IMC.registerProgramDiskLabel("oppm", "oppm", "Lua 5.2", "Lua 5.3", "LuaJ")
 
-    // 1.21.1 已取消 ForgeChunkManager：强制加载改为 TicketController 体系，
-    // 控制器在 mod 事件总线上通过 RegisterTicketControllersEvent 注册，
-    // 这一步已由 li.cil.oc.OpenComputers 里的 ChunkloaderUpgradeHandler.initialize(modBus) 完成。
+    OpenComputersNeo.proxy.modBus.addListener(EventHandler.onRegisterCapabilities)
+    OpenComputersNeo.proxy.modBus.addListener(ChunkloaderUpgradeHandler.onRegisterTicketControllers)
 
     NeoForge.EVENT_BUS.register(EventHandler)
     NeoForge.EVENT_BUS.register(NanomachinesHandler.Common)
@@ -107,14 +109,13 @@ object ModOpenComputers extends ModProxy {
     NeoForge.EVENT_BUS.register(Waypoints)
     NeoForge.EVENT_BUS.register(WirelessNetwork)
     NeoForge.EVENT_BUS.register(WirelessNetworkCardHandler)
-    li.cil.oc.client.ComponentTracker.registerOn(NeoForge.EVENT_BUS)
-    li.cil.oc.server.ComponentTracker.registerOn(NeoForge.EVENT_BUS)
+    NeoForge.EVENT_BUS.register(li.cil.oc.client.ComponentTracker)
+    NeoForge.EVENT_BUS.register(li.cil.oc.server.ComponentTracker)
 
     api.Driver.add(ConverterNanomachines)
     api.Driver.add(ConverterLinkedCard)
 
     api.Driver.add(DriverAPU)
-    api.Driver.add(DriverSoundCard)
     api.Driver.add(DriverComponentBus)
     api.Driver.add(DriverCPU)
     api.Driver.add(DriverDataCard)
@@ -126,7 +127,6 @@ object ModOpenComputers extends ModProxy {
     api.Driver.add(DriverLinkedCard)
     api.Driver.add(DriverLootDisk)
     api.Driver.add(DriverMemory)
-    api.Driver.add(DriverCreativeMemory)
     api.Driver.add(DriverNetworkCard)
     api.Driver.add(DriverKeyboard)
     api.Driver.add(DriverRedstoneCard)
@@ -142,7 +142,6 @@ object ModOpenComputers extends ModProxy {
     api.Driver.add(DriverScreen)
     api.Driver.add(DriverTransposer)
 
-    api.Driver.add(DriverCapacitorMountable)
     api.Driver.add(DriverDiskDriveMountable)
     api.Driver.add(DriverServer)
     api.Driver.add(DriverTerminalServer)
@@ -163,7 +162,6 @@ object ModOpenComputers extends ModProxy {
     api.Driver.add(DriverUpgradePiston)
     api.Driver.add(DriverUpgradeSign)
     api.Driver.add(DriverUpgradeSolarGenerator)
-    api.Driver.add(DriverUpgradeStickyPiston)
     api.Driver.add(DriverUpgradeTank)
     api.Driver.add(DriverUpgradeTankController)
     api.Driver.add(DriverUpgradeTractorBeam)
@@ -171,7 +169,6 @@ object ModOpenComputers extends ModProxy {
     api.Driver.add(DriverUpgradeMF)
 
     api.Driver.add(DriverAPU.Provider)
-    api.Driver.add(DriverSoundCard.Provider)
     api.Driver.add(DriverDataCard.Provider)
     api.Driver.add(DriverDebugCard.Provider)
     api.Driver.add(DriverEEPROM.Provider)
@@ -197,7 +194,6 @@ object ModOpenComputers extends ModProxy {
     api.Driver.add(DriverUpgradeNavigation.Provider)
     api.Driver.add(DriverUpgradePiston.Provider)
     api.Driver.add(DriverUpgradeSign.Provider)
-    api.Driver.add(DriverUpgradeStickyPiston.Provider)
     api.Driver.add(DriverUpgradeTankController.Provider)
     api.Driver.add(DriverUpgradeTractorBeam.Provider)
     api.Driver.add(DriverUpgradeMF.Provider)
@@ -228,7 +224,6 @@ object ModOpenComputers extends ModProxy {
       Constants.ItemName.InventoryUpgrade,
       Constants.ItemName.NavigationUpgrade,
       Constants.ItemName.PistonUpgrade,
-      Constants.ItemName.StickyPistonUpgrade,
       Constants.ItemName.SolarGeneratorUpgrade,
       Constants.ItemName.TankUpgrade,
       Constants.ItemName.TractorBeamUpgrade,
@@ -309,7 +304,7 @@ object ModOpenComputers extends ModProxy {
     // redstone mods after integration init, so we have to set tier two
     // redstone card availability here, after all other mods were inited.
     if (BundledRedstone.isAvailable) {
-      OpenComputers.log.info("Found extended redstone mods, enabling tier two redstone card.")
+      OpenComputersNeo.log.info("Found extended redstone mods, enabling tier two redstone card.")
       ModOpenComputers.hasRedstoneCardT2 = true
     }
 
@@ -319,9 +314,9 @@ object ModOpenComputers extends ModProxy {
     api.Nanomachines.addProvider(PotionProvider)
     api.Nanomachines.addProvider(MagnetProvider)
 
-    // NeoForge 移除了 net.neoforged.fml.DistExecutor，改为直接判断 FMLEnvironment.dist。
-    // 客户端的初始化方法带 @OnlyIn(Dist.CLIENT)，专服上既不会执行也不会被解析。
-    if (FMLEnvironment.dist == Dist.CLIENT) initializeClient()
+    if(FMLEnvironment.dist.isClient) {
+      initializeClient()
+    }
   }
 
   @OnlyIn(Dist.CLIENT)
@@ -331,9 +326,10 @@ object ModOpenComputers extends ModProxy {
     api.Manual.addProvider("", TextureImageProvider)
     api.Manual.addProvider("item", ItemImageProvider)
     api.Manual.addProvider("block", BlockImageProvider)
-    api.Manual.addProvider("oredict", OreDictImageProvider)
+    api.Manual.addProvider("oredict", TagImageProvider)
+    OpenPrinter.registerManual()
 
-    api.Manual.addTab(new TextureTabIconRenderer(Textures.GUI.ManualHome), "oc:gui.Manual.Home", "%LANGUAGE%/index.md")
+    api.Manual.addTab(new SpriteTabIconRenderer(Textures.GUISprites.ManualHome), "oc:gui.Manual.Home", "%LANGUAGE%/index.md")
     api.Manual.addTab(new ItemStackTabIconRenderer(api.Items.get("case1").createItemStack(1)), "oc:gui.Manual.Blocks", "%LANGUAGE%/block/index.md")
     api.Manual.addTab(new ItemStackTabIconRenderer(api.Items.get("cpu1").createItemStack(1)), "oc:gui.Manual.Items", "%LANGUAGE%/item/index.md")
   }
@@ -379,7 +375,7 @@ object ModOpenComputers extends ModProxy {
     for (itemName <- itemNames) try {
       api.IMC.blacklistHost(itemName, host, api.Items.get(itemName).createItemStack(1))
     } catch {
-      case t: Throwable => OpenComputers.log.warn(s"Error blacklisting '$itemName' for '${host.getSimpleName}.", t)
+      case t: Throwable => OpenComputersNeo.log.warn(s"Error blacklisting '$itemName' for '${host.getSimpleName}.", t)
     }
   }
 
@@ -402,7 +398,7 @@ object ModOpenComputers extends ModProxy {
 
     private def checkBlacklisted(info: ItemInfo): String =
       if (info == null || Blacklist.contains(info.name)) null
-      else if (info.block != null) "%LANGUAGE%/block/" + info.name + ".md"
+      else if (info.item().isInstanceOf[BlockItem]) "%LANGUAGE%/block/" + info.name + ".md"
       else "%LANGUAGE%/item/" + info.name + ".md"
   }
 

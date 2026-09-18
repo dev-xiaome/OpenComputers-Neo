@@ -12,7 +12,7 @@ import net.minecraft.world.level.Level;
  * hand and sneak-activating a block in the world.
  * <br>
  * This way you can easily make entries in your documentation available the
- * same way OpenComputers does it itself.
+ * same way OpenComputersNeo does it itself.
  * <br>
  * Note that you can use the special variable {@code %LANGUAGE%} in your
  * paths, for language agnostic paths. These will be resolved to the currently

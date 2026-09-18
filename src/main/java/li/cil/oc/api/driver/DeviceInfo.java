@@ -54,7 +54,7 @@ public interface DeviceInfo {
      * end-user reading this information via a script.
      * <br>
      * Feel free to be somewhat... flexible with the designated uses of these fields. For example,
-     * the capacity and size fields have differing meaning depending on the device in OpenComputers
+     * the capacity and size fields have differing meaning depending on the device in OpenComputersNeo
      * itself (e.g. they're used for maximum number of characters for graphics cards, width is
      * used for bit depth on graphics cards, etc.), just try to stick with what's somewhat logical.
      */

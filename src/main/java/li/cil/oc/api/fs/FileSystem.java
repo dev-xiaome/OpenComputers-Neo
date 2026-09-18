@@ -1,6 +1,6 @@
 package li.cil.oc.api.fs;
 
-import li.cil.oc.api.Persistable;
+import net.minecraft.nbt.CompoundTag;
 
 import java.io.FileNotFoundException;
 
@@ -16,7 +16,7 @@ import java.io.FileNotFoundException;
  * you call any of the functions of a file system directly it is your
  * responsibility to ensure the path has been cleaned up.
  */
-public interface FileSystem extends Persistable {
+public interface FileSystem {
     /**
      * Whether this file system is read-only.
      * <br>
@@ -243,4 +243,7 @@ public interface FileSystem extends Persistable {
      * drive from a computer) or the container was unloaded.
      */
     void close();
+
+    void saveData(CompoundTag nbt);
+    void loadData(CompoundTag nbt);
 }

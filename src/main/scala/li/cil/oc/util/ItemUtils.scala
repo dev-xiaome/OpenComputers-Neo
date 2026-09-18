@@ -4,34 +4,41 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.util.Random
 import li.cil.oc.Constants
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.common.Tier
-import net.minecraft.world.level.block.Block
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponents
+import net.minecraft.core.registries.{BuiltInRegistries, Registries}
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.BlockItem
 import net.minecraft.world.item.BucketItem
 import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.crafting.RecipeManager
-import net.minecraft.world.item.crafting.CraftingRecipe
-import net.minecraft.world.item.crafting.Recipe
-import net.minecraft.world.item.crafting.RecipeType
-import net.minecraft.world.item.crafting.Ingredient
-import net.minecraft.world.item.crafting.CraftingInput
-import net.minecraft.nbt.NbtIo
-import net.minecraft.nbt.NbtAccounter
-import net.minecraft.nbt.CompoundTag
+import net.minecraft.world.item.crafting.{CraftingInput, CraftingRecipe, Ingredient, Recipe, RecipeManager, RecipeType, ShapedRecipe, ShapelessRecipe}
+import net.minecraft.nbt.{CompoundTag, NbtAccounter, NbtIo}
 import net.minecraft.tags.BlockTags
 import net.minecraft.world.inventory.CraftingContainer
+import net.minecraft.world.item.component.CustomData
 import net.minecraft.world.level.block.state.BlockState
-import net.minecraft.core.registries.BuiltInRegistries
+import org.jspecify.annotations.Nullable
 
 import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable
-import scala.jdk.CollectionConverters._
 
 object ItemUtils {
+  @Nullable
+  def getTag(stack: ItemStack): CompoundTag = {
+    stack.get(DataComponents.CUSTOM_DATA) match {
+      case data: CustomData => data.copyTag()
+      case _ => null
+    }
+  }
+
+  def getOrCreateTag(stack: ItemStack): CompoundTag = {
+    stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).copyTag()
+  }
+
   def getDisplayName(nbt: CompoundTag): Option[String] = {
     if (nbt.contains("display")) {
       val displayNbt = nbt.getCompound("display")
@@ -68,24 +75,19 @@ object ItemUtils {
     if (descriptor == api.Items.get(Constants.BlockName.CaseTier1)) Tier.One
     else if (descriptor == api.Items.get(Constants.BlockName.CaseTier2)) Tier.Two
     else if (descriptor == api.Items.get(Constants.BlockName.CaseTier3)) Tier.Three
-    else if (descriptor == api.Items.get(Constants.BlockName.CaseTier4)) Tier.Four
     else if (descriptor == api.Items.get(Constants.BlockName.CaseCreative)) Tier.Five
     else if (descriptor == api.Items.get(Constants.ItemName.MicrocontrollerCaseTier1)) Tier.One
     else if (descriptor == api.Items.get(Constants.ItemName.MicrocontrollerCaseTier2)) Tier.Two
-    else if (descriptor == api.Items.get(Constants.ItemName.MicrocontrollerCaseTier3)) Tier.Three
     else if (descriptor == api.Items.get(Constants.ItemName.MicrocontrollerCaseCreative)) Tier.Five
     else if (descriptor == api.Items.get(Constants.ItemName.DroneCaseTier1)) Tier.One
     else if (descriptor == api.Items.get(Constants.ItemName.DroneCaseTier2)) Tier.Two
-    else if (descriptor == api.Items.get(Constants.ItemName.DroneCaseTier3)) Tier.Three
     else if (descriptor == api.Items.get(Constants.ItemName.DroneCaseCreative)) Tier.Five
     else if (descriptor == api.Items.get(Constants.ItemName.ServerTier1)) Tier.One
     else if (descriptor == api.Items.get(Constants.ItemName.ServerTier2)) Tier.Two
     else if (descriptor == api.Items.get(Constants.ItemName.ServerTier3)) Tier.Three
-    else if (descriptor == api.Items.get(Constants.ItemName.ServerTier4)) Tier.Four
     else if (descriptor == api.Items.get(Constants.ItemName.ServerCreative)) Tier.Five
     else if (descriptor == api.Items.get(Constants.ItemName.TabletCaseTier1)) Tier.One
     else if (descriptor == api.Items.get(Constants.ItemName.TabletCaseTier2)) Tier.Two
-    else if (descriptor == api.Items.get(Constants.ItemName.TabletCaseTier3)) Tier.Three
     else if (descriptor == api.Items.get(Constants.ItemName.TabletCaseCreative)) Tier.Five
     else Tier.None
   }
@@ -94,15 +96,13 @@ object ItemUtils {
 
   def loadTag(data: Array[Byte]): CompoundTag = {
     val bais = new ByteArrayInputStream(data)
-    // 1.21.1 的 NbtIo.readCompressed 需要显式的 NbtAccounter（解压配额），
-    // 旧的单参重载已移除。
     NbtIo.readCompressed(bais, NbtAccounter.unlimitedHeap())
   }
 
-  def saveStack(stack: ItemStack): Array[Byte] = {
-    // 1.21.1 的 ItemStack#save 是「返回编码结果」而不是就地写入传入的 tag，
-    // 且空堆叠会抛 IllegalStateException，因此用 saveOptional 并取返回值。
-    val tag = stack.saveOptional(RegistryAccessHelper.getOrEmpty).asInstanceOf[CompoundTag]
+  def saveStack(stack: ItemStack, provider: HolderLookup.Provider): Array[Byte] = {
+    val tag = new CompoundTag()
+    val provider = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer.registryAccess()
+    stack.save(provider, tag)
     saveTag(tag)
   }
 
@@ -115,13 +115,13 @@ object ItemUtils {
   def getIngredients(manager: RecipeManager, stack: ItemStack): Array[ItemStack] = try {
     def getFilteredInputs(inputs: Iterable[ItemStack], outputSize: Int) = (inputs.filter(input =>
       !input.isEmpty &&
-        input.getCount > 0 &&
+        input.getCount / outputSize > 0 &&
         // Strip out buckets, because those are returned when crafting, and
         // we have no way of returning the fluid only (and I can't be arsed
         // to make it output fluids into fluiducts or such, sorry).
         !input.getItem.isInstanceOf[BucketItem]).toArray, outputSize)
 
-    def getOutputSize(recipe: Recipe[_]) = recipe.getResultItem(RegistryAccessHelper.getOrEmpty).getCount
+    def getOutputSize(recipe: Recipe[?]) = recipe.getResultItem(net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer.registryAccess()).getCount
 
     def isInputBlacklisted(stack: ItemStack) = stack.getItem match {
       case item: BlockItem => Settings.get.disassemblerInputBlacklist.contains(BuiltInRegistries.BLOCK.getKey(item.getBlock))
@@ -129,27 +129,23 @@ object ItemUtils {
       case _ => false
     }
 
-    // 1.21.1：签名是 <I extends RecipeInput, T extends Recipe<I>> getAllRecipesFor(RecipeType[T])。
-    // Scala 推不出这个自引用上界里的 I（CraftingRecipe extends Recipe[CraftingInput]），
-    // 所以这里显式给出两个类型参数；返回值是 List[RecipeHolder[T]]，需要 .value() 取配方本体。
-    val matching = manager.getAllRecipesFor[CraftingInput, CraftingRecipe](RecipeType.CRAFTING).asScala.
-      map(_.value()).
-      filter(recipe => !recipe.getResultItem(RegistryAccessHelper.getOrEmpty).isEmpty &&
-        ItemStack.isSameItem(recipe.getResultItem(RegistryAccessHelper.getOrEmpty), stack))
+    val (ingredients, count) = manager.getAllRecipesFor[CraftingInput, CraftingRecipe](RecipeType.CRAFTING)
+      .map(_.value)
+      .filter(recipe => !recipe.getResultItem(null).isEmpty && ItemStack.isSameItem(recipe.getResultItem(null), stack))
+      .collect {
+        case recipe: ShapedRecipe => getFilteredInputs(resolveOreDictEntries(recipe.getIngredients), getOutputSize(recipe))
+        case recipe: ShapelessRecipe => getFilteredInputs(resolveOreDictEntries(recipe.getIngredients), getOutputSize(recipe))
+      }.collectFirst {
+        case (inputs, outputSize) if !inputs.exists(isInputBlacklisted) => (inputs, outputSize)
+      } match {
+        case Some((inputs, outputSize)) => (inputs, outputSize)
+        case _ => return Array.empty
+      }
 
-    val (ingredients, count) = matching.collect {
-      case recipe: CraftingRecipe =>
-        val outputSize = getOutputSize(recipe)
-        val (inputs, _) = getFilteredInputs(resolveOreDictEntries(recipe.getIngredients), outputSize)
-        (inputs, outputSize)
-    }.collectFirst {
-      case (inputs, outputSize) if inputs.nonEmpty && !inputs.exists(isInputBlacklisted) &&
-        !inputs.exists(input => ItemStack.isSameItem(input, stack)) => (inputs, outputSize)
-    } match {
-      case Some((inputs, outputSize)) => (inputs, outputSize)
-      case _ => return Array.empty
+    // Avoid positive feedback loops.
+    if (ingredients.exists(ingredient => ItemStack.isSameItem(ingredient, stack))) {
+      return Array.empty[ItemStack]
     }
-
     // Merge equal items for size division by output size.
     val merged = mutable.ArrayBuffer.empty[ItemStack]
     for (ingredient <- ingredients) {
@@ -158,10 +154,7 @@ object ItemUtils {
         case _ => merged += ingredient.copy()
       }
     }
-    merged.foreach { s =>
-      val divided = s.getCount / count
-      s.setCount(if (divided > 0) divided else 1)
-    }
+    merged.foreach(s => s.setCount(s.getCount / count))
     // Split items up again to 'disassemble them individually'.
     val distinct = mutable.ArrayBuffer.empty[ItemStack]
     for (ingredient <- merged) {
@@ -175,7 +168,7 @@ object ItemUtils {
   }
   catch {
     case t: Throwable =>
-      OpenComputers.log.warn("Whoops, something went wrong when trying to figure out an item's parts.", t)
+      OpenComputersNeo.log.warn("Whoops, something went wrong when trying to figure out an item's parts.", t)
       Array.empty[ItemStack]
   }
 

@@ -83,7 +83,7 @@ public final class Network {
     /**
      * Makes a wireless endpoint join the wireless network defined by the mod.
      * <br>
-     * OpenComputers tracks endpoints to which to send wireless packets sent
+     * OpenComputersNeo tracks endpoints to which to send wireless packets sent
      * via the {@link #sendWirelessPacket(WirelessEndpoint, double, Packet)}
      * method. The packets will <em>only</em> be sent to endpoints registered
      * with the network.

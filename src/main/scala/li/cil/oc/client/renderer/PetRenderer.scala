@@ -13,12 +13,11 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.phys.Vec3
 import com.mojang.math.Axis
-import net.neoforged.neoforge.client.event.RenderPlayerEvent
+import net.neoforged.neoforge.client.event.{ClientTickEvent, RenderPlayerEvent}
 import net.neoforged.bus.api.EventPriority
 import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.neoforge.client.event.ClientTickEvent
 
-import scala.collection.convert.ImplicitConversionsToScala._
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 object PetRenderer {
@@ -31,7 +30,7 @@ object PetRenderer {
     "9f1f262f-0d68-4e13-9161-9eeaf4a0a1a8" ->(0.3, 0.9, 0.6), // Sangar
     "18f8bed4-f027-44af-8947-6a3a2317645a" ->(1.0, 0.0, 0.0), // Jodarion
     "36123742-2cf6-4cfc-8b65-278581b3caeb" ->(0.5, 0.7, 1.0), // DaKaTotal
-    "2c0c214b-96f4-4565-b513-de90d5fbc977" ->(1.0, 0.0, 0.0), // MichiRavencroft
+    "2c0c214b-96f4-4565-b513-de90d5fbc977" ->(1.0, 0.25, 0.55), // MichiRavencroft
     "f3ba6ec8-c280-4950-bb08-1fcb2eab3a9c" ->(0.18, 0.95, 0.922), // Vexatos
     "9d636bdd-b9f4-4b80-b9ce-586ca04bd4f3" ->(0.8, 0.77, 0.75), // StoneNomad
     "23c7ed71-fb13-4abe-abe7-f355e1de6e62" ->(0.3, 0.3, 1.0), // LizzyTheSiren
@@ -40,7 +39,14 @@ object PetRenderer {
     "f514ee69-7bbb-4e46-9e94-d8176324cec2" ->(0.098, 0.471, 0.784), // Wobbo
     "f812c043-78ba-4324-82ae-e8f05c52ae6e" ->(0.1, 0.8, 0.5), // payonel
     "1db17ee7-8830-4bac-8018-de154340aae6" ->(0.0, 0.5, 1.0), // Kosmos
-    "3f61090b-3bb1-45e9-93ac-1c7c9dd736c8" ->(0.0, 1.0, 0.0) // akki__
+    "02775c6b-c529-4c4e-ad3e-a2654d60328d" ->(0.0353, 0.5686, 1.0000), // SoraFirestorm
+    "4485b0cf-e1d5-4e82-a45a-2dc0270b3bb8" ->(0.600, 0.329, 0.769), // TheSandromatic
+    "f5cd509e-fa84-4479-ad9e-f318454517e2" ->(0.078, 0.000, 1.000), // Forecaster
+    "8df90a8c-a554-4886-86b0-71b1d36dfcc1" ->(0.000, 0.498, 1.000), // NaomiRavencroft
+    "594f4191-90e3-459e-8ff7-06014b4dedd5" ->(0.20, 0.85, 0.80), // CutieRavencroft
+    "927b049f-2397-4d31-a1db-e89c62482329" ->(0.8156, 0.0, 1.0), // ben_mkiv
+    "f629f865-55dd-423a-a0fc-3b8ae6fbeeb8" ->(1.0, 1.0, 1.0), // Kodos
+    "563ad54b-6d9f-4cc0-9872-5528854015d8" ->(1.0, 0.0, 0.0), // Babo357
   )
 
   private val petLocations = com.google.common.cache.CacheBuilder.newBuilder().
@@ -148,7 +154,7 @@ object PetRenderer {
   @SubscribeEvent
   def tickStart(e: ClientTickEvent.Pre) = {
     petLocations.cleanUp()
-    for (pet <- petLocations.asMap.values) {
+    for (pet <- petLocations.asMap.values().asScala) {
       pet.update()
     }
   }

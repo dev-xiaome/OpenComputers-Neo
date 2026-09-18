@@ -1,1 +1,0 @@
-#REDIRECT redstonecard1.md

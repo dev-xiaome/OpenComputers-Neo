@@ -1,8 +1,0 @@
-NAME
-  arp - Inspect local address resolution
-  
-SYNOPSIS
-  arp
-  
-DESCRIPTION
-  Displays the address of each network interface

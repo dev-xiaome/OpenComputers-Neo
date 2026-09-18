@@ -1,52 +1,41 @@
 package li.cil.oc.common.component
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
 import com.google.common.base.Strings
-import li.cil.oc.Constants
-import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
-import li.cil.oc.api.driver.DeviceInfo.DeviceClass
-import li.cil.oc.OpenComputers
-import li.cil.oc.Settings
-import li.cil.oc.api
+import com.mojang.blaze3d.vertex.PoseStack
 import li.cil.oc.api.driver.DeviceInfo
-import li.cil.oc.api.machine.Arguments
-import li.cil.oc.api.machine.Callback
-import li.cil.oc.api.machine.Context
-import li.cil.oc.api.network.EnvironmentHost
+import li.cil.oc.api.driver.DeviceInfo.{DeviceAttribute, DeviceClass}
+import li.cil.oc.api.machine.{Arguments, Callback, Context}
 import li.cil.oc.api.network._
-import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
 import li.cil.oc.client.renderer.TextBufferRenderCache
 import li.cil.oc.client.renderer.font.TextBufferRenderData
-import li.cil.oc.client.{ComponentTracker => ClientComponentTracker}
-import li.cil.oc.client.{PacketSender => ClientPacketSender}
+import li.cil.oc.client.{ComponentTracker => ClientComponentTracker, PacketSender => ClientPacketSender}
 import li.cil.oc.common._
-import li.cil.oc.common.item.data.NodeData
-import li.cil.oc.common.component.traits.TextBufferProxy
 import li.cil.oc.common.component.traits.VideoRamRasterizer
+import li.cil.oc.common.datacomponents.{CompoundStorage, MaximumVideoMode, OCComponents, VideoMode}
 import li.cil.oc.server.component.Keyboard
-import li.cil.oc.server.{ComponentTracker => ServerComponentTracker}
-import li.cil.oc.server.{PacketSender => ServerPacketSender}
-import li.cil.oc.util
-import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.PackedColor
-import li.cil.oc.util.SideTracker
+import li.cil.oc.server.{ComponentTracker => ServerComponentTracker, PacketSender => ServerPacketSender}
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import li.cil.oc.util.{BlockPosition, PackedColor, SideTracker}
+import li.cil.oc.{Constants, OpenComputersNeo, Settings, api, util}
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.MultiBufferSource
-import net.minecraft.nbt.CompoundTag
-import net.neoforged.neoforge.event.level.ChunkEvent
-import net.neoforged.neoforge.event.level.LevelEvent
+import net.minecraft.core.BlockPos
+import net.minecraft.core.component.{DataComponentHolder, DataComponents}
+import net.minecraft.nbt.{CompoundTag, NbtOps}
+import net.minecraft.world.InteractionHand
+import net.minecraft.world.entity.player.Player
+import net.minecraft.world.item.component.CustomData
+import net.minecraft.world.level.ChunkPos
+import net.minecraft.world.level.Level
+import net.neoforged.api.distmarker.{Dist, OnlyIn}
 import net.neoforged.bus.api.SubscribeEvent
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+import net.neoforged.neoforge.event.level.{ChunkEvent, LevelEvent}
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable
-import com.mojang.blaze3d.vertex.PoseStack
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.InteractionHand
 
 class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment with traits.TextBufferProxy with VideoRamRasterizer with DeviceInfo {
   override val node = api.Network.newNode(this, Visibility.Network).
@@ -112,6 +101,24 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
     relativeLitArea = -1 // Recompute lit area, avoid screens blanking out until something changes.
   }
 
+  def requestSynchronization(): Unit = if (SideTracker.isClient) {
+    // Do not turn an initialized buffer back into an uninitialized one. While
+    // uninitialized, multi-update packets are intentionally ignored until the
+    // authoritative snapshot arrives, so resetting this here would make live
+    // terminal input appear only after closing and reopening the GUI.
+    if (!isInitialized) TextBuffer.registerClientBuffer(this)
+  }
+
+  /** Register a captured Create screen with the real client world. */
+  def registerClientBufferOnLevel(level: Level): Boolean =
+    TextBuffer.registerClientBuffer(this, level)
+
+  /** Remove a captured Create screen from the client tracker after disassembly. */
+  def unregisterClientBufferOnLevel(level: Level): Unit =
+    TextBuffer.unregisterClientBuffer(this, level)
+
+  def isInitialized: Boolean = syncCooldown < 0
+
   private final lazy val deviceInfo = Map(
     DeviceAttribute.Class -> DeviceClass.Display,
     DeviceAttribute.Description -> "Text buffer",
@@ -138,12 +145,15 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
         val w = getViewportWidth
         val h = getViewportHeight
         var acc = 0f
-        for (y <- 0 until h) {
+        // Description packets and legacy saves may resize the character and
+        // color planes in separate steps. Never let one inconsistent frame
+        // take down the client tick loop while the next update repairs it.
+        val safeHeight = math.min(h, math.min(data.buffer.length, data.color.length))
+        for (y <- 0 until safeHeight) {
           val line = data.buffer(y)
-          // 1.21.1：`setColor(y)` 是 OCCE Java 版对私有颜色表的访问器；
-          // 本移植版的 `util.TextBuffer` 直接公开 `var color: Array[Array[Int]]`。
           val colors = data.color(y)
-          for (x <- 0 until w) {
+          val safeWidth = math.min(w, math.min(line.length, colors.length))
+          for (x <- 0 until safeWidth) {
             val char = line(x)
             val color = colors(x)
             val bg = PackedColor.unpackBackground(color, data.format)
@@ -153,7 +163,7 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
             else if (fg == 0 && bg == 0) 0 else 1)
           }
         }
-        relativeLitArea = acc / (w * h).toDouble
+        relativeLitArea = if (w > 0 && h > 0) acc / (w * h).toDouble else 0
       }
       if (node != null) {
         val hadPower = hasPower
@@ -219,15 +229,25 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
 
   @Callback(doc = """function(enabled:boolean):boolean -- Set whether to use high precision mode (sub-pixel mouse event positions).""")
   def setPrecise(computer: Context, args: Arguments): Array[AnyRef] = {
-    // Available for T3 screens only... easiest way to check for us is to
+    // Available for T3+ screens only... easiest way to check for us is to
     // base it off of the maximum color depth.
-    if (maxDepth == Settings.screenDepthsByTier(Tier.Four)) {
+    if (maxDepth.compareTo(Settings.screenDepthsByTier(Tier.Three)) >= 0) {
       val oldValue = precisionMode
       precisionMode = args.checkBoolean(0)
       result(oldValue)
     }
     else result((), "unsupported operation")
   }
+
+  @Callback(doc = """function():number -- Get the maximum resolution supported by the screen.""")
+  def hardwareResolution(context: Context, args: Arguments): Array[AnyRef] = {
+    val (smw, smh) = maxResolution
+    result(smw, smh)
+  }
+
+  @Callback(direct = true, doc = """function():number -- Get the maximum color depth supported by the screen.""")
+  def hardwareDepth(context: Context, args: Arguments): Array[AnyRef] =
+    result(PackedColor.Depth.bits(maxDepth))
 
   // ----------------------------------------------------------------------- //
 
@@ -256,7 +276,7 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
     if (height < 1) throw new IllegalArgumentException("height must be larger or equal to one")
     maxResolution = (width, height)
     fullyLitCost = computeFullyLitCost()
-    proxy.onBufferMaxResolutionChange(width, width)
+    proxy.onBufferMaxResolutionChange(width, height)
   }
 
   override def getMaximumWidth: Int = maxResolution._1
@@ -422,6 +442,7 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
     super.onConnect(node)
     if (node == this.node) {
       ServerComponentTracker.add(host.getEnvironmentLevel, node.address, this)
+      if (pendingExternalLoad) loadExternalData()
     }
   }
 
@@ -435,64 +456,70 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
   // ----------------------------------------------------------------------- //
 
   private def bufferPath = node.address + "_buffer"
-  private final val IsOnTag = Settings.namespace + "isOn"
-  private final val HasPowerTag = Settings.namespace + "hasPower"
-  private final val MaxWidthTag = Settings.namespace + "maxWidth"
-  private final val MaxHeightTag = Settings.namespace + "maxHeight"
-  private final val MaxDepthTag = Settings.namespace + "maxDepth"
-  private final val PreciseTag = Settings.namespace + "precise"
-  private final val ViewportWidthTag = Settings.namespace + "viewportWidth"
-  private final val ViewportHeightTag = Settings.namespace + "viewportHeight"
+  private var pendingExternalLoad = false
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
-    if (SideTracker.isClient) {
-      if (!Strings.isNullOrEmpty(proxy.nodeAddress)) return // Only load once.
-      proxy.nodeAddress = nbt.getCompound(NodeData.NodeTag).getString(NodeData.AddressTag)
-      TextBuffer.registerClientBuffer(this)
-    }
-    else {
-      if (nbt.contains(NodeData.BufferTag)) {
-        data.loadData(nbt.getCompound(NodeData.BufferTag))
-      }
-      else if (!Strings.isNullOrEmpty(node.address)) {
-        data.loadData(SaveHandler.loadNBT(nbt, bufferPath))
-      }
+  private def loadExternalData(): Unit = {
+    val level = host.getEnvironmentLevel
+    if (level == null) {
+      // Block entities can deserialize their components before Minecraft has
+      // attached them to a Level. Retry from onConnect once the environment
+      // has a valid dimension instead of dereferencing null here.
+      pendingExternalLoad = true
+      return
     }
 
-    if (nbt.contains(IsOnTag)) {
-      isDisplaying = nbt.getBoolean(IsOnTag)
+    pendingExternalLoad = false
+    val saved = SaveHandler.loadNBT(level.dimension().location(),
+      new ChunkPos(new BlockPos(host.xPosition().toInt, host.yPosition().toInt, host.zPosition().toInt)), bufferPath)
+    if (!saved.isEmpty) {
+      val storage = CompoundStorage.CODEC.parse(NbtOps.INSTANCE, saved).getOrThrow()
+      data.loadData(storage)
     }
-    if (nbt.contains(HasPowerTag)) {
-      hasPower = nbt.getBoolean(HasPowerTag)
+  }
+
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
+    for(address <- holder.getComponent(OCComponents.ADDRESS)) {
+      if (SideTracker.isClient) {
+        if (!Strings.isNullOrEmpty(proxy.nodeAddress)) return // Only load once.
+        proxy.nodeAddress = address
+        requestSynchronization()
+      }
+      else {
+        holder.getComponent(OCComponents.TEXT_BUFFER) match {
+          case Some(_) => data.loadData(holder)
+          case None => loadExternalData()
+        }
+      }
     }
-    if (nbt.contains(MaxWidthTag) && nbt.contains(MaxHeightTag)) {
-      val maxWidth = nbt.getInt(MaxWidthTag)
-      val maxHeight = nbt.getInt(MaxHeightTag)
+
+    for(isOnComponent <- holder.getComponent(OCComponents.IS_ON))
+      isDisplaying = isOnComponent
+    for(isPoweredComponent <- holder.getComponent(OCComponents.IS_POWERED))
+      hasPower = isPoweredComponent
+
+    for(MaximumVideoMode(maxWidth, maxHeight, depth) <- holder.getComponent(OCComponents.MAX_VIDEO_MODE)) {
       maxResolution = (maxWidth, maxHeight)
-    }
-    // Restore maxDepth so that getMaximumColorDepth() returns the correct tier
-    // even if setMaximumColorDepth() was not called after construction (e.g.
-    // when the buffer lazy val was initialised before load(nbt) ran).
-    if (nbt.contains(MaxDepthTag)) {
+
+      // Restore maxDepth so that getMaximumColorDepth() returns the correct tier
+      // even if setMaximumColorDepth() was not called after construction (e.g.
+      // when the buffer lazy val was initialised before load(nbt) ran).
       val depthValues = api.internal.TextBuffer.ColorDepth.values
-      val ordinal = nbt.getInt(MaxDepthTag) min (depthValues.length - 1) max 0
+      val ordinal = depth min (depthValues.length - 1) max 0
       maxDepth = depthValues(ordinal)
     }
-    precisionMode = nbt.getBoolean(PreciseTag)
 
-    if (nbt.contains(ViewportWidthTag)) {
-      val vpw = nbt.getInt(ViewportWidthTag)
-      val vph = nbt.getInt(ViewportHeightTag)
-      viewport = (vpw min data.width max 1, vph min data.height max 1)
-    } else {
-      viewport = data.size
+    precisionMode = holder.getOrDefault(OCComponents.IS_PRECISE, false)
+
+    viewport = holder.getComponent(OCComponents.VIDEO_MODE) match {
+      case Some(VideoMode(vpw, vph)) => (vpw min data.width max 1, vph min data.height max 1)
+      case None => data.size
     }
   }
 
   // Null check for Waila (and other mods that may call this client side).
-  override def saveData(nbt: CompoundTag): Unit = if (node != null) {
-    super.saveData(nbt)
+  override def saveData(holder: MutableDataComponentHolder): Unit = if (node != null) {
+    super.saveData(holder)
     // Happy thread synchronization hack! Here's the problem: GPUs allow direct
     // calls for modifying screens to give a more responsive experience. This
     // causes the following problem: when saving, if the screen is saved first,
@@ -510,15 +537,35 @@ class TextBuffer(val host: EnvironmentHost) extends AbstractManagedEnvironment w
       }
     }
 
-    SaveHandler.scheduleSave(host, nbt, bufferPath, data.saveData _)
-    nbt.putBoolean(IsOnTag, isDisplaying)
-    nbt.putBoolean(HasPowerTag, hasPower)
-    nbt.putInt(MaxWidthTag, maxResolution._1)
-    nbt.putInt(MaxHeightTag, maxResolution._2)
-    nbt.putInt(MaxDepthTag, maxDepth.ordinal)
-    nbt.putBoolean(PreciseTag, precisionMode)
-    nbt.putInt(ViewportWidthTag, viewport._1)
-    nbt.putInt(ViewportHeightTag, viewport._2)
+    host match {
+      // These screens are themselves stored inside another ItemStack-backed
+      // environment. Persist their contents inline so restoring them does not
+      // depend on an auxiliary file being available before the containing
+      // environment resumes. In particular, a terminal server otherwise starts
+      // with its ScreenTier1 constructor buffer and can overwrite the saved
+      // higher resolution before the auxiliary state is recovered.
+      case _: api.internal.Tablet | _: RemoteTerminalHost => data.saveData(holder)
+      // Create's moving block entities are restored at the train's current
+      // coordinates, while physical screen buffers normally live in a
+      // SaveHandler file keyed by the chunk where they were saved. That makes
+      // the post-reload lookup coordinate-dependent and can replace a real
+      // terminal with a blank buffer. The captured block-entity NBT travels
+      // with the contraption, so keep this snapshot inline while it is moving.
+      case moving: blockentity.traits.BaseBlockEntity if moving.isMoving => data.saveData(holder)
+      case environmentHost: EnvironmentHost =>
+        SaveHandler.scheduleSave(environmentHost, new CompoundTag(), bufferPath, (tag: CompoundTag) => {
+          val storage = new CompoundStorage()
+          data.saveData(storage)
+          tag.merge(CompoundStorage.CODEC.encodeStart(NbtOps.INSTANCE, storage).getOrThrow().asInstanceOf[CompoundTag])
+          ()
+        })
+      case _ =>
+    }
+    holder.setComponent(OCComponents.IS_ON, isDisplaying)
+    holder.setComponent(OCComponents.IS_POWERED, hasPower)
+    holder.setComponent(OCComponents.MAX_VIDEO_MODE, MaximumVideoMode(maxResolution._1, maxResolution._2, maxDepth.ordinal))
+    holder.setComponent(OCComponents.IS_PRECISE, precisionMode)
+    holder.setComponent(OCComponents.VIDEO_MODE, VideoMode(viewport._1, viewport._2))
   }
 }
 
@@ -551,9 +598,41 @@ object TextBuffer {
   }
 
   def registerClientBuffer(t: TextBuffer): Unit = {
+    registerClientBuffer(t, t.host.getEnvironmentLevel)
+  }
+
+  def registerClientBuffer(t: TextBuffer, level: Level): Boolean = {
+    if (level == null || Strings.isNullOrEmpty(t.proxy.nodeAddress)) return false
+
+    // Captured block entities initially register against Create's virtual
+    // render level. Move the same buffer to the real client level instead.
+    val hostLevel = t.host.getEnvironmentLevel
+    if (hostLevel != null && hostLevel != level) {
+      ClientComponentTracker.remove(hostLevel, t)
+    }
+
+    // Re-applying component data during chunk/menu synchronization must not
+    // leave duplicate/stale client buffer registrations behind.
+    ClientComponentTracker.remove(level, t)
+    ClientComponentTracker.add(level, t.proxy.nodeAddress, t)
+
+    if (!clientBuffers.contains(t)) {
+      clientBuffers += t
+    }
+
     ClientPacketSender.sendTextBufferInit(t.proxy.nodeAddress)
-    ClientComponentTracker.add(t.host.getEnvironmentLevel, t.proxy.nodeAddress, t)
-    clientBuffers += t
+    true
+  }
+
+  def unregisterClientBuffer(t: TextBuffer, level: Level): Unit = {
+    if (level == null) return
+
+    ClientComponentTracker.remove(level, t)
+    val hostLevel = t.host.getEnvironmentLevel
+    if (hostLevel != null && hostLevel != level) {
+      ClientComponentTracker.remove(hostLevel, t)
+    }
+    clientBuffers -= t
   }
 
   abstract class Proxy {
@@ -764,7 +843,7 @@ object TextBuffer {
 
     private def debug(message: String): Unit = {
       if (Minecraft.getInstance != null && Minecraft.getInstance.player != null && api.Items.get(Minecraft.getInstance.player.getItemInHand(InteractionHand.MAIN_HAND)) == Debugger) {
-        OpenComputers.log.info(s"[NETWORK DEBUGGER] Sending packet to node $nodeAddress: " + message)
+        OpenComputersNeo.log.info(s"[NETWORK DEBUGGER] Sending packet to node $nodeAddress: " + message)
       }
     }
   }
@@ -832,9 +911,9 @@ object TextBuffer {
     override def onBufferRamInit(ram: component.GpuTextBuffer): Unit = {
       super.onBufferRamInit(ram)
       owner.host.markChanged()
-      val nbt = new CompoundTag()
+      val nbt = new CompoundStorage()
       ram.saveData(nbt)
-      owner.synchronized(ServerPacketSender.appendTextBufferRamInit(owner.pendingCommands, ram.owner, ram.id, nbt))
+      owner.synchronized(ServerPacketSender.appendTextBufferRamInit(owner.pendingCommands, ram.owner, ram.id, CompoundStorage.CODEC.encode(nbt, NbtOps.INSTANCE, new CompoundTag()).getOrThrow().asInstanceOf[CompoundTag]))
     }
 
     override def onBufferRamDestroy(ram: component.GpuTextBuffer): Unit = {
@@ -896,12 +975,20 @@ object TextBuffer {
     override def copyToAnalyzer(line: Int, player: Player): Unit = {
       val stack = player.getItemInHand(InteractionHand.MAIN_HAND)
       if (!stack.isEmpty) {
-        stack.removeTagKey(Settings.namespace + "clipboard")
+        stack.update(
+          DataComponents.CUSTOM_DATA,
+          CustomData.EMPTY,
+          (customData: CustomData) => {
+            val tag = customData.copyTag()
+            tag.remove(Settings.namespace + "clipboard")
+            CustomData.of(tag)
+          }
+        )
 
         if (line >= 0 && line < owner.getViewportHeight) {
           val text = owner.data.lineToString(line)
           if (!Strings.isNullOrEmpty(text)) {
-            stack.getOrCreateTag.putString(Settings.namespace + "clipboard", text)
+            stack.getOrDefault(DataComponents.CUSTOM_DATA, CustomData.EMPTY).getUnsafe.putString(Settings.namespace + "clipboard", text)
           }
         }
       }

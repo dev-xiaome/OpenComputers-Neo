@@ -2,21 +2,24 @@ package li.cil.oc.common.blockentity.traits
 
 import java.lang
 import java.util
-
 import li.cil.oc.Settings
 import li.cil.oc.api
+import li.cil.oc.api.Persistable
 import li.cil.oc.api.machine.Machine
 import li.cil.oc.api.network.Node
 import li.cil.oc.client.Sound
 import li.cil.oc.common.blockentity.RobotProxy
-import li.cil.oc.integration.opencomputers.DriverRedstoneCard
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.integration.OpenComputersNeo.DriverRedstoneCard
 import li.cil.oc.server.agent
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.component.{DataComponentHolder, DataComponentMap}
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.StringTag
-import net.minecraft.core.Direction
+import net.minecraft.core.{Direction, HolderLookup}
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
 
@@ -24,6 +27,8 @@ import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.mutable
 import net.minecraft.nbt.Tag
 import net.minecraft.world.entity.player.Player
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+
 import scala.jdk.CollectionConverters._
 
 trait Computer extends Environment with ComponentInventory with Rotatable with BundledRedstoneAware with api.network.Analyzable with api.machine.MachineHost with StateAware with Tickable {
@@ -34,6 +39,7 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
   override def node: Node = if (isServer) machine.node else null
 
   private var _isRunning = false
+  private var pendingMachineData: DataComponentMap = null
 
   // For client side rendering of error LED indicator.
   var hasErrored = false
@@ -55,7 +61,7 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
     if (value) {
       hasErrored = false
     }
-    if (getLevel != null) {
+    if (getLevel != null && !isMoving) {
       getLevel.sendBlockUpdated(getBlockPos, getLevel.getBlockState(getBlockPos), getLevel.getBlockState(getBlockPos), 3)
       if (getLevel.isClientSide) {
         runSound.foreach(sound =>
@@ -126,6 +132,25 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
     machine.update()
   }
 
+  /** Used by the optional Create integration while this block entity is off-world. */
+  def tickMoving(): Unit = updateEntity()
+
+  /** Save the live machine/component state back into Create's captured NBT. */
+  override def saveMovingState(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    saveAdditional(nbt, provider)
+    // One-shot marker. A normal chunk save writes fresh NBT and drops it after
+    // the restored machine has consumed the grace period.
+    nbt.putInt(MovingRestoreGraceTag, 40)
+  }
+
+  /** Dispose the temporary machine and its component nodes before reassembly. */
+  override def disposeMoving(): Unit = {
+    // Removing the machine node closes the VM synchronously, then its normal
+    // onDisconnect callback removes internal components. Doing that cleanup
+    // first would feed fake component_removed events to the still-live VM.
+    super.disposeMoving()
+  }
+
   protected def onRunningChanged(): Unit = {
     setChanged()
     ServerPacketSender.sendComputerState(this)
@@ -144,19 +169,41 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
   private final val HasErroredTag = Settings.namespace + "hasErrored"
   private final val IsRunningTag = Settings.namespace + "isRunning"
   private final val UsersTag = Settings.namespace + "users"
+  private final val MovingRestoreGraceTag = Settings.namespace + "movingRestoreGrace"
+  private var pendingMovingRestoreGrace = 0
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
+  override def loadAdditional(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    pendingMovingRestoreGrace = nbt.getInt(MovingRestoreGraceTag)
+    super.loadAdditional(nbt, provider)
+  }
+
+  override def loadComponentsForServer(holder: DataComponentHolder): Unit = {
+    super.loadComponentsForServer(holder)
     // God, this is so ugly... will need to rework the robot architecture.
     // This is required for loading auxiliary data (kernel state), because the
     // coordinates in the actual robot won't be set properly, otherwise.
     this match {
-      case proxy: RobotProxy =>
-        proxy.robot.setLevel(getLevel)
-        proxy.robot.worldPosition = getBlockPos
+      case proxy: RobotProxy => proxy.robot.setLevel(getLevel)
       case _ =>
     }
-    machine.loadData(nbt.getCompound(ComputerTag))
+
+    // BlockEntity.loadStatic invokes loadWithComponents before assigning the
+    // level. Machine loading needs the dimension and registry, so defer only
+    // that part until clearRemoved/initialize runs with a live level.
+    if (getLevel == null) pendingMachineData = holder.getComponents
+    else loadMachineData(holder)
+  }
+
+  private def loadMachineData(holder: DataComponentHolder): Unit = {
+    machine.loadData(holder)
+    if (pendingMovingRestoreGrace > 0) {
+      machine match {
+        case implementation: li.cil.oc.server.machine.Machine =>
+          implementation.beginComponentRestoreGrace(pendingMovingRestoreGrace)
+        case _ =>
+      }
+      pendingMovingRestoreGrace = 0
+    }
 
     // Kickstart initialization to avoid values getting overwritten by
     // loadForClient if that packet is handled after a manual
@@ -165,27 +212,38 @@ trait Computer extends Environment with ComponentInventory with Rotatable with B
     _isOutputEnabled = hasRedstoneCard
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
-    if (machine != null) {
-      nbt.setNewCompoundTag(ComputerTag, machine.saveData)
+  override protected def initialize(): Unit = {
+    super.initialize()
+    if (isServer && getLevel != null && pendingMachineData != null) {
+      val data = pendingMachineData
+      pendingMachineData = null
+      loadMachineData(Persistable.holder(data))
     }
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
-    hasErrored = nbt.getBoolean(HasErroredTag)
-    setRunning(nbt.getBoolean(IsRunningTag))
-    _users.clear()
-    _users ++= nbt.getList(UsersTag, Tag.TAG_STRING).map((tag: StringTag) => tag.getAsString)
-    if (_isRunning) runSound.foreach(sound => Sound.startLoop(this, sound, 0.5f, (1000 + getLevel.random.nextInt(2000)).toLong))
+  override def saveComponentsForServer(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsForServer(holder)
+    if(machine != null) {
+      machine.saveData(holder)
+    }
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
-    nbt.putBoolean(HasErroredTag, machine != null && machine.lastError != null)
-    nbt.putBoolean(IsRunningTag, isRunning)
-    nbt.setNewTagList(UsersTag, machine.users.map(user => StringTag.valueOf(user)))
+  override def loadComponentsForClient(holder: DataComponentHolder): Unit = {
+    super.loadComponentsForClient(holder)
+    hasErrored = holder.has(OCComponents.IS_ERRORED)
+    setRunning(holder.getComponent(OCComponents.IS_RUNNING) getOrElse false)
+    _users.clear()
+    for(users <- holder.getComponent(OCComponents.USERS))
+      _users ++= users
+    for(sound <- runSound if _isRunning)
+      Sound.startLoop(this, sound, 0.5f, (1000 + getLevel.random.nextInt(2000)).toLong)
+  }
+
+  override def saveComponentsForClient(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsForClient(holder)
+    holder.setComponent(OCComponents.IS_ERRORED, machine != null && machine.lastError != null)
+    holder.setComponent(OCComponents.IS_RUNNING, isRunning)
+    if(machine != null) holder.setComponent(OCComponents.USERS, machine.users.toSet)
   }
 
   // ----------------------------------------------------------------------- //

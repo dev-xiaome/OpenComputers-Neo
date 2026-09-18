@@ -12,8 +12,9 @@ import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.blockentity.{BlockEntityRenderer, BlockEntityRendererProvider}
 import net.minecraft.client.renderer.{GameRenderer, MultiBufferSource}
 import net.minecraft.core.Direction
-import net.neoforged.neoforge.client.event.ClientTickEvent
+import net.minecraft.world.phys.AABB
 import net.neoforged.bus.api.SubscribeEvent
+import net.neoforged.neoforge.client.event.ClientTickEvent
 import org.joml.Quaternionf
 
 import java.util.concurrent.TimeUnit
@@ -24,7 +25,7 @@ object HologramRenderer extends BlockEntityRendererProvider[Hologram] {
     new HologramRenderer()
 
   // Per-hologram VBO cache, expires after 5 seconds of non-access.
-  // Registered on NeoForge.EVENT_BUS in ClientProxy for tick-driven cleanup.
+  // Registered on MinecraftForge.EVENT_BUS in ClientProxy for tick-driven cleanup.
   private val cache = CacheBuilder.newBuilder()
     .expireAfterAccess(5, TimeUnit.SECONDS)
     .removalListener((n: RemovalNotification[Hologram, VertexBuffer]) => n.getValue.close())
@@ -32,7 +33,7 @@ object HologramRenderer extends BlockEntityRendererProvider[Hologram] {
     .build[Hologram, VertexBuffer]()
 
   @SubscribeEvent
-  def onClientTick(e: net.neoforged.neoforge.client.event.ClientTickEvent.Post): Unit = cache.cleanUp()
+  def onClientTick(e: ClientTickEvent.Pre): Unit = cache.cleanUp()
 }
 
 class HologramRenderer extends BlockEntityRenderer[Hologram] {
@@ -184,7 +185,8 @@ class HologramRenderer extends BlockEntityRenderer[Hologram] {
   }
 
   private def rebuildVBO(hologram: Hologram, vbo: VertexBuffer): Unit = {
-    val builder = new BufferBuilder(new ByteBufferBuilder(1 << 20), VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
+    val byteBuffer = new ByteBufferBuilder(1 << 20)
+    val builder = new BufferBuilder(byteBuffer, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR)
 
     def value(x: Int, y: Int, z: Int): Int =
       if (x >= 0 && y >= 0 && z >= 0 && x < hologram.width && y < hologram.height && z < hologram.width)
@@ -195,8 +197,8 @@ class HologramRenderer extends BlockEntityRenderer[Hologram] {
 
     // colorsByTier uses 0xBBGGRR packing (chosen for 1.12.2's little-endian glColorPointer).
     // Extract in the correct order: R = bits 0-7, G = bits 8-15, B = bits 16-23.
-    def vertex(x: Float, y: Float, z: Float, r: Int, g: Int, b: Int): Unit =
-      builder.addVertex(x, y, z).setColor(r, g, b, 255)
+    def vertex(x: Int, y: Int, z: Int, r: Int, g: Int, b: Int): Unit =
+      builder.addVertex(x.toFloat, y.toFloat, z.toFloat).setColor(r, g, b, 255)
 
     hologram.visibleQuads = 0
 
@@ -249,12 +251,39 @@ class HologramRenderer extends BlockEntityRenderer[Hologram] {
       }
     }
 
-    vbo.bind()
     try {
-      vbo.upload(builder.buildOrThrow())
+      // An empty hologram has no mesh. BufferBuilder.buildOrThrow rejects an
+      // empty buffer, which is the normal state of a newly placed projector.
+      if (hologram.visibleQuads > 0) {
+        vbo.bind()
+        try {
+          vbo.upload(builder.buildOrThrow())
+        }
+        finally {
+          VertexBuffer.unbind()
+        }
+      }
     }
     finally {
-      VertexBuffer.unbind()
+      byteBuffer.close()
     }
+  }
+
+  private final val Sqrt2 = Math.sqrt(2)
+
+  override def getRenderBoundingBox(entity: Hologram) = {
+    val cx = entity.x + 0.5
+    val cy = entity.y + 0.5
+    val cz = entity.z + 0.5
+    val sh = entity.width / 16 * entity.scale * Sqrt2
+    // overscale to take into account 45 degree rotation
+    val sv = entity.height / 16 * entity.scale * Sqrt2
+    new AABB(
+      cx + (-0.5 + entity.translation.x) * sh,
+      cy + entity.translation.y * sv,
+      cz + (-0.5 + entity.translation.z) * sh,
+      cx + (0.5 + entity.translation.x) * sh,
+      cy + (1 + entity.translation.y) * sv,
+      cz + (0.5 + entity.translation.x) * sh)
   }
 }

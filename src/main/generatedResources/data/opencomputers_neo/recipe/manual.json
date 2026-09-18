@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:book"
+    },
+    {
+      "item": "opencomputers_neo:chip1"
+    }
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:manual"
+  }
+}

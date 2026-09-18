@@ -1,17 +1,12 @@
-package li.cil.oc.integration.opencomputers
+package li.cil.oc.integration.OpenComputersNeo
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
-import li.cil.oc.Constants
-import li.cil.oc.api
+import li.cil.oc.{api, Constants}
 import li.cil.oc.api.driver.item.HostAware
-import li.cil.oc.api.network.EnvironmentHost
-import li.cil.oc.api.network.ManagedEnvironment
+import li.cil.oc.api.network.{EnvironmentHost, ManagedEnvironment}
 import li.cil.oc.common.Slot
 import li.cil.oc.server.component
 import li.cil.oc.util.ExtendedInventory._
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
 
 object DriverDiskDriveMountable extends Item with HostAware {
   override def worksWith(stack: ItemStack): Boolean = isOneOf(stack,
@@ -23,6 +18,4 @@ object DriverDiskDriveMountable extends Item with HostAware {
   }
 
   override def slot(stack: ItemStack): String = Slot.RackMountable
-
-  override def dataTag(stack: ItemStack): CompoundTag = stack.getOrCreateTag
 }

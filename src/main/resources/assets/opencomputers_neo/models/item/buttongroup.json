@@ -1,6 +1,0 @@
-{
-    "parent": "opencomputers_neo:item/flat",
-    "textures": {
-        "layer0": "opencomputers_neo:item/buttongroup"
-    }
-}

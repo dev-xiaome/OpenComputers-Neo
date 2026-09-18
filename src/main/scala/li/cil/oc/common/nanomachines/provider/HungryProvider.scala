@@ -18,7 +18,7 @@ object HungryProvider extends ScalaProvider("d697c24a-014c-4773-a288-23084a59e9e
 
   val HungryDamageKey: ResourceKey[DamageType] = ResourceKey.create(
     Registries.DAMAGE_TYPE,
-    ResourceLocation.fromNamespaceAndPath("opencomputers", "nanomachines_hungry")
+    ResourceLocation.fromNamespaceAndPath("opencomputers_neo", "nanomachines_hungry")
   )
 
   override def createScalaBehaviors(player: Player): Iterable[Behavior] = Iterable.fill(FillCount)(new HungryBehavior(player))

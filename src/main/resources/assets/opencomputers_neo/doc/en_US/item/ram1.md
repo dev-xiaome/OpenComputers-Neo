@@ -11,6 +11,8 @@ RAM is available in multiple tiers with the following capacities, by default:
 - Tier 2.5: 512KB
 - Tier 3: 768KB
 - Tier 3.5: 1024KB
+- Tier 4: 2048KB
+- Tier 4.5: 3072KB
 
 Note that these values only apply to the Lua architecture. Other architectures may provide different amounts of memory for the different tiers. Also note that tier 1 and 1.5 memory are both considered tier 1 memory, and similarly for tier 2 and 3 memory. 
 

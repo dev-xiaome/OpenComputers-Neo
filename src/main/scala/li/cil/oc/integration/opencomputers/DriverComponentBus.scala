@@ -1,4 +1,4 @@
-package li.cil.oc.integration.opencomputers
+package li.cil.oc.integration.OpenComputersNeo
 
 import li.cil.oc.Constants
 import li.cil.oc.Settings
@@ -15,7 +15,6 @@ object DriverComponentBus extends Item with Processor {
     api.Items.get(Constants.ItemName.ComponentBusTier1),
     api.Items.get(Constants.ItemName.ComponentBusTier2),
     api.Items.get(Constants.ItemName.ComponentBusTier3),
-    api.Items.get(Constants.ItemName.ComponentBusTier4),
     api.Items.get(Constants.ItemName.ComponentBusCreative))
 
   override def createEnvironment(stack: ItemStack, host: EnvironmentHost) = null

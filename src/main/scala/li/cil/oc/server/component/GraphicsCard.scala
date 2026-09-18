@@ -8,12 +8,16 @@ import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass
 import li.cil.oc.api.machine.{Arguments, Callback, Context, LimitReachedException}
 import li.cil.oc.api.network._
-import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.util.{ExtendedUnicodeHelper, PackedColor}
 import net.minecraft.nbt.{CompoundTag, ListTag}
 import li.cil.oc.common.{Tier, component}
 import li.cil.oc.common.component.GpuTextBuffer
+import li.cil.oc.common.datacomponents.{CompoundStorage, GraphicsCardState, OCComponents}
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import scala.util.matching.Regex
@@ -30,13 +34,22 @@ import scala.util.matching.Regex
 // saved, but before the computer was saved, leading to mismatching states in
 // the save file - a Bad Thing (TM).
 
-class GraphicsCard(val tier: Int) extends AbstractManagedEnvironment with DeviceInfo with component.traits.VideoRamDevice {
-  override val node = Network.newNode(this, Visibility.Neighbors).
+class GraphicsCard(val tier: Int, val vramScreens: Option[Double] = None, val visibility: Visibility = Visibility.Neighbors) extends AbstractManagedEnvironment with DeviceInfo with component.traits.VideoRamDevice {
+  override val node = Network.newNode(this, visibility).
     withComponent("gpu").
     withConnector().
     create()
 
   private val maxResolution = Settings.screenResolutionsByTier(tier)
+
+  private val defaultResolution = {
+    val (width, height) = Settings.screenResolutionsByTier(tier)
+    val (configuredWidth, configuredHeight) = Settings.get.defaultResolution
+    (
+      if (configuredWidth > 0) width min configuredWidth else width,
+      if (configuredHeight > 0) height min configuredHeight else height
+    )
+  }
 
   private val maxDepth = Settings.screenDepthsByTier(tier)
 
@@ -72,7 +85,7 @@ class GraphicsCard(val tier: Int) extends AbstractManagedEnvironment with Device
   // a single bitblt can send a screen of data, which is n*set calls where set is writing an entire line
   // So for each tier, we multiple the set cost with the number of lines the screen may have
   final val bitbltCost: Double = Settings.get.bitbltCost * scala.math.pow(2, tier)
-  final val totalVRAM: Double = (maxResolution._1 * maxResolution._2) * Settings.get.vramSizes(0 max tier min (Settings.get.vramSizes.length - 1))
+  final val totalVRAM: Double = (maxResolution._1 * maxResolution._2) * vramScreens.getOrElse(Settings.get.vramSizes(0 max tier min (Settings.get.vramSizes.length - 1)))
 
   var budgetExhausted: Boolean = false // for especially expensive calls, bitblt
 
@@ -403,9 +416,13 @@ class GraphicsCard(val tier: Int) extends AbstractManagedEnvironment with Device
     })
   }
 
-  @Callback(direct = true, doc = """function():number -- Get the maximum supported color depth.""")
+  @Callback(direct = true, doc = """function():number -- Get the maximum supported color depth by the current GPU+screen combo.""")
   def maxDepth(context: Context, args: Arguments): Array[AnyRef] =
     screen(s => result(PackedColor.Depth.bits(api.internal.TextBuffer.ColorDepth.values.apply(math.min(maxDepth.ordinal, s.getMaximumColorDepth.ordinal)))))
+
+  @Callback(direct = true, doc = """function():number -- Get the maximum color depth supported by the GPU.""")
+  def hardwareDepth(context: Context, args: Arguments): Array[AnyRef] =
+    result(PackedColor.Depth.bits(maxDepth))
 
   @Callback(direct = true, doc = """function():number, number -- Get the current screen resolution.""")
   def getResolution(context: Context, args: Arguments): Array[AnyRef] =
@@ -423,7 +440,7 @@ class GraphicsCard(val tier: Int) extends AbstractManagedEnvironment with Device
     screen(s => result(s.setResolution(w, h)))
   }
 
-  @Callback(direct = true, doc = """function():number, number -- Get the maximum screen resolution.""")
+  @Callback(direct = true, doc = """function():number, number -- Get the maximum screen resolution supported by the current GPU+screen combo.""")
   def maxResolution(context: Context, args: Arguments): Array[AnyRef] =
     screen(s => {
       val (gmw, gmh) = maxResolution
@@ -431,6 +448,21 @@ class GraphicsCard(val tier: Int) extends AbstractManagedEnvironment with Device
       val smh = s.getMaximumHeight
       result(math.min(gmw, smw), math.min(gmh, smh))
     })
+
+  @Callback(direct = true, doc = """function():number, number -- Get the default screen resolution.""")
+  def getDefaultResolution(context: Context, args: Arguments): Array[AnyRef] =
+    screen(s => {
+      val (gdw, gdh) = defaultResolution
+      val smw = s.getMaximumWidth
+      val smh = s.getMaximumHeight
+      result(math.min(gdw, smw), math.min(gdh, smh))
+    })
+
+    @Callback(direct = true, doc = """function():number, number -- Get the maximum screen resolution supported by the GPU.""")
+  def hardwareResolution(context: Context, args: Arguments): Array[AnyRef] = {
+    val (gmw, gmh) = maxResolution
+    result(gmw, gmh)
+  }
 
   @Callback(direct = true, doc = """function():number, number -- Get the current viewport resolution.""")
   def getViewport(context: Context, args: Arguments): Array[AnyRef] =
@@ -626,61 +658,33 @@ class GraphicsCard(val tier: Int) extends AbstractManagedEnvironment with Device
   private final val NBT_PAGE_DATA: String = "page_data"
   private val COMPOUND_ID = (new CompoundTag).getId
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
-
-    if (nbt.contains(SCREEN_KEY)) {
-      nbt.getString(SCREEN_KEY) match {
-        case screen: String if !screen.isEmpty => screenAddress = Some(screen)
-        case _ => screenAddress = None
-      }
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
+    for(GraphicsCardState(screen, bufferIndex) <- holder.getComponent(OCComponents.GRAPHICS_CARD)) {
+      screenAddress = screen
       screenInstance = None
-    }
 
-    if (nbt.contains(BUFFER_INDEX_KEY)) {
-      bufferIndex = nbt.getInt(BUFFER_INDEX_KEY)
+      this.bufferIndex = bufferIndex
     }
 
     removeAllBuffers() // JUST in case
-    if (nbt.contains(VIDEO_RAM_KEY)) {
-      val videoRamNbt = nbt.getCompound(VIDEO_RAM_KEY)
-      val nbtPages = videoRamNbt.getList(NBT_PAGES, COMPOUND_ID)
-      for (i <- 0 until nbtPages.size) {
-        val nbtPage = nbtPages.getCompound(i)
-        val idx: Int = nbtPage.getInt(NBT_PAGE_IDX)
-        val data = nbtPage.getCompound(NBT_PAGE_DATA)
-        loadBuffer(node.address, idx, data)
+    for(vram <- holder.getComponent(OCComponents.VIDEO_RAM)) {
+      for(idx -> storage <- vram) {
+        loadBuffer(node.address, idx, storage)
       }
     }
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super.saveData(holder)
 
-    if (screenAddress.isDefined) {
-      nbt.putString(SCREEN_KEY, screenAddress.get)
-    }
-
-    nbt.putInt(BUFFER_INDEX_KEY, bufferIndex)
-
-    val videoRamNbt = new CompoundTag
-    val nbtPages = new ListTag
-
-    val indexes = bufferIndexes()
-    for (idx: Int <- indexes) {
-      getBuffer(idx) match {
-        case Some(page) => {
-          val nbtPage = new CompoundTag
-          nbtPage.putInt(NBT_PAGE_IDX, idx)
-          val data = new CompoundTag
-          page.data.saveData(data)
-          nbtPage.put(NBT_PAGE_DATA, data)
-          nbtPages.add(nbtPage)
-        }
-        case _ => // ignore
-      }
-    }
-    videoRamNbt.put(NBT_PAGES, nbtPages)
-    nbt.put(VIDEO_RAM_KEY, videoRamNbt)
+    holder.setComponent(OCComponents.GRAPHICS_CARD, GraphicsCardState(screenAddress, bufferIndex))
+    holder.setComponent(OCComponents.VIDEO_RAM,
+      bufferIndexes().map(i => i -> getBuffer(i)).collect {
+        case i -> Some(page) =>
+          val storage = new CompoundStorage()
+          page.data.saveData(storage)
+          i -> storage
+      }.toList)
   }
 }

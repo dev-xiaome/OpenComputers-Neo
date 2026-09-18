@@ -15,7 +15,6 @@ import org.lwjgl.glfw.GLFW
 
 import scala.jdk.CollectionConverters._
 
-// 1.20.1: TextComponent.EMPTY → Component.empty()
 class Manual extends screens.Screen(Component.empty()) with traits.Window {
   final val documentMaxWidth = 230
   final val documentMaxHeight = 176
@@ -33,6 +32,8 @@ class Manual extends screens.Screen(Component.empty()) with traits.Window {
   override val windowHeight = 192
 
   override def backgroundImage = Textures.GUI.Manual
+
+  override protected def renderBlurredBackground(dt: Float): Unit = ()
 
   var isScrolling = false
   var document: Segment = null
@@ -88,30 +89,27 @@ class Manual extends screens.Screen(Component.empty()) with traits.Window {
       val x = leftPos + tabPosX
       val y = topPos + tabPosY + i * (tabHeight - 1)
       addRenderableWidget(new ImageButton(x, y, tabWidth, tabHeight, (_: Button) =>
-        api.Manual.navigate(tab.path), Textures.GUI.ManualTab))
+        api.Manual.navigate(tab.path), Textures.GUISprites.ManualTab))
     }
 
     scrollButton = new ImageButton(leftPos + scrollPosX, topPos + scrollPosY, 6, 13, (_: Button) => (),
-      Textures.GUI.ButtonScroll)
+      Textures.GUISprites.ButtonScroll)
     addRenderableWidget(scrollButton)
 
     refreshPage()
   }
 
-  // 1.20.1: render(PoseStack, ...) → render(GuiGraphics, ...)
   override def render(graphics: GuiGraphics, mouseX: Int, mouseY: Int, dt: Float): Unit = {
     super.render(graphics, mouseX, mouseY, dt)
 
     scrollButton.active = canScroll
     scrollButton.hoverOverride = isScrolling
 
-    // 1.20.1: PoseStack は graphics.pose() で取得
     val stack = graphics.pose()
     for ((tab, i) <- ManualAPI.tabs.zipWithIndex if i < maxTabsPerSide) {
       val button = renderables.get(i).asInstanceOf[ImageButton]
       stack.pushPose()
-      stack.translate(button.getX() + 5, button.getY() + 5, 0)
-      // 1.20.1: tab.renderer.render(stack) → tab.renderer.render(graphics)
+      stack.translate((button.x + 5).toFloat, (button.y + 5).toFloat, 0f)
       tab.renderer.render(graphics)
       stack.popPose()
     }
@@ -126,7 +124,6 @@ class Manual extends screens.Screen(Component.empty()) with traits.Window {
       case Some(segment) =>
         segment.tooltip match {
           case Some(text) if text.nonEmpty =>
-            // 1.20.1: renderComponentTooltip はスタック引数なし
             graphics.renderComponentTooltip(font, localizeAndWrap(text), mouseX, mouseY)
           case _ =>
         }
@@ -135,13 +132,13 @@ class Manual extends screens.Screen(Component.empty()) with traits.Window {
 
     if (!isScrolling) for ((tab, i) <- ManualAPI.tabs.zipWithIndex if i < maxTabsPerSide) {
       val button = renderables.get(i).asInstanceOf[ImageButton]
-      if (mouseX > button.getX() && mouseX < button.getX() + tabWidth && mouseY > button.getY() && mouseY < button.getY() + tabHeight)
+      if (mouseX > button.x && mouseX < button.x + tabWidth && mouseY > button.y && mouseY < button.y + tabHeight)
         tab.tooltip.foreach(text => graphics.renderComponentTooltip(font, localizeAndWrap(text), mouseX, mouseY))
     }
 
     if (canScroll && (isCoordinateOverScrollBar(mouseX - leftPos, mouseY - topPos) || isScrolling)) {
       val lines: java.util.List[Component] = java.util.List.of(Component.literal(s"${100 * offset / maxOffset}%"))
-      graphics.renderComponentTooltip(font, lines, leftPos + scrollPosX + scrollWidth, scrollButton.getY() + scrollButton.getHeight + 1)
+      graphics.renderComponentTooltip(font, lines, leftPos + scrollPosX + scrollWidth, scrollButton.y + scrollButton.getHeight + 1)
     }
   }
 
@@ -158,11 +155,16 @@ class Manual extends screens.Screen(Component.empty()) with traits.Window {
     super.keyPressed(keyCode, scanCode, mods)
   }
 
-  // 1.21.1: mouseScrolled 增加 scrollX 参数（4 参签名）。
   override def mouseScrolled(mouseX: Double, mouseY: Double, scrollX: Double, scrollY: Double): Boolean = {
-    if (scrollY < 0) scrollDown()
-    else scrollUp()
-    true
+    if (scrollY < 0) {
+      scrollDown()
+      true
+    }
+    else if (scrollY > 0) {
+      scrollUp()
+      true
+    }
+    else super.mouseScrolled(mouseX, mouseY, scrollX, scrollY)
   }
 
   override def mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean = {
@@ -216,9 +218,9 @@ class Manual extends screens.Screen(Component.empty()) with traits.Window {
     ManualAPI.history.top.offset = math.max(0, math.min(maxOffset, row))
     val yMin = topPos + scrollPosY
     if (maxOffset > 0)
-      scrollButton.setY(yMin + (scrollHeight - 13) * offset / maxOffset)
+      scrollButton.y = yMin + (scrollHeight - 13) * offset / maxOffset
     else
-      scrollButton.setY(yMin)
+      scrollButton.y = yMin
   }
 
   private def isCoordinateOverContent(x: Int, y: Int) =

@@ -2,7 +2,7 @@ package li.cil.oc.server.component
 
 import java.util
 
-import li.cil.oc.{Constants, OpenComputers, api}
+import li.cil.oc.{Constants, OpenComputersNeo, api}
 import li.cil.oc.api.driver.DeviceInfo
 import li.cil.oc.api.driver.DeviceInfo.DeviceAttribute
 import li.cil.oc.api.driver.DeviceInfo.DeviceClass

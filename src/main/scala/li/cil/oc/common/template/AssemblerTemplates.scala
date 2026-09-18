@@ -2,7 +2,7 @@ package li.cil.oc.common.template
 
 import java.lang.reflect.Method
 import com.google.common.base.Strings
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.api
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.common.IMC
@@ -75,7 +75,7 @@ object AssemblerTemplates {
       case _ => Option(hostClass.fold(api.Driver.driverFor(stack))(api.Driver.driverFor(stack, _))) match {
         case Some(driver) => try driver.slot(stack) == kind && driver.tier(stack) <= tier catch {
           case t: AbstractMethodError =>
-            OpenComputers.log.warn(s"Error trying to query driver '${driver.getClass.getName}' for slot and/or tier information. Probably their fault. Yell at them before coming to OpenComputers for support. :P")
+            OpenComputersNeo.log.warn(s"Error trying to query driver '${driver.getClass.getName}' for slot and/or tier information. Probably their fault. Yell at them before coming to OpenComputersNeo for support. :P")
             false
         }
         case _ => false

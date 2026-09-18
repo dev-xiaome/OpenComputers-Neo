@@ -1,20 +1,13 @@
 package li.cil.oc.client.gui.traits
 
 import com.mojang.blaze3d.platform.InputConstants
-import com.mojang.blaze3d.systems.RenderSystem
-
-import java.util.Arrays
-import com.mojang.blaze3d.vertex.{DefaultVertexFormat, PoseStack, Tesselator, VertexFormat}
 import li.cil.oc.api
-import li.cil.oc.client.KeyBindings
-import li.cil.oc.client.Textures
+import li.cil.oc.client.{KeyBindings, Textures}
 import li.cil.oc.integration.util.ItemSearch
-import li.cil.oc.util.RenderState
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen
-import net.minecraft.client.renderer.GameRenderer
+import net.minecraft.client.gui.GuiGraphics
 import org.lwjgl.glfw.GLFW
-import org.lwjgl.opengl.GL11
 
 import java.util
 import scala.collection.mutable
@@ -28,20 +21,22 @@ trait InputBuffer extends DisplayBuffer {
 
   protected def hasKeyboard: Boolean
 
-  private val pressedKeys = mutable.Map.empty[Int, Char]
+  private val pressedKeys = mutable.Map.empty[Int, (Char, Int)]
 
   private var showKeyboardMissing = 0L
 
   private var hasQueuedKey = false
   private var queuedKey = 0
+  private var queuedScanCode = 0
   private var queuedChar = '\u0000'
   private var highSurrogate = '\u0000'
 
-  protected def pushQueuedKey(keyCode: Int): Unit = {
+  protected def pushQueuedKey(keyCode: Int, scanCode: Int, mods: Int): Unit = {
     flushQueuedKey()
     hasQueuedKey = true
     queuedKey = keyCode
-    queuedChar = GLFWTranslator.keyToChar(keyCode)
+    queuedScanCode = scanCode
+    queuedChar = GLFWTranslator.keyToChar(keyCode, scanCode, mods)
   }
 
   protected def pushQueuedChar(char: Char): Unit = {
@@ -63,13 +58,13 @@ trait InputBuffer extends DisplayBuffer {
     if (hasQueuedKey) {
       hasQueuedKey = false
       if (!pressedKeys.contains(queuedKey) || !ignoreRepeat(queuedKey)) {
-        val lwjglCode = GLFWTranslator.glfwToLWJGL(queuedKey)
+        val lwjglCode = GLFWTranslator.glfwToLWJGL(queuedKey, queuedScanCode)
         if (lwjglCode > 0) {
-          pressedKeys(queuedKey) = queuedChar
+          pressedKeys(queuedKey) = (queuedChar, lwjglCode)
           if (buffer != null) buffer.keyDown(queuedChar, lwjglCode, null)
         }
         else if (queuedChar > 0) {
-          pressedKeys(queuedKey) = queuedChar
+          pressedKeys(queuedKey) = (queuedChar, 0)
           if (buffer != null) buffer.keyDown(queuedChar, 0, null)
         }
       }
@@ -82,26 +77,13 @@ trait InputBuffer extends DisplayBuffer {
     super.init()
   }
 
-  override protected def drawBufferLayer(stack: PoseStack): Unit = {
-    super.drawBufferLayer(stack)
+  override protected def drawBufferLayer(graphics: GuiGraphics): Unit = {
+    super.drawBufferLayer(graphics)
 
     if (System.currentTimeMillis() - showKeyboardMissing < 1000) {
-      RenderSystem.setShader(() => GameRenderer.getPositionTexShader)
-      RenderSystem.setShaderTexture(0, Textures.GUI.KeyboardMissing)
-      RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f)
-
       val x = bufferX + buffer.renderWidth - 16
       val y = bufferY + buffer.renderHeight - 16
-
-      val t = Tesselator.getInstance
-      val r = t.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX)
-      r.addVertex(stack.last.pose, x, y + 16, 0).setUv(0, 1)
-      r.addVertex(stack.last.pose, x + 16, y + 16, 0).setUv(1, 1)
-      r.addVertex(stack.last.pose, x + 16, y, 0).setUv(1, 0)
-      r.addVertex(stack.last.pose, x, y, 0).setUv(0, 0)
-      com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(r.buildOrThrow())
-
-      RenderState.checkError(getClass.getName + ".drawBufferLayer: keyboard icon")
+      graphics.blitSprite(Textures.GUISprites.KeyboardMissing, x, y, 16, 16)
     }
   }
 
@@ -113,10 +95,8 @@ trait InputBuffer extends DisplayBuffer {
     super.removed()
     if (buffer != null) {
       flushQueuedKey()
-      for ((code, char) <- pressedKeys) {
-        val lwjglCode = GLFWTranslator.glfwToLWJGL(code)
-        if (lwjglCode > 0) buffer.keyUp(char, lwjglCode, null)
-        else buffer.keyUp(char, 0, null)
+      for ((_, (char, lwjglCode)) <- pressedKeys) {
+        buffer.keyUp(char, lwjglCode, null)
       }
     }
   }
@@ -151,7 +131,7 @@ trait InputBuffer extends DisplayBuffer {
       }
       if (onInput(InputConstants.getKey(keyCode, scanCode))) return true
       if (buffer != null && keyCode != GLFW.GLFW_KEY_UNKNOWN) {
-        if (hasKeyboard) pushQueuedKey(keyCode)
+        if (hasKeyboard) pushQueuedKey(keyCode, scanCode, mods)
         else showKeyboardMissing = System.currentTimeMillis()
         return true
       }
@@ -163,8 +143,7 @@ trait InputBuffer extends DisplayBuffer {
     if (!this.isInstanceOf[AbstractContainerScreen[_]] || !ItemSearch.isInputFocused) {
       flushQueuedKey()
       pressedKeys.remove(keyCode) match {
-        case Some(char) => {
-          val lwjglCode = GLFWTranslator.glfwToLWJGL(keyCode)
+        case Some((char, lwjglCode)) => {
           if (lwjglCode > 0) {
             buffer.keyUp(char, lwjglCode, null)
             return true
@@ -332,14 +311,50 @@ object GLFWTranslator {
   toLWJGL(GLFW.GLFW_KEY_RIGHT_SUPER) = 0xDC
   toLWJGL(GLFW.GLFW_KEY_MENU) = 0xDD
 
-  def glfwToLWJGL(keyCode: Int): Int = if (keyCode >= 0 && keyCode < toLWJGL.size) toLWJGL(keyCode) else -1
+  private def layoutKeyCode(keyCode: Int, scanCode: Int): Int = {
+    // GLFW key tokens describe positions on a US layout. The key name describes
+    // the printable key at that position in the active keyboard layout.
+    if (keyCode < GLFW.GLFW_KEY_SPACE || keyCode > GLFW.GLFW_KEY_WORLD_2) return keyCode
 
-  def keyToChar(keyCode: Int): Char = {
+    val name = GLFW.glfwGetKeyName(keyCode, scanCode)
+    if (name == null || name.length != 1) return keyCode
+
+    name.charAt(0) match {
+      case c if c >= 'a' && c <= 'z' => GLFW.GLFW_KEY_A + c - 'a'
+      case c if c >= 'A' && c <= 'Z' => GLFW.GLFW_KEY_A + c - 'A'
+      case c if c >= '0' && c <= '9' => GLFW.GLFW_KEY_0 + c - '0'
+      case ' ' => GLFW.GLFW_KEY_SPACE
+      case '\'' => GLFW.GLFW_KEY_APOSTROPHE
+      case ',' => GLFW.GLFW_KEY_COMMA
+      case '-' => GLFW.GLFW_KEY_MINUS
+      case '.' => GLFW.GLFW_KEY_PERIOD
+      case '/' => GLFW.GLFW_KEY_SLASH
+      case ';' => GLFW.GLFW_KEY_SEMICOLON
+      case '=' => GLFW.GLFW_KEY_EQUAL
+      case '[' => GLFW.GLFW_KEY_LEFT_BRACKET
+      case '\\' => GLFW.GLFW_KEY_BACKSLASH
+      case ']' => GLFW.GLFW_KEY_RIGHT_BRACKET
+      case '`' => GLFW.GLFW_KEY_GRAVE_ACCENT
+      case _ => keyCode
+    }
+  }
+
+  def glfwToLWJGL(keyCode: Int, scanCode: Int): Int = {
+    val translatedKeyCode = layoutKeyCode(keyCode, scanCode)
+    if (translatedKeyCode >= 0 && translatedKeyCode < toLWJGL.length) toLWJGL(translatedKeyCode) else -1
+  }
+
+  def keyToChar(keyCode: Int, scanCode: Int, mods: Int): Char = {
     if (keyCode == GLFW.GLFW_KEY_ESCAPE) '\u001B'
     else if (keyCode == GLFW.GLFW_KEY_ENTER) '\r'
     else if (keyCode == GLFW.GLFW_KEY_TAB) '\t'
     else if (keyCode == GLFW.GLFW_KEY_BACKSPACE) '\b'
     else if (keyCode == GLFW.GLFW_KEY_KP_ENTER) '\r'
+    else if ((mods & GLFW.GLFW_MOD_CONTROL) != 0) {
+      val c = (layoutKeyCode(keyCode, scanCode) - 64).max(0).toChar
+      if (c > 32) 0
+      else c
+    }
     else '\u0000'
   }
 }

@@ -1,18 +1,14 @@
 package li.cil.oc.common.blockentity.traits
 
 import li.cil.oc.api.driver.DriverItem
-import li.cil.oc.api.network.ManagedEnvironment
-import li.cil.oc.api.network.Node
-import li.cil.oc.common.EventHandler
-import li.cil.oc.common.container
+import li.cil.oc.api.network.{ManagedEnvironment, Node}
+import li.cil.oc.common.{EventHandler, container}
 import li.cil.oc.util.ExtendedInventory._
 import li.cil.oc.util.StackOption
 import li.cil.oc.util.StackOption._
-import net.minecraft.world.item.ItemStack
+import net.minecraft.core.HolderLookup
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.core.Direction
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
+import net.minecraft.world.item.ItemStack
 
 import scala.collection.mutable
 
@@ -151,20 +147,15 @@ trait ComponentInventory extends Environment with Inventory with container.Compo
     }
   }
 
-  // 1.20.1 时代这里覆写 getCapability，把能力查询转发给已安装的组件（组件实现
-  // Forge 的 ICapabilityProvider）。1.21.1 没有这套机制了，能力只能在
-  // RegisterCapabilitiesEvent 里按方块实体类型注册，转发也就没有意义了，
-  // 因此这里不再覆写（见 li.cil.oc.common.capabilities.Capabilities）。
-
-  override def saveForClient(nbt: CompoundTag): Unit = {
+  override def saveForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
     connectComponents()
-    super.saveForClient(nbt)
-    saveData(nbt)
+    super.saveForClient(nbt, provider)
+    saveData(nbt, provider)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
-    loadData(nbt)
+  override def loadForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForClient(nbt, provider)
+    loadData(nbt, provider)
     connectComponents()
   }
 }

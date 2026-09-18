@@ -1,15 +1,24 @@
 package li.cil.oc.api.prefab;
 
 import li.cil.oc.api.Network;
+import li.cil.oc.api.Persistable;
+import li.cil.oc.api.UnrecoverablePersistanceException;
 import li.cil.oc.api.network.Environment;
 import li.cil.oc.api.network.Message;
 import li.cil.oc.api.network.Node;
 import li.cil.oc.api.network.Visibility;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
+
+import javax.annotation.Nonnull;
+
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * TileEntities can implement the {@link Environment}
@@ -22,6 +31,7 @@ import net.minecraft.world.level.block.state.BlockState;
 @SuppressWarnings("UnusedDeclaration")
 public abstract class BlockEntityEnvironment extends BlockEntity implements Environment {
     private static final String TAG_NODE = "oc:node";
+    private static final Logger LOGGER = LoggerFactory.getLogger(BlockEntityEnvironment.class);
 
     /**
      * This must be set in subclasses to the node that is used to represent
@@ -124,29 +134,50 @@ public abstract class BlockEntityEnvironment extends BlockEntity implements Envi
 
     // ----------------------------------------------------------------------- //
 
+    // OpenComputersNeo 1.9+ on NeoForge 1.21.1+ uses Data Components to store data.
+    // In Block Entities, these are loaded after loadAdditional() so an access
+    // transformer is required.
     @Override
-    public void loadAdditional(final CompoundTag nbt, final net.minecraft.core.HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
+    public void loadWithComponents(@Nonnull CompoundTag tag, HolderLookup.@NotNull Provider registries) {
+        super.loadWithComponents(tag, registries);
         // The host check may be superfluous for you. It's just there to allow
         // some special cases, where getNode() returns some node managed by
         // some other instance (for example when you have multiple internal
         // nodes in this tile entity).
         if (node != null && node.host() == this) {
-            // This restores the node's address, which is required for networks
-            // to continue working without interruption across loads. If the
-            // node is a power connector this is also required to restore the
-            // internal energy buffer of the node.
-            node.loadData(nbt.getCompound(TAG_NODE));
+            try {
+                // This restores the node's address, which is required for networks
+                // to continue working without interruption across loads. If the
+                // node is a power connector this is also required to restore the
+                // internal energy buffer of the node.
+                node.loadData(Persistable.holder(this));
+            } catch (UnrecoverablePersistanceException e) {
+                // If something goes terribly wrong and the Persistable object
+                // has no known default, some implementations of loadData()
+                // may throw this exception to allow you to set the default
+                // yourself. You should log it.
+                LOGGER.warn("Node data failed to load!", e);
+
+                // If you replace the Node field with your own type and remove
+                // "throws UnrecoverablePersistanceException" from loadData()
+                // you won't have to deal with this here.
+            }
         }
     }
 
     @Override
-    public void saveAdditional(final CompoundTag nbt, final net.minecraft.core.HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
-        // See load() regarding host check.
+    public void loadAdditional(final @Nonnull CompoundTag nbt, @Nonnull HolderLookup. Provider provider) {
+        super.loadAdditional(nbt, provider);
+
+    }
+
+    @Override
+    public void saveAdditional(final @Nonnull CompoundTag nbt, @Nonnull HolderLookup.Provider provider) {
+        super.saveAdditional(nbt, provider);
+        // See loadAdditional() regarding host check.
         if (node != null && node.host() == this) {
             final CompoundTag nodeNbt = new CompoundTag();
-            node.saveData(nodeNbt);
+            node.saveData(nodeNbt, provider);
             nbt.put(TAG_NODE, nodeNbt);
         }
     }

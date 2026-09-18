@@ -15,17 +15,18 @@ import net.minecraft.util.RandomSource
 import net.minecraft.client.renderer.RenderType
 import net.neoforged.neoforge.client.model.data.ModelData
 
-import scala.collection.JavaConverters.bufferAsJavaList
+import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 object RobotModel extends SmartBlockModelBase {
   override def getOverrides: ItemOverrides = ItemOverride
 
+  // Vanilla item rendering uses this overload.
   override def getQuads(state: BlockState, side: Direction, rand: RandomSource): util.List[BakedQuad] =
     ItemModel.getQuads(state, side, rand)
 
   override def getQuads(state: BlockState, side: Direction, rand: RandomSource, extraData: ModelData, renderType: RenderType): util.List[BakedQuad] =
-    ItemModel.getQuads(state, side, rand, extraData, renderType)
+    ItemModel.getQuads(state, side, rand)
 
   object ItemModel extends SmartBlockModelBase {
     private val size = 0.4f
@@ -44,7 +45,7 @@ object RobotModel extends SmartBlockModelBase {
     private val bottom3 = (h,    0.5f,  h,   1f,    0f)
     private val bottom4 = (l,    0.5f,  h,   1f,    0.5f)
 
-    private val tint = 0xFF555555
+    private val tint = 0x555555
 
     protected def robotTexture = Textures.getSprite(Textures.Item.Robot)
 
@@ -63,25 +64,25 @@ object RobotModel extends SmartBlockModelBase {
           (y - 0.5f) * 1.4f + 0.5f,
           (z - 0.5f) * 1.4f + 0.5f,
           Direction.UP, robotTexture,
-          robotTexture.getU(u * 16), robotTexture.getV(v * 16),
-          White)
+          robotTexture.getU(u), robotTexture.getV(v),
+          tint)
       }.toArray
     }
 
     override def getQuads(state: BlockState, side: Direction, rand: RandomSource): util.List[BakedQuad] = {
       val faces = mutable.ArrayBuffer.empty[BakedQuad]
 
-      faces += new BakedQuad(quad(top, top1, top2),    tint, Direction.NORTH, robotTexture, true)
-      faces += new BakedQuad(quad(top, top2, top3),    tint, Direction.EAST,  robotTexture, true)
-      faces += new BakedQuad(quad(top, top3, top4),    tint, Direction.SOUTH, robotTexture, true)
-      faces += new BakedQuad(quad(top, top4, top1),    tint, Direction.WEST,  robotTexture, true)
+      faces += new BakedQuad(quad(top, top1, top2), -1, Direction.NORTH, robotTexture, true)
+      faces += new BakedQuad(quad(top, top2, top3), -1, Direction.EAST,  robotTexture, true)
+      faces += new BakedQuad(quad(top, top3, top4), -1, Direction.SOUTH, robotTexture, true)
+      faces += new BakedQuad(quad(top, top4, top1), -1, Direction.WEST,  robotTexture, true)
 
-      faces += new BakedQuad(quad(bottom, bottom1, bottom2), tint, Direction.NORTH, robotTexture, true)
-      faces += new BakedQuad(quad(bottom, bottom2, bottom3), tint, Direction.EAST,  robotTexture, true)
-      faces += new BakedQuad(quad(bottom, bottom3, bottom4), tint, Direction.SOUTH, robotTexture, true)
-      faces += new BakedQuad(quad(bottom, bottom4, bottom1), tint, Direction.WEST,  robotTexture, true)
+      faces += new BakedQuad(quad(bottom, bottom1, bottom2), -1, Direction.NORTH, robotTexture, true)
+      faces += new BakedQuad(quad(bottom, bottom2, bottom3), -1, Direction.EAST,  robotTexture, true)
+      faces += new BakedQuad(quad(bottom, bottom3, bottom4), -1, Direction.SOUTH, robotTexture, true)
+      faces += new BakedQuad(quad(bottom, bottom4, bottom1), -1, Direction.WEST,  robotTexture, true)
 
-      bufferAsJavaList(faces)
+      faces.asJava
     }
   }
 

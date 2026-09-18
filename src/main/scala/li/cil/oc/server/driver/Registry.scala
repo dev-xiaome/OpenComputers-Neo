@@ -1,7 +1,7 @@
 package li.cil.oc.server.driver
 
 import java.util
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.api
 import li.cil.oc.api.driver.Converter
 import li.cil.oc.api.driver.DriverBlock
@@ -23,7 +23,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.math.ScalaNumber
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.level.Level
-import net.neoforged.neoforge.capabilities.{Capabilities => NeoCapabilities}
+import net.neoforged.neoforge.capabilities.Capabilities
 
 /**
  * This class keeps track of registered drivers and provides installation logic
@@ -58,7 +58,7 @@ private[oc] object Registry extends api.detail.DriverAPI {
   override def add(driver: DriverBlock): Unit = {
     if (locked) throw new IllegalStateException("Please register all drivers in the init phase.")
     if (!sidedBlocks.contains(driver)) {
-      OpenComputers.log.debug(s"Registering block driver ${driver.getClass.getName}.")
+      OpenComputersNeo.log.debug(s"Registering block driver ${driver.getClass.getName}.")
       sidedBlocks += driver
     }
   }
@@ -66,7 +66,7 @@ private[oc] object Registry extends api.detail.DriverAPI {
   override def add(driver: DriverItem): Unit = {
     if (locked) throw new IllegalStateException("Please register all drivers in the init phase.")
     if (!items.contains(driver)) {
-      OpenComputers.log.debug(s"Registering item driver ${driver.getClass.getName}.")
+      OpenComputersNeo.log.debug(s"Registering item driver ${driver.getClass.getName}.")
       items += driver
     }
   }
@@ -74,7 +74,7 @@ private[oc] object Registry extends api.detail.DriverAPI {
   override def add(converter: Converter): Unit = {
     if (locked) throw new IllegalStateException("Please register all converters in the init phase.")
     if (!converters.contains(converter)) {
-      OpenComputers.log.debug(s"Registering converter ${converter.getClass.getName}.")
+      OpenComputersNeo.log.debug(s"Registering converter ${converter.getClass.getName}.")
       converters += converter
     }
   }
@@ -82,7 +82,7 @@ private[oc] object Registry extends api.detail.DriverAPI {
   override def add(provider: EnvironmentProvider): Unit = {
     if (locked) throw new IllegalStateException("Please register all environment providers in the init phase.")
     if (!environmentProviders.contains(provider)) {
-      OpenComputers.log.debug(s"Registering environment provider ${provider.getClass.getName}.")
+      OpenComputersNeo.log.debug(s"Registering environment provider ${provider.getClass.getName}.")
       environmentProviders += provider
     }
   }
@@ -90,7 +90,7 @@ private[oc] object Registry extends api.detail.DriverAPI {
   override def add(provider: InventoryProvider): Unit = {
     if (locked) throw new IllegalStateException("Please register all inventory providers in the init phase.")
     if (!inventoryProviders.contains(provider)) {
-      OpenComputers.log.debug(s"Registering inventory provider ${provider.getClass.getName}.")
+      OpenComputersNeo.log.debug(s"Registering inventory provider ${provider.getClass.getName}.")
       inventoryProviders += provider
     }
   }
@@ -130,7 +130,7 @@ private[oc] object Registry extends api.detail.DriverAPI {
     inventoryProviders.find(provider => provider.worksWith(stack, player)).
       map(provider => InventoryUtils.asItemHandler(provider.getInventory(stack, player))).
       getOrElse {
-        stack.getCapability(NeoCapabilities.ItemHandler.ITEM)
+        stack.getCapability(Capabilities.ItemHandler.ITEM)
       }
   }
 
@@ -157,7 +157,7 @@ private[oc] object Registry extends api.detail.DriverAPI {
     }
     else {
       valueRef match {
-        case null | None => null
+        case null | () | None => null
         case arg: java.lang.Boolean => arg
         case arg: java.lang.Byte => arg
         case arg: java.lang.Character => arg
@@ -196,7 +196,7 @@ private[oc] object Registry extends api.detail.DriverAPI {
           val converted = new util.HashMap[AnyRef, AnyRef]()
           memo.asScala += arg -> converted
           converters.foreach(converter => try converter.convert(arg, converted) catch {
-            case t: Throwable => OpenComputers.log.warn("Type converter threw an exception.", t)
+            case t: Throwable => OpenComputersNeo.log.warn("Type converter threw an exception.", t)
           })
           if (converted.isEmpty) {
             memo.asScala += arg -> arg.toString

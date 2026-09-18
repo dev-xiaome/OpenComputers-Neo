@@ -1,10 +1,9 @@
 package li.cil.oc.api.event;
 
-import net.neoforged.bus.api.ICancellableEvent;
-
 import li.cil.oc.api.network.EnvironmentHost;
 import net.minecraft.core.BlockPos;
 import net.neoforged.bus.api.Event;
+import net.neoforged.bus.api.ICancellableEvent;
 
 import java.util.HashMap;
 import java.util.Map;

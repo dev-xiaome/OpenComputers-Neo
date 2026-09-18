@@ -4,8 +4,6 @@ import li.cil.oc.common.menu.MenuTypes;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
-/// 1.21.1：`MenuScreens.register` 变成私有，NeoForge 改为在 mod 事件总线上派发
-/// [RegisterMenuScreensEvent]（本类仍由 `Proxy.scala` 注册到 mod bus）。
 public final class GuiTypes {
     @SubscribeEvent
     public static void registerScreens(RegisterMenuScreensEvent e) {
@@ -16,7 +14,6 @@ public final class GuiTypes {
         e.register(MenuTypes.DATABASE.get(), Database::new);
         e.register(MenuTypes.DISASSEMBLER.get(), Disassembler::new);
         e.register(MenuTypes.DISK_DRIVE.get(), DiskDrive::new);
-        e.register(MenuTypes.HOLO_SCREEN.get(), HoloScreen::new);
         e.register(MenuTypes.DRONE.get(), Drone::new);
         e.register(MenuTypes.PRINTER.get(), Printer::new);
         e.register(MenuTypes.RACK.get(), Rack::new);

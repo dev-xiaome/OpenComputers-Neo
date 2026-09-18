@@ -146,9 +146,9 @@ object InventorySlots {
   )
 
   val relay = Array(
-    InventorySlot(Slot.CPU, Tier.Three),
-    InventorySlot(Slot.Memory, Tier.Three),
-    InventorySlot(Slot.HDD, Tier.Three),
+    InventorySlot(Slot.CPU, Tier.Four),
+    InventorySlot(Slot.Memory, Tier.Four),
+    InventorySlot(Slot.HDD, Tier.Four),
     InventorySlot(Slot.Card, Tier.Three)
   )
 

@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "opencomputers_neo:floppy"
+    },
+    {
+      "item": "opencomputers_neo:manual"
+    }
+  ],
+  "result": {
+    "components": {
+      "minecraft:custom_name": "\"OpenOS (Operating System)\"",
+      "opencomputers_neo:disk_color": "green",
+      "opencomputers_neo:label": "openos",
+      "opencomputers_neo:loot_disk": "opencomputers_neo:openos"
+    },
+    "count": 1,
+    "id": "opencomputers_neo:floppy"
+  }
+}

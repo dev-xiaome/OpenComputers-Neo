@@ -1,1 +1,0 @@
-#REDIRECT databaseupgrade1.md

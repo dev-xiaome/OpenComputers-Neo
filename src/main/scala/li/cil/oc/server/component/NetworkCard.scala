@@ -1,7 +1,6 @@
 package li.cil.oc.server.component
 
 import java.util
-
 import com.google.common.base.Charsets
 import li.cil.oc.Constants
 import li.cil.oc.Settings
@@ -17,11 +16,15 @@ import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.api.network._
-import li.cil.oc.api.prefab
 import li.cil.oc.api.prefab.AbstractManagedEnvironment
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.common.Tier
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt._
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.convert.ImplicitConversionsToScala._
@@ -160,18 +163,18 @@ class NetworkCard(val host: EnvironmentHost) extends AbstractManagedEnvironment 
 
   private final val OpenPortsTag = "openPorts"
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    super.loadData(nbt)
+  override def loadData(holder: DataComponentHolder): Unit = {
+    super.loadData(holder)
     assert(openPorts.isEmpty)
-    openPorts ++= nbt.getIntArray(OpenPortsTag)
-    loadWakeMessage(nbt)
+    for(ports <- holder.getComponent(OCComponents.OPEN_PORTS))
+      openPorts ++= ports
+    loadWakeMessage(holder)
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    super.saveData(nbt)
-
-    nbt.putIntArray(OpenPortsTag, openPorts.toArray)
-    saveWakeMessage(nbt)
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    super.saveData(holder)
+    holder.setComponent(OCComponents.OPEN_PORTS, openPorts.toList)
+    saveWakeMessage(holder)
   }
 
   // ----------------------------------------------------------------------- //

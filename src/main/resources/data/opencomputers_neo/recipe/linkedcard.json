@@ -1,0 +1,26 @@
+{
+  "type": "opencomputers_neo:crafting_shaped_extended",
+  "pattern": [
+    "e e",
+    "LIL",
+    "C C"
+  ],
+  "key": {
+    "e": {
+      "item": "minecraft:ender_eye"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip3"
+    },
+    "I": {
+      "tag": "opencomputers_neo:materialinterweb"
+    },
+    "L": {
+      "tag": "opencomputers_neo:lancard"
+    }
+  },
+  "result": {
+    "count": 2,
+    "id": "opencomputers_neo:linkedcard"
+  }
+}

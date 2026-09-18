@@ -3,7 +3,12 @@ package li.cil.oc.util
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.Persistable
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 object PackedColor {
 
@@ -49,9 +54,9 @@ object PackedColor {
 
     def isFromPalette(value: Int): Boolean = false
 
-    override def loadData(nbt: CompoundTag): Unit = {}
+    override def loadData(holder: DataComponentHolder): Unit = {}
 
-    override def saveData(nbt: CompoundTag): Unit = {}
+    override def saveData(holder: MutableDataComponentHolder): Unit = {}
   }
 
   class SingleBitFormat(val color: Int) extends ColorFormat {
@@ -106,13 +111,18 @@ object PackedColor {
       0xCCCCCC, 0x336699, 0x9933CC, 0x333399,
       0x663300, 0x336600, 0xFF3333, 0x000000)
 
-    override def loadData(nbt: CompoundTag): Unit = {
-      val loaded = nbt.getIntArray("palette")
-      Array.copy(loaded, 0, palette, 0, math.min(loaded.length, palette.length))
+    override def loadData(holder: DataComponentHolder): Unit = {
+      super.loadData(holder)
+
+      for(colors <- holder.getComponent(OCComponents.PALETTE)) {
+        for ((color, index) <- colors.take(palette.length).zipWithIndex) palette(index) = color
+      }
     }
 
-    override def saveData(nbt: CompoundTag): Unit = {
-      nbt.putIntArray("palette", palette)
+    override def saveData(holder: MutableDataComponentHolder): Unit = {
+      super.saveData(holder)
+
+      holder.setComponent(OCComponents.PALETTE, palette.toList)
     }
   }
 

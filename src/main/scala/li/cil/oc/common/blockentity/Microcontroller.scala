@@ -14,28 +14,34 @@ import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network._
 import li.cil.oc.common.Tier
+import li.cil.oc.common.datacomponents.{CompoundStorage, OCComponents}
 import li.cil.oc.common.item.data.MicrocontrollerData
 import li.cil.oc.util.ExtendedArguments._
 import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.util.StackOption
 import li.cil.oc.util.StackOption._
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.world.entity.player.{Player => PlayerEntity}
 import net.minecraft.world.WorldlyContainer
 import net.minecraft.world.item.ItemStack
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.entity.BlockEntityType
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.nbt.Tag
 import net.minecraft.world.level.block.state.BlockState
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
-import scala.collection.JavaConverters.asJavaIterable
-import scala.collection.convert.ImplicitConversionsToJava._
+import scala.jdk.CollectionConverters._
 
 class Microcontroller(pos: BlockPos, state: BlockState)
-  extends BlockEntity(BlockEntityTypes.MICROCONTROLLER.get(), pos, state) with traits.PowerAcceptor with traits.Hub with traits.Computer with WorldlyContainer with internal.Microcontroller with DeviceInfo {
+  extends BlockEntity(BlockEntityTypes.MICROCONTROLLER.get(), pos, state)
+    with traits.PowerAcceptor with traits.Hub with traits.Computer with WorldlyContainer with internal.Microcontroller with DeviceInfo
+    with IBlockEntityExtension {
   val info = new MicrocontrollerData()
 
   override def node = null
@@ -68,7 +74,7 @@ class Microcontroller(pos: BlockPos, state: BlockState)
     DeviceAttribute.Capacity -> getContainerSize.toString
   )
 
-  override def getDeviceInfo: util.Map[String, String] = deviceInfo
+  override def getDeviceInfo: util.Map[String, String] = deviceInfo.asJava
 
   // ----------------------------------------------------------------------- //
 
@@ -96,9 +102,9 @@ class Microcontroller(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  override def internalComponents(): java.lang.Iterable[ItemStack] = asJavaIterable(info.components)
+  override def internalComponents(): java.lang.Iterable[ItemStack] = info.components.toSeq.asJava
 
-  override def componentSlot(address: String): Int = componentEnvironments.indexWhere(_.exists(env => env.node != null && env.node.address == address))
+  override def componentSlot(address: String): Int = componentSlots.indexWhere(_.exists(env => env.node != null && env.node.address == address))
 
   // ----------------------------------------------------------------------- //
 
@@ -210,43 +216,37 @@ class Microcontroller(pos: BlockPos, state: BlockState)
   private final val ComponentNodesTag = Settings.namespace + "componentNodes"
   private final val SnooperTag = Settings.namespace + "snooper"
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    // Load info before inventory and such, to avoid initializing components
-    // to empty inventory.
-    info.loadData(nbt.getCompound(InfoTag))
-    nbt.getBooleanArray(OutputsTag)
-    nbt.getList(ComponentNodesTag, Tag.TAG_COMPOUND).toTagArray[CompoundTag].
-      zipWithIndex.foreach {
-      case (tag, index) => componentNodes(index).loadData(tag)
+  override def loadComponentsForServer(holder: DataComponentHolder): Unit = {
+    for(nodes <- holder.getComponent(OCComponents.COMPONENT_NODES)) {
+      for((Some(node), i) <- nodes.zipWithIndex) {
+        componentNodes(i).loadData(node)
+      }
     }
-    snooperNode.loadData(nbt.getCompound(SnooperTag))
-    super.loadForServer(nbt)
+    snooperNode.loadData(holder)
+    super.loadComponentsForServer(holder)
     api.Network.joinNewNetwork(machine.node)
     machine.node.connect(snooperNode)
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
-    nbt.setNewCompoundTag(InfoTag, info.saveData)
-    nbt.setBooleanArray(OutputsTag, outputSides)
-    nbt.setNewTagList(ComponentNodesTag, componentNodes.map {
+  override def saveComponentsForServer(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsForServer(holder)
+    holder.setComponent(OCComponents.COMPONENT_NODES, componentNodes.map {
       case node: Node =>
-        val tag = new CompoundTag()
-        node.saveData(tag)
-        tag
-      case _ => new CompoundTag()
-    })
-    nbt.setNewCompoundTag(SnooperTag, snooperNode.saveData)
+        val storage = new CompoundStorage()
+        node.saveData(storage)
+        Some(storage)
+      case _ => None
+    }.toList)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    info.loadData(nbt.getCompound(InfoTag))
-    super.loadForClient(nbt)
+  override def loadComponentsCommon(holder: DataComponentHolder): Unit = {
+    super.loadComponentsCommon(holder)
+    info.loadData(holder)
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
-    nbt.setNewCompoundTag(InfoTag, info.saveData)
+  override def saveComponentsCommon(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsCommon(holder)
+    info.saveData(holder)
   }
 
   // ----------------------------------------------------------------------- //

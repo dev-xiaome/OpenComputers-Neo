@@ -1,11 +1,13 @@
 package li.cil.oc.client.renderer;
 
 import java.util.OptionalDouble;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import li.cil.oc.OpenComputers;
+import li.cil.oc.OpenComputersNeo;
 import li.cil.oc.client.Textures;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.RenderStateShard;
@@ -14,43 +16,51 @@ import net.minecraft.resources.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 
 public class RenderTypes extends RenderType {
-    // 1.21.1: RenderStateShard 里的 POSITION_COLOR_TEX_SHADER 已被移除，而 position_tex_color
-    // 这个 shader 仍然存在（GameRenderer.getPositionTexColorShader），所以这里自行包一层。
-    // 必须声明在下面那些 RenderType 常量之前：Java 静态初始化是自上而下执行的。
-    private static final RenderStateShard.ShaderStateShard OC_POSITION_TEX_COLOR_SHADER =
+    private static final RenderStateShard.ShaderStateShard POSITION_TEX_COLOR_SHADER =
             new RenderStateShard.ShaderStateShard(GameRenderer::getPositionTexColorShader);
+    private static final RenderStateShard.TextureStateShard WHITE_TEXTURE =
+            new RenderStateShard.TextureStateShard(ResourceLocation.withDefaultNamespace("textures/misc/white.png"), false, false);
 
     public static final RenderStateShard.TextureStateShard ROBOT_CHASSIS_TEXTURE = new RenderStateShard.TextureStateShard(Textures.Model$.MODULE$.Robot(), false, false);
 
-    public static final RenderType ROBOT_CHASSIS = create(OpenComputers.ID() + ":robot_chassis",
+    public static final RenderType ROBOT_CHASSIS = create(OpenComputersNeo.ID() + ":robot_chassis",
             DefaultVertexFormat.BLOCK, VertexFormat.Mode.TRIANGLES, 1024, true, false, CompositeState.builder()
                     .setShaderState(RENDERTYPE_CUTOUT_SHADER)
                     .setTextureState(ROBOT_CHASSIS_TEXTURE)
                     .setLightmapState(LIGHTMAP)
                     .createCompositeState(true));
 
-    public static final RenderType ROBOT_LIGHT = create(OpenComputers.ID() + ":robot_light",
+    public static final RenderType ROBOT_LIGHT = create(OpenComputersNeo.ID() + ":robot_light",
             DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS, 256, true, false, CompositeState.builder()
-                    .setShaderState(OC_POSITION_TEX_COLOR_SHADER)
+                    .setShaderState(POSITION_TEX_COLOR_SHADER)
                     .setTextureState(ROBOT_CHASSIS_TEXTURE)
                     .setTransparencyState(LIGHTNING_TRANSPARENCY)
                     .createCompositeState(true));
 
-    public static final RenderType HOLOGRAM_OCCLUDER = create(OpenComputers.ID() + ":hologram_occluder",
-            DefaultVertexFormat.POSITION_COLOR,
-            VertexFormat.Mode.QUADS,
-            1 << 22,
-            false,
-            false,
-            RenderType.CompositeState.builder()
-                    .setShaderState(POSITION_COLOR_SHADER)
-                    .setTransparencyState(NO_TRANSPARENCY)
-                    .setDepthTestState(LEQUAL_DEPTH_TEST)
-                    .setCullState(NO_CULL)
-                    .setWriteMaskState(DEPTH_WRITE)
-                    .createCompositeState(false));
+    private static RenderType createRobotFlag(String name, ResourceLocation texture) {
+        return create(OpenComputersNeo.ID() + ":robot_flag_" + name,
+                DefaultVertexFormat.BLOCK, VertexFormat.Mode.QUADS, 256, true, false, CompositeState.builder()
+                        .setShaderState(RENDERTYPE_CUTOUT_SHADER)
+                        .setTextureState(new RenderStateShard.TextureStateShard(texture, false, false))
+                        .setLightmapState(LIGHTMAP)
+                        .setCullState(NO_CULL)
+                        .createCompositeState(true));
+    }
 
-    public static final RenderType HOLOGRAM_WORLD = create(OpenComputers.ID() + ":hologram",
+    private static final Map<ResourceLocation, RenderType> ROBOT_FLAGS = new ConcurrentHashMap<>();
+
+    public static RenderType robotFlag(ResourceLocation flag) {
+        return ROBOT_FLAGS.computeIfAbsent(flag, id -> createRobotFlag(
+                id.getPath(),
+                ResourceLocation.fromNamespaceAndPath(id.getNamespace(), "model/robot_" + id.getPath())
+        ));
+    }
+
+    public static final RenderType ROBOT_RAINBOW_FLAG = createRobotFlag("rainbow", Textures.Model$.MODULE$.RobotRainbowFlag());
+
+    public static final RenderType ROBOT_TRANS_FLAG = createRobotFlag("trans", Textures.Model$.MODULE$.RobotTransFlag());
+
+    public static final RenderType HOLOGRAM = create(OpenComputersNeo.ID() + ":hologram",
             DefaultVertexFormat.POSITION_COLOR,
             VertexFormat.Mode.QUADS,
             // 48*48*48 voxels * 6 faces * 4 verts * ~8 bytes = ~25 MB worst case; 1<<22 is a safe upper bound.
@@ -66,11 +76,9 @@ public class RenderTypes extends RenderType {
                     .setWriteMaskState(COLOR_WRITE)
                     .createCompositeState(true));
 
-    public static final RenderType HOLOGRAM = HOLOGRAM_WORLD;
-
 
     private static RenderType createUpgrade(String name, ResourceLocation texture) {
-        return create(OpenComputers.ID() + ":upgrade_" + name,
+        return create(OpenComputersNeo.ID() + ":upgrade_" + name,
                 DefaultVertexFormat.BLOCK, VertexFormat.Mode.QUADS, 2048, true, false, CompositeState.builder()
                         .setShaderState(RENDERTYPE_CUTOUT_SHADER)
                         .setTextureState(new RenderStateShard.TextureStateShard(texture, false, false))
@@ -84,7 +92,7 @@ public class RenderTypes extends RenderType {
 
     public static final RenderType UPGRADE_INVENTORY = createUpgrade("inventory", Textures.Model$.MODULE$.UpgradeInventory());
 
-    public static final RenderType MFU_LINES = create(OpenComputers.ID() + ":mfu_lines",
+    public static final RenderType MFU_LINES = create(OpenComputersNeo.ID() + ":mfu_lines",
             DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.LINES, 1024, false, false, CompositeState.builder()
                     .setShaderState(RENDERTYPE_LINES_SHADER)
                     .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
@@ -93,7 +101,7 @@ public class RenderTypes extends RenderType {
                     .setLineState(new RenderStateShard.LineStateShard(OptionalDouble.of(2.0)))
                     .createCompositeState(false));
 
-    public static final RenderType MFU_QUADS = create(OpenComputers.ID() + ":mfu_quads",
+    public static final RenderType MFU_QUADS = create(OpenComputersNeo.ID() + ":mfu_quads",
             DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 256, false, false, CompositeState.builder()
                     .setShaderState(POSITION_COLOR_SHADER)
                     .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
@@ -103,26 +111,27 @@ public class RenderTypes extends RenderType {
                     .setWriteMaskState(COLOR_WRITE)
                     .createCompositeState(false));
 
-    public static final RenderType BLOCK_OVERLAY = create(OpenComputers.ID() + ":overlay_block",
+    public static final RenderType BLOCK_OVERLAY = create(OpenComputersNeo.ID() + ":overlay_block",
             DefaultVertexFormat.POSITION_TEX, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
                     .setShaderState(POSITION_TEX_SHADER)
                     .setTextureState(BLOCK_SHEET_MIPPED)
                     .setTransparencyState(LIGHTNING_TRANSPARENCY)
                     .createCompositeState(false));
 
-    public static final RenderType BLOCK_OVERLAY_COLOR = create(OpenComputers.ID() + ":overlay_block_color",
+    public static final RenderType BLOCK_OVERLAY_COLOR = create(OpenComputersNeo.ID() + ":overlay_block_color",
             DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
-                    .setShaderState(OC_POSITION_TEX_COLOR_SHADER)
+                    .setShaderState(POSITION_TEX_COLOR_SHADER)
                     .setTextureState(BLOCK_SHEET_MIPPED)
                     .setTransparencyState(LIGHTNING_TRANSPARENCY)
                     .createCompositeState(false));
 
-    public static final RenderType FONT_QUAD = create(OpenComputers.ID() + ":font_quad",
-            DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
-                    .setShaderState(POSITION_COLOR_SHADER)
-                    .setWriteMaskState(COLOR_WRITE)
+    public static final RenderType FONT_QUAD = create(OpenComputersNeo.ID() + ":font_quad",
+            DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
+                    .setShaderState(POSITION_TEX_COLOR_SHADER)
+                    .setTextureState(WHITE_TEXTURE)
+                    .setWriteMaskState(COLOR_DEPTH_WRITE)
                     .setDepthTestState(LEQUAL_DEPTH_TEST)
-                    .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
+                    .setTransparencyState(NO_TRANSPARENCY)
                     // NO_CULL required: block rendering works because ScreenRenderer.transform()
                     // applies mirrorScale(1,-1,1) which flips Y and reverses winding to CCW (front-face).
                     // GUI rendering has no Y-flip, so quads are CW (back-face) and get culled without this.
@@ -149,34 +158,36 @@ public class RenderTypes extends RenderType {
     private static final LinearTexturingState LINEAR = new LinearTexturingState(true);
 
     public static RenderType createFontTex(String name, ResourceLocation texture, boolean linear) {
-        return create(OpenComputers.ID() + ":font_stat_" + name,
+        return create(OpenComputersNeo.ID() + ":font_stat_" + name,
                 DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
-                        .setShaderState(OC_POSITION_TEX_COLOR_SHADER)
+                        .setShaderState(POSITION_TEX_COLOR_SHADER)
                         .setTextureState(new RenderStateShard.TextureStateShard(texture, false, false))
                         .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                         .setTexturingState(linear ? LINEAR : NEAR)
                         .setDepthTestState(LEQUAL_DEPTH_TEST)
+                        .setWriteMaskState(COLOR_WRITE)
                         // NO_CULL required: see FONT_QUAD comment above.
                         .setCullState(NO_CULL)
                         .createCompositeState(false));
     }
 
     public static RenderType createFontTex(int id) {
-        return create(OpenComputers.ID() + ":font_dyn_" + id,
+        return create(OpenComputersNeo.ID() + ":font_dyn_" + id,
                 DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
-                        .setShaderState(OC_POSITION_TEX_COLOR_SHADER)
+                        .setShaderState(POSITION_TEX_COLOR_SHADER)
                         .setTexturingState(new CustomTextureState(id))
                         .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                         .setDepthTestState(LEQUAL_DEPTH_TEST)
+                        .setWriteMaskState(COLOR_WRITE)
                         // NO_CULL required: see FONT_QUAD comment above.
                         .setCullState(NO_CULL)
                         .createCompositeState(false));
     }
 
     public static RenderType createTexturedQuad(String name, ResourceLocation texture, VertexFormat format, boolean additive) {
-        RenderStateShard.ShaderStateShard shader = format == DefaultVertexFormat.POSITION_TEX ? POSITION_TEX_SHADER : OC_POSITION_TEX_COLOR_SHADER;
+        RenderStateShard.ShaderStateShard shader = format == DefaultVertexFormat.POSITION_TEX ? POSITION_TEX_SHADER : POSITION_TEX_COLOR_SHADER;
 
-        return create(OpenComputers.ID() + ":tex_quad_" + name,
+        return create(OpenComputersNeo.ID() + ":tex_quad_" + name,
                 format, VertexFormat.Mode.QUADS, 1024, false, false, CompositeState.builder()
                         .setShaderState(shader)
                         .setTextureState(new RenderStateShard.TextureStateShard(texture, false, false))

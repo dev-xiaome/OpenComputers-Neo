@@ -1,0 +1,25 @@
+{
+  "parent": "opencomputers_neo:disk_drive",
+  "criteria": {
+    "crafting_raid": {
+      "trigger": "minecraft:impossible"
+    }
+  },
+  "display": {
+    "description": {
+      "translate": "achievement.oc.raid.desc"
+    },
+    "icon": {
+      "count": 1,
+      "id": "opencomputers_neo:raid"
+    },
+    "title": {
+      "translate": "achievement.oc.raid"
+    }
+  },
+  "requirements": [
+    [
+      "crafting_raid"
+    ]
+  ]
+}

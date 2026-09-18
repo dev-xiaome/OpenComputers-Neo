@@ -24,6 +24,9 @@ import net.neoforged.api.distmarker.{Dist, OnlyIn}
 import java.util.Random
 
 class Keyboard(props: Properties) extends SimpleBlock(props) {
+  // For Immibis Microblock support.
+  val ImmibisMicroblocks_TransformableBlockMarker = null
+
   protected override def createBlockStateDefinition(builder: StateContainer.Builder[Block, BlockState]) =
     builder.add(PropertyRotatable.Pitch, PropertyRotatable.Yaw)
 

@@ -13,12 +13,14 @@ import li.cil.oc.api.nanomachines.Controller
 import li.cil.oc.api.network._
 import li.cil.oc.api.util.StateAware
 import li.cil.oc.common.Slot
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.common.menu
 import li.cil.oc.common.menu.MenuTypes
 import li.cil.oc.common.entity.Drone
 import li.cil.oc.integration.util.ItemCharge
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
 import li.cil.oc.util.BlockPosition
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.util.ExtendedLevel._
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.entity.player.Inventory
@@ -28,19 +30,23 @@ import net.minecraft.nbt.{CompoundTag => CompoundNBT}
 import net.minecraft.core.particles.ParticleTypes
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.entity.BlockEntityType
-import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.Util
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.phys.Vec3
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 
 class Charger(pos: BlockPos, state: BlockState)
   extends BlockEntity(BlockEntityTypes.CHARGER.get(), pos, state) with traits.Environment with traits.PowerAcceptor with traits.RedstoneAware
-  with traits.Rotatable with traits.ComponentInventory with traits.Tickable with Analyzable with traits.StateAware with DeviceInfo with MenuProvider {
+  with traits.Rotatable with traits.ComponentInventory with traits.Tickable with Analyzable with traits.StateAware with DeviceInfo with MenuProvider
+    with IBlockEntityExtension {
 
   val node: Connector = api.Network.newNode(this, Visibility.None).
     withConnector(Settings.get.bufferConverter).
@@ -171,46 +177,26 @@ class Charger(pos: BlockPos, state: BlockState)
 
   // ----------------------------------------------------------------------- //
 
-  private final val ChargeSpeedTag = Settings.namespace + "chargeSpeed"
-  private final val ChargeSpeedTagCompat = "chargeSpeed"
-  private final val HasPowerTag = Settings.namespace + "hasPower"
-  private final val HasPowerTagCompat = "hasPower"
-  private final val InvertSignalTag = Settings.namespace + "invertSignal"
-  private final val InvertSignalTagCompat = "invertSignal"
-
-  override def loadForServer(nbt: CompoundNBT): Unit = {
-    super.loadForServer(nbt)
-    if (nbt.contains(ChargeSpeedTagCompat))
-      chargeSpeed = nbt.getDouble(ChargeSpeedTagCompat) max 0 min 1
-    else
-      chargeSpeed = nbt.getDouble(ChargeSpeedTag) max 0 min 1
-    if (nbt.contains(HasPowerTagCompat))
-      hasPower = nbt.getBoolean(HasPowerTagCompat)
-    else
-      hasPower = nbt.getBoolean(HasPowerTag)
-    if (nbt.contains(InvertSignalTagCompat))
-      invertSignal = nbt.getBoolean(InvertSignalTagCompat)
-    else
-      invertSignal = nbt.getBoolean(InvertSignalTag)
+  override def loadComponentsCommon(holder: DataComponentHolder): Unit = {
+    super.loadComponentsCommon(holder)
+    chargeSpeed = holder.getComponent(OCComponents.CHARGE_SPEED) getOrElse 0.0 max 0.0 min 1.0
+    hasPower = holder.getComponent(OCComponents.IS_POWERED) getOrElse false
   }
 
-  override def saveForServer(nbt: CompoundNBT): Unit = {
-    super.saveForServer(nbt)
-    nbt.putDouble(ChargeSpeedTag, chargeSpeed)
-    nbt.putBoolean(HasPowerTag, hasPower)
-    nbt.putBoolean(InvertSignalTag, invertSignal)
+  override def saveComponentsCommon(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsCommon(holder)
+    holder.setComponent(OCComponents.CHARGE_SPEED, chargeSpeed)
+    holder.setComponent(OCComponents.IS_POWERED, hasPower)
   }
 
-  override def loadForClient(nbt: CompoundNBT): Unit = {
-    super.loadForClient(nbt)
-    chargeSpeed = nbt.getDouble(ChargeSpeedTag)
-    hasPower = nbt.getBoolean(HasPowerTag)
+  override def loadComponentsForServer(holder: DataComponentHolder): Unit = {
+    super.loadComponentsForServer(holder)
+    invertSignal = holder.has(OCComponents.INVERT_SIGNAL)
   }
 
-  override def saveForClient(nbt: CompoundNBT): Unit = {
-    super.saveForClient(nbt)
-    nbt.putDouble(ChargeSpeedTag, chargeSpeed)
-    nbt.putBoolean(HasPowerTag, hasPower)
+  override def saveComponentsForServer(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsForServer(holder)
+    holder.setComponent(OCComponents.INVERT_SIGNAL, invertSignal)
   }
 
   // ----------------------------------------------------------------------- //
@@ -275,7 +261,7 @@ class Charger(pos: BlockPos, state: BlockState)
     // Only update list when we have to, keeps pointless block updates to a minimum.
 
     val newConnectors = robots ++ drones ++ chargeablePlayers
-    if (connectors.size != newConnectors.length || (connectors.nonEmpty && (connectors -- newConnectors).nonEmpty)) {
+    if (connectors.size != newConnectors.length || (connectors.nonEmpty && connectors.exists(c => !newConnectors.contains(c)))) {
       connectors.clear()
       connectors ++= newConnectors
       getLevel.updateNeighborsAt(getBlockPos, getBlockState.getBlock)

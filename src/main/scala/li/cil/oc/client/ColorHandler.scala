@@ -1,91 +1,83 @@
 package li.cil.oc.client
 
-import li.cil.oc.Constants
-import li.cil.oc.api
 import li.cil.oc.api.internal.Colored
-import li.cil.oc.common.block
-import li.cil.oc.util.Color
-import li.cil.oc.util.ItemColorizer
-import li.cil.oc.util.ItemUtils
-import net.minecraft.world.level.block.Block
-import net.minecraft.world.level.block.state.BlockState
-import net.minecraft.client.Minecraft
-import net.minecraft.client.color.block.BlockColor
-import net.minecraft.world.item.DyeColor
-import net.minecraft.world.item.Item
-import net.minecraft.world.item.ItemStack
-import net.minecraft.core.BlockPos
-import net.minecraft.world.level.{BlockAndTintGetter, BlockGetter, ItemLike}
+import li.cil.oc.common.{block, blockentity}
+import li.cil.oc.common.block.ChameliumBlock
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.common.init.{OCBlocks, OCItems}
+import li.cil.oc.util.{Color, ItemColorizer, ItemUtils}
+import net.minecraft.util.FastColor
+import net.minecraft.world.item.{DyeColor, ItemStack}
+import net.neoforged.bus.api.SubscribeEvent
+import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent
 
 object ColorHandler {
-  def init(): Unit = {
-    register((state, world, pos, tintIndex) => state.getBlock match {
-      case block: block.Cable => block.colorMultiplierOverride.getOrElse(0xFFFFFFFF)
+  @SubscribeEvent
+  def onRegisterBlocks(event: RegisterColorHandlersEvent.Block): Unit = {
+    event.register((state, world, pos, tintIndex) => if (pos == null) 0xFFFFFFFF else world.getBlockEntity(pos) match {
+      case block: blockentity.Cable => FastColor.ARGB32.opaque(block.getColor)
       case _ => 0xFFFFFFFF
-    },
-      api.Items.get(Constants.BlockName.Cable).block())
+    }, OCBlocks.Cable.get())
 
-    register((state, world, pos, tintIndex) => if (pos == null) 0xFFFFFFFF else world.getBlockEntity(pos) match {
+    event.register((state, world, pos, tintIndex) => if (pos == null) 0xFFFFFFFF else world.getBlockEntity(pos) match {
       case colored: Colored => colored.getColor
       case _ => state.getBlock match {
         case block: block.Case => Color.byTier(block.tier)
         case _ => 0xFFFFFFFF
       }
     },
-      api.Items.get(Constants.BlockName.CaseTier1).block(),
-      api.Items.get(Constants.BlockName.CaseTier2).block(),
-      api.Items.get(Constants.BlockName.CaseTier3).block(),
-      api.Items.get(Constants.BlockName.CaseTier4).block(),
-      api.Items.get(Constants.BlockName.CaseCreative).block())
+      OCBlocks.CaseTier1.get(),
+      OCBlocks.CaseTier2.get(),
+      OCBlocks.CaseTier3.get(),
+      OCBlocks.CaseCreative.get())
 
-    register((state, world, pos, tintIndex) => Color.rgbValues(state.getValue(block.ChameliumBlock.Color)),
-      api.Items.get(Constants.BlockName.ChameliumBlock).block())
+    event.register((state, world, pos, tintIndex) => Color.rgbValues(state.getValue(block.ChameliumBlock.Color)),
+      OCBlocks.ChameliumBlock.get())
 
-    register((state, world, pos, tintIndex) => tintIndex,
-      api.Items.get(Constants.BlockName.Print).block())
+    event.register((state, world, pos, tintIndex) => tintIndex,
+      OCBlocks.Print.get())
 
-    register((state, world, pos, tintIndex) => state.getBlock match {
+    event.register((state, world, pos, tintIndex) => state.getBlock match {
       case block: block.Screen => Color.byTier(block.tier)
       case _ => 0xFFFFFFFF
     },
-      api.Items.get(Constants.BlockName.ScreenTier1).block(),
-      api.Items.get(Constants.BlockName.ScreenTier2).block(),
-      api.Items.get(Constants.BlockName.ScreenTier3).block())
-
-    register((stack, tintIndex) => if (ItemColorizer.hasColor(stack)) ItemColorizer.getColor(stack) else tintIndex,
-      api.Items.get(Constants.BlockName.Cable).block())
-
-    register((stack, tintIndex) => Color.byTier(ItemUtils.caseTier(stack)),
-      api.Items.get(Constants.BlockName.CaseTier1).block(),
-      api.Items.get(Constants.BlockName.CaseTier2).block(),
-      api.Items.get(Constants.BlockName.CaseTier3).block(),
-      api.Items.get(Constants.BlockName.CaseTier4).block(),
-      api.Items.get(Constants.BlockName.CaseCreative).block())
-
-    register((stack, tintIndex) => Color.rgbValues(DyeColor.byId(stack.getDamageValue)),
-      api.Items.get(Constants.BlockName.ChameliumBlock).block())
-
-    register((stack, tintIndex) => tintIndex,
-      api.Items.get(Constants.BlockName.ScreenTier1).block(),
-      api.Items.get(Constants.BlockName.ScreenTier2).block(),
-      api.Items.get(Constants.BlockName.ScreenTier3).block(),
-      api.Items.get(Constants.BlockName.Print).block(),
-      api.Items.get(Constants.BlockName.Robot).block())
-
-    register((stack, tintIndex) =>
-      if (tintIndex == 1) {
-        if (ItemColorizer.hasColor(stack)) ItemColorizer.getColor(stack) else 0x66DD55
-      } else 0xFFFFFF,
-      api.Items.get(Constants.ItemName.HoverBoots).item())
+      OCBlocks.ScreenTier1.get(),
+      OCBlocks.ScreenTier2.get(),
+      OCBlocks.ScreenTier3.get())
   }
 
-  def register(handler: (BlockState, BlockGetter, BlockPos, Int) => Int, blocks: Block*): Unit = {
-    Minecraft.getInstance.getBlockColors.register((state: BlockState, world: BlockAndTintGetter, pos: BlockPos, tintIndex: Int) => 
-      handler(state, world, pos, tintIndex), blocks: _*)
-  }
+  @SubscribeEvent
+  def onRegisterItems(event: RegisterColorHandlersEvent.Item): Unit = {
+    event.register((stack, tintIndex) =>
+      FastColor.ARGB32.opaque(if (ItemColorizer.hasColor(stack)) ItemColorizer.getColor(stack) else Color.rgbValues(DyeColor.LIGHT_GRAY)),
+      OCBlocks.Cable.get())
 
-  def register(handler: (ItemStack, Int) => Int, items: ItemLike*): Unit = {
-    Minecraft.getInstance.getItemColors.register((stack: ItemStack, tintIndex: Int)
-    => handler(stack, tintIndex), items: _*)
+    event.register((stack, tintIndex) =>
+      FastColor.ARGB32.opaque(Color.byTier(ItemUtils.caseTier(stack))),
+      OCBlocks.CaseTier1.get(),
+      OCBlocks.CaseTier2.get(),
+      OCBlocks.CaseTier3.get(),
+      OCBlocks.CaseCreative.get())
+
+    event.register((stack, tintIndex) =>
+      FastColor.ARGB32.opaque(Color.rgbValues(stack.getOrDefault(OCComponents.CHAMELIUM_COLOR.get(), ChameliumBlock.DEFAULT_COLOR))),
+      OCBlocks.ChameliumBlock.get())
+
+    event.register((stack, tintIndex) => 0xFFFFFFFF,
+      OCBlocks.ScreenTier1.get(),
+      OCBlocks.ScreenTier2.get(),
+      OCBlocks.ScreenTier3.get(),
+      OCBlocks.Print.get(),
+      OCBlocks.Robot.get())
+
+    event.register((stack, tintIndex) => tintIndex match {
+      case 1 => FastColor.ARGB32.opaque(if (ItemColorizer.hasColor(stack)) ItemColorizer.getColor(stack) else 0x66DD55)
+      case _ => 0xFFFFFFFF
+    }, OCItems.HoverBoots.get())
+
+    event.register((stack: ItemStack, tintIndex: Int) => tintIndex match {
+      case 1 => stack.getOrDefault(OCComponents.DISK_COLOR.get(), DyeColor.GRAY).getTextureDiffuseColor
+      case _ => 0xFFFFFFFF
+    }, OCItems.Floppy.get())
   }
 }

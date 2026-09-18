@@ -2,17 +2,14 @@ package li.cil.oc.client.renderer.tileentity
 
 import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.blaze3d.vertex.VertexConsumer
-import li.cil.oc.Constants
 import li.cil.oc.Settings
-import li.cil.oc.api
-import li.cil.oc.api.detail.ItemInfo
 import li.cil.oc.client.Textures
-import li.cil.oc.client.PacketSender
 import li.cil.oc.client.renderer.RenderTypes
 import li.cil.oc.common.component.{TextBuffer => ComponentTextBuffer}
 import li.cil.oc.common.blockentity.Screen
 import li.cil.oc.integration.util.Wrench
 import li.cil.oc.util.RenderState
+import li.cil.oc.util.SableCompat
 import net.minecraft.client.Minecraft
 import net.minecraft.client.renderer.MultiBufferSource
 import net.minecraft.world.item.ItemStack
@@ -22,117 +19,13 @@ import com.mojang.math.Axis
 import com.mojang.blaze3d.vertex.PoseStack
 import net.minecraft.client.renderer.blockentity.{BlockEntityRenderer => TileEntityRenderer}
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider
-import net.minecraft.world.phys.Vec3
-import net.neoforged.neoforge.client.event.InputEvent
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent
-import net.neoforged.bus.api.SubscribeEvent
-import org.joml.{Matrix4f, Vector4f}
-import org.lwjgl.glfw.GLFW
-
-import scala.collection.mutable
+import net.minecraft.world.level.block.Block
+import net.neoforged.api.distmarker.{Dist, OnlyIn}
+import net.minecraft.world.phys.{AABB, Vec3}
 
 object ScreenRenderer extends BlockEntityRendererProvider[Screen] {
-  private[tileentity] case class HoloHit(t: Double, x: Float, y: Float)
-
-  private val queuedHoloScreens = mutable.LinkedHashMap.empty[Long, Screen]
-  private val renderedHoloScreens = mutable.LinkedHashMap.empty[Long, Screen]
-  private val lateRenderer = new ScreenRenderer()
-
   override def create(ctx: BlockEntityRendererProvider.Context): ScreenRenderer =
     new ScreenRenderer()
-
-  def queueHolo(screen: Screen): Unit =
-    queuedHoloScreens.update(screen.getBlockPos.asLong, screen)
-
-  @SubscribeEvent
-  def onRenderLevelStage(e: RenderLevelStageEvent): Unit = {
-    if (e.getStage == RenderLevelStageEvent.Stage.AFTER_ENTITIES) {
-      queuedHoloScreens.clear()
-      return
-    }
-    if (e.getStage != RenderLevelStageEvent.Stage.AFTER_PARTICLES) return
-
-    val mc = Minecraft.getInstance
-    if (mc.level == null || mc.player == null) {
-      queuedHoloScreens.clear()
-      renderedHoloScreens.clear()
-      return
-    }
-
-    val stack = e.getPoseStack
-    val camera = e.getCamera.getPosition
-    val buffer = mc.renderBuffers.bufferSource
-    val screens = queuedHoloScreens.values.filter(screen => screen.getLevel == mc.level && !screen.isRemoved).toVector
-
-    renderedHoloScreens.clear()
-    screens.foreach(screen => renderedHoloScreens.update(screen.getBlockPos.asLong, screen))
-    if (screens.isEmpty) {
-      queuedHoloScreens.clear()
-      return
-    }
-
-    stack.pushPose()
-    stack.translate(-camera.x, -camera.y, -camera.z)
-    for (screen <- screens) {
-      val pos = screen.getBlockPos
-      stack.pushPose()
-      stack.translate(pos.getX.toFloat, pos.getY.toFloat, pos.getZ.toFloat)
-      lateRenderer.renderLateHolo(screen, stack, buffer)
-      stack.popPose()
-    }
-    buffer.endBatch()
-    stack.popPose()
-
-    queuedHoloScreens.clear()
-  }
-
-  @SubscribeEvent
-  def onInteractionKeyMapping(e: InputEvent.InteractionKeyMappingTriggered): Unit = {
-    if (!e.isUseItem || e.getHand != InteractionHand.MAIN_HAND || renderedHoloScreens.isEmpty) return
-
-    val mc = Minecraft.getInstance
-    val player = mc.player
-    if (mc.level == null || player == null || mc.screen != null || mc.gameMode == null) return
-
-    // 1.21.1: Minecraft.getFrameTime 已移除。这里需要的是帧间插值用的 partialTick（0..1），
-    // 而不是 getFrameTimeNs（纳秒，单位完全不同，直接用会让眼睛位置插值彻底错掉）。
-    val partialTicks = mc.getTimer.getGameTimeDeltaPartialTick(false)
-    val start = player.getEyePosition(partialTicks)
-    // 1.21.1: gameMode.getPickRange 已移除，方块交互距离改由玩家属性提供。
-    val reach = player.blockInteractionRange()
-    val end = start.add(player.getViewVector(partialTicks).scale(reach))
-
-    val hit = renderedHoloScreens.values.
-      filter(screen => screen.getLevel == mc.level && !screen.isRemoved && screen.isInstanceOf[li.cil.oc.common.blockentity.HoloScreen]).
-      flatMap(screen => lateRenderer.projectedHoloHit(screen, start, end).map(hit => (hit, screen))).
-      toVector.
-      sortBy(_._1.t).
-      headOption
-
-    hit.foreach {
-      case (holoHit, screen: li.cil.oc.common.blockentity.HoloScreen) if isShiftHeld(mc) =>
-        PacketSender.sendHoloScreenResize(screen, lateRenderer.resizeSideForHit(screen, holoHit.x, holoHit.y))
-        e.setSwingHand(false)
-        e.setCanceled(true)
-      case (_, screen) if screen.hasKeyboard =>
-          screen.getBlockState.getBlock match {
-            case block: li.cil.oc.common.block.Screen =>
-              val heldItem = player.getItemInHand(InteractionHand.MAIN_HAND)
-              if (block.rightClick(mc.level, screen.getBlockPos, player, InteractionHand.MAIN_HAND, heldItem, screen.facing, 0.5f, 0.5f, 0.5f, force = true)) {
-                e.setSwingHand(false)
-                e.setCanceled(true)
-              }
-            case _ =>
-          }
-      case _ =>
-    }
-  }
-
-  private def isShiftHeld(mc: Minecraft): Boolean = {
-    val window = mc.getWindow.getWindow
-    GLFW.glfwGetKey(window, GLFW.GLFW_KEY_LEFT_SHIFT) == GLFW.GLFW_PRESS ||
-      GLFW.glfwGetKey(window, GLFW.GLFW_KEY_RIGHT_SHIFT) == GLFW.GLFW_PRESS
-  }
 }
 
 class ScreenRenderer extends TileEntityRenderer[Screen] {
@@ -142,15 +35,7 @@ class ScreenRenderer extends TileEntityRenderer[Screen] {
 
   private var screen: Screen = null
 
-  private case class HologramColor(red: Int, green: Int, blue: Int)
-
-  private case class HologramSurfaceLayout(left: Float, top: Float, depth: Float, width: Int, height: Int)
-
-  private case class ProjectionBeamLayout(anchor: Float, depth: Float, projectorEdgeOffset: Float, width: Int)
-
-  private case class MonitorContentLayout(border: Float, liftFromSurface: Float)
-
-  private case class HologramLayout(surface: HologramSurfaceLayout, beam: Option[ProjectionBeamLayout], content: MonitorContentLayout)
+  override def getRenderBoundingBox(screen: Screen): AABB = screen.getRenderBoundingBox
 
   override def render(
                        screen: Screen,
@@ -160,7 +45,7 @@ class ScreenRenderer extends TileEntityRenderer[Screen] {
                        light: Int,
                        overlay: Int
                      ): Unit = {
-    RenderState.checkError(getClass.getName + ".render: entering (aka: wasntme)")
+    RenderState.checkError(getClass.getName + ".render: entering (aka: wasn'tme)")
 
     this.screen = screen
     if (!screen.isOrigin) return
@@ -168,21 +53,13 @@ class ScreenRenderer extends TileEntityRenderer[Screen] {
     val distance = playerDistanceSq() / math.min(screen.width, screen.height)
     if (distance > maxRenderDistanceSq) return
 
-    if (screen.isInstanceOf[li.cil.oc.common.blockentity.HoloScreen]) {
-      ScreenRenderer.queueHolo(screen)
-      RenderState.checkError(getClass.getName + ".render: leaving")
-      return
-    }
-
-    if (!isFlatScreen) {
-      val eye_pos   = Minecraft.getInstance.player.getEyePosition(dt)
-      val eye_delta = screen.getBlockPos.getY - eye_pos.y
-
-      val screenFacing = screen.facing.getOpposite
-      val x            = screen.getBlockPos.getX - eye_pos.x
-      val z            = screen.getBlockPos.getZ - eye_pos.z
-      if (screenFacing.getStepX * (x + 0.5) + screenFacing.getStepY * (eye_delta + 0.5) + screenFacing.getStepZ * (z + 0.5) < 0) return
-    }
+    val eye_pos   = Minecraft.getInstance.player.getEyePosition(dt)
+    val screenPosition = SableCompat.physicalPosition(screen.getLevel, screen.getBlockPos)
+    val screenFacing = SableCompat.physicalFacing(screen.getLevel, Vec3.atCenterOf(screen.getBlockPos), screen.facing).getOpposite
+    val x = screenPosition.x - eye_pos.x
+    val y = screenPosition.y - eye_pos.y
+    val z = screenPosition.z - eye_pos.z
+    if (screenFacing.getStepX * x + screenFacing.getStepY * y + screenFacing.getStepZ * z < 0) return
 
     RenderSystem.setShaderColor(1, 1, 1, 1)
 
@@ -203,7 +80,7 @@ class ScreenRenderer extends TileEntityRenderer[Screen] {
 
     if (screen.buffer.isRenderingEnabled) {
       val profiler = Minecraft.getInstance.getProfiler
-      profiler.push("opencomputers:screen_text")
+      profiler.push("opencomputers_neo:screen_text")
       draw(stack, alpha, buffer)
       profiler.pop()
     }
@@ -231,84 +108,10 @@ class ScreenRenderer extends TileEntityRenderer[Screen] {
     RenderState.mirrorScale(stack, 1, -1, 1)
   }
 
-  private def transformHolo(stack: PoseStack): Unit = {
-    screen.yaw match {
-      case Direction.WEST  => stack.mulPose(Axis.YP.rotationDegrees(-90))
-      case Direction.NORTH => stack.mulPose(Axis.YP.rotationDegrees(180))
-      case Direction.EAST  => stack.mulPose(Axis.YP.rotationDegrees(90))
-      case _               => // No yaw.
-    }
-
-    stack.translate(-0.5f, -0.5f, 0.5f)
-    stack.translate(0, screen.height.toFloat, 0)
-    RenderState.mirrorScale(stack, 1, -1, 1)
+  private def isScreen(stack: ItemStack): Boolean = Block.byItem(stack.getItem) match {
+    case _: li.cil.oc.common.block.Screen => true
+    case _                                => false
   }
-
-  private[tileentity] def renderLateHolo(screen: Screen, stack: PoseStack, buffer: MultiBufferSource): Unit = {
-    this.screen = screen
-    renderHolo(stack, buffer)
-  }
-
-  private[tileentity] def projectedHoloHit(screen: Screen, start: Vec3, end: Vec3): Option[ScreenRenderer.HoloHit] = {
-    this.screen = screen
-
-    val sx = screen.width
-    val sy = screen.height
-    val pos = screen.getBlockPos
-    val stack = new PoseStack()
-    stack.translate(pos.getX.toFloat, pos.getY.toFloat, pos.getZ.toFloat)
-    stack.translate(0.5, 0.5, 0.5)
-    transformHolo(stack)
-    val layout = createHologramLayout(sx, sy)
-    stack.translate(layout.surface.left, layout.surface.top, layout.surface.depth)
-
-    val inverse = new Matrix4f(stack.last.pose)
-    inverse.invert()
-
-    def transform(v: Vec3) = {
-      val local = new Vector4f(v.x.toFloat, v.y.toFloat, v.z.toFloat, 1f)
-      inverse.transform(local)
-      local
-    }
-
-    val a = transform(start)
-    val b = transform(end)
-    val dz = b.z - a.z
-    if (math.abs(dz) < 1.0e-5f) return None
-
-    val t = -a.z / dz
-    if (t < 0 || t > 1) return None
-
-    val x = a.x + (b.x - a.x) * t
-    val y = a.y + (b.y - a.y) * t
-    if (x >= 0 && x <= sx && y >= 0 && y <= sy) Some(ScreenRenderer.HoloHit(t.toDouble, x, y)) else None
-  }
-
-  private[tileentity] def resizeSideForHit(screen: Screen, x: Float, y: Float): Direction = {
-    val edge = 0.35f
-    if (y >= screen.height - edge) Direction.UP
-    else if (y <= edge) Direction.DOWN
-    else if (x >= screen.width - edge) Direction.EAST
-    else if (x <= edge) Direction.WEST
-    else Direction.UP
-  }
-
-  private def isScreen(stack: ItemStack): Boolean = api.Items.get(stack) match {
-    case i: ItemInfo => i.block() match {
-      case _: li.cil.oc.common.block.Screen => true
-      case _                                => false
-    }
-    case _ => false
-  }
-
-  private def isFlatScreen: Boolean =
-    screen.getBlockState.getBlock.isInstanceOf[li.cil.oc.common.block.FlatScreen]
-
-  private def isBackFlatScreen: Boolean =
-    screen.getBlockState.getBlock match {
-      case flatScreen: li.cil.oc.common.block.FlatScreen => flatScreen.isBack
-      case _ => false
-    }
 
   // 1.18.2: IVertexBuilder → VertexConsumer
   private def drawOverlay(matrix: PoseStack, r: VertexConsumer): Unit =
@@ -319,7 +122,7 @@ class ScreenRenderer extends TileEntityRenderer[Screen] {
         if (Wrench.holdsApplicableWrench(Minecraft.getInstance.player, screen.getBlockPos) || isScreen(stack)) {
           matrix.pushPose()
           transform(matrix)
-          matrix.translate(screen.width / 2f - 0.5f, screen.height / 2f - 0.5f, if (isBackFlatScreen) -0.935f else 0.05f)
+          matrix.translate(screen.width / 2f - 0.5f, screen.height / 2f - 0.5f, 0.05f)
 
           val icon = Textures.getSprite(Textures.Block.ScreenUpIndicator)
           r.addVertex(matrix.last.pose, 0, 1, 0).setUv(icon.getU0, icon.getV1)
@@ -342,7 +145,7 @@ class ScreenRenderer extends TileEntityRenderer[Screen] {
 
     transform(stack)
 
-    val border = if (isFlatScreen) 0.5f else 2.25f
+    val border = 2.25f
     stack.translate(sx * border / tw, sy * border / th, 0)
 
     val isx = sx - (border / 8)
@@ -365,7 +168,7 @@ class ScreenRenderer extends TileEntityRenderer[Screen] {
       stack.scale(scaleX, scaleY, 1)
     }
 
-    stack.translate(0, 0, (if (isBackFlatScreen) -0.94f else 0) + 0.01f)
+    stack.translate(0, 0, 0.01f)
 
     RenderState.checkError(getClass.getName + ".draw: setup")
 
@@ -377,159 +180,36 @@ class ScreenRenderer extends TileEntityRenderer[Screen] {
     RenderState.checkError(getClass.getName + ".draw: text")
   }
 
-  private def renderHolo(stack: PoseStack, buffer: MultiBufferSource): Unit = {
-    RenderSystem.setShaderColor(1, 1, 1, 1)
-
-    stack.pushPose()
-    stack.translate(0.5, 0.5, 0.5)
-    transformHolo(stack)
-
-    val layout = createHologramLayout(screen.width, screen.height)
-    val color = hologramColor
-    val occluder = buffer.getBuffer(RenderTypes.HOLOGRAM_OCCLUDER)
-    renderHologramOccluder(stack, occluder, color, layout)
-
-    val quad = buffer.getBuffer(RenderTypes.HOLOGRAM_WORLD)
-    renderProjectionBeam(stack, quad, color, layout.beam)
-    renderHologramSurface(stack, quad, color, layout.surface, layout.content, buffer)
-
-    stack.popPose()
-  }
-
-  private def createHologramLayout(width: Int, height: Int): HologramLayout = {
-    val holo = holoScreen
-    val surface = HologramSurfaceLayout(
-      left = holo.projectionPlaneLeft(width),
-      top = holo.projectionPlaneTop(height),
-      depth = holo.projectionDepth,
-      width = width,
-      height = height
-    )
-    val beam =
-      if (width > 1) {
-        Some(ProjectionBeamLayout(
-          anchor = holo.projectionBeamAnchor(height),
-          depth = holo.projectionDepth,
-          projectorEdgeOffset = holo.projectionBeamProjectorEdgeOffset,
-          width = width
-        ))
-      }
-      else None
-    HologramLayout(surface, beam, MonitorContentLayout(border = 0.5f, liftFromSurface = 0.01f))
-  }
-
-  private def hologramColor: HologramColor = {
-    val color = screen.getColor match {
-      case 11250603 | 4473924 => 0
-      case value => value
-    }
-    HologramColor((color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF)
-  }
-
-  private def renderProjectionBeam(stack: PoseStack, quad: VertexConsumer, color: HologramColor, beam: Option[ProjectionBeamLayout]): Unit =
-    beam.foreach { layout =>
-      stack.pushPose()
-      stack.translate(0, layout.anchor, layout.depth)
-      drawProjectionQuad(stack, quad, color, alpha = 64, layout)
-      stack.popPose()
-    }
-
-  private def renderHologramOccluder(stack: PoseStack, quad: VertexConsumer, color: HologramColor, layout: HologramLayout): Unit = {
-    layout.beam.foreach { beam =>
-      stack.pushPose()
-      stack.translate(0, beam.anchor, beam.depth)
-      drawProjectionQuad(stack, quad, color, alpha = 255, beam)
-      stack.popPose()
-    }
-
-    val surface = layout.surface
-    stack.pushPose()
-    stack.translate(surface.left, surface.top, surface.depth)
-    drawColoredQuad(stack, quad, color, 255, 0, 0, surface.width.toFloat, surface.height.toFloat)
-    stack.popPose()
-  }
-
-  private def renderHologramSurface(stack: PoseStack, quad: VertexConsumer, color: HologramColor, surface: HologramSurfaceLayout, content: MonitorContentLayout, buffer: MultiBufferSource): Unit = {
-    stack.pushPose()
-    stack.translate(surface.left, surface.top, surface.depth)
-    drawColoredQuad(stack, quad, color, 128, 0, 0, surface.width.toFloat, surface.height.toFloat)
-
-    stack.translate(0, 0, 0.001f)
-    drawColoredQuad(stack, quad, color, 192, 0, 0, 0.01f, surface.height.toFloat)
-    drawColoredQuad(stack, quad, color, 192, surface.width - 0.01f, 0, surface.width.toFloat, surface.height.toFloat)
-    drawColoredQuad(stack, quad, color, 192, 0, 0, surface.width.toFloat, 0.01f)
-    if (surface.width == 1) {
-      drawColoredQuad(stack, quad, color, 192, 0, surface.height - 0.01f, surface.width.toFloat, surface.height.toFloat)
-    }
-
-    renderMonitorContent(stack, buffer, surface, content)
-    stack.popPose()
-  }
-
-  private def renderMonitorContent(stack: PoseStack, buffer: MultiBufferSource, surface: HologramSurfaceLayout, content: MonitorContentLayout): Unit = {
-    if (screen.buffer.isRenderingEnabled) {
-      val border = content.border
-      val tw = surface.width * 16f
-      val th = surface.height * 16f
-
-      stack.translate(surface.width * border / tw, surface.height * border / th, content.liftFromSurface)
-
-      val isx = surface.width - (border / 8)
-      val isy = surface.height - (border / 8)
-
-      val sizeX = screen.buffer.renderWidth
-      val sizeY = screen.buffer.renderHeight
-      val scaleX = isx / sizeX
-      val scaleY = isy / sizeY
-      if (scaleX > scaleY) {
-        stack.translate(sizeX * 0.5f * (scaleX - scaleY), 0, 0)
-        stack.scale(scaleY, scaleY, 1)
-      } else {
-        stack.translate(0, sizeY * 0.5f * (scaleY - scaleX), 0)
-        stack.scale(scaleX, scaleX, 1)
-      }
-
-      screen.buffer match {
-        case textBuffer: ComponentTextBuffer => textBuffer.renderText(stack, buffer)
-        case _ => screen.buffer.renderText(stack)
-      }
-    }
-  }
-
-  private def holoScreen: li.cil.oc.common.blockentity.HoloScreen =
-    screen.asInstanceOf[li.cil.oc.common.blockentity.HoloScreen]
-
-  private def drawProjectionQuad(stack: PoseStack, r: VertexConsumer, color: HologramColor, alpha: Int, layout: ProjectionBeamLayout): Unit = {
-    r.addVertex(stack.last.pose, 0, layout.projectorEdgeOffset, 0).setColor(color.red, color.green, color.blue, alpha)
-    r.addVertex(stack.last.pose, 1, layout.projectorEdgeOffset, 0).setColor(color.red, color.green, color.blue, alpha)
-    r.addVertex(stack.last.pose, (layout.width + 1) / 2f, 0, 0).setColor(color.red, color.green, color.blue, alpha)
-    r.addVertex(stack.last.pose, -((layout.width - 1) / 2f), 0, 0).setColor(color.red, color.green, color.blue, alpha)
-  }
-
-  private def drawColoredQuad(stack: PoseStack, r: VertexConsumer, color: HologramColor, alpha: Int, x1: Float, y1: Float, x2: Float, y2: Float): Unit =
-    drawColoredQuad(stack, r, color.red, color.green, color.blue, alpha, x1, y1, x2, y2)
-
-  private def drawColoredQuad(stack: PoseStack, r: VertexConsumer, red: Int, green: Int, blue: Int, alpha: Int, x1: Float, y1: Float, x2: Float, y2: Float): Unit = {
-    r.addVertex(stack.last.pose, x1, y2, 0).setColor(red, green, blue, alpha)
-    r.addVertex(stack.last.pose, x2, y2, 0).setColor(red, green, blue, alpha)
-    r.addVertex(stack.last.pose, x2, y1, 0).setColor(red, green, blue, alpha)
-    r.addVertex(stack.last.pose, x1, y1, 0).setColor(red, green, blue, alpha)
-  }
+  @OnlyIn(Dist.CLIENT)
+  override def shouldRenderOffScreen(screen: Screen): Boolean = screen.isOrigin && (screen.width > 1 || screen.height > 1)
 
   private def playerDistanceSq(): Double = {
     val player = Minecraft.getInstance.player
-    val bounds = screen.getRenderBoundingBox
+    val bounds = getRenderBoundingBox(screen)
 
-    val px = player.getX
-    val py = player.getY
-    val pz = player.getZ
+    // Block entities inside a Sable sub-level retain their plot coordinates,
+    // while the player is rendered in physical world space. Project the
+    // screen bounds before applying OC's own text-distance culling.
+    val corners = for {
+      x <- Array(bounds.minX, bounds.maxX)
+      y <- Array(bounds.minY, bounds.maxY)
+      z <- Array(bounds.minZ, bounds.maxZ)
+    } yield SableCompat.physicalPosition(screen.getLevel, new Vec3(x, y, z))
+    val physicalBounds = (
+      corners.map(_.x).min, corners.map(_.y).min, corners.map(_.z).min,
+      corners.map(_.x).max, corners.map(_.y).max, corners.map(_.z).max)
 
-    val ex = bounds.maxX - bounds.minX
-    val ey = bounds.maxY - bounds.minY
-    val ez = bounds.maxZ - bounds.minZ
-    val cx = bounds.minX + ex * 0.5
-    val cy = bounds.minY + ey * 0.5
-    val cz = bounds.minZ + ez * 0.5
+    val playerPosition = SableCompat.physicalPosition(screen.getLevel, new Vec3(player.getX, player.getY, player.getZ))
+    val px = playerPosition.x
+    val py = playerPosition.y
+    val pz = playerPosition.z
+
+    val ex = physicalBounds._4 - physicalBounds._1
+    val ey = physicalBounds._5 - physicalBounds._2
+    val ez = physicalBounds._6 - physicalBounds._3
+    val cx = physicalBounds._1 + ex * 0.5
+    val cy = physicalBounds._2 + ey * 0.5
+    val cz = physicalBounds._3 + ez * 0.5
     val dx = px - cx
     val dy = py - cy
     val dz = pz - cz

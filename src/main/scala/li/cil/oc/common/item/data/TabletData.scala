@@ -1,12 +1,13 @@
 package li.cil.oc.common.item.data
 
 import li.cil.oc.Constants
-import li.cil.oc.Settings
+import li.cil.oc.api.ImmutableItemStack
 import li.cil.oc.common.Tier
-import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.nbt.Tag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 class TabletData extends ItemData(Constants.ItemName.Tablet) {
   def this(stack: ItemStack) = {
@@ -21,49 +22,25 @@ class TabletData extends ItemData(Constants.ItemName.Tablet) {
   var tier = Tier.One
   var container = ItemStack.EMPTY
 
-  private final val ItemsTag = Settings.namespace + "items"
-  private final val SlotTag = "slot"
-  private final val ItemTag = "item"
-  private final val IsRunningTag = Settings.namespace + "isRunning"
-  private final val EnergyTag = Settings.namespace + "energy"
-  private final val MaxEnergyTag = Settings.namespace + "maxEnergy"
-  private final val TierTag = Settings.namespace + "tier"
-  private final val ContainerTag = Settings.namespace + "container"
-
-  override def loadData(nbt: CompoundTag): Unit = {
-    nbt.getList(ItemsTag, Tag.TAG_COMPOUND).foreach((slotNbt: CompoundTag) => {
-      val slot = slotNbt.getByte(SlotTag)
-      if (slot >= 0 && slot < items.length) {
-        items(slot) = ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), slotNbt.getCompound(ItemTag))
+  override def loadData(holder: DataComponentHolder): Unit = {
+    for(contents <- holder.getComponent(OCComponents.CONTENTS)) {
+      for(itemStack -> i <- contents.take(items.length).zipWithIndex) {
+        items(i) = itemStack.mutableCopy()
       }
-    })
-    isRunning = nbt.getBoolean(IsRunningTag)
-    energy = nbt.getDouble(EnergyTag)
-    maxEnergy = nbt.getDouble(MaxEnergyTag)
-    tier = nbt.getInt(TierTag)
-    if (nbt.contains(ContainerTag)) {
-      container = ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), nbt.getCompound(ContainerTag))
     }
+    isRunning = holder.getComponent(OCComponents.IS_RUNNING) getOrElse false
+    energy = holder.getComponent(OCComponents.CHARGE) getOrElse 0
+    maxEnergy = holder.getComponent(OCComponents.MAX_CHARGE) getOrElse 0
+    tier = holder.getComponent(OCComponents.TIER).map(_.toInt) getOrElse 0
+    container = (holder.getComponent(OCComponents.ATTACHMENT) getOrElse ImmutableItemStack.EMPTY).mutableCopy()
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    nbt.setNewTagList(ItemsTag,
-      items.zipWithIndex collect {
-        case (stack, slot) if !stack.isEmpty => (stack, slot)
-      } map {
-        case (stack, slot) =>
-          val slotNbt = new CompoundTag()
-          slotNbt.putByte(SlotTag, slot.toByte)
-          slotNbt.setNewItemStackTag(ItemTag, stack)
-      })
-    nbt.putBoolean(IsRunningTag, isRunning)
-    nbt.putDouble(EnergyTag, energy)
-    nbt.putDouble(MaxEnergyTag, maxEnergy)
-    nbt.putInt(TierTag, tier)
-    if (!container.isEmpty) nbt.setNewItemStackTag(ContainerTag, container)
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    holder.setComponent(OCComponents.CONTENTS, items.map(ImmutableItemStack.copyOf).toList)
+    holder.setComponent(OCComponents.IS_RUNNING, isRunning)
+    holder.setComponent(OCComponents.CHARGE, energy)
+    holder.setComponent(OCComponents.MAX_CHARGE, maxEnergy)
+    holder.setComponent(OCComponents.TIER, tier.toByte)
+    holder.setComponent(OCComponents.ATTACHMENT, Option.when(!container.isEmpty) { ImmutableItemStack.copyOf(container) })
   }
-
-  // 1.21.1：`Item#getRarity(ItemStack)` 已移除，品质改为写进 `RARITY` 数据组件；
-  // 本物品的品质随堆叠里的 tier 变化，因此每次写数据时一并刷新组件（见 `ItemData.applyRarityComponent`）。
-  override protected def applyRarityComponent(stack: ItemStack): Unit = setRarityFromTier(stack, tier)
 }

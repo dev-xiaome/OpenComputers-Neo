@@ -14,11 +14,12 @@ import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.world.level.block.state.BlockState
 import net.neoforged.api.distmarker.Dist
 import net.neoforged.api.distmarker.OnlyIn
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
 import scala.collection.convert.ImplicitConversionsToJava._
 
 class PowerConverter(pos: BlockPos, state: BlockState)
-  extends TileEntity(BlockEntityTypes.POWER_CONVERTER.get(), pos, state) with traits.PowerAcceptor with traits.Environment with traits.NotAnalyzable with DeviceInfo {
+  extends TileEntity(BlockEntityTypes.POWER_CONVERTER.get(), pos, state) with traits.PowerAcceptor with traits.Environment with traits.NotAnalyzable with DeviceInfo with IBlockEntityExtension {
   val node = api.Network.newNode(this, Visibility.None).
     withConnector(Settings.get.bufferConverter).
     create()

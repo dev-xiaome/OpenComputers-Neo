@@ -2,13 +2,17 @@ package li.cil.oc.server.fs
 
 import java.io
 import java.io.FileNotFoundException
-
 import li.cil.oc.api.fs.Mode
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 
 import scala.collection.mutable
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.ListTag
 import net.minecraft.nbt.Tag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 trait VirtualFileSystem extends OutputStreamFileSystem {
   protected val root = new VirtualDirectory
@@ -127,22 +131,21 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
   // ----------------------------------------------------------------------- //
 
   override def loadData(nbt: CompoundTag): Unit = {
-    //println(s"Loading file data, NBT contains root: ${nbt.contains("root")}")
-    if (nbt.contains("root", 10)) {
+    if(nbt.contains("root", Tag.TAG_COMPOUND)) {
       root.loadData(nbt.getCompound("root"))
     }
-    if (!this.isInstanceOf[Buffered]) root.loadData(nbt)
+
+    if(!this.isInstanceOf[Buffered]) root.loadData(nbt)
     super.loadData(nbt) // Last to ensure streams can be re-opened.
   }
 
   override def saveData(nbt: CompoundTag): Unit = {
     super.saveData(nbt) // First to allow flushing.
-    if (!this.isInstanceOf[Buffered]) {
+    if(!this.isInstanceOf[Buffered]) {
       val fsNbt = new CompoundTag()
       root.saveData(fsNbt)
       nbt.put("root", fsNbt)
     }
-    if (!this.isInstanceOf[Buffered]) root.saveData(nbt)
   }
 
   // ----------------------------------------------------------------------- //
@@ -189,11 +192,11 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
     def openOutputHandle(owner: OutputStreamFileSystem, id: Int, path: String, mode: Mode) =
       if (handle.isDefined) None
       else {
-        if (mode == Mode.Write) {
+        if (mode.isTruncate) {
           data.clear()
           this.lastModified = System.currentTimeMillis()
         }
-        handle = Some(new VirtualOutputHandle(this, owner, id, path))
+        handle = Some(new VirtualOutputHandle(this, owner, id, path, mode))
         handle
       }
 
@@ -345,10 +348,10 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
 
   // ----------------------------------------------------------------------- //
 
-  protected class VirtualOutputHandle(val file: VirtualFile, owner: OutputStreamFileSystem, handle: Int, path: String) extends OutputHandle(owner, handle, path) {
+  protected class VirtualOutputHandle(val file: VirtualFile, owner: OutputStreamFileSystem, handle: Int, path: String, initialMode: Mode) extends OutputHandle(owner, handle, path, initialMode) {
     override def length = file.size
 
-    var position: Long = file.data.length
+    var position: Long = if (initialMode.isAppend && !initialMode.isReadable) file.data.length else 0
 
     override def close() = if (!isClosed) {
       super.close()
@@ -362,8 +365,23 @@ trait VirtualFileSystem extends OutputStreamFileSystem {
       position
     }
 
+    override def read(b: Array[Byte]) =
+      if (isClosed) throw new io.IOException("file is closed")
+      else if (!mode.isReadable) throw new io.IOException("bad file descriptor")
+      else {
+        val available = math.max(file.data.length - position.toInt, 0)
+        if (available == 0) -1
+        else {
+          val count = math.min(b.length, available)
+          file.data.view(position.toInt, position.toInt + count).copyToArray(b)
+          position += count
+          count
+        }
+      }
+
     override def write(b: Array[Byte]) =
       if (!isClosed) {
+        if (mode.isAppend) position = file.data.length
         val pos = position.toInt
         file.data.insertAll(file.data.length, Seq.fill[Byte]((pos + b.length) - file.data.length)(0))
         for (i <- b.indices) {

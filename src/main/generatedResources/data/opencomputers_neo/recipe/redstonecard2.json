@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers_neo:card"
+    },
+    "C": {
+      "item": "opencomputers_neo:chip2"
+    },
+    "e": {
+      "tag": "c:ender_pearls"
+    },
+    "r": {
+      "tag": "c:storage_blocks/redstone"
+    }
+  },
+  "pattern": [
+    "rCe",
+    " B "
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:redstonecard2"
+  }
+}

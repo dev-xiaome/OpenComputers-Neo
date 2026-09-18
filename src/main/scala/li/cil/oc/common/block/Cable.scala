@@ -1,43 +1,40 @@
 package li.cil.oc.common.block
 
+import com.mojang.serialization.MapCodec
+import li.cil.oc.common.block.Cable.CODEC
 import li.cil.oc.common.block.property.PropertyCableConnection
 import li.cil.oc.common.blockentity
-import li.cil.oc.common.capabilities.{CapabilityColored, CapabilityEnvironment, CapabilitySidedEnvironment}
+import li.cil.oc.common.capabilities.Capabilities
 import li.cil.oc.util.{Color, ItemColorizer}
 import net.minecraft.core.{BlockPos, Direction}
 import net.minecraft.world.entity.LivingEntity
-import net.minecraft.world.entity.player.{Player => PlayerEntity}
 import net.minecraft.world.item.context.{BlockPlaceContext => BlockItemUseContext}
 import net.minecraft.world.item.{DyeColor, ItemStack}
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.entity.{BlockEntity => TileEntity}
-import net.minecraft.world.level.block.state.BlockBehaviour.Properties
+import net.minecraft.world.level.block.state.BlockBehaviour.{Properties, simpleCodec}
 import net.minecraft.world.level.block.state.{BlockState, StateDefinition => StateContainer}
-import net.minecraft.world.level.{BlockGetter => IBlockReader, Level => World, LevelAccessor => IWorld}
-import net.minecraft.world.level.LevelReader
-import net.minecraft.world.phys.shapes.{CollisionContext => ISelectionContext, Shapes => VoxelShapes, VoxelShape}
-import net.minecraft.world.phys.{HitResult => RayTraceResult}
-
+import net.minecraft.world.level.{LevelReader, BlockGetter => IBlockReader, Level => World, LevelAccessor => IWorld}
+import net.minecraft.world.phys.shapes.{VoxelShape, CollisionContext => ISelectionContext, Shapes => VoxelShapes}
 
 class Cable(props: Properties) extends SimpleBlock(props) {
+  override def codec(): MapCodec[Cable] = CODEC
+
   // For FMP part coloring.
   var colorMultiplierOverride: Option[Int] = None
 
   // ----------------------------------------------------------------------- //
-
+  
   registerDefaultState(CableHelper.helperRegisterDefaultState(this.stateDefinition))
 
   override def getStateForPlacement(ctx: BlockItemUseContext): BlockState = {
     val color = Cable.getConnectionColor(ctx.getItemInHand)
     val fromPos = new BlockPos.MutableBlockPos()
-
-    Direction.values.foldLeft(defaultBlockState) { (state, fromSide) =>
+    Direction.values.foldLeft(defaultBlockState)((state, fromSide) => {
       fromPos.setWithOffset(ctx.getClickedPos, fromSide)
-
       val fromState = ctx.getLevel.getBlockState(fromPos)
-
       Cable.updateState(state, null, color, fromSide, fromState, ctx.getLevel, fromPos)
-    }
+    })
   }
 
   override def createBlockStateDefinition(builder: StateContainer.Builder[Block, BlockState]): Unit = {
@@ -51,207 +48,149 @@ class Cable(props: Properties) extends SimpleBlock(props) {
     )
   }
 
-  // 1.21.1：`Block#getCloneItemStack` 只剩 3 个参数 `(LevelReader, BlockPos, BlockState)`，
-  // 玩家与命中结果已从签名里移除；这里本来也只用到世界和坐标。
-  override def getCloneItemStack(world: LevelReader, pos: BlockPos, state: BlockState): ItemStack = {
+  override def getCloneItemStack(world: LevelReader, pos: BlockPos, state: BlockState) =
     world.getBlockEntity(pos) match {
-      case cable: blockentity.Cable => cable.createItemStack()
+      case t: blockentity.Cable => t.createItemStack()
       case _ => createItemStack()
     }
-  }
 
-  override def getShape(state: BlockState, world: IBlockReader, pos: BlockPos, ctx: ISelectionContext): VoxelShape = {
-    Cable.shape(state)
-  }
+  override def getShape(state: BlockState, world: IBlockReader, pos: BlockPos, ctx: ISelectionContext): VoxelShape = Cable.shape(state)
 
   override def neighborChanged(state: BlockState, world: World, pos: BlockPos, other: Block, otherPos: BlockPos, moved: Boolean): Unit = {
     if (world.isClientSide) return
-
     val newState = world.getBlockEntity(pos) match {
-        case cable: blockentity.Cable =>
-          val fromPos = new BlockPos.MutableBlockPos()
-          Direction.values.foldLeft(state) { (currentState, fromSide) => 
-            fromPos.setWithOffset(pos, fromSide)
-
-            val fromState = world.getBlockState(fromPos)
-
-            Cable.updateState(currentState, cable, -1, fromSide, fromState, world, fromPos)
-          }
-        case _ => state
+      case t: blockentity.Cable => {
+        val fromPos = new BlockPos.MutableBlockPos()
+        Direction.values.foldLeft(state)((state, fromSide) => {
+          fromPos.setWithOffset(pos, fromSide)
+          val fromState = world.getBlockState(fromPos)
+          Cable.updateState(state, t, -1, fromSide, fromState, world, fromPos)
+        })
       }
-
-    if (newState != state) {
-      world.setBlock(pos, newState, 0x13)
+      case _ => state
     }
+    if (newState != state) world.setBlock(pos, newState, 0x13)
   }
 
-  override def updateShape(state: BlockState, fromSide: Direction, fromState: BlockState, world: IWorld, pos: BlockPos, fromPos: BlockPos): BlockState = {
+  override def updateShape(state: BlockState, fromSide: Direction, fromState: BlockState, world: IWorld, pos: BlockPos, fromPos: BlockPos): BlockState =
     Cable.updateState(state, world.getBlockEntity(pos), -1, fromSide, fromState, world, fromPos)
-  }
 
   // ----------------------------------------------------------------------- //
 
-  override def newBlockEntity(pos: BlockPos, state: BlockState): blockentity.Cable = {
-    new blockentity.Cable(pos, state)
-  }
+  override def newBlockEntity(pos: BlockPos, state: BlockState) = new blockentity.Cable(pos, state)
 
   // ----------------------------------------------------------------------- //
 
   override def setPlacedBy(world: World, pos: BlockPos, state: BlockState, placer: LivingEntity, stack: ItemStack): Unit = {
     super.setPlacedBy(world, pos, state, placer, stack)
-
     world.getBlockEntity(pos) match {
-      case cable: blockentity.Cable =>
-        cable.fromItemStack(stack)
-
-        val currentState = world.getBlockState(pos)
-        val fromPos = new BlockPos.MutableBlockPos()
-
-        val correctedState = Direction.values.foldLeft(currentState) { (result, fromSide) =>
-         fromPos.setWithOffset(pos, fromSide)
-
-         Cable.updateState(result, cable, -1, fromSide, world.getBlockState(fromPos), world, fromPos)
-        }
-        
-        if (correctedState != currentState) {
-          world.setBlock(pos, correctedState, 0x13)
-        }
-        
-        correctedState.updateNeighbourShapes(world, pos, 2)
-        world.updateNeighborsAt(pos, correctedState.getBlock)
-        
+      case tileEntity: blockentity.Cable => {
+        tileEntity.fromItemStack(stack)
+        state.updateNeighbourShapes(world, pos, 2)
+      }
       case _ =>
     }
   }
 }
 
 object Cable {
+  final val CODEC = simpleCodec(new Cable(_))
+
   final val MIN = 0.375
   final val MAX = 1 - MIN
-
-  private final val DefaultConnectionColor = Color.rgbValues(DyeColor.LIGHT_GRAY)
 
   final val DefaultShape: VoxelShape = VoxelShapes.box(MIN, MIN, MIN, MAX, MAX, MAX)
 
   final val CachedParts: Array[VoxelShape] = Array(
-    VoxelShapes.box(MIN, 0, MIN, MAX, MIN, MAX), // Down
-    VoxelShapes.box(MIN, MAX, MIN, MAX, 1, MAX), // Up
-    VoxelShapes.box(MIN, MIN, 0, MAX, MAX, MIN), // North
-    VoxelShapes.box(MIN, MIN, MAX, MAX, MAX, 1), // South
-    VoxelShapes.box(0, MIN, MIN, MIN, MAX, MAX), // West
-    VoxelShapes.box(MAX, MIN, MIN, 1, MAX, MAX) // East
-  )
+    VoxelShapes.box( MIN, 0, MIN, MAX, MIN, MAX ), // Down
+    VoxelShapes.box( MIN, MAX, MIN, MAX, 1, MAX ), // Up
+    VoxelShapes.box( MIN, MIN, 0, MAX, MAX, MIN ), // North
+    VoxelShapes.box( MIN, MIN, MAX, MAX, MAX, 1 ), // South
+    VoxelShapes.box( 0, MIN, MIN, MIN, MAX, MAX ), // West
+    VoxelShapes.box( MAX, MIN, MIN, 1, MAX, MAX )) // East
 
-  final val CachedBounds: Array[VoxelShape] = {
+  final val CachedBounds = {
     // 6 directions = 6 bits = 11111111b >> 2 = 0xFF >> 2
-    (0 to (0xff >> 2)).map { mask =>
-      Direction.values.foldLeft(DefaultShape) { (shape, side) =>
-        if (((1 << side.get3DDataValue) & mask) != 0) {
-          VoxelShapes.or(shape, CachedParts(side.ordinal()))
-        } else {
-          shape
-        }
-      }
-    }.toArray
+    (0 to 0xFF >> 2).map(mask => {
+      Direction.values.foldLeft(DefaultShape)((shape, side) => {
+        if (((1 << side.get3DDataValue) & mask) != 0) VoxelShapes.or(shape, CachedParts(side.ordinal()))
+        else shape
+      })
+    }).toArray
   }
 
-  def mask(side: Direction, value: Int = 0): Int = {
-    value | (1 << side.get3DDataValue)
-  }
+  def mask(side: Direction, value: Int = 0) = value | (1 << side.get3DDataValue)
 
   def shape(state: BlockState): VoxelShape = {
     var result = 0
-
     for (side <- Direction.values) {
       val sideShape = CableHelper.getCableShape(state, side)
-
       if (sideShape != PropertyCableConnection.Shape.NONE) {
         result = mask(side, result)
       }
     }
-
-    CachedBounds(result)
+    Cable.CachedBounds(result)
   }
 
   def updateState(state: BlockState, tileEntity: TileEntity, defaultColor: Int, fromSide: Direction, fromState: BlockState, world: IBlockReader, fromPos: BlockPos): BlockState = {
+    val prop = PropertyCableConnection.BY_DIRECTION.get(fromSide)
     val neighborTileEntity = world.getBlockEntity(fromPos)
-
-    if (!hasInitializedConnectionColor(tileEntity) || !hasInitializedConnectionColor(neighborTileEntity)) {
-      return CableHelper.helperSetCableShapeState(state, fromSide, PropertyCableConnection.Shape.NONE)
-    }
-
     if (neighborTileEntity != null && neighborTileEntity.getLevel != null) {
       val neighborHasNode = hasNetworkNode(neighborTileEntity, fromSide.getOpposite)
-
       val canConnectColor = canConnectBasedOnColor(tileEntity, neighborTileEntity, defaultColor)
-
       if (neighborHasNode && canConnectColor) {
-        val shape = if (fromState.is(state.getBlock)) PropertyCableConnection.Shape.CABLE else PropertyCableConnection.Shape.DEVICE
-
-        return CableHelper.helperSetCableShapeState(state, fromSide, shape)
+        if (fromState.is(state.getBlock)) {
+          return CableHelper.helperSetCableShapeState(state, fromSide, PropertyCableConnection.Shape.CABLE)
+        }
+        else {
+          return CableHelper.helperSetCableShapeState(state, fromSide, PropertyCableConnection.Shape.DEVICE)
+        }
       }
     }
-
     CableHelper.helperSetCableShapeState(state, fromSide, PropertyCableConnection.Shape.NONE)
   }
 
-  private def hasInitializedConnectionColor(tileEntity: TileEntity): Boolean = {
-    tileEntity match {
-      case cable: blockentity.Cable => cable.isConnectionColorInitialized
-      case _ => true
-    }
-  }
-
   private def hasNetworkNode(tileEntity: TileEntity, side: Direction): Boolean = {
-    if (tileEntity == null) {
-      return false
+    if (tileEntity != null) {
+      if (tileEntity.isInstanceOf[blockentity.RobotProxy]) return false
+
+      val level = tileEntity.getLevel
+      val pos = tileEntity.getBlockPos
+      if (level != null) {
+        Option(level.getCapability(Capabilities.SidedEnvironmentCapability, pos, side)) match {
+          case Some(host) =>
+            return if (level.isClientSide) host.canConnect(side) else host.sidedNode(side) != null
+          case _ =>
+        }
+        if (level.getCapability(Capabilities.EnvironmentCapability, pos, side) != null) return true
+      }
     }
 
-    if (tileEntity.isInstanceOf[blockentity.RobotProxy]) {
-      return false
-    }
-
-    // 1.21.1 没有自定义能力了，直接做类型判断。
-    CapabilitySidedEnvironment(tileEntity) match {
-      case Some(host) =>
-        return if (tileEntity.getLevel.isClientSide) host.canConnect(side) else host.sidedNode(side) != null
-      case _ =>
-    }
-
-    CapabilityEnvironment.get(tileEntity) != null
+    false
   }
 
   private def getConnectionColor(stack: ItemStack): Int = {
     val color = ItemColorizer.getColor(stack)
-
-    if (color == -1) {
-      DefaultConnectionColor
-    } else {
-      color
-    }
+    if (color == -1) Color.rgbValues(DyeColor.LIGHT_GRAY) else color
   }
 
   private def getConnectionColor(tileEntity: TileEntity): Int = {
-    tileEntity match {
-      case cable: blockentity.Cable if cable.controlsConnectivity =>
-        return cable.getColor
-      case _ =>
-    }
-
     if (tileEntity != null) {
-      CapabilityColored(tileEntity) match {
-        case Some(colored) if colored.controlsConnectivity => return colored.getColor
-        case _ =>
+      val level = tileEntity.getLevel
+      val pos = tileEntity.getBlockPos
+      if (level != null) {
+        Option(level.getCapability(Capabilities.ColoredCapability, pos, null)) match {
+          case Some(colored) if colored.controlsConnectivity => return colored.getColor
+          case _ =>
+        }
       }
     }
 
-    DefaultConnectionColor
+    Color.rgbValues(DyeColor.LIGHT_GRAY)
   }
 
-  private def canConnectBasedOnColor(te1: TileEntity, te2: TileEntity, c1Default: Int = DefaultConnectionColor): Boolean = {
-    val c1 = if (te1 == null) c1Default else getConnectionColor(te1)
-    val c2 = getConnectionColor(te2)
-
-    c1 == c2 || c1 == DefaultConnectionColor || c2 == DefaultConnectionColor
+  private def canConnectBasedOnColor(te1: TileEntity, te2: TileEntity, c1Default: Int = Color.rgbValues(DyeColor.LIGHT_GRAY)) = {
+    val (c1, c2) = (if (te1 == null) c1Default else getConnectionColor(te1), getConnectionColor(te2))
+    c1 == c2 || c1 == Color.rgbValues(DyeColor.LIGHT_GRAY) || c2 == Color.rgbValues(DyeColor.LIGHT_GRAY)
   }
 }

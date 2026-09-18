@@ -4,7 +4,7 @@ import java.io.FileNotFoundException
 import java.io.IOException
 
 import com.google.common.base.Strings
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.driver.item.Memory
@@ -54,7 +54,7 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
   catch {
     case e: Throwable =>
       if (Settings.get.logLuaCallbackErrors && !e.isInstanceOf[LimitReachedException]) {
-        OpenComputers.log.warn("Exception in Lua callback.", e)
+        OpenComputersNeo.log.warn("Exception in Lua callback.", e)
       }
       e match {
         case _: LimitReachedException =>
@@ -76,7 +76,7 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
         case _: IOException =>
           LuaValue.varargsOf(LuaValue.TRUE, LuaValue.NIL, LuaValue.valueOf("i/o error"))
         case e: Throwable =>
-          OpenComputers.log.warn("Unexpected error in Lua callback.", e)
+          OpenComputersNeo.log.warn("Unexpected error in Lua callback.", e)
           LuaValue.varargsOf(LuaValue.TRUE, LuaValue.NIL, LuaValue.valueOf("unknown error"))
       }
   }
@@ -182,12 +182,12 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
         def isInnerError = results.`type`(2) == LuaValue.TBOOLEAN && (results.isstring(3) || results.isnoneornil(3))
         def isOuterError = results.isstring(2) || results.isnoneornil(2)
         if (results.`type`(1) != LuaValue.TBOOLEAN || !(isInnerError || isOuterError)) {
-          OpenComputers.log.warn("Kernel returned unexpected results.")
-          OpenComputers.log.warn("Returned: {}", results)
+          OpenComputersNeo.log.warn("Kernel returned unexpected results.")
+          OpenComputersNeo.log.warn("Returned: {}", results)
         }
         // The pcall *should* never return normally... but check for it nonetheless.
         if ((isOuterError && results.toboolean(1)) || (isInnerError && results.toboolean(2))) {
-          OpenComputers.log.warn("Kernel stopped unexpectedly.")
+          OpenComputersNeo.log.warn("Kernel stopped unexpectedly.")
           new ExecutionResult.Shutdown(false)
         }
         else {
@@ -204,10 +204,10 @@ class LuaJLuaArchitecture(val machine: api.machine.Machine) extends Architecture
     }
     catch {
       case e: LuaError =>
-        OpenComputers.log.warn("Kernel crashed. This is a bug!", e)
+        OpenComputersNeo.log.warn("Kernel crashed. This is a bug!", e)
         new ExecutionResult.Error("kernel panic: this is a bug, check your log file and report it")
       case e: Throwable =>
-        OpenComputers.log.warn("Unexpected error in kernel. This is a bug!", e)
+        OpenComputersNeo.log.warn("Unexpected error in kernel. This is a bug!", e)
         new ExecutionResult.Error("kernel panic: this is a bug, check your log file and report it")
     }
   }

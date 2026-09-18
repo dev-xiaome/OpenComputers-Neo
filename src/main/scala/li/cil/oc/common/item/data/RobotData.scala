@@ -1,33 +1,32 @@
 package li.cil.oc.common.item.data
 
-import com.google.common.base.Charsets
 import com.google.common.base.Strings
 import li.cil.oc.Constants
-import li.cil.oc.OpenComputers
 import li.cil.oc.Settings
 import li.cil.oc.api
-import li.cil.oc.integration.opencomputers.DriverScreen
-import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.api.ImmutableItemStack
+import li.cil.oc.common.NameList
+import li.cil.oc.common.datacomponents.{OCComponents, RobotChargeInfo}
+import li.cil.oc.integration.OpenComputersNeo.{DriverScreen, Item}
+import li.cil.oc.util.ExtendedDataComponentHolder._
 import li.cil.oc.util.ItemUtils
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.{DataComponentHolder, DataComponents}
 import net.minecraft.world.item.ItemStack
 
-import scala.io.Source
+import scala.jdk.CollectionConverters._
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.Tag
+import net.minecraft.network.chat.Component
+import net.minecraft.resources.ResourceLocation
+import net.minecraft.util.ColorRGBA
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+import net.neoforged.neoforge.server.ServerLifecycleHooks
 
 object RobotData {
-  val names = try {
-    Source.fromInputStream(getClass.getResourceAsStream(
-      "/assets/" + Settings.resourceDomain + "/robot.names"))(Charsets.UTF_8).
-      getLines().map(_.takeWhile(_ != '#').trim()).filter(_ != "").toArray
-  }
-  catch {
-    case t: Throwable =>
-      OpenComputers.log.warn("Failed loading robot name list.", t)
-      Array.empty[String]
-  }
+  val names = NameList.load(Settings.resourceDomain, "robot")
 
-  def randomName = if (names.length > 0) names((math.random * names.length).toInt) else "Robot"
+  def randomName = if (names.length > 0) names((math.random() * names.length).toInt) else "Robot"
 }
 
 class RobotData extends ItemData(Constants.BlockName.Robot) {
@@ -36,21 +35,19 @@ class RobotData extends ItemData(Constants.BlockName.Robot) {
     loadData(stack)
   }
 
-  var name = ""
+  var name: Component = Component.empty()
 
   // Overall energy including components.
   var totalEnergy = 0
 
   // Energy purely stored in robot component - this is what we have to restore manually.
   var robotEnergy = 0
-
   var tier = 0
 
   var components = Array.empty[ItemStack]
-
   var containers = Array.empty[ItemStack]
-
   var lightColor = 0xF23030
+  var flag: Option[ResourceLocation] = None
 
   private final val StoredEnergyTag = Settings.namespace + "storedEnergy"
   private final val RobotEnergyTag = Settings.namespace + "robotEnergy"
@@ -59,50 +56,54 @@ class RobotData extends ItemData(Constants.BlockName.Robot) {
   private final val ContainersTag = Settings.namespace + "containers"
   private final val LightColorTag = Settings.namespace + "lightColor"
 
-  override def loadData(nbt: CompoundTag): Unit = {
-    name = ItemUtils.getDisplayName(nbt).getOrElse("")
-    if (Strings.isNullOrEmpty(name)) {
-      name = RobotData.randomName
+  override def loadData(holder: DataComponentHolder): Unit = {
+    name = holder.getComponent(DataComponents.CUSTOM_NAME) match {
+      case Some(value) => value
+      case None => Component.literal(RobotData.randomName)
     }
-    totalEnergy = nbt.getInt(StoredEnergyTag)
-    robotEnergy = nbt.getInt(RobotEnergyTag)
-    tier = nbt.getInt(TierTag)
-    components = nbt.getList(ComponentsTag, Tag.TAG_COMPOUND).
-      toTagArray[CompoundTag].map(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), _))
-    containers = nbt.getList(ContainersTag, Tag.TAG_COMPOUND).
-      toTagArray[CompoundTag].map(ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), _))
-    if (nbt.contains(LightColorTag)) {
-      lightColor = nbt.getInt(LightColorTag)
+
+    for(RobotChargeInfo(total, stored) <- holder.getComponent(OCComponents.ROBOT_CHARGE)) {
+      totalEnergy = total
+      robotEnergy = stored
     }
+
+    for(tier <- holder.getComponent(OCComponents.TIER)) {
+      this.tier = tier
+    }
+
+    for(items <- holder.getComponent(OCComponents.COMPONENTS)) {
+      components = items.toArray.map(_.mutableCopy())
+    }
+
+    for(items <- holder.getComponent(OCComponents.CONTAINERS)) {
+      containers = items.toArray.map(_.mutableCopy())
+    }
+
+    for(color <- holder.getComponent(OCComponents.LIGHT_COLOR)) {
+      lightColor = color.rgba
+    }
+
+    flag = holder.getComponent(OCComponents.ROBOT_FLAG)
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    if (!Strings.isNullOrEmpty(name)) {
-      ItemUtils.setDisplayName(nbt, name)
-    }
-    nbt.putInt(StoredEnergyTag, totalEnergy)
-    nbt.putInt(RobotEnergyTag, robotEnergy)
-    nbt.putInt(TierTag, tier)
-    nbt.setNewTagList(ComponentsTag, components.toIterable)
-    nbt.setNewTagList(ContainersTag, containers.toIterable)
-    nbt.putInt(LightColorTag, lightColor)
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    holder.setComponent(DataComponents.CUSTOM_NAME, name)
+    holder.setComponent(OCComponents.ROBOT_CHARGE, RobotChargeInfo(totalEnergy, robotEnergy))
+    holder.setComponent(OCComponents.TIER, tier.toByte)
+    holder.setComponent(OCComponents.COMPONENTS, components.map(ImmutableItemStack.copyOf).toList)
+    holder.setComponent(OCComponents.CONTAINERS, containers.map(ImmutableItemStack.copyOf).toList)
+    holder.setComponent(OCComponents.LIGHT_COLOR, new ColorRGBA(lightColor))
+    holder.setComponent(OCComponents.ROBOT_FLAG, flag)
   }
 
-  // 1.21.1：`Item#getRarity(ItemStack)` 已移除，品质改为写进 `RARITY` 数据组件；
-  // 本物品的品质随堆叠里的 tier 变化，因此每次写数据时一并刷新组件（见 `ItemData.applyRarityComponent`）。
-  override protected def applyRarityComponent(stack: ItemStack): Unit = setRarityFromTier(stack, tier)
-
-  def copyItemStack() = {
+  def copyItemStack(provider: HolderLookup.Provider) = {
     val stack = createItemStack()
     // Forget all node addresses and so on. This is used when 'picking' a
     // robot in creative mode.
     val newInfo = new RobotData(stack)
     newInfo.components.foreach(cs => Option(api.Driver.driverFor(cs)) match {
       case Some(driver) if driver == DriverScreen =>
-        val nbt = driver.dataTag(cs)
-        for (tagName <- nbt.getAllKeys.toArray) {
-          nbt.remove(tagName.asInstanceOf[String])
-        }
+        Item.updateDataTag(cs, nbt => nbt.getAllKeys.asScala.toSeq.foreach(nbt.remove))
       case _ =>
     })
     // Don't show energy info (because it's unreliable) but fill up the

@@ -1,10 +1,5 @@
 package li.cil.oc.client.gui.traits
 
-import com.mojang.blaze3d.systems.RenderSystem
-import com.mojang.blaze3d.vertex.PoseStack
-
-import java.util
-import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiGraphics
 import net.minecraft.client.gui.screens.Screen
 import net.minecraft.resources.ResourceLocation
@@ -31,8 +26,8 @@ trait Window extends Screen {
     topPos = (height - imageHeight) / 2
   }
 
-  override def render(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int, dt: Float): Unit = {
+  override def renderBackground(guiGraphics: GuiGraphics, mouseX: Int, mouseY: Int, dt: Float): Unit = {
+    super.renderBackground(guiGraphics, mouseX, mouseY, dt)
     guiGraphics.blit(backgroundImage, leftPos, topPos, 0, 0, imageWidth, imageHeight, windowWidth, windowHeight)
-    super.render(guiGraphics, mouseX, mouseY, dt)
   }
 }

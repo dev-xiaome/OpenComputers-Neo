@@ -1,14 +1,17 @@
 package li.cil.oc.client.renderer
 
+import com.mojang.blaze3d.systems.RenderSystem
 import com.mojang.blaze3d.vertex.{DefaultVertexFormat, PoseStack, VertexFormat}
 import li.cil.oc.Settings
 import li.cil.oc.server.network.WirelessNetwork
-import li.cil.oc.util.RenderState
 import net.minecraft.client.Minecraft
-import net.minecraft.client.renderer.{GameRenderer, MultiBufferSource, RenderStateShard, RenderType}
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent
+import net.minecraft.client.renderer.{
+  GameRenderer,
+  RenderStateShard,
+  RenderType
+}
 import net.neoforged.bus.api.SubscribeEvent
-import com.mojang.blaze3d.systems.RenderSystem
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent
 import org.lwjgl.opengl.GL11
 
 object WirelessNetworkDebugRenderer {
@@ -43,11 +46,9 @@ object WirelessNetworkDebugRenderer {
     WirelessNetwork.dimensions.get(world.dimension) match {
       case Some(tree) =>
         val player = Minecraft.getInstance.player
-        // 1.21.1: RenderLevelStageEvent.getPartialTick 现在返回 DeltaTracker，不再是 float。
-        val partialTick = e.getPartialTick.getGameTimeDeltaPartialTick(false)
-        val px = player.xOld + (player.getX - player.xOld) * partialTick
-        val py = player.yOld + (player.getY - player.yOld) * partialTick
-        val pz = player.zOld + (player.getZ - player.zOld) * partialTick
+        val px = player.xOld + (player.getX - player.xOld) * e.getPartialTick.getGameTimeDeltaTicks.toDouble
+        val py = player.yOld + (player.getY - player.yOld) * e.getPartialTick.getGameTimeDeltaTicks.toDouble
+        val pz = player.zOld + (player.getZ - player.zOld) * e.getPartialTick.getGameTimeDeltaTicks.toDouble
 
         val stack = e.getPoseStack
         stack.pushPose()

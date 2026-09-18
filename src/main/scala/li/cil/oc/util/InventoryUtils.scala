@@ -1,16 +1,12 @@
 package li.cil.oc.util
 
 import java.util.function.Consumer
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.util.ExtendedLevel._
 import li.cil.oc.util.StackOption._
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.item.ItemStack
 import net.minecraft.core.Direction
-import net.neoforged.neoforge.items.IItemHandler
-import net.neoforged.neoforge.items.IItemHandlerModifiable
-import net.neoforged.neoforge.items.wrapper.InvWrapper
-import net.neoforged.neoforge.items.wrapper.SidedInvWrapper
 
 import scala.collection.convert.ImplicitConversionsToScala._
 import net.minecraft.world.Container
@@ -19,7 +15,10 @@ import net.minecraft.world.entity.item.ItemEntity
 import net.minecraft.world.WorldlyContainer
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.phys.Vec3
-import net.neoforged.neoforge.capabilities.{Capabilities => NeoCapabilities}
+import net.neoforged.neoforge.capabilities.Capabilities
+import net.neoforged.neoforge.items.IItemHandler
+import net.neoforged.neoforge.items.IItemHandlerModifiable
+import net.neoforged.neoforge.items.wrapper.{InvWrapper, SidedInvWrapper}
 
 object InventoryUtils {
 
@@ -46,15 +45,22 @@ object InventoryUtils {
    * complete with a reference to the source of said implementation.
    */
   def inventorySourceAt(position: BlockPosition, side: Direction): Option[InventorySource] = position.world match {
-    case Some(world) if world.blockExists(position) => world.getBlockEntity(position) match {
-      case _: BlockEntity if world.getCapability(NeoCapabilities.ItemHandler.BLOCK, position.toBlockPos, side) != null =>
-        Option(BlockInventorySource(position, side, world.getCapability(NeoCapabilities.ItemHandler.BLOCK, position.toBlockPos, side)))
-      case tile: Container => Option(BlockInventorySource(position, side, asItemHandler(tile, side)))
-      case _ => world.getEntitiesOfClass(classOf[Entity], position.bounds)
-        .filter(e => e.isAlive && e.getCapability(NeoCapabilities.ItemHandler.ENTITY_AUTOMATION, side) != null)
-        .map(a => EntityInventorySource(a, side, a.getCapability(NeoCapabilities.ItemHandler.ENTITY_AUTOMATION, side)))
-        .find(a => a != null && a.inventory != null)
-    }
+    case Some(world) if world.blockExists(position) =>
+      val pos = position.toBlockPos
+      Option(world.getCapability(Capabilities.ItemHandler.BLOCK, pos, side)) match {
+        case Some(handler) => Some(BlockInventorySource(position, side, handler))
+        case _ =>
+          world.getBlockEntity(pos) match {
+            // Some inventories do not expose NeoForge's item-handler capability.
+            // Preserve vanilla Container support instead of silently skipping them.
+            case inventory: Container => Some(BlockInventorySource(position, side, asItemHandler(inventory, side)))
+            case _ =>
+              world.getEntitiesOfClass(classOf[Entity], position.bounds)
+                .filter(e => e.isAlive && e.getCapability(Capabilities.ItemHandler.ENTITY) != null)
+                .map(a => EntityInventorySource(a, side, a.getCapability(Capabilities.ItemHandler.ENTITY)))
+                .find(a => a != null && a.inventory != null)
+          }
+      }
     case _ => None
   }
 
@@ -153,7 +159,7 @@ object InventoryUtils {
         if (count > 0) inventory.extractItem(slot, count, false) match {
           case realExtracted: ItemStack if realExtracted.getCount == count => consumer(realExtracted, false)
           case realExtracted =>
-            OpenComputers.log.warn("An IItemHandler instance acted differently between simulated and non-simulated extraction. Offender: " + inventory)
+            OpenComputersNeo.log.warn("An IItemHandler instance acted differently between simulated and non-simulated extraction. Offender: " + inventory)
             // Attempt inserting the stack anyway, to minimize world-side item loss.
             if (realExtracted != null && !realExtracted.isEmpty) {
               consumer(realExtracted, false)

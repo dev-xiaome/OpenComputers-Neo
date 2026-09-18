@@ -1,20 +1,18 @@
 package li.cil.oc.integration.minecraft
 
-import li.cil.oc.util.ItemStackNBTExtensions._
-
-import java.util
-import li.cil.oc.Settings
-import li.cil.oc.api
-import li.cil.oc.integration.Mods
-import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.{api, Settings}
 import li.cil.oc.util.ItemUtils
-import net.minecraft.nbt.{CompoundTag, ListTag, StringTag, Tag}
+import net.minecraft.core.component.DataComponents
+import net.minecraft.core.registries.BuiltInRegistries
+import net.minecraft.nbt.{CompoundTag, ListTag, Tag}
 import net.minecraft.world.item
 import net.minecraft.world.item.Item
-import net.minecraft.tags.ItemTags
-import net.minecraft.world.item.enchantment.Enchantment
-import net.minecraft.core.registries.BuiltInRegistries
+import net.minecraft.world.item.component.ItemLore
+import net.minecraft.world.item.enchantment.{Enchantment, EnchantmentHelper}
+import net.neoforged.neoforge.capabilities.Capabilities
+import net.neoforged.neoforge.energy.IEnergyStorage
 
+import java.util
 import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable
 import scala.jdk.CollectionConverters._
@@ -58,43 +56,43 @@ object ConverterItemStack extends api.driver.Converter {
         }
 
         val name = BuiltInRegistries.ITEM.getKey(stack.getItem).toString
+        val tag = ItemUtils.getTag(stack)
 
         output += "damage" -> Int.box(stack.getDamageValue)
         output += "maxDamage" -> Int.box(stack.getMaxDamage)
         output += "size" -> Int.box(stack.getCount)
         output += "maxSize" -> Int.box(stack.getMaxStackSize)
-        output += "hasTag" -> Boolean.box(stack.hasTag)
+        output += "hasTag" -> Boolean.box(tag != null)
         output += "name" -> name
         output += "label" -> stack.getDisplayName.getString
 
-        // custom mod tags
-        if (stack.hasTag) {
-          val tags = stack.getTag
-
-          //Lore tags
-          withCompound(tags, "display", withList(_, "Lore", {
-              output += "lore" -> _.map((tag: StringTag) => tag.getAsString).mkString("\n")
-            })
-          )
-
-          withTag(tags, "Energy", Tag.TAG_INT, value => output += "Energy" -> value)
-
-          if (Settings.get.allowItemStackNBTTags) {
-            output += "tag" -> ItemUtils.saveTag(stack.getTag)
+        stack.get(DataComponents.LORE) match {
+          case lore: ItemLore => {
+            output += "lore" -> lore.lines().map(_.getString).mkString("\n")
           }
         }
 
+        stack.getCapability(Capabilities.EnergyStorage.ITEM) match {
+          case storage: IEnergyStorage => {
+            output += "Energy" -> Int.box(storage.getEnergyStored)
+          }
+        }
+
+        // custom mod tags
+        if (tag != null && Settings.get.allowItemStackNBTTags) {
+          output += "tag" -> ItemUtils.saveTag(tag)
+        }
+
         val enchantments = mutable.ArrayBuffer.empty[mutable.Map[String, Any]]
-        // 1.21.1：EnchantmentHelper.getEnchantments 已移除，附魔改为动态注册表并且
-        // ItemStack 上的附魔组件本身就是「Holder[Enchantment] -> 等级」的映射，
-        // 因此直接遍历 stack.getEnchantments 即可，无需再查注册表。
-        stack.getEnchantments.entrySet().asScala.foreach { entry =>
+        EnchantmentHelper.getEnchantmentsForCrafting(stack).entrySet().collect { entry =>
           val enchantment = entry.getKey
-          // 1.21.1 的 Enchantment.getFullname 是静态方法，且接收 Holder。
+          val level = entry.getIntValue
+
+          val name = enchantment.getKey
           val map = mutable.Map[String, Any](
-            "name" -> enchantment.getRegisteredName,
-            "label" -> Enchantment.getFullname(enchantment, entry.getIntValue),
-            "level" -> entry.getIntValue
+            "name" -> name,
+            "label" -> Enchantment.getFullname(enchantment, level),
+            "level" -> level
           )
           enchantments += map
         }

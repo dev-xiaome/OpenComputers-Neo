@@ -2,11 +2,11 @@ package li.cil.oc.client.renderer.block
 
 import java.util
 import java.util.Collections
-
 import li.cil.oc.api.component.RackMountable
 import li.cil.oc.api.event.RackMountableRenderEvent
 import li.cil.oc.client.Textures
 import li.cil.oc.common.blockentity
+import li.cil.oc.common.datacomponents.CompoundStorage
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.client.multiplayer.ClientLevel
 import net.minecraft.client.renderer.block.model.BakedQuad
@@ -18,8 +18,8 @@ import net.minecraft.core.Direction
 import net.minecraft.world.phys.Vec3
 import net.minecraft.util.RandomSource
 import net.minecraft.client.renderer.RenderType
-import net.neoforged.neoforge.common.NeoForge
 import net.neoforged.neoforge.client.model.data.{ModelData, ModelProperty}
+import net.neoforged.neoforge.common.NeoForge
 
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
@@ -50,7 +50,7 @@ class ServerRackModel(val parent: BakedModel) extends SmartBlockModelBase {
         val defaultFront = Textures.getSprite(Textures.Block.RackFront)
         for (slot <- 0 until 4) rack.getMountable(slot) match {
           case mountable: RackMountable =>
-            val event = new RackMountableRenderEvent.Block(rack, slot, rack.lastData(slot), side)
+            val event = new RackMountableRenderEvent.Block(rack, slot, rack.lastData(slot) getOrElse CompoundStorage.EMPTY, side)
             NeoForge.EVENT_BUS.post(event)
             if (!event.isCanceled) {
               if (event.getFrontTextureOverride != null) {
@@ -63,7 +63,7 @@ class ServerRackModel(val parent: BakedModel) extends SmartBlockModelBase {
           case _ =>
         }
 
-        faces.toList.asJava
+        faces.asJava
       case _ => super.getQuads(state, side, rand)
     }
 

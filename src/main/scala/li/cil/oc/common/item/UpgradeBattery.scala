@@ -3,16 +3,17 @@ package li.cil.oc.common.item
 import li.cil.oc.Settings
 import li.cil.oc.api.driver.item.Chargeable
 import li.cil.oc.common.item.data.NodeData
+import net.minecraft.core.component.DataComponents
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.Item.Properties
 import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.component.CustomData
+import net.neoforged.neoforge.common.extensions.IItemExtension
 
 
-class UpgradeBattery(props: Properties, val tier: Int) extends Item(props) with traits.SimpleItem with traits.ItemTier with traits.Chargeable {
+class UpgradeBattery(props: Properties, val tier: Int) extends Item(props) with traits.SimpleItem with traits.ItemTier with traits.Chargeable with IItemExtension {
   @Deprecated
   override def getDescriptionId = super.getDescriptionId + tier
-
-  override protected def tooltipName = Option(unlocalizedName)
 
   override protected def tooltipData = Seq(Settings.get.bufferCapacitorUpgrades(tier).toInt)
 

@@ -1,10 +1,12 @@
 package li.cil.oc.common.block
 
+import com.mojang.serialization.MapCodec
+import li.cil.oc.common.block.Adapter.CODEC
 import li.cil.oc.common.menu.MenuTypes
 import li.cil.oc.common.blockentity
 import li.cil.oc.common.blockentity.BlockEntityTypes
 import li.cil.oc.integration.util.Wrench
-import net.minecraft.world.level.block.state.BlockBehaviour.Properties
+import net.minecraft.world.level.block.state.BlockBehaviour.{Properties, simpleCodec}
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.entity.player.{Player => PlayerEntity}
@@ -19,6 +21,8 @@ import net.minecraft.world.level.{LevelReader => IWorldReader}
 import net.minecraft.world.level.{Level => World}
 
 class Adapter(props: Properties) extends SimpleBlock(props) with traits.GUI with traits.Tickable {
+  override def codec(): MapCodec[Adapter] = CODEC
+
   override def openGui(player: ServerPlayerEntity, world: World, pos: BlockPos): Unit = world.getBlockEntity(pos) match {
     case te: blockentity.Adapter => MenuTypes.openAdapterGui(player, te)
     case _ =>
@@ -68,4 +72,8 @@ class Adapter(props: Properties) extends SimpleBlock(props) with traits.GUI with
   }
 
   override def getBlockEntityType: BlockEntityType[_ <: BlockEntity] = BlockEntityTypes.ADAPTER.get()
+}
+
+object Adapter {
+  final val CODEC = simpleCodec(new Adapter(_))
 }

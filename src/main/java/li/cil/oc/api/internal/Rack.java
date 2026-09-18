@@ -3,8 +3,10 @@ package li.cil.oc.api.internal;
 import li.cil.oc.api.component.RackMountable;
 import li.cil.oc.api.network.EnvironmentHost;
 import li.cil.oc.api.network.SidedEnvironment;
+import net.minecraft.core.component.DataComponentHolder;
 import net.minecraft.world.Container;
 import net.minecraft.nbt.CompoundTag;
+import net.neoforged.neoforge.common.MutableDataComponentHolder;
 
 /**
  * This interface is implemented by the rack tile entity.
@@ -48,12 +50,12 @@ public interface Rack extends SidedEnvironment, EnvironmentHost, Rotatable, Cont
      * @param slot the slot of the mountable to get the data for.
      * @return the data of the mountable in that slot, or {@code null}.
      */
-    CompoundTag getMountableData(int slot);
+    DataComponentHolder getMountableData(int slot);
 
     /**
      * Mark the mountable in the specified slot as changed.
      * <br>
-     * This will cause the mountable's {@link RackMountable#getData()} method
+     * This will cause the mountable's {@link RackMountable#describeForClient} method
      * to be called in the next tick and the updated data to be sent to the
      * clients, where it can be used for state based rendering of the mountable
      * for example.

@@ -23,7 +23,10 @@ import li.cil.oc.api.machine.Callback
 import li.cil.oc.api.machine.Context
 import li.cil.oc.api.network.Visibility
 import li.cil.oc.api.prefab
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt.CompoundTag
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 import org.apache.commons.codec.binary.Base64
 import org.apache.commons.io.output.ByteArrayOutputStream
 
@@ -323,13 +326,13 @@ object DataCard {
 
     // ----------------------------------------------------------------------- //
 
-    override def loadData(nbt: CompoundTag): Unit = {
+    override def loadData(holder: DataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
       val keyType = nbt.getString("Type")
       val data = nbt.getByteArray("Data")
       value = ECUserdata.deserializeKey(keyType, data)
     }
 
-    override def saveData(nbt: CompoundTag): Unit = {
+    override def saveData(holder: MutableDataComponentHolder, nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
       nbt.putString("Type", keyType)
       nbt.putByteArray("Data", value.getEncoded)
     }

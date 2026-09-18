@@ -2,7 +2,7 @@ package li.cil.oc.server.machine
 
 import java.lang.reflect.Method
 
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.api.machine.Arguments
 import li.cil.oc.api.machine.Context
 import org.objectweb.asm.ClassWriter
@@ -66,7 +66,7 @@ object CallbackWrapper {
 
   private def generateId(m: Method): String = MethodIdCache.getOrElseUpdate(m, m.getDeclaringClass.getName.replace('.', '_') + "_" + m.getName)
 
-  private object GeneratedClassLoader extends ClassLoader(OpenComputers.getClass.getClassLoader) {
+  private object GeneratedClassLoader extends ClassLoader(OpenComputersNeo.getClass.getClassLoader) {
     private val GeneratedClasses = mutable.Map.empty[String, Class[_]]
 
     def containsClass(name: String) = GeneratedClasses.contains(name)

@@ -1,0 +1,14 @@
+{
+  "type": "opencomputers_neo:crafting_shapeless_extended",
+  "ingredients": [
+    {
+      "item": "opencomputers_neo:tablet"
+    },
+    {
+      "item": "opencomputers_neo:eeprom"
+    }
+  ],
+  "result": {
+    "id": "opencomputers_neo:tablet"
+  }
+}

@@ -7,7 +7,7 @@ import net.minecraft.world.item.ItemStack;
 /**
  * Inventory providers are used to access contents of item inventories.
  * <br>
- * In OpenComputers an example for this would be servers, in other mods
+ * In OpenComputersNeo an example for this would be servers, in other mods
  * this can be backpacks and the like. Inventory providers are used to
  * allow agents (robots, drones) to interact with such inventories using
  * the inventory controller upgrade, for example.

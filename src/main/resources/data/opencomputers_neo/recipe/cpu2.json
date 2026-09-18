@@ -1,0 +1,28 @@
+{
+  "type": "opencomputers_neo:crafting_shaped_extended",
+  "pattern": [
+    "grg",
+    "CUC",
+    "gAg"
+  ],
+  "key": {
+    "g": {
+      "tag": "c:nuggets/gold"
+    },
+    "r": {
+      "tag": "c:dusts/redstone"
+    },
+    "C": {
+      "tag": "opencomputers_neo:circuitchip2"
+    },
+    "U": {
+      "tag": "opencomputers_neo:materialcu"
+    },
+    "A": {
+      "tag": "opencomputers_neo:materialalu"
+    }
+  },
+  "result": {
+    "id": "opencomputers_neo:cpu2"
+  }
+}

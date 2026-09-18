@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers_neo:chamelium"
+    }
+  },
+  "pattern": [
+    "CCC",
+    "CCC",
+    "CCC"
+  ],
+  "result": {
+    "components": {
+      "opencomputers_neo:chamelium_color": "black"
+    },
+    "count": 1,
+    "id": "opencomputers_neo:chameliumblock"
+  }
+}

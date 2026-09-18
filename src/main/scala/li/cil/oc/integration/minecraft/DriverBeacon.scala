@@ -12,13 +12,10 @@ import li.cil.oc.util.ResultWrapper.result
 import net.minecraft.world.level.block.Block
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.item.ItemStack
-import net.minecraft.core.Direction
-import net.minecraft.core.BlockPos
+import net.minecraft.core.{BlockPos, Direction, Holder}
 import net.minecraft.world.effect.MobEffect
-import net.minecraft.core.Holder
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.entity.BeaconBlockEntity
-import net.minecraft.core.registries.BuiltInRegistries
 
 object DriverBeacon extends DriverSidedBlockEntity {
   override def getBlockEntityClass: Class[_] = classOf[BeaconBlockEntity]
@@ -38,23 +35,18 @@ object DriverBeacon extends DriverSidedBlockEntity {
 
     @Callback(doc = "function():string -- Get the name of the active primary effect.")
     def getPrimaryEffect(context: Context, args: Arguments): Array[AnyRef] = {
-      result(getEffectName(tileEntity.primaryPower))
+      result(tileEntity.primaryPower match {
+        case power: Holder[MobEffect] => power.getKey.toString
+        case _ => null
+      })
     }
 
     @Callback(doc = "function():string -- Get the name of the active secondary effect.")
     def getSecondaryEffect(context: Context, args: Arguments): Array[AnyRef] = {
-      result(getEffectName(tileEntity.secondaryPower))
-    }
-
-    // 1.21.1 里 primaryPower / secondaryPower 的类型是 Holder[MobEffect]（且可为 null）。
-    private def getEffectName(effect: Holder[MobEffect]): String = {
-      if (effect == null) return null
-      val key = effect.unwrapKey().orElse(null)
-      if (key != null) key.location().toString
-      else {
-        val id = BuiltInRegistries.MOB_EFFECT.getKey(effect.value())
-        if (id == null) null else id.toString
-      }
+      result(tileEntity.secondaryPower match {
+        case power: Holder[MobEffect] => power.getKey.toString
+        case _ => null
+      })
     }
   }
 

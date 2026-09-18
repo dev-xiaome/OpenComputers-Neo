@@ -1,0 +1,30 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "B": {
+      "item": "opencomputers_neo:componentbus2"
+    },
+    "C": {
+      "item": "opencomputers_neo:chip1"
+    },
+    "E": {
+      "tag": "c:end_stones"
+    },
+    "M": {
+      "item": "opencomputers_neo:microcontrollercase1"
+    },
+    "c": {
+      "item": "minecraft:compass"
+    }
+  },
+  "pattern": [
+    "EcE",
+    "CMC",
+    "EBE"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:dronecase1"
+  }
+}

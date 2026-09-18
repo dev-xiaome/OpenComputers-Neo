@@ -1,0 +1,33 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": {
+      "item": "opencomputers_neo:chip3"
+    },
+    "K": {
+      "item": "opencomputers_neo:keyboard"
+    },
+    "M": {
+      "item": "opencomputers_neo:screen2"
+    },
+    "R": {
+      "item": "opencomputers_neo:wlancard2"
+    },
+    "S": {
+      "item": "opencomputers_neo:solargeneratorupgrade"
+    },
+    "i": {
+      "tag": "c:nuggets/iron"
+    }
+  },
+  "pattern": [
+    "iSi",
+    "CMR",
+    "iKi"
+  ],
+  "result": {
+    "count": 1,
+    "id": "opencomputers_neo:terminal"
+  }
+}

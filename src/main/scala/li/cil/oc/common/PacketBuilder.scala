@@ -1,29 +1,27 @@
 package li.cil.oc.common
 
-import java.io.BufferedOutputStream
-import java.io.ByteArrayOutputStream
-import java.io.DataOutputStream
-import java.io.OutputStream
-import java.util.zip.Deflater
-import java.util.zip.DeflaterOutputStream
 import li.cil.oc.Settings
 import li.cil.oc.api.network.EnvironmentHost
 import li.cil.oc.util.BlockPosition
-import li.cil.oc.util.RegistryAccessHelper
+import net.minecraft.core.{Direction, Registry, RegistryAccess}
+import net.minecraft.nbt.{CompoundTag, NbtIo}
+import net.minecraft.server.level.{ServerLevel, ServerPlayer}
+import net.minecraft.world.entity.Entity
 import net.minecraft.world.item.ItemStack
-import net.minecraft.nbt.NbtIo
-import net.minecraft.nbt.CompoundTag
-import net.minecraft.core.{Direction, Registry}
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.world.level.{ChunkPos, Level}
 import net.neoforged.neoforge.network.PacketDistributor
 import net.neoforged.neoforge.server.ServerLifecycleHooks
 
-import scala.collection.convert.ImplicitConversionsToScala._
-import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.server.level.ServerLevel
-import net.minecraft.world.level.ChunkPos
-import net.minecraft.world.entity.Entity
-import net.minecraft.server.level.ServerPlayer
-import net.minecraft.world.level.Level
+import java.io.{
+  BufferedOutputStream,
+  ByteArrayOutputStream,
+  DataOutputStream,
+  OutputStream
+}
+import java.util.zip.{Deflater, DeflaterOutputStream}
+
+import scala.jdk.CollectionConverters._
 
 abstract class PacketBuilder(stream: OutputStream) extends DataOutputStream(stream) {
   def writeRegistryEntry[T](registry: Registry[T], value: T): Unit = {
@@ -52,13 +50,11 @@ abstract class PacketBuilder(stream: OutputStream) extends DataOutputStream(stre
     case _ => writeByte(-1: Byte)
   }
 
-  def writeItemStack(stack: ItemStack) = {
+  def writeItemStack(stack: ItemStack, registryAccess: RegistryAccess): Unit = {
     val haveStack = !stack.isEmpty && stack.getCount > 0
     writeBoolean(haveStack)
     if (haveStack) {
-      // 1.21.1 的物品序列化必须先拿注册表访问器，并且要用 save 的返回值。
-      // 这里不能用 RegistryAccess.EMPTY：那样物品 id 写不出来，读档时会全部变成空气。
-      writeNBT(stack.save(RegistryAccessHelper.getOrEmpty()).asInstanceOf[CompoundTag])
+      writeNBT(stack.save(registryAccess).asInstanceOf[CompoundTag])
     }
   }
 
@@ -83,9 +79,7 @@ abstract class PacketBuilder(stream: OutputStream) extends DataOutputStream(stre
   }
 
   def writePacketType(pt: PacketType.Value) = writeByte(pt.id)
-
-  def sendToAllPlayers(): Unit = PacketDistributor.sendToAllPlayers(new PacketPayload(packet))
-
+  
   def sendToPlayersNearEntity(e: Entity, range: Option[Double] = None): Unit = sendToNearbyPlayers(e.level, e.getX, e.getY, e.getZ, range)
 
   def sendToPlayersNearHost(host: EnvironmentHost, range: Option[Double] = None): Unit = {
@@ -128,16 +122,21 @@ abstract class PacketBuilder(stream: OutputStream) extends DataOutputStream(stre
     }
     val maxPacketRangeSq = maxPacketRange * maxPacketRange
 
-    for (player <- manager.getPlayers if player.level == world) {
+    for (player <- manager.getPlayers.asScala if player.level == world) {
       if (player.distanceToSqr(x, y, z) <= maxPacketRangeSq) {
         sendToPlayer(player)
       }
     }
   }
 
-  def sendToPlayer(player: ServerPlayer): Unit = PacketDistributor.sendToPlayer(player, new PacketPayload(packet))
+  def sendToAllPlayers(): Unit =
+    PacketDistributor.sendToAllPlayers(new PacketPayload(packet))
 
-  def sendToServer(): Unit = PacketDistributor.sendToServer(new PacketPayload(packet))
+  def sendToPlayer(player: ServerPlayer): Unit =
+    PacketDistributor.sendToPlayer(player, new PacketPayload(packet))
+
+  def sendToServer(): Unit =
+    PacketDistributor.sendToServer(new PacketPayload(packet))
 
   protected def packet: Array[Byte]
 }

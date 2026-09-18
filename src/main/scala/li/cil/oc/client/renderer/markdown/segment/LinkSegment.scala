@@ -2,7 +2,7 @@ package li.cil.oc.client.renderer.markdown.segment
 
 import java.net.{MalformedURLException, URI, URL}
 import li.cil.oc.Localization
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.api
 import li.cil.oc.client.Manual
 import li.cil.oc.client.renderer.markdown.MarkupFormat
@@ -45,21 +45,20 @@ private[markdown] class LinkSegment(parent: Segment, text: String, val url: Stri
   }
 
   private def handleUrl(urlStr: String): Unit = {
-    var url: URL = null
+    var url: URI = null
     try {
-      url = new URL(urlStr)
+      url = new URI(urlStr)
     } catch {
       case _: MalformedURLException =>
         Minecraft.getInstance.player.sendSystemMessage(Localization.Chat.WarningLink("Malformed URL"))
     }
-    // 1.21.1: Util.OS.openUrl 已改为 openUri，且只接受 String / URI。
-    Util.getPlatform.openUri(url.toURI)
+    Util.getPlatform.openUri(url)
   }
 
   override def toString(format: MarkupFormat.Value): String = format match {
     case MarkupFormat.Markdown => s"[$text]($url)"
     case MarkupFormat.IGWMod =>
       if (url.startsWith("http://") || url.startsWith("https://")) text
-      else s"[link{${OpenComputers.ID}:$url}]$text [link{}]"
+      else s"[link{${OpenComputersNeo.ID}:$url}]$text [link{}]"
   }
 }

@@ -1,36 +1,33 @@
 package li.cil.oc.common.blockentity
 
-import java.util.UUID
-import java.util.function.Consumer
-import li.cil.oc.Settings
-import li.cil.oc.api
 import li.cil.oc.api.Driver
 import li.cil.oc.api.fs.Label
-import li.cil.oc.api.network.Analyzable
-import li.cil.oc.api.network.Visibility
-import li.cil.oc.common.Slot
-import li.cil.oc.common.menu
-import li.cil.oc.common.menu.MenuTypes
+import li.cil.oc.api.network.{Analyzable, Visibility}
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.common.item.data.DriveData
-import li.cil.oc.common.item.data.NodeData
+import li.cil.oc.common.{Slot, menu}
 import li.cil.oc.server.component.FileSystem
 import li.cil.oc.server.{PacketSender => ServerPacketSender}
-import li.cil.oc.util.ExtendedNBT._
-import net.minecraft.world.item.ItemStack
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import li.cil.oc.{Settings, api}
+import net.minecraft.core.component.{DataComponentHolder, DataComponentMap}
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
 import net.minecraft.nbt.CompoundTag
-import net.minecraft.core.Direction
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import net.minecraft.world.level.block.entity.BlockEntityType
-import net.minecraft.core.BlockPos
-import net.minecraft.world.level.block.state.BlockState
-import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.MenuProvider
 import net.minecraft.world.entity.player.{Inventory, Player}
-import net.minecraft.nbt.ByteArrayTag
+import net.minecraft.world.item.ItemStack
+import net.minecraft.world.level.block.entity.BlockEntity
+import net.minecraft.world.level.block.state.BlockState
+import net.neoforged.neoforge.common.MutableDataComponentHolder
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
+
+import java.nio.ByteBuffer
+import java.util.UUID
+import java.util.function.Consumer
 
 class Raid(pos: BlockPos, state: BlockState) 
-  extends BlockEntity(BlockEntityTypes.RAID.get(), pos, state) with traits.Environment with traits.Inventory with traits.Rotatable with Analyzable with MenuProvider {
+  extends BlockEntity(BlockEntityTypes.RAID.get(), pos, state) with traits.Environment with traits.Inventory with traits.Rotatable with Analyzable with MenuProvider
+    with IBlockEntityExtension {
   val node = api.Network.newNode(this, Visibility.None).create()
 
   var filesystem: Option[FileSystem] = None
@@ -79,7 +76,7 @@ class Raid(pos: BlockPos, state: BlockState)
       filesystem.foreach(fs => {
         fs.fileSystem.close()
         fs.fileSystem.list("/").foreach(fs.fileSystem.delete)
-        fs.saveData(new CompoundTag()) // Flush buffered fs.
+        fs.saveData(new CompoundTag(), this.getLevel.registryAccess()) // Flush buffered fs.
         fs.node.remove()
         filesystem = None
       })
@@ -106,10 +103,10 @@ class Raid(pos: BlockPos, state: BlockState)
         api.FileSystem.fromSaveDirectory(id, wipeDisksAndComputeSpace, Settings.get.bufferChanges),
         label, this, Settings.resourceDomain + ":hdd_access", 6).
         asInstanceOf[FileSystem]
-      val nbtToSetAddress = new CompoundTag()
-      nbtToSetAddress.putString(NodeData.AddressTag, id)
-      fs.node.loadData(nbtToSetAddress)
-      fs.node.setVisibility(Visibility.Network)
+      fs.node.loadData(DataComponentMap.builder()
+        .set(OCComponents.ADDRESS, id)
+        .set(OCComponents.VISIBILITY, Visibility.Network)
+        .build())
       // Ensure we're in a network before connecting the raid fs.
       api.Network.joinNewNetwork(node)
       node.connect(fs.node)
@@ -121,11 +118,10 @@ class Raid(pos: BlockPos, state: BlockState)
     case (acc, hdd) if !hdd.isEmpty => acc + (Option(api.Driver.driverFor(hdd)) match {
       case Some(driver) => driver.createEnvironment(hdd, this) match {
         case fs: FileSystem =>
-          val nbt = driver.dataTag(hdd)
-          fs.loadData(nbt)
+          fs.loadData(hdd)
           fs.fileSystem.close()
           fs.fileSystem.list("/").foreach(fs.fileSystem.delete)
-          fs.saveData(nbt)
+          fs.saveData(hdd)
           fs.fileSystem.spaceTotal
         case _ => 0L // Ignore.
       }
@@ -145,40 +141,41 @@ class Raid(pos: BlockPos, state: BlockState)
   private final val PresenceTag = Settings.namespace + "presence"
   private final val LabelTag = Settings.namespace + "label"
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
-    if (nbt.contains(FileSystemTag)) {
-      val tag = nbt.getCompound(FileSystemTag)
-      tryCreateRaid(tag.getCompound(NodeData.NodeTag).getString(NodeData.AddressTag))
-      filesystem.foreach(fs => fs.loadData(tag))
+  override def loadComponentsForServer(holder: DataComponentHolder): Unit = {
+    super.loadComponentsForServer(holder)
+
+    for(address <- holder.getComponent(OCComponents.ADDRESS)) {
+      tryCreateRaid(address)
+
+      for(fs <- filesystem) {
+        fs.loadData(holder)
+      }
     }
-    label.loadData(nbt)
+
+    label.loadData(holder)
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
-    filesystem.foreach(fs => nbt.setNewCompoundTag(FileSystemTag, fs.saveData))
-    label.saveData(nbt)
+  override def saveComponentsForServer(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsForServer(holder)
+
+    for(fs <- filesystem) fs.saveData(holder)
+    label.saveData(holder)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
-    nbt.getByteArray(PresenceTag).
-      map(_ != 0).
-      copyToArray(presence)
-    label.setLabel(nbt.getString(LabelTag))
+  override def loadComponentsForClient(holder: DataComponentHolder): Unit = {
+    super.loadComponentsForClient(holder)
+    for(p <- holder.getComponent(OCComponents.PRESENCE)) {
+      val bytes: Array[Byte] = Array.fill(presence.length)(0)
+      p.get(bytes)
+      bytes.map(_ != 0).copyToArray(presence)
+    }
+    this.label.loadData(holder)
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
-    val presenceArray = Array.tabulate[Byte](items.length) { i =>
-      if (items(i).isEmpty) 0.toByte else 1.toByte
-    }
-    nbt.put(PresenceTag, new ByteArrayTag(presenceArray))
-
-    if (label.getLabel != null) {
-      nbt.putString(LabelTag, label.getLabel)
-    }
+  override def saveComponentsForClient(holder: MutableDataComponentHolder): Unit = {
+    super.saveComponentsForClient(holder)
+    holder.setComponent(OCComponents.PRESENCE, ByteBuffer.wrap(items.map(s => if(s.isEmpty) 0.toByte else 1.toByte)))
+    label.saveData(holder)
   }
 
   // ----------------------------------------------------------------------- //
@@ -186,18 +183,18 @@ class Raid(pos: BlockPos, state: BlockState)
   class RaidLabel extends Label {
     var label = "raid"
 
-    override def getLabel = label
+    override def getLabel(provider: HolderLookup.Provider): String = label
 
     override def setLabel(value: String) = label = Option(value).map(_.take(16)).orNull
 
-    override def loadData(nbt: CompoundTag): Unit = {
-      if (nbt.contains(Settings.namespace + "label")) {
-        label = nbt.getString(Settings.namespace + "label")
+    override def loadData(holder: DataComponentHolder): Unit = {
+      for(label <- holder.getComponent(OCComponents.LABEL)) {
+        this.label = label
       }
     }
 
-    override def saveData(nbt: CompoundTag): Unit = {
-      nbt.putString(Settings.namespace + "label", label)
+    override def saveData(holder: MutableDataComponentHolder): Unit = {
+      holder.setComponent(OCComponents.LABEL, label)
     }
   }
 

@@ -1,42 +1,30 @@
 package li.cil.oc.common.blockentity
 
-import java.util
-import com.google.common.base.Strings
-import li.cil.oc.Constants
-import li.cil.oc.Settings
-import li.cil.oc.api
-import li.cil.oc.common.block.{Print => PrintBlock}
-import li.cil.oc.common.item.data.PrintData
-import li.cil.oc.common.blockentity.traits.RedstoneChangedEventArgs
+import li.cil.oc.{Constants, Settings, api}
 import li.cil.oc.client.renderer.block.PrintModel
-import li.cil.oc.util.ExtendedAABB
+import li.cil.oc.common.block.{Print => PrintBlock}
+import li.cil.oc.common.blockentity.traits.RedstoneChangedEventArgs
+import li.cil.oc.common.init.OCBlocks
+import li.cil.oc.common.item.data.PrintData
 import li.cil.oc.util.ExtendedAABB._
 import li.cil.oc.util.ExtendedNBT._
-import net.minecraft.sounds.SoundEvents
-import net.minecraft.nbt.CompoundTag 
-import net.minecraft.world.level.block.entity.BlockEntity
-import net.minecraft.world.level.block.entity.BlockEntityType
-import net.minecraft.core.Direction
-import net.minecraft.sounds.SoundSource
-import net.minecraft.core.BlockPos
-import net.minecraft.world.phys.HitResult
-import net.minecraft.world.phys.shapes.BooleanOp
-import net.minecraft.world.phys.shapes.VoxelShape
-import net.minecraft.world.phys.shapes.Shapes
-import net.minecraft.world.phys.Vec3
+import net.minecraft.core.{BlockPos, Direction, HolderLookup}
+import net.minecraft.nbt.CompoundTag
 import net.minecraft.server.level.ServerLevel
+import net.minecraft.sounds.{SoundEvents, SoundSource}
+import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.block.state.BlockState
+import net.minecraft.world.phys.shapes.{BooleanOp, Shapes, VoxelShape}
 import net.minecraft.world.ticks.ScheduledTick
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
-import net.neoforged.neoforge.client.model.data.ModelData
-import net.neoforged.neoforge.client.model.data.ModelProperty
+import net.neoforged.api.distmarker.{Dist, OnlyIn}
+import net.neoforged.neoforge.client.model.data.{ModelData, ModelProperty}
+import net.neoforged.neoforge.common.extensions.IBlockEntityExtension
 
-import scala.collection.Iterable
-import scala.collection.convert.ImplicitConversionsToJava._
+import java.util
 
 class Print(pos: BlockPos, blockState: BlockState, val canToggle: Option[() => Boolean], val scheduleUpdate: Option[Int => Unit], val onStateChange: Option[() => Unit])
-  extends BlockEntity(BlockEntityTypes.PRINT.get(), pos, blockState) with traits.BaseBlockEntity with traits.RedstoneAware with traits.RotatableBaseBlock {
+  extends BlockEntity(BlockEntityTypes.PRINT.get(), pos, blockState) with traits.BaseBlockEntity with traits.RedstoneAware with traits.RotatableBaseBlock
+    with IBlockEntityExtension {
 
   def this(pos: BlockPos, blockState: BlockState) = this(pos, blockState, None, None, None)
   def this(pos: BlockPos, blockState: BlockState, canToggle: () => Boolean, scheduleUpdate: Int => Unit, onStateChange: () => Unit) =
@@ -85,7 +73,7 @@ class Print(pos: BlockPos, blockState: BlockState, val canToggle: Option[() => B
       getLevel.sendBlockUpdated(getBlockPos, getLevel.getBlockState(getBlockPos), getLevel.getBlockState(getBlockPos), 3)
       updateRedstone()
       if (state && data.isButtonMode) {
-        val block = api.Items.get(Constants.BlockName.Print).block().asInstanceOf[PrintBlock]
+        val block = OCBlocks.Print.get()
         val delay = block.tickRate(getLevel)
         scheduleUpdate match {
           case Some(callback) => callback(delay)
@@ -134,34 +122,24 @@ class Print(pos: BlockPos, blockState: BlockState, val canToggle: Option[() => B
   // ----------------------------------------------------------------------- //
 
   private final val DataTag = Settings.namespace + "data"
-  @Deprecated
-  private final val DataTagCompat = "data"
   private final val StateTag = Settings.namespace + "state"
-  @Deprecated
-  private final val StateTagCompat = "state"
 
-  override def loadForServer(nbt: CompoundTag): Unit = {
-    super.loadForServer(nbt)
-    if (nbt.contains(DataTagCompat))
-      data.loadData(nbt.getCompound(DataTagCompat))
-    else
-      data.loadData(nbt.getCompound(DataTag))
-    if (nbt.contains(StateTagCompat))
-      state = nbt.getBoolean(StateTagCompat)
-    else
-      state = nbt.getBoolean(StateTag)
+  override def loadForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForServer(nbt, provider)
+    data.loadData(nbt.getCompound(DataTag), provider)
+    state = nbt.getBoolean(StateTag)
     updateShape()
   }
 
-  override def saveForServer(nbt: CompoundTag): Unit = {
-    super.saveForServer(nbt)
-    nbt.setNewCompoundTag(DataTag, data.saveData)
+  override def saveForServer(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForServer(nbt, provider)
+    nbt.setNewCompoundTag(DataTag, (nbt: CompoundTag) => data.saveData(nbt, provider))
     nbt.putBoolean(StateTag, state)
   }
 
-  override def loadForClient(nbt: CompoundTag): Unit = {
-    super.loadForClient(nbt)
-    data.loadData(nbt.getCompound(DataTag))
+  override def loadForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.loadForClient(nbt, provider)
+    data.loadData(nbt.getCompound(DataTag), provider)
     state = nbt.getBoolean(StateTag)
     updateShape()
     if (getLevel != null) {
@@ -170,9 +148,9 @@ class Print(pos: BlockPos, blockState: BlockState, val canToggle: Option[() => B
     }
   }
 
-  override def saveForClient(nbt: CompoundTag): Unit = {
-    super.saveForClient(nbt)
-    nbt.setNewCompoundTag(DataTag, data.saveData)
+  override def saveForClient(nbt: CompoundTag, provider: HolderLookup.Provider): Unit = {
+    super.saveForClient(nbt, provider)
+    nbt.setNewCompoundTag(DataTag, (nbt: CompoundTag) => data.saveData(nbt, provider))
     nbt.putBoolean(StateTag, state)
   }
 

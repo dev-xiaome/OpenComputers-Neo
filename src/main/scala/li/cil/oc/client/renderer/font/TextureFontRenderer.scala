@@ -1,12 +1,11 @@
 package li.cil.oc.client.renderer.font
 
 import com.mojang.blaze3d.systems.RenderSystem
-import com.mojang.blaze3d.vertex.{PoseStack, Tesselator, VertexConsumer}
-import org.joml.Matrix4f
-import li.cil.oc.util.{ExtendedUnicodeHelper, PackedColor, TextBuffer}
+import com.mojang.blaze3d.vertex.{ByteBufferBuilder, PoseStack, VertexConsumer}
 import li.cil.oc.client.renderer.RenderTypes
-import net.minecraft.client.renderer.RenderType
-import net.minecraft.client.renderer.MultiBufferSource
+import li.cil.oc.util.{ExtendedUnicodeHelper, PackedColor, TextBuffer}
+import net.minecraft.client.renderer.{MultiBufferSource, RenderType}
+import org.joml.Matrix4f
 
 abstract class TextureFontRenderer {
   protected final val basicChars = """☺☻♥♦♣♠•◘○◙♂♀♪♫☼►◄↕‼¶§▬↨↑↓→←∟↔▲▼ !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~⌂ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■"""
@@ -37,7 +36,7 @@ abstract class TextureFontRenderer {
         if (col != cbg) {
           if (cbg != 0 && width > 0) {
             if (quadBuilder == null) quadBuilder = renderBuff.getBuffer(RenderTypes.FONT_QUAD)
-            drawQuad(quadBuilder, stack.last.pose, cbg, x, y, width)
+            drawQuad(quadBuilder, stack.last.pose(), cbg, x, y, width)
           }
           cbg = col
           x += width
@@ -47,7 +46,7 @@ abstract class TextureFontRenderer {
       }
       if (cbg != 0 && width > 0) {
         if (quadBuilder == null) quadBuilder = renderBuff.getBuffer(RenderTypes.FONT_QUAD)
-        drawQuad(quadBuilder, stack.last.pose, cbg, x, y, width)
+        drawQuad(quadBuilder, stack.last.pose(), cbg, x, y, width)
       }
     }
 
@@ -63,7 +62,7 @@ abstract class TextureFontRenderer {
           if (ch != ' ') {
             if (fontBuilder == null) fontBuilder = renderBuff.getBuffer(selectType(i))
             val col = PackedColor.unpackForeground(color(n), format)
-            drawChar(fontBuilder, stack.last.pose, col, tx, ty.toFloat, ch.toInt)
+            drawChar(fontBuilder, stack.last.pose(), col, tx, ty.toFloat, ch.toInt)
           }
           tx += charWidth
         }
@@ -76,13 +75,13 @@ abstract class TextureFontRenderer {
     val sLength = ExtendedUnicodeHelper.length(s)
 
     stack.pushPose()
-
-    stack.translate(x, y, 0)
+    stack.translate(x.toFloat, y.toFloat, 0f)
     stack.scale(0.5f, 0.5f, 1)
 
     RenderSystem.depthMask(false)
 
-    val bufferSource = MultiBufferSource.immediate(new com.mojang.blaze3d.vertex.ByteBufferBuilder(1536))
+    val byteBuffer = new ByteBufferBuilder(786432)
+    val bufferSource = MultiBufferSource.immediate(byteBuffer)
 
     for (i <- 0 until textureCount) {
       val renderType = selectType(i)
@@ -93,7 +92,7 @@ abstract class TextureFontRenderer {
       for (_ <- 0 until sLength) {
         val ch = s.codePointAt(cx)
         if (ch != ' ') {
-          drawChar(builder, stack.last.pose, 0xFFFFFF, tx, 0f, ch)
+          drawChar(builder, stack.last.pose(), 0xFFFFFF, tx, 0f, ch)
         }
         tx += charWidth
         cx = s.offsetByCodePoints(cx, 1)
@@ -101,11 +100,10 @@ abstract class TextureFontRenderer {
       bufferSource.endBatch(renderType)
     }
 
-    bufferSource.endBatch()
+    byteBuffer.close()
 
     RenderSystem.depthMask(true)
     stack.popPose()
-
     RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F)
   }
 
@@ -125,10 +123,10 @@ abstract class TextureFontRenderer {
       val r = (color >> 16) & 0xFF
       val g = (color >> 8) & 0xFF
       val b = color & 0xFF
-      builder.addVertex(matrix, x0.toFloat, y1.toFloat, 0).setColor(r, g, b, 255)
-      builder.addVertex(matrix, x1.toFloat, y1.toFloat, 0).setColor(r, g, b, 255)
-      builder.addVertex(matrix, x1.toFloat, y0.toFloat, 0).setColor(r, g, b, 255)
-      builder.addVertex(matrix, x0.toFloat, y0.toFloat, 0).setColor(r, g, b, 255)
+      builder.addVertex(matrix, x0.toFloat, y1.toFloat, 0).setUv(0f, 1f).setColor(r, g, b, 255)
+      builder.addVertex(matrix, x1.toFloat, y1.toFloat, 0).setUv(1f, 1f).setColor(r, g, b, 255)
+      builder.addVertex(matrix, x1.toFloat, y0.toFloat, 0).setUv(1f, 0f).setColor(r, g, b, 255)
+      builder.addVertex(matrix, x0.toFloat, y0.toFloat, 0).setUv(0f, 0f).setColor(r, g, b, 255)
     }
   }
 }

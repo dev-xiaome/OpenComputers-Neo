@@ -7,7 +7,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 
 /**
- * This interface is like {@link net.minecraft.world.inventory.ISidedInventory} is to
+ * This interface is like {@link net.minecraft.world.WorldlyContainer} is to
  * {@link Container}, it allows an environment to
  * specify different node access for its different sides.
  * <br>

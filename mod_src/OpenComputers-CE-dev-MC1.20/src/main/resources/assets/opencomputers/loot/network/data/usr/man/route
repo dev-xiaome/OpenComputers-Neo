@@ -1,8 +1,0 @@
-NAME
-  route - Show routing information
-  
-SYNOPSIS
-  route
-  
-DESCRIPTION
-  Displays the contents of the routing table

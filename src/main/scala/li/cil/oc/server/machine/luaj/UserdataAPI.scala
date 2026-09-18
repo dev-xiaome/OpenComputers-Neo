@@ -1,6 +1,6 @@
 package li.cil.oc.server.machine.luaj
 
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.api.machine.Value
 import li.cil.oc.server.driver.Registry
 import li.cil.oc.server.machine.ArgumentsImpl
@@ -38,7 +38,7 @@ class UserdataAPI(owner: LuaJLuaArchitecture) extends LuaJAPI(owner) {
     userdata.set("dispose", (args: Varargs) => {
       val value = args.checkuserdata(1, classOf[Value]).asInstanceOf[Value]
       try value.dispose(machine) catch {
-        case t: Throwable => OpenComputers.log.warn("Error in dispose method of userdata of type " + value.getClass.getName, t)
+        case t: Throwable => OpenComputersNeo.log.warn("Error in dispose method of userdata of type " + value.getClass.getName, t)
       }
       LuaValue.NIL
     })

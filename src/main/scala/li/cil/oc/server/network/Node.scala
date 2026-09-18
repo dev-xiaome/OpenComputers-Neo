@@ -1,12 +1,12 @@
 package li.cil.oc.server.network
 
 import com.google.common.base.Strings
-import li.cil.oc.OpenComputers
-import li.cil.oc.api
-import li.cil.oc.api.network.Environment
-import li.cil.oc.api.network.Visibility
-import li.cil.oc.api.network.{Node => ImmutableNode}
-import net.minecraft.nbt.CompoundTag
+import li.cil.oc.{OpenComputersNeo, api}
+import li.cil.oc.api.network.{Environment, Visibility, Node => ImmutableNode}
+import li.cil.oc.common.datacomponents.OCComponents
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.component.DataComponentHolder
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 import scala.collection.convert.ImplicitConversionsToJava._
 import scala.collection.convert.ImplicitConversionsToScala._
@@ -57,7 +57,7 @@ trait Node extends ImmutableNode {
     try {
       host.onConnect(node)
     } catch {
-      case e: Throwable => OpenComputers.log.warn(s"A component of type '${host.getClass.getName}' threw an error while being connected to the component network.", e)
+      case e: Throwable => OpenComputersNeo.log.warn(s"A component of type '${host.getClass.getName}' threw an error while being connected to the component network.", e)
     }
   }
 
@@ -65,25 +65,26 @@ trait Node extends ImmutableNode {
     try {
       host.onDisconnect(node)
     } catch {
-      case e: Throwable => OpenComputers.log.warn(s"A component of type '${host.getClass.getName}' threw an error while being disconnected from the component network.", e)
+      case e: Throwable => OpenComputersNeo.log.warn(s"A component of type '${host.getClass.getName}' threw an error while being disconnected from the component network.", e)
     }
   }
 
   // ----------------------------------------------------------------------- //
 
-  def loadData(nbt: CompoundTag): Unit = {
-    if (nbt.contains("address")) {
-      val newAddress = nbt.getString("address")
-      if (!Strings.isNullOrEmpty(newAddress) && newAddress != address) network match {
-        case wrapper: Network.Wrapper => wrapper.network.remap(this, newAddress)
-        case _ => address = newAddress
-      }
+  private[oc] def loadAddress(newAddress: String): Unit = {
+    if (!Strings.isNullOrEmpty(newAddress) && newAddress != address) network match {
+      case wrapper: Network.Wrapper => wrapper.network.remap(this, newAddress)
+      case _ => address = newAddress
     }
   }
 
-  def saveData(nbt: CompoundTag): Unit = {
+  override def loadData(holder: DataComponentHolder): Unit = {
+    holder.getComponent(OCComponents.ADDRESS).foreach(loadAddress)
+  }
+
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
     if (address != null) {
-      nbt.putString("address", address)
+      holder.setComponent(OCComponents.ADDRESS, address)
     }
   }
 

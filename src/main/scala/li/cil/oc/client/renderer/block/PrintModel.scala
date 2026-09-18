@@ -1,8 +1,6 @@
 package li.cil.oc.client.renderer.block
 
 import java.util
-import java.util.Collections
-
 import com.google.common.base.Strings
 import li.cil.oc.Settings
 import li.cil.oc.client.KeyBindings
@@ -29,7 +27,7 @@ import net.minecraft.client.renderer.RenderType
 import net.neoforged.neoforge.client.ChunkRenderTypeSet
 import net.neoforged.neoforge.client.model.data.{ModelData, ModelProperty}
 
-import scala.collection.JavaConverters.bufferAsJavaList
+import scala.jdk.CollectionConverters._
 import scala.jdk.CollectionConverters._
 import scala.collection.mutable
 import scala.io.Source
@@ -67,7 +65,7 @@ object PrintModel extends SmartBlockModelBase {
       }
     }
     result.getOrElse {
-      li.cil.oc.OpenComputers.log.warn(s"[OpenComputers] Failed to load block_name_migration.csv from $path")
+      li.cil.oc.OpenComputersNeo.log.warn(s"[OpenComputersNeo] Failed to load block_name_migration.csv from $path")
       Map.empty
     }
   }
@@ -147,7 +145,7 @@ object PrintModel extends SmartBlockModelBase {
         val texture = resolveTexture(Settings.resourceDomain + ":block/white")
         faces ++= bakeQuads(makeBox(bounds.minVec, bounds.maxVec), Array.fill(6)(texture), Color.rgbValues(DyeColor.LIME))
       }
-      bufferAsJavaList(faces)
+      faces.asJava
     }
   }
 

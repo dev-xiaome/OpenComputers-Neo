@@ -12,7 +12,7 @@ import net.neoforged.neoforge.fluids.capability.IFluidHandlerItem
 import net.minecraft.world.level.block.entity.BlockEntity
 import net.minecraft.world.level.material.Fluid
 import net.minecraft.world.level.block.LiquidBlock
-import net.neoforged.neoforge.capabilities.{Capabilities => NeoCapabilities}
+import net.neoforged.neoforge.capabilities.Capabilities
 
 object FluidUtils {
   /**
@@ -23,16 +23,18 @@ object FluidUtils {
   def fluidHandlerAt(position: BlockPosition, side: Direction): Option[IFluidHandler] = position.world match {
     case Some(world) if world.blockExists(position) => world.getBlockEntity(position) match {
       case handler: IFluidHandler => Option(handler)
-      case _ =>
-        // 1.21.1 的能力查询返回可空值，不再有 LazyOptional。
-        Option(world.getCapability(NeoCapabilities.FluidHandler.BLOCK, position.toBlockPos, side)).
-          orElse(Option(new GenericBlockWrapper(position)))
+      case _: BlockEntity =>
+        Option(world.getCapability(Capabilities.FluidHandler.BLOCK, position.toBlockPos, side)) match {
+          case Some(handler) => Option(handler)
+          case _ => Option(new GenericBlockWrapper(position))
+        }
+      case _ => Option(new GenericBlockWrapper(position))
     }
     case _ => None
   }
 
   def fluidHandlerOf(stack: ItemStack): IFluidHandlerItem = Option(stack) match {
-    case Some(itemStack) => itemStack.getCapability(NeoCapabilities.FluidHandler.ITEM)
+    case Some(itemStack) => itemStack.getCapability(Capabilities.FluidHandler.ITEM)
     case _ => null
   }
 
@@ -90,7 +92,6 @@ object FluidUtils {
    */
   @Deprecated
   def lookupFluidForBlock(block: Block): Fluid = block match {
-    // 1.21.1 的 LiquidBlock 不再有 getFluid()，对应的流体放在公开字段 fluid 里。
     case fluid: LiquidBlock => fluid.fluid
     case _ => null
   }
@@ -113,8 +114,6 @@ object FluidUtils {
     override def fill(resource: FluidStack, action: FluidAction): Int = currentWrapper.fold(0)(_.fill(resource, action))
 
     def currentWrapper: Option[IFluidHandler] = if (position.world.get.blockExists(position)) position.world.get.getBlock(position) match {
-      // NeoForge 1.21.1 移除了 IFluidBlock：世界中的流体一律由 LiquidBlock 承载，
-      // 因此这里只保留 LiquidBlock / 空气两种包装（原来的 FluidBlockWrapper 一并删除）。
       case block: LiquidBlock if lookupFluidForBlock(block) != null && isFullLiquidBlock => Option(new LiquidBlockWrapper(position, block))
       case block: Block if block.isAir(position) || block.isReplaceable(position) => Option(new AirBlockWrapper(position, block))
       case _ => None

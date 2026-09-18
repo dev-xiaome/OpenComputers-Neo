@@ -3,7 +3,7 @@ package li.cil.oc.server.machine
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.api.driver.MethodWhitelist
 import li.cil.oc.api.driver.NamedBlock
 import li.cil.oc.api.machine
@@ -89,13 +89,13 @@ object Callbacks {
         if (m.getParameterTypes.size != 2 ||
           m.getParameterTypes()(0) != classOf[Context] ||
           m.getParameterTypes()(1) != classOf[Arguments]) {
-          OpenComputers.log.error(s"Invalid use of Callback annotation on ${m.getDeclaringClass.getName}.${m.getName}: invalid argument types or count.")
+          OpenComputersNeo.log.error(s"Invalid use of Callback annotation on ${m.getDeclaringClass.getName}.${m.getName}: invalid argument types or count.")
         }
         else if (m.getReturnType != classOf[Array[AnyRef]]) {
-          OpenComputers.log.error(s"Invalid use of Callback annotation on ${m.getDeclaringClass.getName}.${m.getName}: invalid return type.")
+          OpenComputersNeo.log.error(s"Invalid use of Callback annotation on ${m.getDeclaringClass.getName}.${m.getName}: invalid return type.")
         }
         else if (!Modifier.isPublic(m.getModifiers)) {
-          OpenComputers.log.error(s"Invalid use of Callback annotation on ${m.getDeclaringClass.getName}.${m.getName}: method must be public.")
+          OpenComputersNeo.log.error(s"Invalid use of Callback annotation on ${m.getDeclaringClass.getName}.${m.getName}: method must be public.")
         }
         else {
           val a = m.getAnnotation[machine.Callback](classOf[machine.Callback])

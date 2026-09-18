@@ -1,7 +1,7 @@
 package li.cil.oc.common
 
-import li.cil.oc.{Constants, OpenComputers, api}
-import li.cil.oc.common.block.RobotAfterimage
+import li.cil.oc.OpenComputersNeo
+import li.cil.oc.common.init.OCBlocks
 import li.cil.oc.util.BlockPosition
 import li.cil.oc.util.ExtendedLevel._
 import net.minecraft.core.{BlockPos, Direction, Registry}
@@ -22,13 +22,10 @@ object PacketHandler {
   var serverHandler: PacketHandler = _
 
   private[oc] def handlePacket(isClientSide: Boolean, arr: Array[Byte], player: Player): Unit = {
-    // Don't crash on badly formatted packets (may have been altered by a
-    // malicious client, in which case we don't want to allow it to kill the
-    // server like this). Just spam the log a bit... ;)
     var stream: InputStream = null
     try {
-      // isClientSide 表示这个包是在客户端收到的（即服务端 -> 客户端方向的包）。
       val handler = if (isClientSide) clientHandler else serverHandler
+
       if (handler != null) {
         stream = new ByteArrayInputStream(arr)
         if (stream.read() != 0) stream = new InflaterInputStream(stream)
@@ -36,15 +33,13 @@ object PacketHandler {
       }
     } catch {
       case e: Throwable =>
-        OpenComputers.log.warn("Received a badly formatted packet.", e)
+        OpenComputersNeo.log.warn("Received a badly formatted packet.", e)
     } finally {
       if (stream != null) {
         stream.close()
       }
     }
 
-    // Avoid AFK kicks by marking players as non-idle when they send packets.
-    // This will usually be stuff like typing while in screen GUIs.
     player match {
       case mp: ServerPlayer => mp.resetLastActionTime()
       case _ =>
@@ -89,12 +84,9 @@ abstract class PacketHandler {
           // In case a robot moved away before the packet arrived. This is
           // mostly used when the robot *starts* moving while the client sends
           // a request to the server.
-          api.Items.get(Constants.BlockName.RobotAfterimage).block match {
-            case afterimage: RobotAfterimage => afterimage.findMovingRobot(world, new BlockPos(x, y, z)) match {
-              case Some(robot) if classTag[T].runtimeClass.isAssignableFrom(robot.proxy.getClass) =>
-                return Some(robot.proxy.asInstanceOf[T])
-              case _ =>
-            }
+          OCBlocks.RobotAfterimage.get().findMovingRobot(world, new BlockPos(x, y, z)) match {
+            case Some(robot) if classTag[T].runtimeClass.isAssignableFrom(robot.proxy.getClass) =>
+              return Some(robot.proxy.asInstanceOf[T])
             case _ =>
           }
         case _ => // Invalid dimension.
@@ -136,7 +128,7 @@ abstract class PacketHandler {
     def readItemStack(): ItemStack = {
       val haveStack = readBoolean()
       if (haveStack) {
-        ItemStack.parseOptional(li.cil.oc.util.RegistryAccessHelper.getOrEmpty(), readNBT())
+        ItemStack.parseOptional(player.level.registryAccess(), readNBT())
       }
       else ItemStack.EMPTY
     }
@@ -155,7 +147,7 @@ abstract class PacketHandler {
       val c2 = readUnsignedByte()
       (c0) | (c1 << 8) | (c2 << 16)
     }
-    
+
     def readBlockPosCoords(): BlockPosition = {
       val x = readInt()
       val y = readInt()

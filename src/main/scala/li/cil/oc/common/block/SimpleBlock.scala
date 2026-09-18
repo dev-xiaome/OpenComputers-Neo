@@ -1,39 +1,32 @@
 package li.cil.oc.common.block
 
-import java.util
-import com.mojang.serialization.MapCodec
+import li.cil.oc.common.block.property.PropertyRotatable
 import li.cil.oc.common.blockentity
-import li.cil.oc.common.blockentity.traits.Colored
-import li.cil.oc.common.blockentity.traits.Inventory
-import li.cil.oc.common.blockentity.traits.Rotatable
+import li.cil.oc.common.blockentity.traits.{Colored, Inventory, Rotatable}
 import li.cil.oc.server.loot.LootFunctions
-import li.cil.oc.util.Color
-import li.cil.oc.util.Tooltip
-import net.minecraft.world.level.block.state.BlockBehaviour.Properties
-import net.minecraft.world.level.block.state.BlockState
-import net.minecraft.world.level.block.{RenderShape => BlockRenderType}
-import net.minecraft.world.level.block.{BaseEntityBlock => ContainerBlock}
-import net.minecraft.world.item.{TooltipFlag => ITooltipFlag}
+import li.cil.oc.util.{Color, Tooltip}
+import net.minecraft.core.{BlockPos, Direction}
+import net.minecraft.network.chat.Component
+import net.minecraft.world.{InteractionHand, InteractionResult, ItemInteractionResult}
 import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.player.{Player => PlayerEntity}
-import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.{ItemStack, TooltipFlag}
+import net.minecraft.world.item.Item.TooltipContext
+import net.minecraft.world.item.context.BlockPlaceContext
+import net.minecraft.world.level.{BlockGetter, Level => World}
+import net.minecraft.world.level.block.{Mirror, Rotation, BaseEntityBlock => ContainerBlock, RenderShape => BlockRenderType}
+import net.minecraft.world.level.block.entity.{BlockEntity => TileEntity}
+import net.minecraft.world.level.block.state.BlockBehaviour.Properties
+import net.minecraft.world.level.block.state.BlockState
 import net.minecraft.world.level.storage.loot.LootParams
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams
-import net.minecraft.world.level.block.entity.{BlockEntity => TileEntity}
-import net.minecraft.core.Direction
-import net.minecraft.world.{InteractionHand, InteractionResult, ItemInteractionResult}
-import net.minecraft.core.BlockPos
 import net.minecraft.world.phys.BlockHitResult
-import net.minecraft.network.chat.Component
-import net.minecraft.world.item.context.BlockPlaceContext
-import net.minecraft.world.level.BlockGetter
-import net.minecraft.world.level.{Level => World}
-import net.neoforged.api.distmarker.Dist
-import net.neoforged.api.distmarker.OnlyIn
 
-import scala.collection.convert.ImplicitConversionsToScala._
+import java.util
 
 abstract class SimpleBlock(props: Properties) extends ContainerBlock(props) {
+  override protected def codec(): com.mojang.serialization.MapCodec[_ <: SimpleBlock] = com.mojang.serialization.MapCodec.unit(this)
+
   @Deprecated
   private var unlocalizedName = super.getDescriptionId
 
@@ -51,39 +44,24 @@ abstract class SimpleBlock(props: Properties) extends ContainerBlock(props) {
 
   override def getRenderShape(state: BlockState): BlockRenderType = BlockRenderType.MODEL
 
-  // 1.21.1：`BaseEntityBlock` 把 `Block#codec()` 重新声明为
-  // `protected abstract MapCodec[_ <: BaseEntityBlock]`，与 `Block` 中返回
-  // `MapCodec[_ <: Block]` 的具体实现构成「覆写类型不兼容」，于是每个具体子类
-  // 都会报 incompatible type in overriding。OpenComputers 的方块不参与数据包
-  // 驱动的方块定义，这里用一个常量 codec 直接满足契约。
-  override def codec(): MapCodec[_ <: ContainerBlock] = MapCodec.unit(this)
-
   // ----------------------------------------------------------------------- //
   // BlockItem
   // ----------------------------------------------------------------------- //
 
-  // 1.21.1：`Block#appendHoverText` 的第二个参数从 `Level` / `BlockGetter` 换成了
-  // `Item.TooltipContext`（NeoForge 给 `BlockItem#appendHoverText` 打了补丁，会把它转发到方块上）。
-  // 下面三个 `tooltip*` 辅助方法仍按 `BlockGetter` 传参，所以这里从上下文里取回 `Level`
-  // （可能为 null，与 1.20 时代 `@Nullable Level` 的语义一致）。
-  @OnlyIn(Dist.CLIENT)
-  override def appendHoverText(stack: ItemStack, context: net.minecraft.world.item.Item.TooltipContext, tooltip: util.List[Component], flag: ITooltipFlag): Unit = {
-    val world = context.level()
-    tooltipHead(stack, world, tooltip, flag)
-    tooltipBody(stack, world, tooltip, flag)
-    tooltipTail(stack, world, tooltip, flag)
+  override def appendHoverText(stack: ItemStack, context: TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+    tooltipHead(stack, context, tooltip, flag)
+    tooltipBody(stack, context, tooltip, flag)
+    tooltipTail(stack, context, tooltip, flag)
   }
 
-  protected def tooltipHead(stack: ItemStack, world: BlockGetter, tooltip: util.List[Component], flag: ITooltipFlag): Unit = {
+  protected def tooltipHead(stack: ItemStack, context: TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
   }
 
-  protected def tooltipBody(stack: ItemStack, world: BlockGetter, tooltip: util.List[Component], flag: ITooltipFlag): Unit = {
-    for (curr <- Tooltip.get(getClass.getSimpleName.toLowerCase)) {
-      tooltip.add(Component.literal(curr).setStyle(Tooltip.DefaultStyle))
-    }
+  protected def tooltipBody(stack: ItemStack, context: TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
+    Tooltip.add(tooltip, flag, getClass.getSimpleName.toLowerCase)
   }
 
-  protected def tooltipTail(stack: ItemStack, world: BlockGetter, tooltip: util.List[Component], flag: ITooltipFlag): Unit = {
+  protected def tooltipTail(stack: ItemStack, context: TooltipContext, tooltip: util.List[Component], flag: TooltipFlag): Unit = {
   }
 
   // ----------------------------------------------------------------------- //
@@ -121,7 +99,35 @@ abstract class SimpleBlock(props: Properties) extends ContainerBlock(props) {
   override def canHarvestBlock(state: BlockState, world: BlockGetter, pos: BlockPos, player: PlayerEntity) = true
 
   override def canBeReplaced(state: BlockState, ctx: BlockPlaceContext): Boolean = false
-  
+
+  /**
+   * Vanilla/Create transform block states directly. This is separate from the
+   * legacy wrench path below, which rotates the block entity in-place.
+   */
+  @SuppressWarnings(Array("deprecation"))
+  override protected def rotate(state: BlockState, rotation: Rotation): BlockState = {
+    var result = state
+    if (state.hasProperty(PropertyRotatable.Facing)) {
+      result = result.setValue(PropertyRotatable.Facing, rotation.rotate(state.getValue(PropertyRotatable.Facing)))
+    }
+    if (state.hasProperty(PropertyRotatable.Yaw)) {
+      result = result.setValue(PropertyRotatable.Yaw, rotation.rotate(state.getValue(PropertyRotatable.Yaw)))
+    }
+    result
+  }
+
+  @SuppressWarnings(Array("deprecation"))
+  override protected def mirror(state: BlockState, mirror: Mirror): BlockState = {
+    var result = state
+    if (state.hasProperty(PropertyRotatable.Facing)) {
+      result = result.setValue(PropertyRotatable.Facing, mirror.mirror(state.getValue(PropertyRotatable.Facing)))
+    }
+    if (state.hasProperty(PropertyRotatable.Yaw)) {
+      result = result.setValue(PropertyRotatable.Yaw, mirror.mirror(state.getValue(PropertyRotatable.Yaw)))
+    }
+    result
+  }
+
   def getValidRotations(world: World, pos: BlockPos): Array[Direction] = validRotations_
 
   override def getDrops(state: BlockState, ctx: LootParams.Builder): util.List[ItemStack] = {
@@ -137,8 +143,6 @@ abstract class SimpleBlock(props: Properties) extends ContainerBlock(props) {
     super.getDrops(state, newCtx)
   }
 
-  // 1.21.1：`Block#playerWillDestroy` 的返回值由 void 改为 `BlockState`（返回销毁前的方块状态）。
-  // 副作用保持原样，最后把父类的结果透传出去。所有子类都从这里继承，无需逐个修改。
   override def playerWillDestroy(world: World, pos: BlockPos, state: BlockState, player: PlayerEntity): BlockState = {
     if (!world.isClientSide && player.isCreative) world.getBlockEntity(pos) match {
       case inventory: Inventory => inventory.dropAllSlots()
@@ -158,29 +162,42 @@ abstract class SimpleBlock(props: Properties) extends ContainerBlock(props) {
       case _ => false
     }
 
-  // ----------------------------------------------------------------------- //
+  def applyColor(colored: Colored, world: World, pos: BlockPos, player: PlayerEntity, dyeItem: ItemStack) = {
+    colored.setColor(Color.rgbValues(Color.dyeColor(dyeItem)))
+    world.sendBlockUpdated(pos, world.getBlockState(pos), world.getBlockState(pos), 3)
+    if (!player.isCreative && colored.consumesDye) {
+      dyeItem.split(1)
+    }
+  }
 
-  // 1.21.1：`Block#use(BlockState, Level, BlockPos, Player, InteractionHand, BlockHitResult)` 已拆分：
-  // 带手持物品的交互走 `useItemOn(ItemStack, BlockState, Level, BlockPos, Player, InteractionHand, BlockHitResult)`，
-  // 返回类型也从 `InteractionResult` 变成 `ItemInteractionResult`。
-  override def useItemOn(stack: ItemStack, state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hand: InteractionHand, trace: BlockHitResult): ItemInteractionResult = {
-    world.getBlockEntity(pos) match {
+  // ----------------------------------------------------------------------- //
+  override def useItemOn(stack: ItemStack, state: BlockState, level: World, pos: BlockPos, player: PlayerEntity, hand: InteractionHand, hitResult: BlockHitResult): ItemInteractionResult = {
+    level.getBlockEntity(pos) match {
       case colored: Colored if Color.isDye(stack) =>
-        colored.setColor(Color.rgbValues(Color.dyeColor(stack)))
-        world.sendBlockUpdated(pos, world.getBlockState(pos), world.getBlockState(pos), 3)
-        if (!player.isCreative && colored.consumesDye) {
-          stack.split(1)
-        }
-        ItemInteractionResult.sidedSuccess(world.isClientSide)
+        applyColor(colored, level, pos, player, stack)
+        ItemInteractionResult.sidedSuccess(level.isClientSide)
       case _ => {
-        val loc = trace.getLocation
-        val hitPos = trace.getBlockPos
-        val x = loc.x.toFloat - hitPos.getX
-        val y = loc.y.toFloat - hitPos.getY
-        val z = loc.z.toFloat - hitPos.getZ
-        if (localOnBlockActivated(world, hitPos, player, hand, stack, trace.getDirection, x, y, z))
-          ItemInteractionResult.sidedSuccess(world.isClientSide)
-        else ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION
+        val result = localOnBlockActivated(level, pos, player, hand, stack, hitResult.getDirection,
+          (hitResult.getLocation.x - pos.getX).toFloat, (hitResult.getLocation.y - pos.getY).toFloat, (hitResult.getLocation.z - pos.getZ).toFloat)
+        if (result) ItemInteractionResult.sidedSuccess(level.isClientSide) else ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION
+      }
+    }
+  }
+
+  override def useWithoutItem(state: BlockState, world: World, pos: BlockPos, player: PlayerEntity, hitResult: BlockHitResult): InteractionResult = {
+    val heldItem = player.getItemInHand(InteractionHand.MAIN_HAND)
+    world.getBlockEntity(pos) match {
+      case colored: Colored if Color.isDye(heldItem) =>
+        applyColor(colored, world, pos, player, heldItem)
+        InteractionResult.sidedSuccess(world.isClientSide)
+      case _ => {
+        val loc = hitResult.getLocation
+        val bPos = hitResult.getBlockPos
+        val x = loc.x.toFloat - bPos.getX
+        val y = loc.y.toFloat - bPos.getY
+        val z = loc.z.toFloat - bPos.getZ
+        if (localOnBlockActivated(world, bPos, player, InteractionHand.MAIN_HAND, heldItem, hitResult.getDirection, x, y, z))
+          InteractionResult.sidedSuccess(world.isClientSide) else InteractionResult.PASS
       }
     }
   }

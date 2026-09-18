@@ -10,7 +10,6 @@ import net.minecraft.client.model.geom.builders.CubeListBuilder
 import net.minecraft.client.model.geom.builders.LayerDefinition
 import net.minecraft.client.model.geom.builders.MeshDefinition
 import net.minecraft.client.renderer.LightTexture
-import net.minecraft.util.FastColor
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.resources.ResourceLocation
 
@@ -40,9 +39,9 @@ object HoverBootRenderer {
     def addDroneBody(parent: net.minecraft.client.model.geom.builders.PartDefinition, name: String): Unit = {
       parent.addOrReplaceChild(name,
         CubeListBuilder.create()
-          .texOffs(0, 23).addBox(-3, 1, -3, 6, 1, 6)   // top
-          .texOffs(0, 1) .addBox(-1, 0, -1, 2, 1, 2)   // middle
-          .texOffs(0, 17).addBox(-2, -1, -2, 4, 1, 4), // bottom
+          .texOffs(0, 23).addBox(-3, 1, -3, 6, 1, 6)
+          .texOffs(0, 1) .addBox(-1, 0, -1, 2, 1, 2)
+          .texOffs(0, 17).addBox(-2, -1, -2, 4, 1, 4),
         PartPose.offsetAndRotation(0, 0, 0, 0, math.toRadians(45).toFloat, 0))
     }
     addDroneBody(bootLeft,  "drone_body_left")
@@ -50,26 +49,26 @@ object HoverBootRenderer {
 
     val wing0 = bootLeft.addOrReplaceChild("wing0",
       CubeListBuilder.create()
-        .texOffs(0, 9) .addBox(-1, 0, -7, 6, 1, 6) // flap0
-        .texOffs(0, 27).addBox(0, -1, -3, 1, 3, 1), // pin0
+        .texOffs(0, 9) .addBox(-1, 0, -7, 6, 1, 6)
+        .texOffs(0, 27).addBox(0, -1, -3, 1, 3, 1),
       PartPose.ZERO)
 
     val wing1 = bootLeft.addOrReplaceChild("wing1",
       CubeListBuilder.create()
-        .texOffs(0, 9) .addBox(-1, 0, 1, 6, 1, 6)  // flap1
-        .texOffs(0, 27).addBox(0, -1, 2, 1, 3, 1),  // pin1
+        .texOffs(0, 9) .addBox(-1, 0, 1, 6, 1, 6)
+        .texOffs(0, 27).addBox(0, -1, 2, 1, 3, 1),
       PartPose.ZERO)
 
     val wing2 = bootRight.addOrReplaceChild("wing2",
       CubeListBuilder.create()
-        .texOffs(0, 9) .addBox(-5, 0, 1, 6, 1, 6)   // flap2
-        .texOffs(0, 27).addBox(-1, -1, 2, 1, 3, 1),  // pin2
+        .texOffs(0, 9) .addBox(-5, 0, 1, 6, 1, 6)
+        .texOffs(0, 27).addBox(-1, -1, 2, 1, 3, 1),
       PartPose.ZERO)
 
     val wing3 = bootRight.addOrReplaceChild("wing3",
       CubeListBuilder.create()
-        .texOffs(0, 9) .addBox(-5, 0, -7, 6, 1, 6)  // flap3
-        .texOffs(0, 27).addBox(-1, -1, -3, 1, 3, 1), // pin3
+        .texOffs(0, 9) .addBox(-5, 0, -7, 6, 1, 6)
+        .texOffs(0, 27).addBox(-1, -1, -3, 1, 3, 1),
       PartPose.ZERO)
 
     wing0.addOrReplaceChild("light0",
@@ -98,9 +97,9 @@ class HoverBootRenderer(root: ModelPart) extends HumanoidModel[LivingEntity](roo
 
   var lightColor: Int = 0x66DD55
 
-  head.visible    = false
-  hat.visible     = false
-  body.visible    = false
+  head.visible     = false
+  hat.visible      = false
+  body.visible     = false
   rightArm.visible = false
   leftArm.visible  = false
 
@@ -110,7 +109,6 @@ class HoverBootRenderer(root: ModelPart) extends HumanoidModel[LivingEntity](roo
     young     = false
   }
 
-  // 1.21.1: Model.renderToBuffer / ModelPart.render 的 RGBA float 重载已被 (..., int color) 取代。
   override def renderToBuffer(
                                poseStack: PoseStack,
                                consumer: VertexConsumer,
@@ -122,43 +120,52 @@ class HoverBootRenderer(root: ModelPart) extends HumanoidModel[LivingEntity](roo
     super.renderToBuffer(poseStack, consumer, light, overlay, color)
     allLightParts.foreach(_.visible = true)
 
-    val a  = (color >>> 24) & 0xFF
+    val a  = ((color >>> 24) & 0xFF) / 255f
     val r  = ((color >>> 16) & 0xFF) / 255f
-    val g  = ((color >>> 8)  & 0xFF) / 255f
-    val b  = (color & 0xFF) / 255f
+    val g  = ((color >>>  8) & 0xFF) / 255f
+    val b  = ((color >>>  0) & 0xFF) / 255f
+
     val rm = ((lightColor >>> 16) & 0xFF) / 255f
-    val gm = ((lightColor >>> 8)  & 0xFF) / 255f
-    val bm = ((lightColor >>> 0)  & 0xFF) / 255f
+    val gm = ((lightColor >>>  8) & 0xFF) / 255f
+    val bm = ((lightColor >>>  0) & 0xFF) / 255f
+
     val fullBright = LightTexture.pack(15, 15)
 
-    def lightColorInt = FastColor.ARGB32.colorFromFloat(a / 255f, r * rm, g * gm, b * bm)
+    def lightPackedColor(): Int = {
+      val rr = ((r * rm) * 255).toInt & 0xFF
+      val gg = ((g * gm) * 255).toInt & 0xFF
+      val bb = ((b * bm) * 255).toInt & 0xFF
+      val aa = (a * 255).toInt & 0xFF
+      (aa << 24) | (rr << 16) | (gg << 8) | bb
+    }
+    val lc = lightPackedColor()
 
     poseStack.pushPose()
     leftLeg.translateAndRotate(poseStack)
     bootLeft.translateAndRotate(poseStack)
     bootLeft.getChild("wing0").translateAndRotate(poseStack)
-    light0.render(poseStack, consumer, fullBright, overlay, lightColorInt)
+    light0.render(poseStack, consumer, fullBright, overlay, lc)
     poseStack.popPose()
 
     poseStack.pushPose()
     leftLeg.translateAndRotate(poseStack)
     bootLeft.translateAndRotate(poseStack)
     bootLeft.getChild("wing1").translateAndRotate(poseStack)
-    light1.render(poseStack, consumer, fullBright, overlay, lightColorInt)
+    light1.render(poseStack, consumer, fullBright, overlay, lc)
     poseStack.popPose()
 
     poseStack.pushPose()
     rightLeg.translateAndRotate(poseStack)
     bootRight.translateAndRotate(poseStack)
     bootRight.getChild("wing2").translateAndRotate(poseStack)
-    light2.render(poseStack, consumer, fullBright, overlay, lightColorInt)
+    light2.render(poseStack, consumer, fullBright, overlay, lc)
     poseStack.popPose()
 
     poseStack.pushPose()
     rightLeg.translateAndRotate(poseStack)
     bootRight.translateAndRotate(poseStack)
     bootRight.getChild("wing3").translateAndRotate(poseStack)
-    light3.render(poseStack, consumer, fullBright, overlay, lightColorInt)
+    light3.render(poseStack, consumer, fullBright, overlay, lc)
     poseStack.popPose()
   }
 }

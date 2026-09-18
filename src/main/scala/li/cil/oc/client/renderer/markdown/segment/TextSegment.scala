@@ -23,9 +23,9 @@ private[markdown] class TextSegment(val parent: Segment, val text: String) exten
       val part = chars.take(numChars)
       hovered = hovered.orElse(resolvedInteractive.fold(None: Option[InteractiveSegment])(_.checkHovered(mouseX, mouseY, currentX, currentY, stringWidth(part, renderer), (Document.lineHeight(renderer) * resolvedScale).toInt)))
       stack.pushPose()
-      stack.translate(currentX, currentY, 0)
+      stack.translate(currentX.toFloat, currentY.toFloat, 0f)
       stack.scale(resolvedScale, resolvedScale, resolvedScale)
-      stack.translate(-currentX, -currentY, 0)
+      stack.translate((-currentX).toFloat, (-currentY).toFloat, 0f)
       graphics.drawString(renderer, resolvedFormat + part, currentX, currentY, resolvedColor)
       stack.popPose()
       currentX = x + wrapIndent

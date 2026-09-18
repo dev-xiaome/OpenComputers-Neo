@@ -1,19 +1,24 @@
 package li.cil.oc.common.nanomachines
 
-import li.cil.oc.OpenComputers
+import li.cil.oc.OpenComputersNeo
 import li.cil.oc.Settings
 import li.cil.oc.api
 import li.cil.oc.api.Persistable
 import li.cil.oc.api.nanomachines.Behavior
 import li.cil.oc.api.nanomachines.BehaviorProvider
+import li.cil.oc.common.datacomponents.OCComponents
 import li.cil.oc.server.PacketSender
 import li.cil.oc.util.ExtendedNBT._
+import li.cil.oc.util.ExtendedDataComponentHolder._
+import net.minecraft.core.HolderLookup
+import net.minecraft.core.component.DataComponentHolder
 import net.minecraft.nbt.CompoundTag
 import net.minecraft.nbt.Tag
 import net.minecraft.network.chat.Component
 import net.minecraft.{ChatFormatting, Util}
 import net.minecraft.server.level.ServerPlayer
 import net.minecraft.world.entity.player.Player
+import net.neoforged.neoforge.common.MutableDataComponentHolder
 
 import scala.collection.convert.ImplicitConversionsToScala._
 import scala.collection.mutable
@@ -101,7 +106,7 @@ class NeuralNetwork(controller: ControllerImpl) extends Persistable {
   def debug(): Unit = {
     val log = controller.player match {
       case playerMP: ServerPlayer => (s: String) => PacketSender.sendClientLog(s, playerMP)
-      case _ => (s: String) => OpenComputers.log.info(s)
+      case _ => (s: String) => OpenComputersNeo.log.info(s)
     }
     log(s"Creating debug configuration for nanomachines in player ${controller.player.getDisplayName.getString}.")
 
@@ -159,8 +164,16 @@ class NeuralNetwork(controller: ControllerImpl) extends Persistable {
     }
   }
 
-  override def saveData(nbt: CompoundTag): Unit = {
-    saveData(nbt, forItem = false)
+  override def saveData(holder: MutableDataComponentHolder): Unit = {
+    val tag = new CompoundTag()
+    saveData(tag, forItem = false)
+    holder.setComponent(OCComponents.NANOMACHINES_NETWORK_INFO, tag)
+  }
+
+  override def loadData(holder: DataComponentHolder): Unit = {
+    for(tag <- holder.getComponent(OCComponents.NANOMACHINES_NETWORK_INFO)) {
+      loadData(tag)
+    }
   }
 
   private final val TriggersTag = "triggers"
@@ -193,7 +206,7 @@ class NeuralNetwork(controller: ControllerImpl) extends Persistable {
     }))
   }
 
-  override def loadData(nbt: CompoundTag): Unit = {
+  def loadData(nbt: CompoundTag): Unit = {
     triggers.clear()
     nbt.getList(TriggersTag, Tag.TAG_COMPOUND).foreach((t: CompoundTag) => {
       val neuron = new TriggerNeuron()
