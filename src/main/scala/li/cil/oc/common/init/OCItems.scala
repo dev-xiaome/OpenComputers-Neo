@@ -194,7 +194,6 @@ object OCItems extends ItemAPI {
   def createConfiguredDrone(): ItemStack = {
     val data = new DroneData()
 
-    data.name = "Crecopter"
     data.tier = Tier.Five
     data.storedEnergy = Settings.get.bufferDrone.toInt
     data.components = Array(
@@ -239,7 +238,6 @@ object OCItems extends ItemAPI {
   def createConfiguredRobot(): ItemStack = {
     val data = new RobotData()
 
-    data.name = Component.literal("Creatix")
     data.tier = Tier.Five
     data.robotEnergy = Settings.get.bufferRobot.toInt
     data.totalEnergy = data.robotEnergy

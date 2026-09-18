@@ -87,7 +87,10 @@ class RobotData extends ItemData(Constants.BlockName.Robot) {
   }
 
   override def saveData(holder: MutableDataComponentHolder): Unit = {
-    holder.setComponent(DataComponents.CUSTOM_NAME, name)
+    // 没有自定义机名时不要写入 CUSTOM_NAME，让物品显示本地化名称。
+    if (name != null && !name.getString.isEmpty) {
+      holder.setComponent(DataComponents.CUSTOM_NAME, name)
+    }
     holder.setComponent(OCComponents.ROBOT_CHARGE, RobotChargeInfo(totalEnergy, robotEnergy))
     holder.setComponent(OCComponents.TIER, tier.toByte)
     holder.setComponent(OCComponents.COMPONENTS, components.map(ImmutableItemStack.copyOf).toList)
