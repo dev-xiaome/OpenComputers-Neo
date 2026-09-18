@@ -34,7 +34,10 @@ import java.util
 class RobotProxy(props: Properties) extends RedstoneAware(props) with traits.StateAware with traits.Tickable {
   val shape = VoxelShapes.box(0.1, 0.1, 0.1, 0.9, 0.9, 0.9)
 
-  override val getDescriptionId = "robot"
+  // 注意：不要覆盖 getDescriptionId，否则方块物品的显示名会变成裸字符串
+  // "robot"（语言文件里没有这个键）。显示名走 SimpleBlock 的 unlocalizedName
+  // （blockentity.oc.robot）；tooltip 仍使用下面的固定前缀。
+  private final val tooltipId = "robot"
 
   var moving = new ThreadLocal[Option[blockentity.Robot]] {
     override protected def initialValue = None
@@ -95,13 +98,13 @@ class RobotProxy(props: Properties) extends RedstoneAware(props) with traits.Sta
         val xp = stack.get(DataComponents.CUSTOM_DATA).getUnsafe.getDouble(Settings.namespace + "xp")
         val level = Math.min((Math.pow(xp - Settings.get.baseXpToLevel, 1 / Settings.get.exponentialXpGrowth) / Settings.get.constantXpGrowth).toInt, 30)
         if (level > 0) {
-          Tooltip.add(tooltip, flag, getDescriptionId + "_level", level)
+          Tooltip.add(tooltip, flag, tooltipId + "_level", level)
         }
       }
       if (stack.get(DataComponents.CUSTOM_DATA).contains(Settings.namespace + "storedEnergy")) {
         val energy = stack.get(DataComponents.CUSTOM_DATA).copyTag().getInt(Settings.namespace + "storedEnergy")
         if (energy > 0) {
-          Tooltip.add(tooltip, flag, getDescriptionId + "_storedenergy", energy)
+          Tooltip.add(tooltip, flag, tooltipId + "_storedenergy", energy)
         }
       }
     }
