@@ -116,7 +116,15 @@ object DynamicFontRenderer {
       }
       texture.upload()
 
-      val icon = new CharIcon(this, w, h, pad + x * uStep, pad + y * vStep, (x + glyphWidth) * uStep - pad, (y + 1) * vStep - pad)
+      // UV 必须严格对应上面实际拷进去的像素范围：每个 cell 左上各留 1 像素 padding，
+      // 双宽字符占两个 cell（宽度就是 w）。原来的 (x + glyphWidth) * uStep - pad 对
+      // 双宽字符会多算出 2 像素，采样到相邻 cell 的 padding，表现为每个汉字后面多出
+      // 一条颜色跟随背景的竖线；单宽字符恰好相等，所以英文一直看起来正常。
+      val icon = new CharIcon(this, w, h,
+        (x * cellWidth + 1) / size.toFloat,
+        (y * cellHeight + 1) / size.toFloat,
+        (x * cellWidth + 1 + w) / size.toFloat,
+        (y * cellHeight + 1 + h) / size.toFloat)
       chars += glyphWidth
       icon
     }
