@@ -240,7 +240,7 @@
   "oc:container.rack": "Rack",
   "oc:container.switch": "Switch",
   "oc:container.tabletwrapper": "Tablet",
-  "key.opencomputers.clipboardPaste": "Colar da área de transferência",
+  "key.OpenComputersNeo.clipboardPaste": "Paste Clipboard (Ctrl+V)",
   "key.opencomputers.materialCosts": "Mostrar custo dos materiais",
   "oc:tooltip.accesspoint": "Atua como um Switch, mas adicionalmente recebe pacotes sem fio e retransmite pacotes com fio sem fio.",
   "oc:tooltip.abstractbuscard": "Permite interagir com o barramento abstrato de §fStargateTech 2§7 enviando e recebendo pacotes LIP.",

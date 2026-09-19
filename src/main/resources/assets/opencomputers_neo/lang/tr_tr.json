@@ -232,7 +232,7 @@
   "oc:container.server": "Sunucu",
   "oc:container.rack": "Sunucu Rafı",
   "oc:container.tabletwrapper": "Tablet",
-  "key.opencomputers.clipboardPaste": "Panodan Yapıştır",
+  "key.OpenComputersNeo.clipboardPaste": "Paste Clipboard (Ctrl+V)",
   "oc:tooltip.abstractbuscard": "LIP paketleri alıp ileterek §fStargateTech 2§7'in soyut veriyolu ile iletişim kurmanızı sağlar.",
   "oc:tooltip.acid": "Zehirli, alkol kokan sıvımtırak bir şey. Belki askerde bazı manyak herifler kafayı bulmak için içer. Başka kullanım alanları da olabilir.",
   "oc:tooltip.adapter": "Parça olmayan blokları (örneğin \"vanilla\" bloklar veya diğer modların bloklarını) kumanda etmek için kullanılır.",

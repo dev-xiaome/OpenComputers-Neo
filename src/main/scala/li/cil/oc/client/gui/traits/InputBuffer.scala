@@ -129,6 +129,14 @@ trait InputBuffer extends DisplayBuffer {
         onClose()
         return true
       }
+      // Ctrl+V（macOS 上 Cmd+V）粘贴，与 clipboardPaste 键位/鼠标中键等效。
+      if (keyCode == GLFW.GLFW_KEY_V && (mods & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0) {
+        if (buffer != null) {
+          if (hasKeyboard) buffer.clipboard(Minecraft.getInstance.keyboardHandler.getClipboard, null)
+          else showKeyboardMissing = System.currentTimeMillis()
+        }
+        return true
+      }
       if (onInput(InputConstants.getKey(keyCode, scanCode))) return true
       if (buffer != null && keyCode != GLFW.GLFW_KEY_UNKNOWN) {
         if (hasKeyboard) pushQueuedKey(keyCode, scanCode, mods)

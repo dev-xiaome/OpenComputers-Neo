@@ -227,7 +227,7 @@
   "oc:container.rack": "伺服器機架",
   "oc:container.switch": "路由器",
   "oc:container.tabletwrapper": "平板電腦",
-  "key.opencomputers.clipboardPaste": "貼上剪貼簿",
+  "key.OpenComputersNeo.clipboardPaste": "从剪贴板粘贴 (Ctrl+V)",
   "key.opencomputers.materialCosts": "顯示材料成本",
   "oc:tooltip.accesspoint": "就像一個切換器，但它會接收無線封包並且轉換無線的封包變成有線的封包.",
   "oc:tooltip.abstractbuscard": "允許與 §fStargateTech 2§7 抽象卡傳送與接收 LIP 封包.",

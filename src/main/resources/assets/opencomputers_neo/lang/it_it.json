@@ -167,7 +167,7 @@
   "oc:container.switch": "Switch",
   "oc:container.tabletwrapper": "Tablet",
   "key.opencomputers.materialCosts": "Mostra Costi Materiali",
-  "key.opencomputers.clipboardPaste": "Copia negli Appunti",
+  "key.OpenComputersNeo.clipboardPaste": "Paste Clipboard (Ctrl+V)",
   "oc:tooltip.accesspoint": "Funziona come uno Switch, ma può anche ricevere pacchetti wireless ed inoltrare pacchetti ricevuti via cavo in modo wireless.",
   "oc:tooltip.abstractbuscard": "Consente di interagire con il bus astratto di §fStargateTech 2§7 inviando e ricevendo pacchetti LIP.",
   "oc:tooltip.acid": "Un liquido altamente tossico, normalmente consumato solo da alcuni pirati. Grazie alla sua natura corrosiva è particolarmente adatto per l'incisione dei circuiti stampati.",

@@ -237,7 +237,7 @@
   "oc:container.rack": "Серверная стойка",
   "oc:container.switch": "Коммутатор",
   "oc:container.tabletwrapper": "Планшет",
-  "key.opencomputers.clipboardPaste": "Вставить из буфера обмена",
+  "key.OpenComputersNeo.clipboardPaste": "Paste Clipboard (Ctrl+V)",
   "key.opencomputers.materialCosts": "Показать стоимость в материалах",
   "oc:tooltip.accesspoint": "Работает как коммутатор, но и с беспроводными сетями.",
   "oc:tooltip.abstractbuscard": "Обеспечивает взаимодействие с абстрактной шиной из §fStargateTech 2§7 (отправка и приём LIP-пакетов).",
