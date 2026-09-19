@@ -332,7 +332,9 @@ class Settings(val config: Config) {
   val maxScreenWidth = config.getInt("misc.maxScreenWidth") max 1
   val maxScreenHeight = config.getInt("misc.maxScreenHeight") max 1
   val inputUsername = config.getBoolean("misc.inputUsername")
-  val maxClipboardTextLength = config.getInt("misc.maxClipboard") max 0
+  // 语义：-1 = 不限制长度；0 = 禁止粘贴；正数 = 单次粘贴的最大字节数。
+  // 注意这里不能再用 max 0 收口，否则 -1 会被压成 0 变成"禁止粘贴"。
+  val maxClipboardTextLength = config.getInt("misc.maxClipboard")
   val initialNetworkPacketTTL = config.getInt("misc.initialNetworkPacketTTL") max 5
   val maxNetworkPacketSize = config.getInt("misc.maxNetworkPacketSize") max 0
   // Need at least 4 for nanomachine protocol. Because I can!

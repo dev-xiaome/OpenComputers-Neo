@@ -251,7 +251,8 @@ object PacketHandler extends CommonPacketHandler {
   def onClipboard(p: PacketParser): Unit = {
     val address = p.readUTF()
     val copy = p.readUTF()
-    if (copy.length > Settings.get.maxClipboardTextLength) return
+    val limit = Settings.get.maxClipboardTextLength
+    if (limit >= 0 && copy.length > limit) return
     ComponentTracker.get(p.player.level, address) match {
       case Some(buffer: api.internal.TextBuffer) if canInteractWith(buffer, p.player) => buffer.clipboard(copy, p.player)
       case _ => // Invalid Packet

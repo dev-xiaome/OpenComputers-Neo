@@ -101,12 +101,14 @@ object PacketSender {
 
   def sendClipboard(address: String, value: String): Unit = {
     if (value != null && !value.isEmpty) {
-      if (value.length > Settings.get.maxClipboardTextLength || System.currentTimeMillis() < clipboardCooldown) {
+      val limit = Settings.get.maxClipboardTextLength
+      if ((limit >= 0 && value.length > limit) || System.currentTimeMillis() < clipboardCooldown) {
         val handler = Minecraft.getInstance.getSoundManager
         handler.play(SimpleSoundInstance.forUI(SoundEvents.NOTE_BLOCK_HARP.value, 1, 1))
       }
       else {
-        clipboardCooldown = System.currentTimeMillis() + value.length / 10
+        // 按长度限速，防止连续粘贴刷屏；上限 2 秒，避免不限制长度时冷却时间离谱。
+        clipboardCooldown = System.currentTimeMillis() + math.min(value.length / 10, 2000)
         for (part <- value.grouped(16 * 1024)) {
           val pb = new CompressedPacketBuilder(PacketType.Clipboard)
 
