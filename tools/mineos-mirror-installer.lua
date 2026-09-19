@@ -1,7 +1,8 @@
--- MineOS installer (mirror edition)
+-- MineOS installer (gh-proxy edition)
 -- 原版会去 raw.githubusercontent.com 拉 Installer/Main.lua，该域名在部分网络下
--- DNS 无法解析。此版本改为从 jsDelivr 镜像下载，并在下载后把安装器内部的仓库
--- 地址一并改写成镜像，因此整条安装链都不再依赖 raw.githubusercontent.com。
+-- DNS 无法解析；jsDelivr 在部分网络下也会挑到无法连接的地址。此版本改为通过
+-- https://v4.gh-proxy.org/ 代理下载，并在下载后把安装器内部的仓库地址一并
+-- 改写成代理地址，因此整条安装链都不直接访问 raw.githubusercontent.com。
 --
 -- 用法：把本文件内容放进电脑（例如 edit /tmp/install.lua 后 Ctrl+V 粘贴），
 -- 保存并运行 /tmp/install.lua。它会刷好 EEPROM 并重启，之后自动进入安装器。
@@ -63,9 +64,9 @@ do
 	end
 end
 
--- Checking if installer can be downloaded from GitHub, because of PKIX errors, server blacklists, etc
+-- Checking if installer can be downloaded, because of PKIX errors, server blacklists, etc
 do
-	local success, result = pcall(component.internet.request, "https://cdn.jsdelivr.net/gh/IgorTimofeev/MineOS@master/Installer/Main.lua")
+	local success, result = pcall(component.internet.request, "https://v4.gh-proxy.org/https://raw.githubusercontent.com/IgorTimofeev/MineOS/master/Installer/Main.lua")
 
 	if not success then
 		if result then
@@ -109,7 +110,7 @@ end
 -- Flashing EEPROM with tiny script that will run installer itself after reboot.
 -- It's necessary, because we need clean computer without OpenOS hooks to computer.pullSignal()
 component.eeprom.set([[
-	local connection, data, chunk = component.proxy(component.list("internet")()).request("https://cdn.jsdelivr.net/gh/IgorTimofeev/MineOS@master/Installer/Main.lua"), ""
+	local connection, data, chunk = component.proxy(component.list("internet")()).request("https://v4.gh-proxy.org/https://raw.githubusercontent.com/IgorTimofeev/MineOS/master/Installer/Main.lua"), ""
 	
 	while true do
 		chunk = connection.read(math.huge)
@@ -123,8 +124,8 @@ component.eeprom.set([[
 	
 	connection.close()
 	
-	-- 把安装器内部的仓库地址也指向镜像，否则安装过程中仍会去访问 raw.githubusercontent.com
-	data = data:gsub("https://raw%.githubusercontent%.com/IgorTimofeev/MineOS/master/", "https://cdn.jsdelivr.net/gh/IgorTimofeev/MineOS@master/")
+	-- 把安装器内部的仓库地址也指向代理，否则安装过程中仍会去访问 raw.githubusercontent.com
+	data = data:gsub("https://raw%.githubusercontent%.com/IgorTimofeev/MineOS/master/", "https://v4.gh-proxy.org/https://raw.githubusercontent.com/IgorTimofeev/MineOS/master/")
 	
 	load(data)()
 ]])
