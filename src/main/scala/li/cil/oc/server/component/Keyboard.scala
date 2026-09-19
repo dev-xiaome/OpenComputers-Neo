@@ -90,6 +90,16 @@ class Keyboard(val host: EnvironmentHost) extends AbstractManagedEnvironment wit
         }
       case Array(p: Player, codePt: Integer) if message.name == "keyboard.textInput" =>
         if (isUsableByPlayer(p)) {
+          // OpenOS 的终端只监听 key_down，随包的 Lua 代码里没有任何地方消费
+          // text_input，所以输入法提交的字符（没有对应按键事件，例如中文）
+          // 会在这里丢掉。按 OC 对非 ASCII 字符的既有约定补发一个 code = 0 的
+          // key_down，字符才能真正进入电脑。
+          if (Settings.get.inputUsername) {
+            signal(p, "key_down", codePt, Int.box(0), p.getName.getString)
+          }
+          else {
+            signal(p, "key_down", codePt, Int.box(0))
+          }
           if (Settings.get.inputUsername) {
             signal(p, "text_input", new String(Character.toChars(codePt)), p.getName.getString)
           }

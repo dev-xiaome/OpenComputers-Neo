@@ -40,15 +40,14 @@ trait InputBuffer extends DisplayBuffer {
   }
 
   protected def pushQueuedChar(char: Char): Unit = {
-    // 临时诊断：确认字符走到了发往电脑的那一步。
-    li.cil.oc.OpenComputersNeo.log.info(s"[OC-IME] pushQueuedChar char='$char' (U+${Integer.toHexString(char.toInt).toUpperCase})")
     if (hasQueuedKey) {
       if (!Character.isSurrogate(char)) queuedChar = char
       // Flush either way as the next code point will be unrelated.
+      // 字符已经跟着 key_down 一起发过了，不要再走 text_input，
+      // 否则服务端为兼容而补发的 key_down 会让普通按键字符重复输入。
       flushQueuedKey()
     }
-    // text_input happens independent of key events
-    if (Character.isSurrogate(char)) {
+    else if (Character.isSurrogate(char)) {
       // Convert two successive surrogates back into a code point.
       if (Character.isHighSurrogate(char)) highSurrogate = char
       else buffer.textInput(Character.toCodePoint(highSurrogate, char), null)
@@ -115,11 +114,6 @@ trait InputBuffer extends DisplayBuffer {
   }
 
   override def charTyped(codePt: Char, mods: Int): Boolean = {
-    // 临时诊断：确认中文输入法提交的字符到底有没有到达这里。
-    li.cil.oc.OpenComputersNeo.log.info(
-      s"[OC-IME] charTyped cp=U+${Integer.toHexString(codePt.toInt).toUpperCase} char='$codePt' mods=$mods " +
-        s"buffer=${buffer != null} hasKeyboard=$hasKeyboard container=${this.isInstanceOf[AbstractContainerScreen[_]]} " +
-        s"searchFocused=${ItemSearch.isInputFocused}")
     if (!this.isInstanceOf[AbstractContainerScreen[_]] || !ItemSearch.isInputFocused) {
       if (buffer != null) {
         if (hasKeyboard) pushQueuedChar(codePt)
