@@ -362,7 +362,13 @@ object InternetCard {
     // because the scala compiler breaks otherwise. Yay for compiler bugs.
     private class AddressResolver(val uri: URI, val port: Int) extends Callable[InetAddress] {
       override def call(): InetAddress = {
-        val resolved = InetAddress.getByName(uri.getHost)
+        // 原来只取 InetAddress.getByName 的第一个结果，而双栈环境下这个顺序由 JVM
+        // 决定，挑中的地址一旦不可达（例如运营商只给 IPv6/NAT64、或某个 CDN 节点
+        // 被阻断）连接就会直接失败，表现为 "Connection refused/reset"。
+        // 这里显式优先 IPv4 —— 它是最通用的出口；只有完全没有 IPv4 记录时才退回
+        // IPv6，纯 IPv6 环境不受影响。
+        val candidates = InetAddress.getAllByName(uri.getHost)
+        val resolved = candidates.find(_.isInstanceOf[Inet4Address]).getOrElse(candidates(0))
         checkLists(resolved, uri.getHost)
         val address = new InetSocketAddress(resolved, if (uri.getPort != -1) uri.getPort else port)
         channel.connect(address)
