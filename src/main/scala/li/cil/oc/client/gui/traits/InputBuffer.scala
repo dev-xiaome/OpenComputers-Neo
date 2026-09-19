@@ -5,8 +5,10 @@ import li.cil.oc.api
 import li.cil.oc.client.{KeyBindings, Textures}
 import li.cil.oc.integration.util.ItemSearch
 import net.minecraft.client.Minecraft
+import net.minecraft.client.gui.components.EditBox
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen
 import net.minecraft.client.gui.GuiGraphics
+import net.minecraft.network.chat.Component
 import org.lwjgl.glfw.GLFW
 
 import java.util
@@ -73,8 +75,38 @@ trait InputBuffer extends DisplayBuffer {
 
   override def isPauseScreen = false
 
+  // 内置输入法 mod（ContingameIME / IngameIME 系）只在“有 EditBox 获得焦点”或
+  // 原生告示牌编辑界面时才激活输入法，OC 的电脑界面两者都不是，所以中文输入法
+  // 永远不会被打开。这里放一个不渲染、不加入控件列表的 EditBox 当桥接：
+  // 输入法据此认为界面可输入并开启；提交的文本若写进 EditBox 就由 responder
+  // 转发进电脑，若走 charTyped 则由上面的重写直接处理。
+  private var imeBridge: EditBox = _
+
+  private def installImeBridge(): Unit = {
+    if (imeBridge == null) {
+      imeBridge = new EditBox(Minecraft.getInstance().font, 0, 0, 0, 0, Component.empty())
+      imeBridge.setVisible(false)
+      imeBridge.setEditable(true)
+      imeBridge.setResponder(text => {
+        if (text != null && text.nonEmpty) {
+          if (buffer != null && hasKeyboard) {
+            var i = 0
+            while (i < text.length) {
+              val codePoint = text.codePointAt(i)
+              buffer.textInput(codePoint, null)
+              i += Character.charCount(codePoint)
+            }
+          }
+          imeBridge.setValue("")
+        }
+      })
+    }
+    imeBridge.setFocused(true)
+  }
+
   override protected def init() = {
     super.init()
+    installImeBridge()
   }
 
   override protected def drawBufferLayer(graphics: GuiGraphics): Unit = {
@@ -93,6 +125,10 @@ trait InputBuffer extends DisplayBuffer {
 
   override def removed() = {
     super.removed()
+    // 关掉输入法桥，避免离开电脑界面后输入法仍处于开启状态。
+    if (imeBridge != null) {
+      imeBridge.setFocused(false)
+    }
     if (buffer != null) {
       flushQueuedKey()
       for ((_, (char, lwjglCode)) <- pressedKeys) {
